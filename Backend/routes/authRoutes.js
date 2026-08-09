@@ -6,6 +6,10 @@ const authController = require('../controller/authController');
 router.post('/signup', authController.manualSignUp);
 router.post('/login', authController.manualLogin);
 
+// Email Verification (Resend OTP) Routes
+router.post('/send-otp', authController.sendOtp);
+router.post('/verify-otp', authController.verifyOtp);
+
 // Google OAuth Routes
 router.get('/google', authController.googleOAuthRedirect);
 router.get('/google/callback', authController.googleOAuthCallback);
