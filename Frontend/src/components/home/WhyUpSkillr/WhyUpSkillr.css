@@ -1,11 +1,12 @@
 .why-section {
   background-color: var(--background);
+  padding-bottom: 56px;
 }
 
 .why-container {
   display: grid;
-  grid-template-columns: 1fr 1.1fr 1fr;
-  gap: 40px;
+  grid-template-columns: 1fr 1.15fr 1fr;
+  gap: 32px;
   align-items: flex-start;
 }
 
@@ -26,13 +27,13 @@
   font-weight: 800;
   color: var(--text-primary);
   letter-spacing: -0.5px;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
 .why-features-list {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
 .why-feature-item {
@@ -56,6 +57,7 @@
 .why-feature-text {
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
 
 .why-feature-heading {
@@ -71,12 +73,66 @@
   line-height: 1.5;
 }
 
-/* TESTIMONIAL CARD */
+.progress-mock-card {
+  margin-top: 10px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  box-shadow: var(--shadow-sm);
+  width: 100%;
+  max-width: 320px;
+}
+
+.progress-mock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.progress-mock-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.progress-check-icon {
+  color: var(--brand-accent-text);
+}
+
+.progress-mock-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.progress-mock-percent {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--brand-accent-text);
+}
+
+.progress-mock-bar-track {
+  width: 100%;
+  height: 6px;
+  background-color: var(--brand-soft);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.progress-mock-bar-fill {
+  height: 100%;
+  background-color: var(--brand-primary);
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
 .testimonial-card {
   background-color: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 32px 28px;
+  padding: 28px 24px;
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
@@ -89,7 +145,7 @@
   color: var(--text-primary);
   line-height: 1.6;
   font-weight: 500;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
   font-style: italic;
 }
 
@@ -163,11 +219,10 @@
   background-color: var(--brand-soft);
 }
 
-/* RESPONSIVE WHY SECTION */
 @media (max-width: 1024px) {
   .why-container {
     grid-template-columns: 1fr 1fr;
-    gap: 32px;
+    gap: 28px;
   }
   .why-illustration-col {
     grid-column: span 2;
@@ -177,7 +232,7 @@
 @media (max-width: 768px) {
   .why-container {
     grid-template-columns: 1fr;
-    gap: 40px;
+    gap: 32px;
   }
   .why-illustration-col {
     grid-column: span 1;

@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment Files
+.env
+.env.*
+!.env.example
+*.env
+
+# Build & Production Outputs
+dist/
+**/dist/
+dist-ssr/
+build/
+**/build/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Cache & Runtime Artifacts
+.vite/
+.cache/
+.eslintcache
+*.local
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS System Files
+.DS_Store
+Thumbs.db

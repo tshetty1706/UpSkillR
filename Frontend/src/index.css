@@ -42,7 +42,9 @@
   --radius-lg: 16px;
   --radius-xl: 24px;
   --radius-pill: 9999px;
-  --max-width: 1240px;
+
+  /* Standard Project Container Constraint (Max Width: 1440px) */
+  --max-width: 1440px;
 }
 
 .dark {
@@ -89,6 +91,7 @@
 
 html {
   scroll-behavior: smooth;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -101,14 +104,45 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Responsive Image Rule */
+img, svg, video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Accessibility Focus Visible Styles */
+a:focus-visible, 
+button:focus-visible, 
+input:focus-visible, 
+select:focus-visible, 
+textarea:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Standardized Responsive Page Container */
 .container {
   width: 100%;
   max-width: var(--max-width);
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 32px;
 }
 
-/* Typography */
+/* Responsive Container Padding Breakpoints */
+@media (max-width: 1023px) {
+  .container {
+    padding: 0 24px;
+  }
+}
+
+@media (max-width: 767px) {
+  .container {
+    padding: 0 16px;
+  }
+}
+
+/* Typography Scale */
 h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
   color: var(--text-primary);
@@ -135,6 +169,7 @@ h1, h2, h3, h4, h5, h6 {
   transition: all 0.2s ease;
   text-decoration: none;
   white-space: nowrap;
+  min-height: 44px; /* Touch target minimum height */
 }
 
 .btn-primary {
@@ -185,24 +220,19 @@ h1, h2, h3, h4, h5, h6 {
   background-color: var(--brand-primary);
 }
 
+/* Standard Section Padding */
 .section {
-  padding: 72px 0;
+  padding: 64px 0;
 }
 
-@media (max-width: 992px) {
-  .container {
-    padding: 0 20px;
-  }
+@media (max-width: 1023px) {
   .section {
-    padding: 52px 0;
+    padding: 48px 0;
   }
 }
 
-@media (max-width: 640px) {
-  .container {
-    padding: 0 16px;
-  }
+@media (max-width: 767px) {
   .section {
-    padding: 40px 0;
+    padding: 36px 0;
   }
 }

@@ -8,37 +8,37 @@ export const PopularCategories = () => {
       id: 1,
       name: 'Development',
       courses: '1,250 Courses',
-      icon: <Code size={32} />
+      icon: <Code size={32} aria-hidden="true" />
     },
     {
       id: 2,
       name: 'Data Science',
       courses: '850 Courses',
-      icon: <Database size={32} />
+      icon: <Database size={32} aria-hidden="true" />
     },
     {
       id: 3,
       name: 'Design',
       courses: '980 Courses',
-      icon: <Palette size={32} />
+      icon: <Palette size={32} aria-hidden="true" />
     },
     {
       id: 4,
       name: 'Business',
       courses: '760 Courses',
-      icon: <BarChart3 size={32} />
+      icon: <BarChart3 size={32} aria-hidden="true" />
     },
     {
       id: 5,
       name: 'Marketing',
       courses: '620 Courses',
-      icon: <Megaphone size={32} />
+      icon: <Megaphone size={32} aria-hidden="true" />
     },
     {
       id: 6,
       name: 'Personal Growth',
       courses: '540 Courses',
-      icon: <UserRound size={32} />
+      icon: <UserRound size={32} aria-hidden="true" />
     }
   ];
 
@@ -52,7 +52,7 @@ export const PopularCategories = () => {
 
         <div className="categories-grid">
           {categories.map((cat) => (
-            <div key={cat.id} className="category-card">
+            <div key={cat.id} className="category-card" tabIndex={0} role="button" aria-label={`${cat.name}, ${cat.courses}`}>
               <div className="category-icon-wrapper">
                 {cat.icon}
               </div>

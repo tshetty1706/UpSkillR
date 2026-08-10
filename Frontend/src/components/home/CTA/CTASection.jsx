@@ -13,8 +13,8 @@ export const CTASection = () => {
           </div>
 
           <div className="cta-action">
-            <a href="#" className="btn cta-btn">
-              Start Learning for Free <ArrowRight size={18} />
+            <a href="#" className="btn cta-btn" aria-label="Start Learning for Free">
+              Start Learning for Free <ArrowRight size={18} aria-hidden="true" />
             </a>
           </div>
         </div>

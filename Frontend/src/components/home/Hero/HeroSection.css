@@ -12,18 +12,22 @@
   align-items: center;
 }
 
+/* LEFT COLUMN - CONTENT */
 .hero-content {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  z-index: 2;
+  width: 100%;
 }
 
 .hero-badge {
   margin-bottom: 20px;
 }
 
+/* Fluid Typography using clamp() */
 .hero-title {
-  font-size: 52px;
+  font-size: clamp(2.25rem, 4vw, 3.25rem);
   font-weight: 800;
   letter-spacing: -1.2px;
   line-height: 1.12;
@@ -32,30 +36,31 @@
 }
 
 .hero-description {
-  font-size: 17px;
+  font-size: clamp(0.95rem, 1.5vw, 1.08rem);
   color: var(--text-secondary);
   line-height: 1.6;
-  max-width: 500px;
-  margin-bottom: 32px;
+  max-width: 520px;
+  margin-bottom: 24px;
 }
 
 .hero-buttons {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-bottom: 44px;
+  margin-bottom: 40px;
+  flex-wrap: wrap;
 }
 
 .hero-btn-primary {
   padding: 13px 28px;
   font-size: 16px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
 }
 
 .hero-btn-secondary {
   padding: 13px 24px;
   font-size: 16px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
 }
 
 .hero-benefits {
@@ -76,52 +81,101 @@
 
 .benefit-icon {
   color: var(--brand-accent-text);
+  flex-shrink: 0;
 }
 
-/* RIGHT COLUMN - VISUAL */
+/* RIGHT COLUMN - VISUAL AREA WITH DECORATIVE ELEMENTS */
 .hero-visual {
   position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
+  padding: 20px;
+  min-height: 380px;
+  width: 100%;
+}
+
+.hero-circle-tr {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: min(210px, 45vw);
+  height: min(210px, 45vw);
+  border-radius: 50%;
+  background-color: var(--brand-light);
+  opacity: 0.85;
+  z-index: 1;
+  pointer-events: none;
+  transition: background-color 0.25s ease;
+}
+
+.hero-circle-bl {
+  position: absolute;
+  bottom: 10px;
+  left: -10px;
+  width: min(140px, 30vw);
+  height: min(140px, 30vw);
+  border-radius: 50%;
+  background-color: var(--brand-light);
+  opacity: 0.65;
+  z-index: 1;
+  pointer-events: none;
+  transition: background-color 0.25s ease;
 }
 
 .hero-glow-bg {
   position: absolute;
-  width: 380px;
-  height: 380px;
-  background: var(--hero-glow);
-  filter: blur(60px);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, 80vw);
+  height: min(440px, 80vw);
+  background: radial-gradient(circle, var(--hero-glow) 0%, transparent 68%);
+  z-index: 2;
+  pointer-events: none;
   border-radius: 50%;
-  z-index: 0;
+}
+
+.hero-dots-pattern {
+  position: absolute;
+  top: 32%;
+  right: -5px;
+  z-index: 3;
+  pointer-events: none;
+  max-width: 30%;
+  height: auto;
 }
 
 .hero-image-wrapper {
   position: relative;
-  z-index: 1;
-  width: 100%;
-  max-width: 480px;
-  border-radius: var(--radius-lg);
+  z-index: 5;
+  width: 88%;
+  max-width: 440px;
+  border-radius: 18px;
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--border);
   background-color: var(--surface);
-  padding: 6px;
-  transition: transform 0.3s ease;
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .hero-image-wrapper:hover {
   transform: translateY(-2px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+}
+
+.dark .hero-image-wrapper:hover {
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
 }
 
 .hero-img {
   width: 100%;
   height: auto;
   display: block;
-  border-radius: calc(var(--radius-lg) - 4px);
+  border-radius: 17px;
   object-fit: cover;
 }
 
-/* Floating Widgets */
 .floating-card {
   position: absolute;
   display: flex;
@@ -135,16 +189,21 @@
   z-index: 10;
   backdrop-filter: blur(8px);
   transition: all 0.25s ease;
+  max-width: 90%;
+}
+
+.floating-card:hover {
+  transform: translateY(-2px);
 }
 
 .float-top-left {
   top: 24px;
-  left: -28px;
+  left: 0px;
 }
 
 .float-bottom-right {
-  bottom: 32px;
-  right: -24px;
+  bottom: 28px;
+  right: 0px;
 }
 
 .float-icon-box {
@@ -154,6 +213,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .green-icon-bg {
@@ -187,8 +247,8 @@
   font-weight: 500;
 }
 
-/* RESPONSIVE HERO */
-@media (max-width: 1024px) {
+/* RESPONSIVE TABLET & MOBILE BREAKPOINTS */
+@media (max-width: 1023px) {
   .hero-container {
     grid-template-columns: 1fr;
     gap: 40px;
@@ -202,29 +262,25 @@
   .hero-description {
     max-width: 600px;
   }
-  
+
+  .hero-buttons {
+    justify-content: center;
+  }
+
   .hero-benefits {
     justify-content: center;
   }
 
   .float-top-left {
-    left: 10px;
+    left: 8px;
   }
   
   .float-bottom-right {
-    right: 10px;
+    right: 8px;
   }
 }
 
 @media (max-width: 640px) {
-  .hero-title {
-    font-size: 36px;
-  }
-  
-  .hero-description {
-    font-size: 15px;
-  }
-
   .hero-buttons {
     flex-direction: column;
     width: 100%;
@@ -239,13 +295,17 @@
     gap: 12px;
   }
 
+  .hero-image-wrapper {
+    width: 95%;
+  }
+
   .float-top-left {
     top: -12px;
-    left: 0;
+    left: 4px;
   }
   
   .float-bottom-right {
     bottom: -12px;
-    right: 0;
+    right: 4px;
   }
 }

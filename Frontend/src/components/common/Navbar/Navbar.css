@@ -149,7 +149,6 @@
   margin-top: 8px;
 }
 
-/* Responsive adjustments */
 @media (max-width: 992px) {
   .navbar-nav {
     display: none;

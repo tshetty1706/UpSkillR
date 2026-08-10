@@ -75,7 +75,6 @@
   font-weight: 500;
 }
 
-/* RESPONSIVE GRID */
 @media (max-width: 1200px) {
   .categories-grid {
     grid-template-columns: repeat(3, 1fr);

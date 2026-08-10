@@ -1,25 +1,15 @@
 import React from 'react';
 import { ThemeProvider } from './context/ThemeContext';
-import { Navbar } from './components/Navbar';
-import { HeroSection } from './components/HeroSection';
-import { StatsSection } from './components/StatsSection';
-import { PopularCategories } from './components/PopularCategories';
-import { WhyUpSkillr } from './components/WhyUpSkillr';
-import { CTASection } from './components/CTASection';
-import { Footer } from './components/Footer';
+import { Navbar } from './components/common/Navbar/Navbar';
+import { HomePage } from './pages/Home/HomePage';
+import { Footer } from './components/common/Footer/Footer';
 
 function App() {
   return (
     <ThemeProvider>
       <div className="app-main">
         <Navbar />
-        <main>
-          <HeroSection />
-          <StatsSection />
-          <PopularCategories />
-          <WhyUpSkillr />
-          <CTASection />
-        </main>
+        <HomePage />
         <Footer />
       </div>
     </ThemeProvider>

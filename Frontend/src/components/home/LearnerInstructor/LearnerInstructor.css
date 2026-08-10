@@ -1,0 +1,79 @@
+.learner-instructor-section {
+  background-color: var(--background);
+}
+
+.learner-instructor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 32px;
+}
+
+.role-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 40px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.role-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--brand-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.role-icon-box {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background-color: var(--brand-soft);
+  color: var(--brand-accent-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.role-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  letter-spacing: -0.4px;
+}
+
+.role-description {
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.role-cta-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--brand-accent-text);
+  text-decoration: none;
+  transition: gap 0.2s ease;
+}
+
+.role-cta-link:hover {
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .learner-instructor-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  
+  .role-card {
+    padding: 32px 24px;
+  }
+}
