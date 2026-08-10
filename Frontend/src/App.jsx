@@ -1,13 +1,19 @@
-import { useState } from 'react'
-import './App.css'
+import React from 'react';
+import { ThemeProvider } from './context/ThemeContext';
+import { Navbar } from './components/common/Navbar/Navbar';
+import { HomePage } from './pages/Home/HomePage';
+import { Footer } from './components/common/Footer/Footer';
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-    </>
-  )
+    <ThemeProvider>
+      <div className="app-main">
+        <Navbar />
+        <HomePage />
+        <Footer />
+      </div>
+    </ThemeProvider>
+  );
 }
 
-export default App
+export default App;
