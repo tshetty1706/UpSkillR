@@ -1,0 +1,251 @@
+.hero-section {
+  padding-top: 56px;
+  padding-bottom: 72px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-container {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 48px;
+  align-items: center;
+}
+
+.hero-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.hero-badge {
+  margin-bottom: 20px;
+}
+
+.hero-title {
+  font-size: 52px;
+  font-weight: 800;
+  letter-spacing: -1.2px;
+  line-height: 1.12;
+  margin-bottom: 20px;
+  color: var(--text-primary);
+}
+
+.hero-description {
+  font-size: 17px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 500px;
+  margin-bottom: 32px;
+}
+
+.hero-buttons {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 44px;
+}
+
+.hero-btn-primary {
+  padding: 13px 28px;
+  font-size: 16px;
+  border-radius: var(--radius-sm);
+}
+
+.hero-btn-secondary {
+  padding: 13px 24px;
+  font-size: 16px;
+  border-radius: var(--radius-sm);
+}
+
+.hero-benefits {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.benefit-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.benefit-icon {
+  color: var(--brand-accent-text);
+}
+
+/* RIGHT COLUMN - VISUAL */
+.hero-visual {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.hero-glow-bg {
+  position: absolute;
+  width: 380px;
+  height: 380px;
+  background: var(--hero-glow);
+  filter: blur(60px);
+  border-radius: 50%;
+  z-index: 0;
+}
+
+.hero-image-wrapper {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 480px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  padding: 6px;
+  transition: transform 0.3s ease;
+}
+
+.hero-image-wrapper:hover {
+  transform: translateY(-2px);
+}
+
+.hero-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: calc(var(--radius-lg) - 4px);
+  object-fit: cover;
+}
+
+/* Floating Widgets */
+.floating-card {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: var(--floating-card-bg);
+  border: 1px solid var(--floating-card-border);
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: 10;
+  backdrop-filter: blur(8px);
+  transition: all 0.25s ease;
+}
+
+.float-top-left {
+  top: 24px;
+  left: -28px;
+}
+
+.float-bottom-right {
+  bottom: 32px;
+  right: -24px;
+}
+
+.float-icon-box {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.green-icon-bg {
+  background-color: var(--brand-soft);
+  color: var(--brand-accent-text);
+}
+
+.flame-icon-bg {
+  background-color: rgba(245, 158, 11, 0.12);
+}
+
+.flame-emoji {
+  font-size: 18px;
+}
+
+.float-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.float-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.float-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* RESPONSIVE HERO */
+@media (max-width: 1024px) {
+  .hero-container {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+  
+  .hero-content {
+    align-items: center;
+    text-align: center;
+  }
+  
+  .hero-description {
+    max-width: 600px;
+  }
+  
+  .hero-benefits {
+    justify-content: center;
+  }
+
+  .float-top-left {
+    left: 10px;
+  }
+  
+  .float-bottom-right {
+    right: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-title {
+    font-size: 36px;
+  }
+  
+  .hero-description {
+    font-size: 15px;
+  }
+
+  .hero-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .hero-btn-primary, .hero-btn-secondary {
+    width: 100%;
+  }
+
+  .hero-benefits {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .float-top-left {
+    top: -12px;
+    left: 0;
+  }
+  
+  .float-bottom-right {
+    bottom: -12px;
+    right: 0;
+  }
+}

@@ -1,13 +1,29 @@
-import { useState } from 'react'
-import './App.css'
+import React from 'react';
+import { ThemeProvider } from './context/ThemeContext';
+import { Navbar } from './components/Navbar';
+import { HeroSection } from './components/HeroSection';
+import { StatsSection } from './components/StatsSection';
+import { PopularCategories } from './components/PopularCategories';
+import { WhyUpSkillr } from './components/WhyUpSkillr';
+import { CTASection } from './components/CTASection';
+import { Footer } from './components/Footer';
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-    </>
-  )
+    <ThemeProvider>
+      <div className="app-main">
+        <Navbar />
+        <main>
+          <HeroSection />
+          <StatsSection />
+          <PopularCategories />
+          <WhyUpSkillr />
+          <CTASection />
+        </main>
+        <Footer />
+      </div>
+    </ThemeProvider>
+  );
 }
 
-export default App
+export default App;

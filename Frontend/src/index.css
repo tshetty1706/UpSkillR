@@ -1,0 +1,208 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  /* Brand Green Palette - Light Mode */
+  --brand-primary: #116830;
+  --brand-primary-hover: #0D5728;
+  --brand-light: #E7F4E9;
+  --brand-soft: #F1F8F2;
+  --brand-dark: #0A4F25;
+  --brand-accent-text: #116830;
+
+  /* Primary Button Text Color */
+  --btn-primary-text: #FFFFFF;
+
+  /* Surfaces & Backgrounds */
+  --background: #FFFFFF;
+  --surface: #FFFFFF;
+  --surface-muted: #F7FAF8;
+  --surface-elevated: #FFFFFF;
+  --stats-bg: #F1F8F2;
+  --stats-border: #E1EFE4;
+
+  /* Typography */
+  --text-primary: #101820;
+  --text-secondary: #4B5563;
+  --text-muted: #6B7280;
+
+  /* Borders & Shadows */
+  --border: #E5EAE7;
+  --border-subtle: #EEF2EF;
+  --shadow-sm: 0 2px 8px rgba(17, 104, 48, 0.05);
+  --shadow-md: 0 6px 18px rgba(17, 104, 48, 0.08);
+  --shadow-lg: 0 12px 32px rgba(17, 104, 48, 0.12);
+  --hero-glow: rgba(17, 104, 48, 0.08);
+  --floating-card-bg: #FFFFFF;
+  --floating-card-border: #E5EAE7;
+
+  /* Layout & Fonts */
+  --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 9999px;
+  --max-width: 1240px;
+}
+
+.dark {
+  /* Brand Green Palette - Dark Mode */
+  --brand-primary: #39D95F;
+  --brand-primary-hover: #50E76F;
+  --brand-light: #12351F;
+  --brand-soft: #10261B;
+  --brand-dark: #0A4F25;
+  --brand-accent-text: #39D95F;
+
+  /* Primary Button Text Color */
+  --btn-primary-text: #090F13;
+
+  /* Surfaces & Backgrounds */
+  --background: #090F13;
+  --surface: #101B18;
+  --surface-muted: #0D1715;
+  --surface-elevated: #13221D;
+  --stats-bg: #0D1715;
+  --stats-border: #1C5A32;
+
+  /* Typography */
+  --text-primary: #F5F7F6;
+  --text-secondary: #A7B3AD;
+  --text-muted: #798A82;
+
+  /* Borders & Shadows */
+  --border: #1D3329;
+  --border-subtle: #142820;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --hero-glow: rgba(57, 217, 95, 0.07);
+  --floating-card-bg: #101B18;
+  --floating-card-border: #1D3329;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--background);
+  color: var(--text-primary);
+  line-height: 1.5;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container {
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.accent-green {
+  color: var(--brand-accent-text);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-family);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 11px 22px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background-color: var(--brand-primary);
+  color: var(--btn-primary-text);
+}
+
+.btn-primary:hover {
+  background-color: var(--brand-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(17, 104, 48, 0.2);
+}
+
+.dark .btn-primary:hover {
+  box-shadow: 0 4px 12px rgba(57, 217, 95, 0.25);
+}
+
+.btn-outline {
+  background-color: transparent;
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.btn-outline:hover {
+  border-color: var(--brand-primary);
+  color: var(--brand-accent-text);
+  background-color: var(--brand-soft);
+}
+
+/* Pill Badges */
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background-color: var(--brand-soft);
+  color: var(--brand-accent-text);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--border-subtle);
+}
+
+.badge-pill .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--brand-primary);
+}
+
+.section {
+  padding: 72px 0;
+}
+
+@media (max-width: 992px) {
+  .container {
+    padding: 0 20px;
+  }
+  .section {
+    padding: 52px 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding: 0 16px;
+  }
+  .section {
+    padding: 40px 0;
+  }
+}
