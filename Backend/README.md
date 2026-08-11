@@ -125,18 +125,33 @@ EMAIL_PASS=your_gmail_app_password
 - A **MongoDB Atlas** cluster (free tier works)
 - A **Gmail** account with App Passwords enabled
 
-### 2. Installation
+### 2. Clone the Repository
 ```bash
-cd Backend
+git clone https://github.com/tshetty1706/UpSkillR.git
+cd UpSkillR/Backend
+```
+
+### 3. Install Dependencies
+```bash
 npm install
 ```
 
-### 3. Configure Environment
-Copy `.env.example` to `.env` and fill in your credentials.
-
-### 4. Start the Server
+### 4. Configure Environment
 ```bash
-# Development (with auto-restart via nodemon)
+# Copy the example env file and fill in your credentials
+copy .env.example .env
+```
+Open `.env` and replace all placeholder values with your real credentials (see [Environment Variables](#️-environment-variables) above).
+
+### 5. Run the Server
+
+| Command | Description |
+|---|---|
+| `npm run dev` | Start in development mode with **nodemon** (auto-restarts on file changes) |
+| `npm start` | Start in production mode |
+
+```bash
+# Development (recommended during active development)
 npm run dev
 
 # Production

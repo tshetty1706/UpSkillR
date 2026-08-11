@@ -132,29 +132,40 @@ All pages comply with the project's **no horizontal scroll** rule and use `clamp
 
 ### 1. Prerequisites
 - **Node.js** v18 or higher
-- Backend server running on `http://localhost:5000`
+- Backend server running on `http://localhost:5000` (see [Backend README](../Backend/README.md))
 
-### 2. Installation
+### 2. Clone the Repository
 ```bash
-cd Frontend
+git clone https://github.com/tshetty1706/UpSkillR.git
+cd UpSkillR/Frontend
+```
+
+### 3. Install Dependencies
+```bash
 npm install
 ```
 
-### 3. Development Server
+### 4. Available Scripts
+
+| Command | Description |
+|---|---|
+| `npm run dev` | Start the **Vite dev server** with HMR at `http://localhost:5173` |
+| `npm run build` | Build optimised production bundle → `dist/` |
+| `npm run preview` | Locally preview the production build |
+| `npm run lint` | Run **ESLint** to check for code issues |
+
 ```bash
+# Start development server
 npm run dev
-```
-Opens at [http://localhost:5173](http://localhost:5173)
 
-### 4. Production Build
-```bash
+# Build for production
 npm run build
-```
-Output is generated in the `dist/` directory.
 
-### 5. Preview Production Build
-```bash
+# Preview the production build locally
 npm run preview
+
+# Lint the codebase
+npm run lint
 ```
 
 ---
