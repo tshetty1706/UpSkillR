@@ -1,13 +1,20 @@
+# ──────────────────────────────────────────────────────────────
+# UpSkillr — Frontend .gitignore
+# React 19 + Vite + Vanilla CSS
+# ──────────────────────────────────────────────────────────────
+
 # Dependencies
 node_modules/
 .pnpm-store/
+jspm_packages/
 
-# Environment Variables
+# Environment Variables (NEVER commit secrets)
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+!.env.example
 *.env
 
 # Production Build Outputs
@@ -25,16 +32,18 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Cache & Temporary Files
+# Vite Cache & Temporary Files
 .vite/
 .cache/
-.eslintcache
 .turbo/
+.eslintcache
 *.tsbuildinfo
 
 # Testing & Coverage
 coverage/
 .nyc_output/
+test-results/
+*.test-report.json
 
 # IDE & Editor Files
 .vscode/*
@@ -55,3 +64,6 @@ coverage/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Misc
+*.local

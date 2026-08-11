@@ -3,6 +3,11 @@ import { GraduationCap, Video, ArrowRight } from 'lucide-react';
 import './LearnerInstructor.css';
 
 export const LearnerInstructor = () => {
+  const navigate = (path) => {
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
+  };
+
   return (
     <section className="learner-instructor-section section">
       <div className="container">
@@ -21,7 +26,12 @@ export const LearnerInstructor = () => {
             <p className="role-description">
               Discover expert-led courses, build hands-on projects, track your progress, and earn recognized certificates.
             </p>
-            <a href="#" className="role-cta-link" aria-label="Start Learning as a student">
+            <a 
+              href="/signup?role=learner" 
+              className="role-cta-link" 
+              aria-label="Start Learning as a student"
+              onClick={(e) => { e.preventDefault(); navigate('/signup?role=learner'); }}
+            >
               <span>Start Learning</span>
               <ArrowRight size={16} aria-hidden="true" />
             </a>
@@ -36,7 +46,12 @@ export const LearnerInstructor = () => {
             <p className="role-description">
               Create comprehensive courses, upload video lessons and assessments, track student engagement, and monetize your skill.
             </p>
-            <a href="#" className="role-cta-link" aria-label="Start Teaching as an instructor">
+            <a 
+              href="/signup?role=instructor" 
+              className="role-cta-link" 
+              aria-label="Start Teaching as an instructor"
+              onClick={(e) => { e.preventDefault(); navigate('/signup?role=instructor'); }}
+            >
               <span>Start Teaching</span>
               <ArrowRight size={16} aria-hidden="true" />
             </a>

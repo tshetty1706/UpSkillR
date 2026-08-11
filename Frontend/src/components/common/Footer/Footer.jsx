@@ -3,6 +3,11 @@ import { BookOpen, ArrowUp } from 'lucide-react';
 import './Footer.css';
 
 export const Footer = () => {
+  const navigate = (path) => {
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
+  };
+
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -13,7 +18,12 @@ export const Footer = () => {
         <div className="footer-top">
           {/* Brand Info */}
           <div className="footer-brand">
-            <a href="#" className="footer-logo" aria-label="UpSkillr Homepage">
+            <a 
+              href="/" 
+              className="footer-logo" 
+              aria-label="UpSkillr Homepage"
+              onClick={(e) => { e.preventDefault(); navigate('/'); }}
+            >
               <BookOpen className="logo-icon" size={24} aria-hidden="true" />
               <span className="logo-text">UpSkillr</span>
             </a>

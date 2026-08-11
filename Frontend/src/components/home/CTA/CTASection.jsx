@@ -3,6 +3,11 @@ import { ArrowRight } from 'lucide-react';
 import './CTASection.css';
 
 export const CTASection = () => {
+  const navigate = (path) => {
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
+  };
+
   return (
     <section className="cta-section section">
       <div className="container">
@@ -13,7 +18,12 @@ export const CTASection = () => {
           </div>
 
           <div className="cta-action">
-            <a href="#" className="btn cta-btn" aria-label="Start Learning for Free">
+            <a 
+              href="/signup" 
+              className="btn cta-btn" 
+              aria-label="Start Learning for Free"
+              onClick={(e) => { e.preventDefault(); navigate('/signup'); }}
+            >
               Start Learning for Free <ArrowRight size={18} aria-hidden="true" />
             </a>
           </div>
