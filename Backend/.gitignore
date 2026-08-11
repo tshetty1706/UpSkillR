@@ -1,12 +1,20 @@
-# Dependency folders
-node_modules/
+# ──────────────────────────────────────────────────────────────
+# UpSkillr — Backend .gitignore
+# Node.js / Express / MongoDB
+# ──────────────────────────────────────────────────────────────
 
-# Environment files
+# Dependencies
+node_modules/
+.pnpm-store/
+jspm_packages/
+
+# Environment Variables (NEVER commit secrets)
 .env
 .env.*
 !.env.example
+*.env
 
-# Logs
+# Logs & Debugging
 logs/
 *.log
 npm-debug.log*
@@ -14,19 +22,40 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Build outputs
+# Build & Compiled Outputs
 build/
 dist/
 dist-ssr/
+out/
 coverage/
+.nyc_output/
 
-# OS/editor files
+# Testing
+test-results/
+*.test-report.json
+
+# Runtime & OS Artifacts
 .DS_Store
-.vscode/
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+.Spotlight-V100
+.Trashes
+
+# IDE & Editor Files
+.vscode/*
+!.vscode/extensions.json
 .idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
 *.swp
 *.swo
+*.sw?
 
-# Local runtime artifacts
-.DS_Store
+# Misc
 *.local
+*.tsbuildinfo
+.cache/

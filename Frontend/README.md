@@ -1,120 +1,171 @@
 # UpSkillr — Frontend Application
 
-UpSkillr is a modern, high-performance web platform designed for online education and skill learning. It features a polished visual aesthetic, seamless **Light Mode** and **Dark Mode** themes, responsive component layouts, and full accessibility compliance.
+The **UpSkillr Frontend** is a high-performance, visually rich web application built with **React 19** and **Vite**. It provides the user-facing interface for an online education platform — featuring a polished landing page, full **Light / Dark Mode** theming, responsive layouts, and a complete authentication flow with OTP email verification and OAuth support.
 
 ---
 
 ## 🚀 Technologies Used
 
-- **Framework**: React 19
-- **Build Tool**: Vite
-- **Icons**: Lucide Icons
-- **Styling**: Modular Vanilla CSS with CSS Custom Properties (Theme System Variables)
-- **Typography**: Inter (Google Fonts)
+| Technology | Version | Purpose |
+|---|---|---|
+| **React** | v19 | Component-based UI framework |
+| **Vite** | v6.x | Lightning-fast build tool & dev server |
+| **Vanilla CSS** | — | Modular styling with CSS custom properties |
+| **Lucide Icons** | Latest | Consistent, tree-shakeable icon set |
+| **Inter (Google Fonts)** | — | Modern, readable typography |
 
 ---
 
 ## 📁 Project Structure
 
-The frontend application follows a clean, modular, and scalable directory structure:
-
 ```
-src/
-├── assets/
-│   ├── images/          # Image assets (hero images, banners)
-│   ├── illustrations/   # Vector SVG illustrations
-│   ├── icons/           # Custom SVG icons
-│   └── logos/           # Partner & brand logos
+Frontend/
+├── public/
+│   └── vite.svg              # Favicon
 │
-├── components/
-│   ├── common/          # Shared layout components
-│   │   ├── Navbar/      # Top header navigation & theme toggle
-│   │   └── Footer/      # Page footer & quick links
-│   │
-│   └── home/            # Homepage sections
-│       ├── Hero/                # Hero section with layered background decorations
-│       ├── Stats/               # Key metrics & statistics bar
-│       ├── TrustedBy/           # Brand partner logo strip
-│       ├── PopularCategories/   # Course categories grid
-│       ├── LearnerInstructor/   # Dual-role feature cards
-│       ├── WhyUpSkillr/         # Platform advantages & learner testimonials
-│       ├── FAQ/                 # Interactive question accordion
-│       └── CTA/                 # Action banner
-│
-├── context/
-│   └── ThemeContext.jsx # Centralized Light/Dark theme provider & localStorage state
-│
-├── pages/
-│   └── Home/
-│       └── HomePage.jsx # Main landing page composition
-│
-├── App.jsx              # Main application root
-├── main.jsx             # Entry point renderer
-└── index.css            # Global CSS variables, reset, & accessibility styles
+└── src/
+    ├── assets/
+    │   ├── illustrations/    # SVG vector illustrations (auth pages, hero)
+    │   ├── images/           # Raster images (hero, banners)
+    │   ├── icons/            # Custom SVG icon files
+    │   └── logos/            # Partner & brand logos
+    │
+    ├── components/
+    │   ├── authentication/
+    │   │   ├── login.jsx     # Sign In page (manual + Google/GitHub OAuth)
+    │   │   └── signup.jsx    # Create Account page (OTP email verification flow)
+    │   │
+    │   ├── common/
+    │   │   ├── Navbar/       # Top navigation bar & theme toggle
+    │   │   └── Footer/       # Site footer with links
+    │   │
+    │   └── home/             # Landing page section components
+    │       ├── Hero/                # Hero banner with animated decorations
+    │       ├── Stats/               # Platform metrics bar
+    │       ├── TrustedBy/           # Partner logo strip
+    │       ├── PopularCategories/   # Course category grid
+    │       ├── LearnerInstructor/   # Dual-role feature cards
+    │       ├── WhyUpSkillr/         # Benefits & testimonials
+    │       ├── FAQ/                 # Accordion FAQ section
+    │       └── CTA/                 # Call-to-action banner
+    │
+    ├── context/
+    │   └── ThemeContext.jsx  # Global Light/Dark theme provider (localStorage)
+    │
+    ├── pages/
+    │   └── Home/
+    │       └── HomePage.jsx  # Landing page composition
+    │
+    ├── App.jsx               # App root with client-side routing logic
+    ├── main.jsx              # React DOM entry point
+    └── index.css             # Global design tokens, CSS reset & auth styles
 ```
 
 ---
 
-## 🎨 Design Tokens & Theme System
+## 🎨 Design System & Theme Tokens
 
-UpSkillr uses a centralized design system built with CSS custom properties.
+UpSkillr uses a centralized CSS custom properties system for consistent theming.
 
 ### Light Mode (`:root`)
-- **Primary Brand Green**: `#116830`
-- **Background**: `#FFFFFF`
-- **Surface Muted**: `#F7FAF8`
-- **Primary Text**: `#101820`
-- **Secondary Text**: `#4B5563`
-- **Border**: `#E5EAE7`
+| Token | Value | Usage |
+|---|---|---|
+| `--brand-primary` | `#116830` | Primary green (buttons, accents) |
+| `--background` | `#FFFFFF` | Page background |
+| `--surface` | `#F7FAF8` | Card & input backgrounds |
+| `--text-primary` | `#101820` | Headings & body text |
+| `--text-secondary` | `#4B5563` | Muted / helper text |
+| `--border` | `#E5EAE7` | Dividers & input borders |
 
 ### Dark Mode (`.dark`)
-- **Primary Brand Green**: `#39D95F`
-- **Background**: `#090F13`
-- **Surface**: `#101B18`
-- **Primary Text**: `#F5F7F6`
-- **Secondary Text**: `#A7B3AD`
-- **Border**: `#1D3329`
+| Token | Value | Usage |
+|---|---|---|
+| `--brand-primary` | `#39D95F` | Vibrant green accent |
+| `--background` | `#090F13` | Deep dark background |
+| `--surface` | `#101B18` | Card surfaces |
+| `--text-primary` | `#F5F7F6` | Light text |
+| `--text-secondary` | `#A7B3AD` | Muted text |
+| `--border` | `#1D3329` | Subtle dark borders |
+
+---
+
+## 🔐 Authentication Flow
+
+The authentication pages connect to the UpSkillr Backend API (`http://localhost:5000/api/auth`).
+
+### Manual Sign Up (OTP-verified)
+```
+1. User fills form → POST /signup
+   → Backend stores in memory, sends 6-digit OTP email
+2. OTP entry screen appears
+3. User enters OTP → POST /verify-otp
+   → Backend creates user in MongoDB & returns JWT
+```
+
+### Sign In
+```
+POST /login → returns JWT token + user object
+Token is stored in localStorage as upskillr_token
+```
+
+### OAuth (Google & GitHub)
+```
+GET /google?role=learner → Google consent → /google/callback → redirect to frontend
+GET /github?role=learner → GitHub consent → /github/callback → redirect to frontend
+```
+
+---
+
+## ⚙️ Responsive Breakpoints
+
+| Breakpoint | Width | Behaviour |
+|---|---|---|
+| **Desktop** | ≥ 1024px | Two-column layouts, full nav |
+| **Tablet** | 768px – 1023px | Adjusted grid, compact nav |
+| **Mobile** | < 768px | Single-column stacked layout |
+
+All pages comply with the project's **no horizontal scroll** rule and use `clamp()` for fluid typography.
 
 ---
 
 ## 🛠️ Getting Started
 
 ### 1. Prerequisites
-Ensure you have **Node.js** (v18 or higher) installed.
+- **Node.js** v18 or higher
+- Backend server running on `http://localhost:5000`
 
 ### 2. Installation
-Navigate into the `Frontend` directory and install dependencies:
-
 ```bash
 cd Frontend
 npm install
 ```
 
 ### 3. Development Server
-Start the local development server:
-
 ```bash
 npm run dev
 ```
+Opens at [http://localhost:5173](http://localhost:5173)
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
-
-### 4. Build for Production
-To generate an optimized production bundle:
-
+### 4. Production Build
 ```bash
 npm run build
 ```
+Output is generated in the `dist/` directory.
 
-The production output will be generated in the `dist/` directory.
+### 5. Preview Production Build
+```bash
+npm run preview
+```
 
 ---
 
-## ♿ Accessibility & Quality Standards
+## ♿ Accessibility Standards
 
-- **Focus Visible**: All interactive elements (buttons, inputs, links, accordion headers) feature visible focus indicators.
-- **ARIA Attributes**: Accessible labels (`aria-label`, `aria-expanded`, `aria-hidden`) on icon-only controls and interactive widgets.
-- **WCAG AA Compliance**: High-contrast typography in both Light and Dark themes.
+- **Focus Visible**: All interactive elements have visible `:focus-visible` ring styles
+- **ARIA Attributes**: `aria-label`, `aria-expanded`, `aria-hidden` on icon-only controls
+- **WCAG AA Compliance**: High-contrast text in both Light and Dark themes
+- **Touch Targets**: Minimum `44px` height on all buttons and inputs
+- **Keyboard Navigation**: Full keyboard support across nav, modals, and accordions
 
 ---
 

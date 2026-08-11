@@ -37,6 +37,11 @@ export const HeroSection = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
 
+  const navigate = (path) => {
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
+  };
+
   const handleSearch = (e) => {
     e.preventDefault();
   };
@@ -65,10 +70,15 @@ export const HeroSection = () => {
 
           {/* Hero CTA Buttons */}
           <div className="hero-buttons">
-            <a href="#" className="btn btn-primary hero-btn-primary" aria-label="Explore Courses">
+            <a 
+              href="/signup" 
+              className="btn btn-primary hero-btn-primary" 
+              aria-label="Explore Courses"
+              onClick={(e) => { e.preventDefault(); navigate('/signup'); }}
+            >
               Explore Courses <ArrowRight size={18} aria-hidden="true" />
             </a>
-            <a href="#" className="btn btn-outline hero-btn-secondary" aria-label="How It Works">
+            <a href="#why-upskillr" className="btn btn-outline hero-btn-secondary" aria-label="How It Works">
               <PlayCircle size={18} className="play-icon" aria-hidden="true" /> How It Works
             </a>
           </div>
