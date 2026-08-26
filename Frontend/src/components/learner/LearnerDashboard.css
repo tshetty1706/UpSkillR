@@ -1,0 +1,122 @@
+/* UpSkillr Learner Dashboard Styling */
+
+.learner-dashboard-layout {
+  min-height: 100vh;
+  background-color: var(--background);
+}
+
+.learner-welcome-header {
+  margin-bottom: 2rem;
+}
+
+.learner-welcome-header h1 {
+  font-size: clamp(1.6rem, 2.2vw, 2.2rem);
+  font-weight: 800;
+}
+
+.learner-welcome-header p {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+.enrolled-courses-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1.5rem;
+}
+
+.enrolled-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+}
+
+.enrolled-thumb {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+}
+
+.enrolled-body {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.progress-bar-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0.5rem 0;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.progress-track {
+  width: 100%;
+  height: 8px;
+  background-color: var(--surface-muted);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--brand-primary);
+  border-radius: var(--radius-pill);
+  transition: width 0.3s ease;
+}
+
+.learner-lessons-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.75rem;
+}
+
+.learner-lessons-list h4 {
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+
+.learner-lesson-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  padding: 6px 8px;
+  background-color: var(--surface-muted);
+  border-radius: var(--radius-sm);
+}
+
+.btn-lesson-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.btn-lesson-check.done {
+  background-color: rgba(34, 197, 94, 0.15);
+  color: #22C55E;
+  border-color: rgba(34, 197, 94, 0.3);
+}

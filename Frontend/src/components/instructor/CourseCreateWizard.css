@@ -1,0 +1,303 @@
+/* UpSkillr Course Creation Wizard Component Styling */
+
+.course-wizard-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.wizard-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: fit-content;
+  margin-bottom: 4px;
+}
+
+.back-btn:hover {
+  color: var(--brand-accent-text);
+}
+
+.wizard-heading {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+/* Step Bar */
+.wizard-steps-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 20px;
+  box-shadow: var(--shadow-sm);
+  gap: 1rem;
+  overflow-x: auto;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.step-item.active,
+.step-item.completed {
+  opacity: 1;
+}
+
+.step-number {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: var(--surface-muted);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.step-item.active .step-number {
+  background-color: var(--brand-primary);
+  color: var(--btn-primary-text);
+  border-color: var(--brand-primary);
+}
+
+.step-item.completed .step-number {
+  background-color: var(--brand-soft);
+  color: var(--brand-accent-text);
+  border-color: var(--border-subtle);
+}
+
+.step-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+/* Workspace */
+.wizard-card-workspace {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 2rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.panel-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.panel-subtitle {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+
+}
+
+.wizard-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.span-2 {
+  grid-column: span 2;
+}
+
+.form-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  color: var(--input-text);
+  font-family: var(--font-family);
+}
+
+.form-textarea:focus {
+  border-color: var(--brand-primary);
+  outline: none;
+}
+
+.form-select {
+  width: 100%;
+  height: 40px;
+  padding: 0 14px;
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  color: var(--input-text);
+  font-family: var(--font-family);
+}
+
+/* Subitem Card */
+.add-subitem-card {
+  background-color: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  margin-top: 1rem;
+}
+
+.add-subitem-card h3 {
+  font-size: 0.98rem;
+  margin-bottom: 0.5rem;
+}
+
+.subitem-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 1rem;
+}
+
+.subitem-list h3 {
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+
+.empty-subitem-text {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.subitem-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.subitem-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.subitem-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.subitem-meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.delete-subitem-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.delete-subitem-btn:hover {
+  color: #EF4444;
+}
+
+/* Preview Card */
+.preview-course-card {
+  display: flex;
+  gap: 1.5rem;
+  background-color: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  margin-top: 1rem;
+}
+
+.preview-thumb {
+  width: 220px;
+  height: 140px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.preview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.preview-stats {
+  display: flex;
+  gap: 14px;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+/* Actions Bar */
+.wizard-actions-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 1.25rem;
+  margin-top: 1rem;
+}
+
+.publish-final-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+@media (max-width: 767px) {
+  .wizard-form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .span-2 {
+    grid-column: span 1;
+  }
+  
+  .preview-course-card {
+    flex-direction: column;
+  }
+  
+  .preview-thumb {
+    width: 100%;
+    height: 180px;
+  }
+}
