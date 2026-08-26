@@ -1,62 +1,53 @@
-const mongoose = require('mongoose');
+const Learner = require('./Learner');
+const Instructor = require('./Instructor');
 
-const userSchema = new mongoose.Schema({
-  fullName: {
-    type: String,
-    required: [true, 'Full name is required'],
-    trim: true
-  },
-  email: {
-    type: String,
-    required: [true, 'Email is required'],
-    unique: true,
-    lowercase: true,
-    trim: true
-  },
-  password: {
-    type: String,
-    required: function () {
-      return this.authProvider === 'local';
-    }
-  },
-  role: {
-    type: String,
-    enum: ['learner', 'instructor'],
-    default: 'learner'
-  },
-  authProvider: {
-    type: String,
-    enum: ['local', 'google', 'github'],
-    default: 'local'
-  },
-  googleId: {
-    type: String,
-    default: null
-  },
-  githubId: {
-    type: String,
-    default: null
-  },
-  avatar: {
-    type: String,
-    default: ''
-  },
-  isVerified: {
-    type: Boolean,
-    default: false
-  },
-  verificationOtp: {
-    type: String,
-    default: null
-  },
-  otpExpiresAt: {
-    type: Date,
-    default: null
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
+/**
+ * Helper to search for a user across both 'learners' and 'instructors' collections by email.
+ * @param {string} email 
+ * @returns {Promise<{ user: Object, role: string, model: Object } | null>}
+ */
+const findUserByEmail = async (email) => {
+  if (!email) return null;
+  const normalizedEmail = email.toLowerCase().trim();
+
+  const learner = await Learner.findOne({ email: normalizedEmail });
+  if (learner) {
+    return { user: learner, role: 'learner', model: Learner };
   }
-});
 
-module.exports = mongoose.model('User', userSchema);
+  const instructor = await Instructor.findOne({ email: normalizedEmail });
+  if (instructor) {
+    return { user: instructor, role: 'instructor', model: Instructor };
+  }
+
+  return null;
+};
+
+/**
+ * Helper to find a user by ID and role, or fallback to searching both collections if role is omitted.
+ * @param {string} id 
+ * @param {string} [role] 
+ * @returns {Promise<Object|null>}
+ */
+const findUserById = async (id, role) => {
+  if (!id) return null;
+
+  if (role === 'instructor') {
+    return await Instructor.findById(id);
+  }
+  if (role === 'learner') {
+    return await Learner.findById(id);
+  }
+
+  const learner = await Learner.findById(id);
+  if (learner) return learner;
+
+  return await Instructor.findById(id);
+};
+
+module.exports = {
+  Learner,
+  Instructor,
+  findUserByEmail,
+  findUserById
+};

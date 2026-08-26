@@ -50,13 +50,18 @@ export default function SignUp() {
     window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
   };
 
-  // Handle URL search params on mount (for OAuth callbacks or errors)
+  // Handle URL search params on mount (for OAuth callbacks, errors, or role pre-selection)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     const userParam = urlParams.get('user');
     const errorParam = urlParams.get('error');
     const providerParam = urlParams.get('provider');
+    const roleParam = urlParams.get('role');
+
+    if (roleParam === 'instructor' || roleParam === 'learner') {
+      setRole(roleParam);
+    }
 
     if (token && userParam) {
       try {
@@ -173,8 +178,12 @@ export default function SignUp() {
         localStorage.setItem('upskillr_user', JSON.stringify(data.user));
       }
 
-      setSuccessMessage('Email verified successfully! You can now log in.');
+      setSuccessMessage('Email verified successfully! Opening login page...');
       setShowOtpStep(false);
+
+      setTimeout(() => {
+        navigate('/login');
+      }, 1000);
     } catch (err) {
       setErrorMessage(err.message || 'Invalid or expired OTP code.');
     } finally {
@@ -339,6 +348,17 @@ export default function SignUp() {
                   <button type="button" className="resend-btn" onClick={handleResendOtp} disabled={resendLoading}>
                     {resendLoading ? 'Sending...' : 'Resend Code'}
                   </button>
+                </div>
+
+                <div style={{ marginTop: '0.75rem', textAlign: 'center' }}>
+                  <a
+                    href="/login"
+                    className="signin-link"
+                    style={{ fontSize: '0.85rem' }}
+                    onClick={(e) => { e.preventDefault(); navigate('/login'); }}
+                  >
+                    Proceed to Login Page →
+                  </a>
                 </div>
               </div>
             ) : (

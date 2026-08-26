@@ -1,4 +1,4 @@
-const User = require('../model/User');
+const { Learner, Instructor, findUserByEmail, findUserById } = require('../model/User');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -10,7 +10,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback';
 const GITHUB_CALLBACK_URL = process.env.GITHUB_CALLBACK_URL || 'http://localhost:5000/api/auth/github/callback';
 
-// Temporary In-Memory Store for Pending Registrations (User is NOT created in MongoDB until OTP is verified)
+// Temporary In-Memory Store for Pending Registrations
 const pendingRegistrations = new Map();
 
 // Helper to generate JWT Token
@@ -74,7 +74,7 @@ const sendVerificationOtpEmail = async (userEmail, otpCode) => {
   }
 };
 
-// 1. Manual Sign Up (Store in Pending Memory - DO NOT SAVE TO MONGO DB YET)
+// 1. Manual Sign Up (Save user directly to MongoDB collection based on role)
 exports.manualSignUp = async (req, res) => {
   try {
     const { fullName, email, password, role } = req.body;
@@ -89,9 +89,9 @@ exports.manualSignUp = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Check if user already exists in MongoDB
-    const existingUser = await User.findOne({ email: normalizedEmail });
-    if (existingUser) {
+    // Check if user already exists in either 'learners' or 'instructors' collection
+    const existingUserResult = await findUserByEmail(normalizedEmail);
+    if (existingUserResult) {
       return res.status(400).json({ success: false, message: 'An account with this email address already exists.' });
     }
 
@@ -102,31 +102,51 @@ exports.manualSignUp = async (req, res) => {
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    // Store in pendingRegistrations Map (User is NOT created in MongoDB yet!)
+    const userRole = role === 'instructor' ? 'instructor' : 'learner';
+    const TargetModel = userRole === 'instructor' ? Instructor : Learner;
+
+    // SAVE USER TO MONGO DB IMMEDIATELY
+    const newUser = new TargetModel({
+      fullName,
+      email: normalizedEmail,
+      password: hashedPassword,
+      role: userRole,
+      authProvider: 'local',
+      isVerified: false,
+      verificationOtp: otpCode,
+      otpExpiresAt
+    });
+
+    await newUser.save();
+    console.log(`[USER CREATED & SAVED TO MONGO DB (${userRole}s collection)] ${newUser.email}`);
+
+    // Store in pendingRegistrations Map as fallback
     pendingRegistrations.set(normalizedEmail, {
       fullName,
       email: normalizedEmail,
       hashedPassword,
-      role: role === 'instructor' ? 'instructor' : 'learner',
+      role: userRole,
       otpCode,
       otpExpiresAt
     });
 
-    console.log(`[PENDING REGISTRATION] OTP for ${normalizedEmail}: ${otpCode} (NOT in MongoDB yet)`);
-
-    // Send Gmail SMTP OTP Email
-    await sendVerificationOtpEmail(normalizedEmail, otpCode);
+    // Attempt to send OTP Email
+    try {
+      await sendVerificationOtpEmail(normalizedEmail, otpCode);
+    } catch (emailErr) {
+      console.warn(`[OTP EMAIL WARNING] Email dispatch failed for ${normalizedEmail}. Verification OTP: ${otpCode}`);
+    }
 
     return res.status(200).json({
       success: true,
-      message: 'Verification code sent to your email! Enter the 6-digit code to complete registration.',
+      message: 'Account created! Verification code sent to your email. Enter the code to complete registration.',
       email: normalizedEmail
     });
   } catch (error) {
     console.error('=== MANUAL SIGNUP ERROR ===', error);
     return res.status(500).json({
       success: false,
-      message: error?.message || 'Failed to send verification code. Please check your credentials.'
+      message: error?.message || 'Failed to create account. Please try again.'
     });
   }
 };
@@ -141,16 +161,31 @@ exports.sendOtp = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Check pending registrations first
-    const pendingData = pendingRegistrations.get(normalizedEmail);
-    if (pendingData) {
-      const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      pendingData.otpCode = newOtp;
-      pendingData.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-      pendingRegistrations.set(normalizedEmail, pendingData);
+    const existingUserResult = await findUserByEmail(normalizedEmail);
+    if (existingUserResult) {
+      const user = existingUserResult.user;
+      if (user.isVerified) {
+        return res.status(400).json({ success: false, message: 'Email address is already verified.' });
+      }
 
-      console.log(`[RESEND OTP] New OTP for ${normalizedEmail}: ${newOtp}`);
-      await sendVerificationOtpEmail(normalizedEmail, newOtp);
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      user.verificationOtp = otpCode;
+      user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      await user.save();
+
+      // Update pendingRegistrations if present
+      const pendingData = pendingRegistrations.get(normalizedEmail);
+      if (pendingData) {
+        pendingData.otpCode = otpCode;
+        pendingData.otpExpiresAt = user.otpExpiresAt;
+        pendingRegistrations.set(normalizedEmail, pendingData);
+      }
+
+      try {
+        await sendVerificationOtpEmail(user.email, otpCode);
+      } catch (emailErr) {
+        console.warn(`[RESEND OTP EMAIL WARNING] Verification OTP for ${normalizedEmail}: ${otpCode}`);
+      }
 
       return res.status(200).json({
         success: true,
@@ -158,36 +193,37 @@ exports.sendOtp = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ email: normalizedEmail });
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'Registration details not found. Please sign up again.' });
+    // Fallback: pendingRegistrations check
+    const pendingData = pendingRegistrations.get(normalizedEmail);
+    if (pendingData) {
+      const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      pendingData.otpCode = newOtp;
+      pendingData.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      pendingRegistrations.set(normalizedEmail, pendingData);
+
+      try {
+        await sendVerificationOtpEmail(normalizedEmail, newOtp);
+      } catch (emailErr) {
+        console.warn(`[RESEND OTP WARNING] Verification OTP for ${normalizedEmail}: ${newOtp}`);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'A new 6-digit verification code has been sent to your email.'
+      });
     }
 
-    if (user.isVerified) {
-      return res.status(400).json({ success: false, message: 'Email address is already verified.' });
-    }
-
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    user.verificationOtp = otpCode;
-    user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    await user.save();
-
-    await sendVerificationOtpEmail(user.email, otpCode);
-
-    return res.status(200).json({
-      success: true,
-      message: 'A new 6-digit verification code has been sent to your email.'
-    });
+    return res.status(404).json({ success: false, message: 'Registration details not found. Please sign up again.' });
   } catch (error) {
     console.error('Send OTP Error:', error);
     return res.status(500).json({
       success: false,
-      message: error?.message || 'Failed to send verification email. Check Gmail credentials in .env.'
+      message: error?.message || 'Failed to send verification email.'
     });
   }
 };
 
-// 3. Verify OTP Code (CREATE & SAVE USER IN MONGODB ONLY NOW)
+// 3. Verify OTP Code (Mark user as verified in MongoDB collection)
 exports.verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -199,54 +235,10 @@ exports.verifyOtp = async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     const cleanOtp = otp.toString().trim();
 
-    // 1. Check Pending Registration (Not in DB yet)
-    const pendingData = pendingRegistrations.get(normalizedEmail);
-
-    if (pendingData) {
-      if (pendingData.otpCode !== cleanOtp) {
-        return res.status(400).json({ success: false, message: 'Invalid verification code. Please check and try again.' });
-      }
-
-      if (new Date() > pendingData.otpExpiresAt) {
-        pendingRegistrations.delete(normalizedEmail);
-        return res.status(400).json({ success: false, message: 'Verification code has expired. Please sign up again.' });
-      }
-
-      // CREATE & SAVE THE USER TO MONGODB NOW!
-      const newUser = new User({
-        fullName: pendingData.fullName,
-        email: pendingData.email,
-        password: pendingData.hashedPassword,
-        role: pendingData.role,
-        authProvider: 'local',
-        isVerified: true
-      });
-
-      await newUser.save();
-      pendingRegistrations.delete(normalizedEmail);
-
-      console.log(`[USER VERIFIED & SAVED TO MONGO DB] ${newUser.email}`);
-
-      const token = generateToken(newUser);
-
-      return res.status(201).json({
-        success: true,
-        message: 'Email verified & account created successfully!',
-        token,
-        user: {
-          id: newUser._id,
-          fullName: newUser.fullName,
-          email: newUser.email,
-          role: newUser.role,
-          isVerified: true,
-          avatar: newUser.avatar
-        }
-      });
-    }
-
-    // 2. Fallback: Existing MongoDB record
-    const existingUser = await User.findOne({ email: normalizedEmail });
-    if (existingUser) {
+    // 1. Check existing MongoDB record in Learners or Instructors collection
+    const existingUserResult = await findUserByEmail(normalizedEmail);
+    if (existingUserResult) {
+      const existingUser = existingUserResult.user;
       if (existingUser.isVerified) {
         const token = generateToken(existingUser);
         return res.status(200).json({
@@ -258,7 +250,8 @@ exports.verifyOtp = async (req, res) => {
             fullName: existingUser.fullName,
             email: existingUser.email,
             role: existingUser.role,
-            isVerified: true
+            isVerified: true,
+            avatar: existingUser.avatar
           }
         });
       }
@@ -269,6 +262,7 @@ exports.verifyOtp = async (req, res) => {
         existingUser.otpExpiresAt = null;
         await existingUser.save();
 
+        pendingRegistrations.delete(normalizedEmail);
         const token = generateToken(existingUser);
         return res.status(200).json({
           success: true,
@@ -279,10 +273,52 @@ exports.verifyOtp = async (req, res) => {
             fullName: existingUser.fullName,
             email: existingUser.email,
             role: existingUser.role,
-            isVerified: true
+            isVerified: true,
+            avatar: existingUser.avatar
           }
         });
       }
+    }
+
+    // 2. Fallback: Check Pending Registration
+    const pendingData = pendingRegistrations.get(normalizedEmail);
+    if (pendingData && pendingData.otpCode === cleanOtp) {
+      const userRole = pendingData.role === 'instructor' ? 'instructor' : 'learner';
+      const TargetModel = userRole === 'instructor' ? Instructor : Learner;
+
+      let user = await TargetModel.findOne({ email: normalizedEmail });
+      if (!user) {
+        user = new TargetModel({
+          fullName: pendingData.fullName,
+          email: pendingData.email,
+          password: pendingData.hashedPassword,
+          role: userRole,
+          authProvider: 'local',
+          isVerified: true
+        });
+      } else {
+        user.isVerified = true;
+        user.verificationOtp = null;
+        user.otpExpiresAt = null;
+      }
+
+      await user.save();
+      pendingRegistrations.delete(normalizedEmail);
+
+      const token = generateToken(user);
+      return res.status(201).json({
+        success: true,
+        message: 'Email verified & account created successfully!',
+        token,
+        user: {
+          id: user._id,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+          isVerified: true,
+          avatar: user.avatar
+        }
+      });
     }
 
     return res.status(400).json({ success: false, message: 'Invalid or expired verification code.' });
@@ -301,10 +337,12 @@ exports.manualLogin = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please enter both email and password.' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
-    if (!user) {
+    const existingUserResult = await findUserByEmail(email.toLowerCase().trim());
+    if (!existingUserResult) {
       return res.status(400).json({ success: false, message: 'Invalid credentials. User not found.' });
     }
+
+    const user = existingUserResult.user;
 
     if (!user.password) {
       return res.status(400).json({
@@ -393,9 +431,10 @@ exports.googleOAuthCallback = async (req, res) => {
       return res.status(400).send('Could not retrieve email from Google account.');
     }
 
-    let user = await User.findOne({
-      $or: [{ googleId }, { email: email.toLowerCase() }]
-    });
+    const normalizedEmail = email.toLowerCase();
+    let learner = await Learner.findOne({ $or: [{ googleId }, { email: normalizedEmail }] });
+    let instructor = await Instructor.findOne({ $or: [{ googleId }, { email: normalizedEmail }] });
+    let user = learner || instructor;
 
     if (user) {
       user.googleId = googleId;
@@ -403,10 +442,13 @@ exports.googleOAuthCallback = async (req, res) => {
       if (picture && !user.avatar) user.avatar = picture;
       await user.save();
     } else {
-      user = new User({
+      const userRole = role === 'instructor' ? 'instructor' : 'learner';
+      const TargetModel = userRole === 'instructor' ? Instructor : Learner;
+
+      user = new TargetModel({
         fullName: name || 'Google User',
-        email: email.toLowerCase(),
-        role: role === 'instructor' ? 'instructor' : 'learner',
+        email: normalizedEmail,
+        role: userRole,
         authProvider: 'google',
         googleId,
         isVerified: true,
@@ -506,9 +548,10 @@ exports.githubOAuthCallback = async (req, res) => {
       email = `${login}@github.user`;
     }
 
-    let user = await User.findOne({
-      $or: [{ githubId: String(githubId) }, { email: email.toLowerCase() }]
-    });
+    const normalizedEmail = email.toLowerCase();
+    let learner = await Learner.findOne({ $or: [{ githubId: String(githubId) }, { email: normalizedEmail }] });
+    let instructor = await Instructor.findOne({ $or: [{ githubId: String(githubId) }, { email: normalizedEmail }] });
+    let user = learner || instructor;
 
     if (user) {
       user.githubId = String(githubId);
@@ -516,10 +559,13 @@ exports.githubOAuthCallback = async (req, res) => {
       if (avatar_url && !user.avatar) user.avatar = avatar_url;
       await user.save();
     } else {
-      user = new User({
+      const userRole = role === 'instructor' ? 'instructor' : 'learner';
+      const TargetModel = userRole === 'instructor' ? Instructor : Learner;
+
+      user = new TargetModel({
         fullName: name || login || 'GitHub User',
-        email: email.toLowerCase(),
-        role: role === 'instructor' ? 'instructor' : 'learner',
+        email: normalizedEmail,
+        role: userRole,
         authProvider: 'github',
         githubId: String(githubId),
         isVerified: true,
@@ -558,12 +604,15 @@ exports.getCurrentUser = async (req, res) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    const user = await User.findById(decoded.id).select('-password');
+    const user = await findUserById(decoded.id, decoded.role);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
 
-    return res.status(200).json({ success: true, user });
+    const userObj = user.toObject ? user.toObject() : { ...user };
+    delete userObj.password;
+
+    return res.status(200).json({ success: true, user: userObj });
   } catch (error) {
     return res.status(401).json({ success: false, message: 'Invalid or expired token.' });
   }

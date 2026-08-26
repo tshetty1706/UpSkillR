@@ -10,6 +10,21 @@ function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
   useEffect(() => {
+    // Parse OAuth redirect query parameters if present
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const userParam = urlParams.get('user');
+    if (token && userParam) {
+      try {
+        const user = JSON.parse(decodeURIComponent(userParam));
+        localStorage.setItem('upskillr_token', token);
+        localStorage.setItem('upskillr_user', JSON.stringify(user));
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {
+        console.error('Failed to parse user data from OAuth callback URL');
+      }
+    }
+
     const handlePopState = () => {
       setCurrentPath(window.location.pathname);
     };
