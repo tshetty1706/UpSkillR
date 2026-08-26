@@ -51,6 +51,9 @@ export default function Login() {
         localStorage.setItem('upskillr_token', token);
         localStorage.setItem('upskillr_user', JSON.stringify(user));
         setSuccessMessage(`Successfully signed in via ${providerParam ? providerParam.toUpperCase() : 'OAuth'}! Welcome back, ${user.fullName}.`);
+        setTimeout(() => {
+          navigate('/');
+        }, 800);
       } catch (e) {
         console.error('Failed to parse user data from OAuth callback');
       }
@@ -109,7 +112,11 @@ export default function Login() {
         localStorage.setItem('upskillr_user', JSON.stringify(data.user));
       }
 
-      setSuccessMessage(`Welcome back, ${data.user.fullName}! Sign in successful.`);
+      setSuccessMessage(`Welcome back, ${data.user.fullName}! Opening home page...`);
+
+      setTimeout(() => {
+        navigate('/');
+      }, 800);
     } catch (err) {
       setErrorMessage(err.message || 'Could not complete login. Check backend connection.');
     } finally {
