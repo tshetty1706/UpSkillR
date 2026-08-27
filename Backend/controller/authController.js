@@ -1,5 +1,32 @@
-const User = require('../model/User');
+const { Learner, Instructor } = require('../model/User');
 const mongoose = require('mongoose');
+
+// Helper to find a user by email across both collections
+const findUserByEmail = async (email) => {
+  const normalizedEmail = email.toLowerCase().trim();
+  let user = await Learner.findOne({ email: normalizedEmail });
+  if (user) return user;
+  return await Instructor.findOne({ email: normalizedEmail });
+};
+
+// Helper to find a user by ID across both collections
+const findUserById = async (id) => {
+  let user = await Learner.findById(id);
+  if (user) return user;
+  return await Instructor.findById(id);
+};
+
+// Helper to find a user by OAuth provider ID or email across both collections
+const findUserByOAuth = async (query) => {
+  let user = await Learner.findOne(query);
+  if (user) return user;
+  return await Instructor.findOne(query);
+};
+
+// Helper to get Model based on role
+const getModelByRole = (role) => {
+  return role === 'instructor' ? Instructor : Learner;
+};
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
@@ -90,7 +117,7 @@ exports.manualSignUp = async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
 
     // Check if user already exists in MongoDB
-    const existingUser = await User.findOne({ email: normalizedEmail });
+    const existingUser = await findUserByEmail(normalizedEmail);
     if (existingUser) {
       return res.status(400).json({ success: false, message: 'An account with this email address already exists.' });
     }
@@ -158,7 +185,7 @@ exports.sendOtp = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ email: normalizedEmail });
+    const user = await findUserByEmail(normalizedEmail);
     if (!user) {
       return res.status(404).json({ success: false, message: 'Registration details not found. Please sign up again.' });
     }
@@ -213,7 +240,8 @@ exports.verifyOtp = async (req, res) => {
       }
 
       // CREATE & SAVE THE USER TO MONGODB NOW!
-      const newUser = new User({
+      const Model = getModelByRole(pendingData.role);
+      const newUser = new Model({
         fullName: pendingData.fullName,
         email: pendingData.email,
         password: pendingData.hashedPassword,
@@ -245,7 +273,7 @@ exports.verifyOtp = async (req, res) => {
     }
 
     // 2. Fallback: Existing MongoDB record
-    const existingUser = await User.findOne({ email: normalizedEmail });
+    const existingUser = await findUserByEmail(normalizedEmail);
     if (existingUser) {
       if (existingUser.isVerified) {
         const token = generateToken(existingUser);
@@ -301,7 +329,7 @@ exports.manualLogin = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please enter both email and password.' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const user = await findUserByEmail(email);
     if (!user) {
       return res.status(400).json({ success: false, message: 'Invalid credentials. User not found.' });
     }
@@ -393,7 +421,7 @@ exports.googleOAuthCallback = async (req, res) => {
       return res.status(400).send('Could not retrieve email from Google account.');
     }
 
-    let user = await User.findOne({
+    let user = await findUserByOAuth({
       $or: [{ googleId }, { email: email.toLowerCase() }]
     });
 
@@ -403,7 +431,8 @@ exports.googleOAuthCallback = async (req, res) => {
       if (picture && !user.avatar) user.avatar = picture;
       await user.save();
     } else {
-      user = new User({
+      const Model = getModelByRole(role);
+      user = new Model({
         fullName: name || 'Google User',
         email: email.toLowerCase(),
         role: role === 'instructor' ? 'instructor' : 'learner',
@@ -506,7 +535,7 @@ exports.githubOAuthCallback = async (req, res) => {
       email = `${login}@github.user`;
     }
 
-    let user = await User.findOne({
+    let user = await findUserByOAuth({
       $or: [{ githubId: String(githubId) }, { email: email.toLowerCase() }]
     });
 
@@ -516,7 +545,8 @@ exports.githubOAuthCallback = async (req, res) => {
       if (avatar_url && !user.avatar) user.avatar = avatar_url;
       await user.save();
     } else {
-      user = new User({
+      const Model = getModelByRole(role);
+      user = new Model({
         fullName: name || login || 'GitHub User',
         email: email.toLowerCase(),
         role: role === 'instructor' ? 'instructor' : 'learner',
@@ -558,7 +588,10 @@ exports.getCurrentUser = async (req, res) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    const user = await User.findById(decoded.id).select('-password');
+    let user = await Learner.findById(decoded.id).select('-password');
+    if (!user) {
+      user = await Instructor.findById(decoded.id).select('-password');
+    }
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }

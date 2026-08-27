@@ -59,4 +59,10 @@ const userSchema = new mongoose.Schema({
   }
 });
 
-module.exports = mongoose.model('User', userSchema);
+const Learner = mongoose.model('Learner', userSchema, 'learner');
+const Instructor = mongoose.model('Instructor', userSchema, 'instructor');
+
+module.exports = {
+  Learner,
+  Instructor
+};
