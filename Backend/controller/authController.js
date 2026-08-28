@@ -1,5 +1,32 @@
-const { Learner, Instructor, findUserByEmail, findUserById } = require('../model/User');
+const { Learner, Instructor } = require('../model/User');
 const mongoose = require('mongoose');
+
+// Helper to find a user by email across both collections
+const findUserByEmail = async (email) => {
+  const normalizedEmail = email.toLowerCase().trim();
+  let user = await Learner.findOne({ email: normalizedEmail });
+  if (user) return user;
+  return await Instructor.findOne({ email: normalizedEmail });
+};
+
+// Helper to find a user by ID across both collections
+const findUserById = async (id) => {
+  let user = await Learner.findById(id);
+  if (user) return user;
+  return await Instructor.findById(id);
+};
+
+// Helper to find a user by OAuth provider ID or email across both collections
+const findUserByOAuth = async (query) => {
+  let user = await Learner.findOne(query);
+  if (user) return user;
+  return await Instructor.findOne(query);
+};
+
+// Helper to get Model based on role
+const getModelByRole = (role) => {
+  return role === 'instructor' ? Instructor : Learner;
+};
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
@@ -89,9 +116,9 @@ exports.manualSignUp = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Check if user already exists in either 'learners' or 'instructors' collection
-    const existingUserResult = await findUserByEmail(normalizedEmail);
-    if (existingUserResult) {
+    // Check if user already exists in MongoDB
+    const existingUser = await findUserByEmail(normalizedEmail);
+    if (existingUser) {
       return res.status(400).json({ success: false, message: 'An account with this email address already exists.' });
     }
 
@@ -213,7 +240,26 @@ exports.sendOtp = async (req, res) => {
       });
     }
 
-    return res.status(404).json({ success: false, message: 'Registration details not found. Please sign up again.' });
+    const user = await findUserByEmail(normalizedEmail);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Registration details not found. Please sign up again.' });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ success: false, message: 'Email address is already verified.' });
+    }
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationOtp = otpCode;
+    user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    await sendVerificationOtpEmail(user.email, otpCode);
+
+    return res.status(200).json({
+      success: true,
+      message: 'A new 6-digit verification code has been sent to your email.'
+    });
   } catch (error) {
     console.error('Send OTP Error:', error);
     return res.status(500).json({
@@ -235,10 +281,55 @@ exports.verifyOtp = async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     const cleanOtp = otp.toString().trim();
 
-    // 1. Check existing MongoDB record in Learners or Instructors collection
-    const existingUserResult = await findUserByEmail(normalizedEmail);
-    if (existingUserResult) {
-      const existingUser = existingUserResult.user;
+    // 1. Check Pending Registration (Not in DB yet)
+    const pendingData = pendingRegistrations.get(normalizedEmail);
+
+    if (pendingData) {
+      if (pendingData.otpCode !== cleanOtp) {
+        return res.status(400).json({ success: false, message: 'Invalid verification code. Please check and try again.' });
+      }
+
+      if (new Date() > pendingData.otpExpiresAt) {
+        pendingRegistrations.delete(normalizedEmail);
+        return res.status(400).json({ success: false, message: 'Verification code has expired. Please sign up again.' });
+      }
+
+      // CREATE & SAVE THE USER TO MONGODB NOW!
+      const Model = getModelByRole(pendingData.role);
+      const newUser = new Model({
+        fullName: pendingData.fullName,
+        email: pendingData.email,
+        password: pendingData.hashedPassword,
+        role: pendingData.role,
+        authProvider: 'local',
+        isVerified: true
+      });
+
+      await newUser.save();
+      pendingRegistrations.delete(normalizedEmail);
+
+      console.log(`[USER VERIFIED & SAVED TO MONGO DB] ${newUser.email}`);
+
+      const token = generateToken(newUser);
+
+      return res.status(201).json({
+        success: true,
+        message: 'Email verified & account created successfully!',
+        token,
+        user: {
+          id: newUser._id,
+          fullName: newUser.fullName,
+          email: newUser.email,
+          role: newUser.role,
+          isVerified: true,
+          avatar: newUser.avatar
+        }
+      });
+    }
+
+    // 2. Fallback: Existing MongoDB record
+    const existingUser = await findUserByEmail(normalizedEmail);
+    if (existingUser) {
       if (existingUser.isVerified) {
         const token = generateToken(existingUser);
         return res.status(200).json({
@@ -337,8 +428,8 @@ exports.manualLogin = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please enter both email and password.' });
     }
 
-    const existingUserResult = await findUserByEmail(email.toLowerCase().trim());
-    if (!existingUserResult) {
+    const user = await findUserByEmail(email.toLowerCase().trim());
+    if (!user) {
       return res.status(400).json({ success: false, message: 'Invalid credentials. User not found.' });
     }
 
@@ -431,10 +522,9 @@ exports.googleOAuthCallback = async (req, res) => {
       return res.status(400).send('Could not retrieve email from Google account.');
     }
 
-    const normalizedEmail = email.toLowerCase();
-    let learner = await Learner.findOne({ $or: [{ googleId }, { email: normalizedEmail }] });
-    let instructor = await Instructor.findOne({ $or: [{ googleId }, { email: normalizedEmail }] });
-    let user = learner || instructor;
+    let user = await findUserByOAuth({
+      $or: [{ googleId }, { email: email.toLowerCase() }]
+    });
 
     if (user) {
       user.googleId = googleId;
@@ -442,10 +532,8 @@ exports.googleOAuthCallback = async (req, res) => {
       if (picture && !user.avatar) user.avatar = picture;
       await user.save();
     } else {
-      const userRole = role === 'instructor' ? 'instructor' : 'learner';
-      const TargetModel = userRole === 'instructor' ? Instructor : Learner;
-
-      user = new TargetModel({
+      const Model = getModelByRole(role);
+      user = new Model({
         fullName: name || 'Google User',
         email: normalizedEmail,
         role: userRole,
@@ -548,10 +636,9 @@ exports.githubOAuthCallback = async (req, res) => {
       email = `${login}@github.user`;
     }
 
-    const normalizedEmail = email.toLowerCase();
-    let learner = await Learner.findOne({ $or: [{ githubId: String(githubId) }, { email: normalizedEmail }] });
-    let instructor = await Instructor.findOne({ $or: [{ githubId: String(githubId) }, { email: normalizedEmail }] });
-    let user = learner || instructor;
+    let user = await findUserByOAuth({
+      $or: [{ githubId: String(githubId) }, { email: email.toLowerCase() }]
+    });
 
     if (user) {
       user.githubId = String(githubId);
@@ -559,10 +646,8 @@ exports.githubOAuthCallback = async (req, res) => {
       if (avatar_url && !user.avatar) user.avatar = avatar_url;
       await user.save();
     } else {
-      const userRole = role === 'instructor' ? 'instructor' : 'learner';
-      const TargetModel = userRole === 'instructor' ? Instructor : Learner;
-
-      user = new TargetModel({
+      const Model = getModelByRole(role);
+      user = new Model({
         fullName: name || login || 'GitHub User',
         email: normalizedEmail,
         role: userRole,
@@ -604,7 +689,10 @@ exports.getCurrentUser = async (req, res) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    const user = await findUserById(decoded.id, decoded.role);
+    let user = await Learner.findById(decoded.id).select('-password');
+    if (!user) {
+      user = await Instructor.findById(decoded.id).select('-password');
+    }
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
