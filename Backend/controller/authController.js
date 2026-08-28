@@ -188,9 +188,8 @@ exports.sendOtp = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    const existingUserResult = await findUserByEmail(normalizedEmail);
-    if (existingUserResult) {
-      const user = existingUserResult.user;
+    const user = await findUserByEmail(normalizedEmail);
+    if (user) {
       if (user.isVerified) {
         return res.status(400).json({ success: false, message: 'Email address is already verified.' });
       }
@@ -240,26 +239,7 @@ exports.sendOtp = async (req, res) => {
       });
     }
 
-    const user = await findUserByEmail(normalizedEmail);
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'Registration details not found. Please sign up again.' });
-    }
-
-    if (user.isVerified) {
-      return res.status(400).json({ success: false, message: 'Email address is already verified.' });
-    }
-
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    user.verificationOtp = otpCode;
-    user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    await user.save();
-
-    await sendVerificationOtpEmail(user.email, otpCode);
-
-    return res.status(200).json({
-      success: true,
-      message: 'A new 6-digit verification code has been sent to your email.'
-    });
+    return res.status(404).json({ success: false, message: 'Registration details not found. Please sign up again.' });
   } catch (error) {
     console.error('Send OTP Error:', error);
     return res.status(500).json({
@@ -281,53 +261,7 @@ exports.verifyOtp = async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     const cleanOtp = otp.toString().trim();
 
-    // 1. Check Pending Registration (Not in DB yet)
-    const pendingData = pendingRegistrations.get(normalizedEmail);
-
-    if (pendingData) {
-      if (pendingData.otpCode !== cleanOtp) {
-        return res.status(400).json({ success: false, message: 'Invalid verification code. Please check and try again.' });
-      }
-
-      if (new Date() > pendingData.otpExpiresAt) {
-        pendingRegistrations.delete(normalizedEmail);
-        return res.status(400).json({ success: false, message: 'Verification code has expired. Please sign up again.' });
-      }
-
-      // CREATE & SAVE THE USER TO MONGODB NOW!
-      const Model = getModelByRole(pendingData.role);
-      const newUser = new Model({
-        fullName: pendingData.fullName,
-        email: pendingData.email,
-        password: pendingData.hashedPassword,
-        role: pendingData.role,
-        authProvider: 'local',
-        isVerified: true
-      });
-
-      await newUser.save();
-      pendingRegistrations.delete(normalizedEmail);
-
-      console.log(`[USER VERIFIED & SAVED TO MONGO DB] ${newUser.email}`);
-
-      const token = generateToken(newUser);
-
-      return res.status(201).json({
-        success: true,
-        message: 'Email verified & account created successfully!',
-        token,
-        user: {
-          id: newUser._id,
-          fullName: newUser.fullName,
-          email: newUser.email,
-          role: newUser.role,
-          isVerified: true,
-          avatar: newUser.avatar
-        }
-      });
-    }
-
-    // 2. Fallback: Existing MongoDB record
+    // 1. Check if user already exists in MongoDB (saved during signup with isVerified: false)
     const existingUser = await findUserByEmail(normalizedEmail);
     if (existingUser) {
       if (existingUser.isVerified) {
@@ -369,47 +303,52 @@ exports.verifyOtp = async (req, res) => {
           }
         });
       }
-    }
+    } else {
+      // 2. Fallback: Check Pending Registration (Not in DB yet)
+      const pendingData = pendingRegistrations.get(normalizedEmail);
 
-    // 2. Fallback: Check Pending Registration
-    const pendingData = pendingRegistrations.get(normalizedEmail);
-    if (pendingData && pendingData.otpCode === cleanOtp) {
-      const userRole = pendingData.role === 'instructor' ? 'instructor' : 'learner';
-      const TargetModel = userRole === 'instructor' ? Instructor : Learner;
+      if (pendingData) {
+        if (pendingData.otpCode !== cleanOtp) {
+          return res.status(400).json({ success: false, message: 'Invalid verification code. Please check and try again.' });
+        }
 
-      let user = await TargetModel.findOne({ email: normalizedEmail });
-      if (!user) {
-        user = new TargetModel({
+        if (new Date() > pendingData.otpExpiresAt) {
+          pendingRegistrations.delete(normalizedEmail);
+          return res.status(400).json({ success: false, message: 'Verification code has expired. Please sign up again.' });
+        }
+
+        // CREATE & SAVE THE USER TO MONGODB NOW!
+        const Model = getModelByRole(pendingData.role);
+        const newUser = new Model({
           fullName: pendingData.fullName,
           email: pendingData.email,
           password: pendingData.hashedPassword,
-          role: userRole,
+          role: pendingData.role,
           authProvider: 'local',
           isVerified: true
         });
-      } else {
-        user.isVerified = true;
-        user.verificationOtp = null;
-        user.otpExpiresAt = null;
+
+        await newUser.save();
+        pendingRegistrations.delete(normalizedEmail);
+
+        console.log(`[USER VERIFIED & SAVED TO MONGO DB] ${newUser.email}`);
+
+        const token = generateToken(newUser);
+
+        return res.status(201).json({
+          success: true,
+          message: 'Email verified & account created successfully!',
+          token,
+          user: {
+            id: newUser._id,
+            fullName: newUser.fullName,
+            email: newUser.email,
+            role: newUser.role,
+            isVerified: true,
+            avatar: newUser.avatar
+          }
+        });
       }
-
-      await user.save();
-      pendingRegistrations.delete(normalizedEmail);
-
-      const token = generateToken(user);
-      return res.status(201).json({
-        success: true,
-        message: 'Email verified & account created successfully!',
-        token,
-        user: {
-          id: user._id,
-          fullName: user.fullName,
-          email: user.email,
-          role: user.role,
-          isVerified: true,
-          avatar: user.avatar
-        }
-      });
     }
 
     return res.status(400).json({ success: false, message: 'Invalid or expired verification code.' });
@@ -433,7 +372,6 @@ exports.manualLogin = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid credentials. User not found.' });
     }
 
-    const user = existingUserResult.user;
 
     if (!user.password) {
       return res.status(400).json({
@@ -522,8 +460,11 @@ exports.googleOAuthCallback = async (req, res) => {
       return res.status(400).send('Could not retrieve email from Google account.');
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+    const userRole = role === 'instructor' ? 'instructor' : 'learner';
+
     let user = await findUserByOAuth({
-      $or: [{ googleId }, { email: email.toLowerCase() }]
+      $or: [{ googleId }, { email: normalizedEmail }]
     });
 
     if (user) {
@@ -636,8 +577,11 @@ exports.githubOAuthCallback = async (req, res) => {
       email = `${login}@github.user`;
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+    const userRole = role === 'instructor' ? 'instructor' : 'learner';
+
     let user = await findUserByOAuth({
-      $or: [{ githubId: String(githubId) }, { email: email.toLowerCase() }]
+      $or: [{ githubId: String(githubId) }, { email: normalizedEmail }]
     });
 
     if (user) {

@@ -104,7 +104,7 @@ function App() {
     }
 
     // 2. Protected Role-based Routing
-    if (path.startsWith('/instructor')) {
+    if (path.startsWith('/instructor/') || path === '/instructor') {
       if (!currentUser) {
         return <Login />;
       }
@@ -113,7 +113,7 @@ function App() {
       }
       return <InstructorDashboard user={currentUser} onLogout={handleLogout} />;
     }
-    if (path.startsWith('/learner')) {
+    if (path.startsWith('/learner/') || path === '/learner') {
       if (!currentUser) {
         return <Login />;
       }

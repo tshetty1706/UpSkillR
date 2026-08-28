@@ -19,9 +19,7 @@ const findUserByEmail = async (email) => {
   if (instructor) {
     return { user: instructor, role: 'instructor', model: Instructor };
   }
-
-const Learner = mongoose.model('Learner', userSchema, 'learner');
-const Instructor = mongoose.model('Instructor', userSchema, 'instructor');
+}
 
 module.exports = {
   Learner,
