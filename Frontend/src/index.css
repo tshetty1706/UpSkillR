@@ -278,15 +278,23 @@ h1, h2, h3, h4, h5, h6 {
   padding: 0.85rem 1.5rem 1.25rem 1.5rem;
   box-sizing: border-box;
   transition: background-color 0.25s ease, color 0.25s ease;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.auth-page::-webkit-scrollbar,
+.signup-page::-webkit-scrollbar,
+.login-page::-webkit-scrollbar {
+  display: none;
 }
 
 @media (min-width: 1024px) {
   .auth-page,
   .signup-page,
   .login-page {
-    height: 100vh;
-    max-height: 100vh;
-    overflow-y: auto;
+    min-height: 100vh;
+    height: auto;
+    overflow-y: hidden;
     padding: 0.75rem 2.5rem 1rem 2.5rem;
   }
 }

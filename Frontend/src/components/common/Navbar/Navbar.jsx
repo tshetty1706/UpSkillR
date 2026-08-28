@@ -7,6 +7,7 @@ export const Navbar = () => {
   const { theme, toggleTheme, isDarkMode } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
   useEffect(() => {
     const userStr = localStorage.getItem('upskillr_user');
@@ -17,11 +18,37 @@ export const Navbar = () => {
         console.error('Failed to parse user state');
       }
     }
+
+    const updatePath = (e) => {
+      if (e?.detail?.path) {
+        setCurrentPath(e.detail.path);
+      } else {
+        setCurrentPath(window.location.pathname);
+      }
+    };
+
+    window.addEventListener('popstate', updatePath);
+    window.addEventListener('upskillr_navigate', updatePath);
+
+    return () => {
+      window.removeEventListener('popstate', updatePath);
+      window.removeEventListener('upskillr_navigate', updatePath);
+    };
   }, []);
+
+  const isActive = (path) => {
+    const normCurrent = currentPath.toLowerCase();
+    const normTarget = path.toLowerCase();
+    if (normTarget === '/') {
+      return normCurrent === '/' || normCurrent === '';
+    }
+    return normCurrent.startsWith(normTarget);
+  };
 
   const navigate = (path) => {
     window.history.pushState({}, '', path);
     window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
+    setCurrentPath(path);
   };
 
   const handleLogout = () => {
@@ -51,14 +78,14 @@ export const Navbar = () => {
         <nav className="navbar-nav" aria-label="Main Navigation">
           <a 
             href="/" 
-            className="nav-link active"
+            className={`nav-link ${isActive('/') ? 'active' : ''}`}
             onClick={(e) => { e.preventDefault(); navigate('/'); }}
           >
             Home
           </a>
           <a 
             href="/explore" 
-            className="nav-link"
+            className={`nav-link ${isActive('/explore') || isActive('/courses') ? 'active' : ''}`}
             onClick={(e) => { e.preventDefault(); navigate('/explore'); }}
           >
             Explore Courses
@@ -66,7 +93,7 @@ export const Navbar = () => {
           {currentUser && currentUser.role === 'instructor' && (
             <a 
               href="/instructor" 
-              className="nav-link"
+              className={`nav-link ${isActive('/instructor') ? 'active' : ''}`}
               onClick={(e) => { e.preventDefault(); navigate('/instructor'); }}
             >
               Instructor Studio
@@ -75,7 +102,7 @@ export const Navbar = () => {
           {currentUser && currentUser.role === 'learner' && (
             <a 
               href="/learner" 
-              className="nav-link"
+              className={`nav-link ${isActive('/learner') ? 'active' : ''}`}
               onClick={(e) => { e.preventDefault(); navigate('/learner'); }}
             >
               Student Space
@@ -84,7 +111,7 @@ export const Navbar = () => {
           {(!currentUser || currentUser.role !== 'instructor') && (
             <a 
               href="/signup?role=instructor" 
-              className="nav-link"
+              className={`nav-link ${isActive('/signup') ? 'active' : ''}`}
               onClick={(e) => { e.preventDefault(); navigate('/signup?role=instructor'); }}
             >
               Teach on UpSkillr
@@ -176,14 +203,14 @@ export const Navbar = () => {
           <nav className="mobile-nav-links" aria-label="Mobile Navigation">
             <a 
               href="/" 
-              className="mobile-nav-link active" 
+              className={`mobile-nav-link ${isActive('/') ? 'active' : ''}`}
               onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); navigate('/'); }}
             >
               Home
             </a>
             <a 
               href="/explore" 
-              className="mobile-nav-link" 
+              className={`mobile-nav-link ${isActive('/explore') || isActive('/courses') ? 'active' : ''}`}
               onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); navigate('/explore'); }}
             >
               Explore Courses
@@ -191,7 +218,7 @@ export const Navbar = () => {
             {currentUser && currentUser.role === 'instructor' && (
               <a 
                 href="/instructor" 
-                className="mobile-nav-link" 
+                className={`mobile-nav-link ${isActive('/instructor') ? 'active' : ''}`}
                 onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); navigate('/instructor'); }}
               >
                 Instructor Studio
@@ -200,7 +227,7 @@ export const Navbar = () => {
             {currentUser && currentUser.role === 'learner' && (
               <a 
                 href="/learner" 
-                className="mobile-nav-link" 
+                className={`mobile-nav-link ${isActive('/learner') ? 'active' : ''}`}
                 onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); navigate('/learner'); }}
               >
                 Student Space
