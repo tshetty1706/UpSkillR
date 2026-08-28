@@ -12,11 +12,14 @@ import {
   Trash2,
   Save,
   CheckCircle2,
-  Users
+  Users,
+  AlertTriangle
 } from 'lucide-react';
 import './CourseManager.css';
+import { useToast } from '../../../../context/ToastContext';
 
 export const CourseManager = ({ courseId, onBack, onUpdateCourse, onPublishToggle }) => {
+  const { toast } = useToast();
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'lessons', 'resources', 'assessments', 'publish'
@@ -79,15 +82,25 @@ export const CourseManager = ({ courseId, onBack, onUpdateCourse, onPublishToggl
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(editInfo)
+        body: JSON.stringify({
+          ...editInfo,
+          lastUpdatedAt: course?.updatedAt
+        })
       });
       const data = await response.json();
+      if (response.status === 409) {
+        toast.error(data.message || 'This course was updated elsewhere. Another session has saved newer changes. Please review the latest version before saving again.');
+        return;
+      }
       if (data.success) {
         setCourse(data.course);
-        alert('Course information saved successfully!');
+        toast.success('Course information saved successfully!');
+        if (onUpdateCourse) {
+          onUpdateCourse(data.course);
+        }
       }
     } catch (err) {
-      alert('Failed to update course.');
+      toast.error('Failed to update course.');
     } finally {
       setSaving(false);
     }
@@ -110,9 +123,13 @@ export const CourseManager = ({ courseId, onBack, onUpdateCourse, onPublishToggl
       if (data.success) {
         setCourse(data.course);
         setNewLesson({ title: '', duration: '10 min', videoUrl: '', description: '' });
+        toast.success('Lesson added successfully!');
+        if (onUpdateCourse) {
+          onUpdateCourse(data.course);
+        }
       }
     } catch (err) {
-      alert('Failed to add lesson.');
+      toast.error('Failed to add lesson.');
     }
   };
 
@@ -124,9 +141,15 @@ export const CourseManager = ({ courseId, onBack, onUpdateCourse, onPublishToggl
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
-      if (data.success) setCourse(data.course);
+      if (data.success) {
+        setCourse(data.course);
+        toast.success('Lesson deleted successfully!');
+        if (onUpdateCourse) {
+          onUpdateCourse(data.course);
+        }
+      }
     } catch (err) {
-      alert('Failed to delete lesson.');
+      toast.error('Failed to delete lesson.');
     }
   };
 
@@ -147,9 +170,13 @@ export const CourseManager = ({ courseId, onBack, onUpdateCourse, onPublishToggl
       if (data.success) {
         setCourse(data.course);
         setNewResource({ title: '', fileUrl: '', fileType: 'PDF Document' });
+        toast.success('Resource added successfully!');
+        if (onUpdateCourse) {
+          onUpdateCourse(data.course);
+        }
       }
     } catch (err) {
-      alert('Failed to add resource.');
+      toast.error('Failed to add resource.');
     }
   };
 
@@ -161,9 +188,15 @@ export const CourseManager = ({ courseId, onBack, onUpdateCourse, onPublishToggl
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
-      if (data.success) setCourse(data.course);
+      if (data.success) {
+        setCourse(data.course);
+        toast.success('Resource deleted successfully!');
+        if (onUpdateCourse) {
+          onUpdateCourse(data.course);
+        }
+      }
     } catch (err) {
-      alert('Failed to delete resource.');
+      toast.error('Failed to delete resource.');
     }
   };
 
@@ -195,9 +228,13 @@ export const CourseManager = ({ courseId, onBack, onUpdateCourse, onPublishToggl
       if (data.success) {
         setCourse(data.course);
         setNewAssessment({ title: '', questionText: '', option0: '', option1: '' });
+        toast.success('Assessment added successfully!');
+        if (onUpdateCourse) {
+          onUpdateCourse(data.course);
+        }
       }
     } catch (err) {
-      alert('Failed to add assessment.');
+      toast.error('Failed to add assessment.');
     }
   };
 
@@ -209,9 +246,15 @@ export const CourseManager = ({ courseId, onBack, onUpdateCourse, onPublishToggl
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
-      if (data.success) setCourse(data.course);
+      if (data.success) {
+        setCourse(data.course);
+        toast.success('Assessment deleted successfully!');
+        if (onUpdateCourse) {
+          onUpdateCourse(data.course);
+        }
+      }
     } catch (err) {
-      alert('Failed to delete assessment.');
+      toast.error('Failed to delete assessment.');
     }
   };
 
@@ -536,8 +579,19 @@ export const CourseManager = ({ courseId, onBack, onUpdateCourse, onPublishToggl
           <div className="manager-sub-section">
             <h2>Publishing Settings</h2>
             <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
-              Publishing your course makes it visible to learners browsing courses on UpSkillr.
+              Publishing your course makes it visible to learners browsing courses on UpSkillR.
             </p>
+
+            {/* Zero-lesson publish gate */}
+            {course.lessons.length === 0 && (
+              <div className="publish-lesson-warning">
+                <AlertTriangle size={18} />
+                <div>
+                  <strong>Cannot publish yet</strong>
+                  <p>Add at least one lesson before publishing this course. Use the Lessons tab to add content.</p>
+                </div>
+              </div>
+            )}
 
             <div className="publish-status-box">
               <div className="status-box-info">
@@ -552,21 +606,16 @@ export const CourseManager = ({ courseId, onBack, onUpdateCourse, onPublishToggl
               <button
                 type="button"
                 className={`btn ${course.status === 'published' ? 'btn-outline' : 'btn-primary'}`}
+                disabled={course.lessons.length === 0 && course.status !== 'published'}
                 onClick={async () => {
                   await onPublishToggle(course._id, course.status);
                   fetchCourseDetails();
                 }}
               >
                 {course.status === 'published' ? (
-                  <>
-                    <Lock size={16} />
-                    <span>Unpublish (Move to Draft)</span>
-                  </>
+                  <><Lock size={16} /><span>Unpublish (Move to Draft)</span></>
                 ) : (
-                  <>
-                    <Globe size={16} />
-                    <span>Publish Course Live</span>
-                  </>
+                  <><Globe size={16} /><span>Publish Course Live</span></>
                 )}
               </button>
             </div>

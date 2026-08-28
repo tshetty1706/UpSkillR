@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Login_Page from '../../assets/illustrations/Login_Page.svg';
 import { useTheme } from '../../context/ThemeContext';
+import { useToast } from '../../context/ToastContext';
 import {
   Mail,
   Lock,
@@ -22,6 +23,7 @@ const API_BASE_URL = 'http://localhost:5000/api/auth';
 
 export default function Login() {
   const { theme, toggleTheme } = useTheme();
+  const { toast } = useToast();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -50,27 +52,32 @@ export default function Login() {
         const user = JSON.parse(decodeURIComponent(userParam));
         localStorage.setItem('upskillr_token', token);
         localStorage.setItem('upskillr_user', JSON.stringify(user));
-        setSuccessMessage(`Successfully signed in via ${providerParam ? providerParam.toUpperCase() : 'OAuth'}! Welcome back, ${user.fullName}.`);
+        const welcomeMsg = `Successfully signed in via ${providerParam ? providerParam.toUpperCase() : 'OAuth'}! Welcome back, ${user.fullName}.`;
+        setSuccessMessage(welcomeMsg);
+        toast.success(welcomeMsg);
         setTimeout(() => {
           if (user.role === 'instructor') {
             navigate('/instructor');
           } else {
-            navigate('/');
+            navigate('/learner');
           }
         }, 800);
       } catch (e) {
         console.error('Failed to parse user data from OAuth callback');
       }
     } else if (errorParam) {
+      let oauthError = 'Authentication failed. Please try again.';
       if (errorParam === 'google_oauth_failed') {
-        setErrorMessage('Google OAuth authentication failed. Please try again.');
+        oauthError = 'Google OAuth authentication failed. Please try again.';
       } else if (errorParam === 'github_oauth_failed') {
-        setErrorMessage('GitHub OAuth authentication failed. Please try again.');
+        oauthError = 'GitHub OAuth authentication failed. Please try again.';
       } else if (errorParam === 'github_token_failed') {
-        setErrorMessage('Failed to retrieve GitHub access token.');
+        oauthError = 'Failed to retrieve GitHub access token.';
       }
+      setErrorMessage(oauthError);
+      toast.error(oauthError);
     }
-  }, []);
+  }, [toast]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -117,17 +124,21 @@ export default function Login() {
       }
 
       const isInstructor = data.user?.role === 'instructor';
-      setSuccessMessage(`Welcome back, ${data.user.fullName}! Opening ${isInstructor ? 'Instructor Studio' : 'home page'}...`);
+      const successMsg = `Welcome back, ${data.user.fullName}! Opening ${isInstructor ? 'Instructor Studio' : 'Learner Dashboard'}...`;
+      setSuccessMessage(successMsg);
+      toast.success(successMsg);
 
       setTimeout(() => {
         if (isInstructor) {
           navigate('/instructor');
         } else {
-          navigate('/');
+          navigate('/learner');
         }
       }, 800);
     } catch (err) {
-      setErrorMessage(err.message || 'Could not complete login. Check backend connection.');
+      const errorMsg = err.message || 'Could not complete login. Check backend connection.';
+      setErrorMessage(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -142,7 +153,7 @@ export default function Login() {
   };
 
   const handleMicrosoftOAuth = () => {
-    alert('Microsoft OAuth login will be configured soon.');
+    toast.info('Microsoft OAuth login will be configured soon.');
   };
 
   return (

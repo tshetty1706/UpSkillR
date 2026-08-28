@@ -16,6 +16,12 @@
   scrollbar-width: none;
 }
 
+/* In dark mode, sidebar sits on the same near-black background as the Home Page Navbar */
+.dark .instructor-sidebar {
+  background-color: var(--background);
+  border-right-color: var(--border);
+}
+
 .instructor-sidebar::-webkit-scrollbar,
 .sidebar-nav::-webkit-scrollbar {
   display: none;
@@ -52,9 +58,12 @@
 .sidebar-brand-name {
   font-size: 1.1rem;
   font-weight: 800;
-  color: var(--text-primary);
   line-height: 1.1;
   letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--text-primary) 50%, var(--brand-primary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .sidebar-brand-badge {
@@ -114,7 +123,7 @@
 }
 
 .sidebar-nav-btn:hover {
-  background-color: var(--surface-muted);
+  background-color: var(--brand-green-tint);
   color: var(--text-primary);
 }
 
@@ -146,7 +155,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background-color: var(--surface-muted);
+  background-color: transparent;
 }
 
 .sidebar-user-card {
@@ -199,15 +208,24 @@
   text-overflow: ellipsis;
 }
 
-.sidebar-logout-btn {
+/* Footer Action Buttons Row */
+.sidebar-actions-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  width: 100%;
+}
+
+.sidebar-theme-btn {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 8px;
+  padding: 10px;
   border-radius: var(--radius-sm);
-  background-color: var(--surface);
   border: 1px solid var(--border);
+  background-color: var(--surface);
   color: var(--text-secondary);
   font-family: var(--font-family);
   font-size: 0.8rem;
@@ -217,10 +235,35 @@
   min-height: 38px;
 }
 
+.sidebar-theme-btn:hover {
+  background-color: var(--brand-green-tint);
+  color: var(--brand-accent-text);
+  border-color: var(--brand-primary);
+}
+
+.sidebar-logout-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-error-bg);
+  border: 1px solid var(--color-error-border);
+  color: var(--color-error);
+  font-family: var(--font-family);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 38px;
+}
+
 .sidebar-logout-btn:hover {
-  background-color: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.3);
-  color: #EF4444;
+  background-color: var(--color-error-bg);
+  border-color: var(--color-error);
+  color: var(--color-error);
 }
 
 @media (max-width: 1023px) {

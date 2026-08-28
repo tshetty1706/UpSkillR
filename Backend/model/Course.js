@@ -75,6 +75,10 @@ const courseSchema = new mongoose.Schema({
   lessons: [lessonSchema],
   resources: [resourceSchema],
   assessments: [assessmentSchema],
+  rating: {
+    type: Number,
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -86,9 +90,8 @@ const courseSchema = new mongoose.Schema({
 });
 
 // Auto update updatedAt timestamp before save
-courseSchema.pre('save', function (next) {
+courseSchema.pre('save', async function () {
   this.updatedAt = Date.now();
-  next();
 });
 
 module.exports = mongoose.model('Course', courseSchema, 'courses');

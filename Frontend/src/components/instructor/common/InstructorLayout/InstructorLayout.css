@@ -2,7 +2,7 @@
 
 .instructor-studio-layout {
   min-height: 100vh;
-  background-color: var(--surface-muted);
+  background-color: var(--background);
   display: flex;
   flex-direction: column;
 }
@@ -26,13 +26,6 @@
   padding: 0 32px;
 }
 
-.loading-workspace-spinner {
-  padding: 4rem 2rem;
-  text-align: center;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
 
 @media (max-width: 1023px) {
   .workspace-container {

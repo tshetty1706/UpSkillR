@@ -12,15 +12,21 @@ import {
   LogOut,
   ChevronRight,
   Sparkles,
-  BookMarked
+  BookMarked,
+  Sun,
+  Moon,
+  Home
 } from 'lucide-react';
+import { useTheme } from '../../../../context/ThemeContext';
 import './InstructorSidebar.css';
 
 export const InstructorSidebar = ({ activeTab, setActiveTab, user, onLogout }) => {
+  const { theme, toggleTheme, isDarkMode } = useTheme();
   const navSections = [
     {
       title: 'MAIN',
       items: [
+        { id: 'home', label: 'Home Page', icon: Home },
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'my-courses', label: 'My Courses', icon: BookOpen },
         { id: 'create-course', label: 'Create Course', icon: PlusCircle }
@@ -53,7 +59,16 @@ export const InstructorSidebar = ({ activeTab, setActiveTab, user, onLogout }) =
     <aside className="instructor-sidebar">
       {/* Top Branding Badge */}
       <div className="sidebar-header">
-        <div className="sidebar-brand">
+        <a 
+          href="/" 
+          className="sidebar-brand" 
+          onClick={(e) => { 
+            e.preventDefault(); 
+            window.history.pushState({}, '', '/');
+            window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/' } }));
+          }}
+          style={{ textDecoration: 'none', cursor: 'pointer' }}
+        >
           <div className="sidebar-brand-icon">
             <BookMarked size={20} />
           </div>
@@ -61,7 +76,7 @@ export const InstructorSidebar = ({ activeTab, setActiveTab, user, onLogout }) =
             <span className="sidebar-brand-name">UpSkillr</span>
             <span className="sidebar-brand-badge">Instructor Studio</span>
           </div>
-        </div>
+        </a>
       </div>
 
       {/* Navigation Sections */}
@@ -78,7 +93,14 @@ export const InstructorSidebar = ({ activeTab, setActiveTab, user, onLogout }) =
                     <button
                       type="button"
                       className={`sidebar-nav-btn ${isActive ? 'active' : ''}`}
-                      onClick={() => setActiveTab(item.id)}
+                      onClick={() => {
+                        if (item.id === 'home') {
+                          window.history.pushState({}, '', '/');
+                          window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/' } }));
+                        } else {
+                          setActiveTab(item.id);
+                        }
+                      }}
                     >
                       <IconComponent size={18} className="sidebar-btn-icon" />
                       <span className="sidebar-btn-label">{item.label}</span>
@@ -92,7 +114,7 @@ export const InstructorSidebar = ({ activeTab, setActiveTab, user, onLogout }) =
         ))}
       </nav>
 
-      {/* Footer Profile & Logout */}
+      {/* Footer Profile, Theme Toggle & Logout */}
       <div className="sidebar-footer">
         <div className="sidebar-user-card">
           <div className="sidebar-avatar">
@@ -108,10 +130,27 @@ export const InstructorSidebar = ({ activeTab, setActiveTab, user, onLogout }) =
           </div>
         </div>
 
-        <button type="button" className="sidebar-logout-btn" onClick={onLogout} title="Log Out">
-          <LogOut size={16} />
-          <span>Log out</span>
-        </button>
+        <div className="sidebar-actions-row">
+          <button 
+            type="button" 
+            className="sidebar-theme-btn"
+            onClick={toggleTheme} 
+            title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {isDarkMode ? <Sun size={15} /> : <Moon size={15} />}
+            <span>{isDarkMode ? 'Light' : 'Dark'}</span>
+          </button>
+
+          <button 
+            type="button" 
+            className="sidebar-logout-btn" 
+            onClick={onLogout} 
+            title="Log Out"
+          >
+            <LogOut size={15} />
+            <span>Log out</span>
+          </button>
+        </div>
       </div>
     </aside>
   );

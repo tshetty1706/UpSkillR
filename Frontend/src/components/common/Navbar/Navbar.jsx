@@ -46,6 +46,8 @@ export const Navbar = () => {
   };
 
   const navigate = (path) => {
+    const currentFull = window.location.pathname + window.location.search;
+    if (currentFull === path) return;
     window.history.pushState({}, '', path);
     window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
     setCurrentPath(path);
@@ -88,35 +90,15 @@ export const Navbar = () => {
             className={`nav-link ${isActive('/explore') || isActive('/courses') ? 'active' : ''}`}
             onClick={(e) => { e.preventDefault(); navigate('/explore'); }}
           >
-            Explore Courses
+            Courses
           </a>
-          {currentUser && currentUser.role === 'instructor' && (
-            <a 
-              href="/instructor" 
-              className={`nav-link ${isActive('/instructor') ? 'active' : ''}`}
-              onClick={(e) => { e.preventDefault(); navigate('/instructor'); }}
-            >
-              Instructor Studio
-            </a>
-          )}
-          {currentUser && currentUser.role === 'learner' && (
-            <a 
-              href="/learner" 
-              className={`nav-link ${isActive('/learner') ? 'active' : ''}`}
-              onClick={(e) => { e.preventDefault(); navigate('/learner'); }}
-            >
-              Student Space
-            </a>
-          )}
-          {(!currentUser || currentUser.role !== 'instructor') && (
-            <a 
-              href="/signup?role=instructor" 
-              className={`nav-link ${isActive('/signup') ? 'active' : ''}`}
-              onClick={(e) => { e.preventDefault(); navigate('/signup?role=instructor'); }}
-            >
-              Teach on UpSkillr
-            </a>
-          )}
+          <a 
+            href="/instructors" 
+            className={`nav-link ${isActive('/instructors') ? 'active' : ''}`}
+            onClick={(e) => { e.preventDefault(); navigate('/instructors'); }}
+          >
+            Instructors
+          </a>
         </nav>
 
         {/* RIGHT: Actions */}
@@ -213,26 +195,15 @@ export const Navbar = () => {
               className={`mobile-nav-link ${isActive('/explore') || isActive('/courses') ? 'active' : ''}`}
               onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); navigate('/explore'); }}
             >
-              Explore Courses
+              Courses
             </a>
-            {currentUser && currentUser.role === 'instructor' && (
-              <a 
-                href="/instructor" 
-                className={`mobile-nav-link ${isActive('/instructor') ? 'active' : ''}`}
-                onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); navigate('/instructor'); }}
-              >
-                Instructor Studio
-              </a>
-            )}
-            {currentUser && currentUser.role === 'learner' && (
-              <a 
-                href="/learner" 
-                className={`mobile-nav-link ${isActive('/learner') ? 'active' : ''}`}
-                onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); navigate('/learner'); }}
-              >
-                Student Space
-              </a>
-            )}
+            <a 
+              href="/instructors" 
+              className={`mobile-nav-link ${isActive('/instructors') ? 'active' : ''}`}
+              onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); navigate('/instructors'); }}
+            >
+              Instructors
+            </a>
             <hr className="mobile-divider" />
             {currentUser ? (
               <button

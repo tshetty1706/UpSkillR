@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, Search, Video, Users, CheckCircle2, Star, Sparkles, ArrowRight } from 'lucide-react';
 import './ExploreCourses.css';
+import { useToast } from '../../../../context/ToastContext';
 
 export const ExploreCourses = () => {
+  const { toast } = useToast();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -12,6 +14,22 @@ export const ExploreCourses = () => {
   useEffect(() => {
     fetchPublishedCourses();
     fetchLearnerEnrolments();
+
+    const handleUrlQuery = () => {
+      const params = new URLSearchParams(window.location.search);
+      const searchParam = params.get('search') || params.get('instructor');
+      setSearchQuery(searchParam || '');
+    };
+
+    handleUrlQuery();
+
+    window.addEventListener('popstate', handleUrlQuery);
+    window.addEventListener('upskillr_navigate', handleUrlQuery);
+
+    return () => {
+      window.removeEventListener('popstate', handleUrlQuery);
+      window.removeEventListener('upskillr_navigate', handleUrlQuery);
+    };
   }, []);
 
   const fetchPublishedCourses = async () => {
@@ -54,7 +72,7 @@ export const ExploreCourses = () => {
   const handleEnrol = async (courseId, courseTitle) => {
     const token = localStorage.getItem('upskillr_token');
     if (!token) {
-      alert('Please log in as a Learner to enrol in courses.');
+      toast.warning('Please log in as a Learner to enrol in courses.');
       window.history.pushState({}, '', '/login');
       window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/login' } }));
       return;
@@ -71,19 +89,22 @@ export const ExploreCourses = () => {
       });
       const data = await response.json();
       if (data.success) {
-        alert(data.message || `Successfully enrolled in ${courseTitle}!`);
+        toast.success(data.message || `Successfully enrolled in ${courseTitle}!`);
         setEnrolledMap((prev) => ({ ...prev, [courseId]: true }));
       } else {
-        alert(data.message || 'Enrolment failed.');
+        toast.error(data.message || 'Enrolment failed.');
       }
     } catch (err) {
-      alert('Error during enrolment.');
+      toast.error('Error during enrolment.');
     }
   };
 
   const filteredCourses = courses.filter((c) => {
     const matchesCategory = selectedCategory === 'all' || c.category.toLowerCase() === selectedCategory.toLowerCase();
-    const matchesSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase()) || c.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = 
+      c.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      c.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.instructorName && c.instructorName.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesCategory && matchesSearch;
   });
 

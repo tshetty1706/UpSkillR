@@ -3,18 +3,19 @@ import {
   BookOpen,
   CheckCircle2,
   FileEdit,
-  Users,
+  Star,
   Plus,
   ArrowRight,
   TrendingUp,
   Clock,
   Sparkles,
   Award,
-  Video
+  Video,
+  Users
 } from 'lucide-react';
-import './InstructorDashboard.css';
+import './InstructorDashboardOverview.css';
 
-export const InstructorDashboard = ({ user, stats, courses, onNavigate }) => {
+export const InstructorDashboardOverview = ({ user, stats, courses, onNavigate }) => {
   const recentCourses = courses.slice(0, 4);
 
   return (
@@ -108,17 +109,21 @@ export const InstructorDashboard = ({ user, stats, courses, onNavigate }) => {
           </div>
         </div>
 
-        {/* Total Learners / Enrolments */}
+        {/* Average Rating */}
         <div className="metric-card">
           <div className="metric-header">
-            <span className="metric-title">Total Learners</span>
-            <div className="metric-icon-box info">
-              <Users size={20} />
+            <span className="metric-title">Average Rating</span>
+            <div className="metric-icon-box warning">
+              <Star size={20} />
             </div>
           </div>
           <div className="metric-body">
-            <span className="metric-value">{stats?.totalLearners || 0}</span>
-            <span className="metric-desc">Enrolled across all courses</span>
+            <span className="metric-value">
+              {stats?.averageRating !== null && stats?.averageRating !== undefined
+                ? `${stats.averageRating.toFixed(1)} / 5`
+                : '—'}
+            </span>
+            <span className="metric-desc">Across all rated courses</span>
           </div>
         </div>
       </section>
@@ -203,25 +208,6 @@ export const InstructorDashboard = ({ user, stats, courses, onNavigate }) => {
           <div className="section-card">
             <h2 className="section-card-title" style={{ fontSize: '1.05rem' }}>Recent Studio Activity</h2>
             <div className="activity-timeline">
-              <div className="timeline-item">
-                <div className="timeline-icon success">
-                  <CheckCircle2 size={14} />
-                </div>
-                <div className="timeline-info">
-                  <span className="timeline-text">Collection separation verified</span>
-                  <span className="timeline-time">Just now</span>
-                </div>
-              </div>
-
-              <div className="timeline-item">
-                <div className="timeline-icon brand">
-                  <Sparkles size={14} />
-                </div>
-                <div className="timeline-info">
-                  <span className="timeline-text">Studio workspace loaded</span>
-                  <span className="timeline-time">Today</span>
-                </div>
-              </div>
 
               {courses.length > 0 && (
                 <div className="timeline-item">

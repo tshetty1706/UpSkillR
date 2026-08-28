@@ -11,6 +11,13 @@ exports.createCourse = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please provide course title, description, and category.' });
     }
 
+    // Soft duplicate-title check (case-insensitive, same instructor)
+    const escapedTitle = title.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const duplicate = await Course.findOne({
+      instructorId: req.user.id,
+      title: { $regex: new RegExp(`^${escapedTitle}$`, 'i') }
+    });
+
     const course = new Course({
       title,
       description,
@@ -28,7 +35,10 @@ exports.createCourse = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: 'Course created successfully as Draft!',
-      course
+      course,
+      duplicateWarning: duplicate
+        ? `You already have a course with a similar title: "${duplicate.title}". You can still continue if this is intentional.`
+        : null
     });
   } catch (error) {
     console.error('Create Course Error:', error);
@@ -49,6 +59,12 @@ exports.getInstructorCourses = async (req, res) => {
     const publishedCourses = courses.filter((c) => c.status === 'published').length;
     const draftCourses = courses.filter((c) => c.status === 'draft').length;
 
+    // Compute average rating from courses that have a rating set
+    const ratedCourses = courses.filter((c) => c.rating !== null && c.rating !== undefined);
+    const averageRating = ratedCourses.length > 0
+      ? ratedCourses.reduce((sum, c) => sum + c.rating, 0) / ratedCourses.length
+      : null;
+
     // Attach enrolments count per course
     const courseStatsList = await Promise.all(
       courses.map(async (c) => {
@@ -65,7 +81,8 @@ exports.getInstructorCourses = async (req, res) => {
         totalCourses,
         publishedCourses,
         draftCourses,
-        totalLearners: totalEnrolments
+        totalLearners: totalEnrolments,
+        averageRating: averageRating !== null ? Math.round(averageRating * 10) / 10 : null
       },
       courses: courseStatsList
     });
@@ -97,7 +114,7 @@ exports.getCourseById = async (req, res) => {
 // 4. Update Course Info (Instructor Only)
 exports.updateCourse = async (req, res) => {
   try {
-    const { title, description, category, skillLevel, thumbnail, price } = req.body;
+    const { title, description, category, skillLevel, thumbnail, price, lastUpdatedAt } = req.body;
     const course = await Course.findById(req.params.id);
 
     if (!course) {
@@ -106,6 +123,19 @@ exports.updateCourse = async (req, res) => {
 
     if (course.instructorId.toString() !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Unauthorized to modify this course.' });
+    }
+
+    // Optimistic Concurrency Check using updatedAt
+    if (lastUpdatedAt && course.updatedAt) {
+      const clientTime = new Date(lastUpdatedAt).getTime();
+      const serverTime = new Date(course.updatedAt).getTime();
+      if (Math.abs(clientTime - serverTime) > 1000) {
+        return res.status(409).json({
+          success: false,
+          conflict: true,
+          message: 'This course was updated elsewhere. Another session has saved newer changes. Please review the latest version before saving again.'
+        });
+      }
     }
 
     if (title) course.title = title;
@@ -343,6 +373,15 @@ exports.publishCourse = async (req, res) => {
     }
 
     const targetStatus = req.body.status || (course.status === 'published' ? 'draft' : 'published');
+
+    // Validate: cannot publish a course with zero lessons
+    if (targetStatus === 'published' && course.lessons.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Add at least one lesson before publishing this course.'
+      });
+    }
+
     course.status = targetStatus;
     await course.save();
 

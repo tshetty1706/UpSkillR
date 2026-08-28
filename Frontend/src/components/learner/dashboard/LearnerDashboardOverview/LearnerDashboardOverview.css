@@ -116,7 +116,58 @@
 }
 
 .btn-lesson-check.done {
-  background-color: rgba(34, 197, 94, 0.15);
-  color: #22C55E;
-  border-color: rgba(34, 197, 94, 0.3);
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+  border-color: var(--color-success-bg);
 }
+
+.dashboard-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background-color: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid var(--border-subtle);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: all 0.3s ease;
+}
+
+.dark .dashboard-topbar {
+  background-color: rgba(9, 15, 19, 0.85);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.topbar-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+
+.dashboard-badge {
+  font-size: 11px;
+  padding: 4px 8px;
+  background-color: var(--brand-light);
+  color: var(--brand-primary);
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  margin-left: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.dark .dashboard-badge {
+  background-color: var(--brand-soft);
+  color: var(--brand-primary);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.learner-main-workspace {
+  padding-top: 40px;
+}
+

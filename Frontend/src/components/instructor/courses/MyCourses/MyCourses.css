@@ -189,12 +189,12 @@
 
 .status-badge.published {
   background-color: rgba(34, 197, 94, 0.9);
-  color: #FFFFFF;
+  color: var(--btn-primary-text);
 }
 
 .status-badge.draft {
-  background-color: rgba(31, 41, 55, 0.85);
-  color: #E5E7EB;
+  background-color: var(--surface-muted);
+  color: var(--text-secondary);
 }
 
 .level-badge {
@@ -265,47 +265,36 @@
   padding: 0.85rem 1.25rem 1.25rem 1.25rem;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   background-color: var(--surface-muted);
   border-top: 1px solid var(--border-subtle);
 }
 
 .btn-block {
   flex: 1;
+  justify-content: center;
 }
 
-.card-quick-actions {
-  display: flex;
+/* Publish / Unpublish button — sits alongside Edit Course */
+.btn-publish {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-
-.btn-icon-action {
-  width: 36px;
   height: 36px;
+  padding: 0 14px;
   border-radius: var(--radius-sm);
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-icon-action:hover {
-  border-color: var(--brand-primary);
+  border: 1px solid var(--brand-primary);
+  background-color: var(--brand-soft);
   color: var(--brand-accent-text);
+  font-family: var(--font-family);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
 }
 
-.btn-icon-action.published {
-  color: #22C55E;
-  border-color: rgba(34, 197, 94, 0.4);
-}
-
-.btn-icon-action.danger:hover {
-  border-color: #EF4444;
-  color: #EF4444;
-  background-color: rgba(239, 68, 68, 0.08);
+.btn-publish:hover {
+  background-color: var(--brand-primary);
+  color: var(--btn-primary-text);
 }

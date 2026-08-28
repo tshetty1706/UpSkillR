@@ -3,6 +3,12 @@ const router = express.Router();
 const courseController = require('../controller/courseController');
 const { protect, requireInstructor, requireLearner } = require('../middleware/authMiddleware');
 
+// Middleware to prevent browser caching of API responses
+router.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  next();
+});
+
 // Public / Learner Course Browsing Route
 router.get('/published', courseController.getPublishedCourses);
 

@@ -2,10 +2,24 @@
   position: sticky;
   top: 0;
   z-index: 1000;
-  background-color: var(--background);
-  border-bottom: 1px solid var(--border);
-  transition: background-color 0.25s ease, border-color 0.25s ease;
-  backdrop-filter: blur(8px);
+  background-color: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.dark .navbar-header {
+  background-color: rgba(9, 15, 19, 0.85);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.navbar-header:hover {
+  box-shadow: 0 4px 20px rgba(17, 104, 48, 0.02);
+}
+
+.dark .navbar-header:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
 .navbar-container {
@@ -15,28 +29,43 @@
   height: 72px;
 }
 
+/* Brand Logo Styling */
 .navbar-logo {
   display: flex;
   align-items: center;
   gap: 10px;
   text-decoration: none;
   color: var(--text-primary);
+  transition: transform 0.2s ease;
+}
+
+.navbar-logo:hover {
+  transform: scale(1.02);
 }
 
 .logo-icon-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--brand-accent-text);
+  color: var(--brand-primary);
+  filter: drop-shadow(0 2px 4px rgba(17, 104, 48, 0.15));
+}
+
+.dark .logo-icon-wrapper {
+  filter: drop-shadow(0 2px 8px rgba(57, 217, 95, 0.3));
 }
 
 .logo-text {
   font-size: 22px;
   font-weight: 800;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.5px;
   color: var(--text-primary);
+  background: linear-gradient(135deg, var(--text-primary) 50%, var(--brand-primary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
+/* Center Desktop Navigation Underline Layout */
 .navbar-nav {
   display: flex;
   align-items: center;
@@ -44,26 +73,74 @@
 }
 
 .nav-link {
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 500;
   color: var(--text-secondary);
   text-decoration: none;
-  transition: color 0.2s ease;
+  padding: 6px 0;
+  transition: color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+/* Hover Underline: Thin, slightly transparent, centers and expands */
+.nav-link::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--brand-primary);
+  opacity: 0.35;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-link:hover::before {
+  transform: scaleX(1);
+}
+
+/* Click/Active Underline: Thicker, fully opaque, centers and expands */
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background-color: var(--brand-primary);
+  border-radius: 1.5px;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-link.active::after {
+  transform: scaleX(1);
 }
 
 .nav-link:hover {
-  color: var(--brand-accent-text);
+  color: var(--brand-primary);
+  background-color: transparent;
 }
 
 .nav-link.active {
-  color: var(--brand-accent-text);
+  color: var(--brand-primary);
   font-weight: 600;
+  background-color: transparent;
+  box-shadow: none;
 }
 
+.dark .nav-link.active {
+  box-shadow: none;
+}
+
+/* Right Actions Layout */
 .navbar-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .icon-btn {
@@ -71,38 +148,57 @@
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 8px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.2s ease, background-color 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .icon-btn:hover {
-  color: var(--brand-accent-text);
-  background-color: var(--brand-soft);
+  color: var(--brand-primary);
+  background-color: var(--brand-green-tint);
+  transform: rotate(15deg) scale(1.05);
 }
 
 .login-link {
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 600;
   color: var(--text-primary);
   text-decoration: none;
-  padding: 8px 12px;
-  transition: color 0.2s ease;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
 }
 
 .login-link:hover {
-  color: var(--brand-accent-text);
+  color: var(--brand-primary);
+  background-color: var(--brand-green-tint);
 }
 
 .start-learning-btn {
   padding: 9px 20px;
   font-size: 14px;
   border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(17, 104, 48, 0.15);
 }
 
+.dark .start-learning-btn {
+  box-shadow: 0 4px 16px rgba(57, 217, 95, 0.2);
+}
+
+.start-learning-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(17, 104, 48, 0.25);
+}
+
+.dark .start-learning-btn:hover {
+  box-shadow: 0 6px 20px rgba(57, 217, 95, 0.35);
+}
+
+/* Mobile Toggle and Drawer Button */
 .mobile-toggle-btn {
   display: none;
   background: transparent;
@@ -110,45 +206,72 @@
   color: var(--text-primary);
   cursor: pointer;
   padding: 6px;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.2s ease;
+}
+
+.mobile-toggle-btn:hover {
+  background-color: var(--brand-green-tint);
 }
 
 .mobile-menu-drawer {
   display: none;
   background-color: var(--surface);
   border-bottom: 1px solid var(--border);
-  padding: 16px 24px;
+  padding: 16px 24px 24px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+  animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.dark .mobile-menu-drawer {
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
 }
 
 .mobile-nav-links {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
 }
 
 .mobile-nav-link {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--text-secondary);
   text-decoration: none;
-  padding: 6px 0;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
 }
 
-.mobile-nav-link.active {
-  color: var(--brand-accent-text);
-  font-weight: 600;
+.mobile-nav-link:hover, .mobile-nav-link.active {
+  color: var(--brand-primary);
+  background-color: var(--brand-light);
 }
 
 .mobile-divider {
   border: none;
-  border-top: 1px solid var(--border);
-  margin: 6px 0;
+  border-top: 1px solid var(--border-subtle);
+  margin: 12px 0;
 }
 
 .mobile-start-btn {
   width: 100%;
   margin-top: 8px;
+  padding: 12px;
 }
 
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Spacing and Breakpoints */
 @media (max-width: 992px) {
   .navbar-nav {
     display: none;

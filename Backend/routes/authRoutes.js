@@ -21,4 +21,7 @@ router.get('/github/callback', authController.githubOAuthCallback);
 // User Profile Route
 router.get('/me', authController.getCurrentUser);
 
+// Public list of instructors
+router.get('/instructors', authController.getInstructors);
+
 module.exports = router;

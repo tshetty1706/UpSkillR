@@ -3,22 +3,18 @@ import {
   BookOpen,
   Plus,
   Search,
-  Filter,
   Video,
   Users,
   Clock,
-  MoreVertical,
-  CheckCircle2,
-  FileEdit,
-  Trash2,
-  Eye,
   Globe,
-  Lock
+  Lock,
+  FileEdit,
+  CheckCircle2
 } from 'lucide-react';
 import './MyCourses.css';
 
-export const MyCourses = ({ courses, onNavigate, onPublishToggle, onDeleteCourse }) => {
-  const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'published', 'draft'
+export const MyCourses = ({ courses, onNavigate, onPublishToggle }) => {
+  const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'published' | 'draft'
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredCourses = courses.filter((course) => {
@@ -32,7 +28,8 @@ export const MyCourses = ({ courses, onNavigate, onPublishToggle, onDeleteCourse
 
   return (
     <div className="my-courses-page">
-      {/* Header */}
+
+      {/* Page Header */}
       <div className="courses-page-header">
         <div className="header-title-group">
           <h1 className="page-title">My Courses</h1>
@@ -113,7 +110,8 @@ export const MyCourses = ({ courses, onNavigate, onPublishToggle, onDeleteCourse
         <div className="courses-card-grid">
           {filteredCourses.map((course) => (
             <div key={course._id} className="course-card">
-              {/* Thumbnail Container */}
+
+              {/* Thumbnail */}
               <div className="course-card-thumb-wrap">
                 <img
                   src={course.thumbnail}
@@ -122,21 +120,15 @@ export const MyCourses = ({ courses, onNavigate, onPublishToggle, onDeleteCourse
                 />
                 <span className={`status-badge ${course.status}`}>
                   {course.status === 'published' ? (
-                    <>
-                      <Globe size={12} />
-                      <span>Published</span>
-                    </>
+                    <><Globe size={12} /><span>Published</span></>
                   ) : (
-                    <>
-                      <Lock size={12} />
-                      <span>Draft</span>
-                    </>
+                    <><Lock size={12} /><span>Draft</span></>
                   )}
                 </span>
                 <span className="level-badge">{course.skillLevel}</span>
               </div>
 
-              {/* Body */}
+              {/* Card Body */}
               <div className="course-card-body">
                 <span className="course-category">{course.category}</span>
                 <h3 className="course-title">{course.title}</h3>
@@ -158,35 +150,29 @@ export const MyCourses = ({ courses, onNavigate, onPublishToggle, onDeleteCourse
                 </div>
               </div>
 
-              {/* Actions Footer */}
+              {/* Card Footer — Edit + Publish/Unpublish */}
               <div className="course-card-footer">
                 <button
                   type="button"
                   className="btn btn-primary btn-sm btn-block"
                   onClick={() => onNavigate('manage-course', course._id)}
                 >
-                  Manage Workspace
+                  <FileEdit size={15} />
+                  <span>Edit Course</span>
                 </button>
 
-                <div className="card-quick-actions">
-                  <button
-                    type="button"
-                    className={`btn-icon-action ${course.status === 'published' ? 'published' : ''}`}
-                    title={course.status === 'published' ? 'Unpublish' : 'Publish Course'}
-                    onClick={() => onPublishToggle(course._id, course.status)}
-                  >
-                    <CheckCircle2 size={16} />
-                  </button>
-
-                  <button
-                    type="button"
-                    className="btn-icon-action danger"
-                    title="Delete Course"
-                    onClick={() => onDeleteCourse(course._id, course.title)}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className={`btn btn-sm btn-block ${course.status === 'published' ? 'btn-outline' : 'btn-publish'}`}
+                  onClick={() => onPublishToggle(course._id, course.status)}
+                  title={course.status === 'published' ? 'Move back to Draft' : 'Publish Course Live'}
+                >
+                  {course.status === 'published' ? (
+                    <><Lock size={14} /><span>Unpublish</span></>
+                  ) : (
+                    <><Globe size={14} /><span>Publish</span></>
+                  )}
+                </button>
               </div>
             </div>
           ))}

@@ -108,3 +108,34 @@
   font-size: 0.88rem;
   color: var(--text-secondary);
 }
+
+/* Zero-lesson publish gate warning */
+.publish-lesson-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background-color: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  border-radius: var(--radius-sm);
+  margin-bottom: 1.25rem;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.publish-lesson-warning svg {
+  color: #d97706;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.publish-lesson-warning strong {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.publish-lesson-warning p {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+}

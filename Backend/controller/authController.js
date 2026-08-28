@@ -617,3 +617,37 @@ exports.getCurrentUser = async (req, res) => {
     return res.status(401).json({ success: false, message: 'Invalid or expired token.' });
   }
 };
+
+// 10. Get All Registered Instructors with Stats
+exports.getInstructors = async (req, res) => {
+  try {
+    const instructors = await Instructor.find({}, 'fullName email avatar');
+    
+    const Course = require('../model/Course');
+    const Enrolment = require('../model/Enrolment');
+    
+    const instructorsWithStats = await Promise.all(
+      instructors.map(async (inst) => {
+        const courses = await Course.find({ instructorId: inst._id, status: 'published' });
+        const courseIds = courses.map(c => c._id);
+        const learnersCount = await Enrolment.countDocuments({ courseId: { $in: courseIds } });
+        
+        return {
+          _id: inst._id,
+          fullName: inst.fullName,
+          email: inst.email,
+          avatar: inst.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(inst.fullName)}&backgroundType=gradientLinear&fontSize=40`,
+          coursesCount: courses.length,
+          learnersCount,
+          expertise: courses.map(c => c.category).filter((v, i, a) => a.indexOf(v) === i)
+        };
+      })
+    );
+    
+    return res.status(200).json({ success: true, instructors: instructorsWithStats });
+  } catch (error) {
+    console.error('Get Instructors Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while fetching instructors.' });
+  }
+};
+

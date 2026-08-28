@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
+import { ToastProvider } from './context/ToastContext';
 import { Navbar } from './components/common/Navbar/Navbar';
 import { HomePage } from './pages/Home/HomePage';
 import { Footer } from './components/common/Footer/Footer';
 import SignUp from './components/authentication/signup';
 import Login from './components/authentication/login';
-import { InstructorLayout } from './components/instructor/InstructorLayout';
-import { LearnerDashboard } from './components/learner/LearnerDashboard';
-import { ExploreCourses } from './components/learner/ExploreCourses';
+import { InstructorDashboard } from './pages/Instructor/InstructorDashboard';
+import { LearnerDashboard } from './pages/Learner/LearnerDashboard';
+import { ExploreCourses } from './components/learner/courses/ExploreCourses/ExploreCourses';
+import { ExploreInstructors } from './components/learner/instructors/ExploreInstructors/ExploreInstructors';
+import { NotFound } from './components/common/NotFound/NotFound';
 
 function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -72,23 +75,63 @@ function App() {
     localStorage.removeItem('upskillr_user');
     setCurrentUser(null);
     window.history.pushState({}, '', '/');
-    setCurrentPath('/');
+    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/' } }));
   };
 
   const renderContent = () => {
     const path = currentPath.toLowerCase();
 
+    // 1. Auth Routing
     if (path === '/login' || path === '/signin') {
+      if (currentUser) {
+        return currentUser.role === 'instructor' ? (
+          <InstructorDashboard user={currentUser} onLogout={handleLogout} />
+        ) : (
+          <LearnerDashboard user={currentUser} />
+        );
+      }
       return <Login />;
     }
     if (path === '/signup' || path === '/register') {
+      if (currentUser) {
+        return currentUser.role === 'instructor' ? (
+          <InstructorDashboard user={currentUser} onLogout={handleLogout} />
+        ) : (
+          <LearnerDashboard user={currentUser} />
+        );
+      }
       return <SignUp />;
     }
+
+    // 2. Protected Role-based Routing
     if (path.startsWith('/instructor')) {
-      return <InstructorLayout user={currentUser} onLogout={handleLogout} />;
+      if (!currentUser) {
+        return <Login />;
+      }
+      if (currentUser.role !== 'instructor') {
+        return <NotFound />;
+      }
+      return <InstructorDashboard user={currentUser} onLogout={handleLogout} />;
     }
     if (path.startsWith('/learner')) {
+      if (!currentUser) {
+        return <Login />;
+      }
+      if (currentUser.role !== 'learner') {
+        return <NotFound />;
+      }
       return <LearnerDashboard user={currentUser} />;
+    }
+
+    // 3. Public Routing
+    if (path === '/instructors') {
+      return (
+        <div className="app-main">
+          <Navbar />
+          <ExploreInstructors />
+          <Footer />
+        </div>
+      );
     }
     if (path === '/explore' || path === '/courses') {
       return (
@@ -99,19 +142,25 @@ function App() {
         </div>
       );
     }
+    if (path === '/') {
+      return (
+        <div className="app-main">
+          <Navbar />
+          <HomePage />
+          <Footer />
+        </div>
+      );
+    }
 
-    return (
-      <div className="app-main">
-        <Navbar />
-        <HomePage />
-        <Footer />
-      </div>
-    );
+    // 4. Fallback 404
+    return <NotFound />;
   };
 
   return (
     <ThemeProvider>
-      {renderContent()}
+      <ToastProvider>
+        {renderContent()}
+      </ToastProvider>
     </ThemeProvider>
   );
 }

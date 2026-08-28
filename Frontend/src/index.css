@@ -5,8 +5,8 @@
   /* Brand Green Palette - Light Mode */
   --brand-primary: #116830;
   --brand-primary-hover: #0D5728;
-  --brand-light: #E7F4E9;
-  --brand-soft: #F1F8F2;
+  --brand-light: #E4EFE7;
+  --brand-soft: #EEF5F0;
   --brand-dark: #0A4F25;
   --brand-accent-text: #116830;
   --brand-emerald-glow: rgba(17, 104, 48, 0.18);
@@ -16,27 +16,29 @@
   --btn-primary-text: #FFFFFF;
 
   /* Surfaces & Backgrounds */
-  --background: #FFFFFF;
-  --surface: #FFFFFF;
-  --surface-muted: #F7FAF8;
+  --background: #F3F6F4;      /* Soft brand-tinted background (white cards will pop!) */
+  --surface: #FFFFFF;         /* White cards */
+  --surface-muted: #EBF0EC;   /* Sidedrawers/panels */
   --surface-elevated: #FFFFFF;
-  --stats-bg: #F1F8F2;
-  --stats-border: #E1EFE4;
+  --stats-bg: #E8F2EC;
+  --stats-border: #CBDCD2;
 
   /* Typography */
-  --text-primary: #101820;
-  --text-secondary: #4B5563;
-  --text-muted: #6B7280;
+  --text-primary: #0F1A13;    /* Rich organic forest charcoal */
+  --text-secondary: #35443B;  /* Deeper green-gray for secondary copy (accessible WCAG AAA) */
+  --text-muted: #56675D;      /* Accessible contrast for caption/meta-data (WCAG AA) */
+  --text-disabled: #8BA093;
 
   /* Borders & Shadows */
-  --border: #E5EAE7;
-  --border-subtle: #EEF2EF;
-  --shadow-sm: 0 2px 8px rgba(17, 104, 48, 0.05);
-  --shadow-md: 0 6px 20px rgba(17, 104, 48, 0.08);
-  --shadow-lg: 0 12px 32px rgba(17, 104, 48, 0.12);
-  --hero-glow: rgba(17, 104, 48, 0.08);
+  --border: #C6D3CB;          /* Strengthened border color for visibility */
+  --border-subtle: #E2EAE5;   /* Subtle divider lines */
+  --border-strong: #9CB2A4;   /* High-visibility borders (focus/selected) */
+  --shadow-sm: 0 2px 8px rgba(17, 104, 48, 0.04);
+  --shadow-md: 0 6px 20px rgba(17, 104, 48, 0.06);
+  --shadow-lg: 0 12px 32px rgba(17, 104, 48, 0.09);
+  --hero-glow: rgba(17, 104, 48, 0.06);
   --floating-card-bg: #FFFFFF;
-  --floating-card-border: #E5EAE7;
+  --floating-card-border: #C6D3CB;
 
   /* Layout & Fonts */
   --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -51,15 +53,32 @@
 
   /* Form & Component Tokens */
   --input-bg: #FFFFFF;
-  --input-border: #E5EAE7;
-  --input-text: #101820;
-  --input-placeholder: #9CA3AF;
-  --badge-bg: #F1F8F2;
-  --badge-text: #116830;
-  --role-bg-active: #F1F8F2;
+  --input-border: #BCCEC4;    /* Stronger input bounds */
+  --input-text: #0F1A13;
+  --input-placeholder: #6D8275;
+  --badge-bg: #E4EFE7;
+  --badge-text: #0D5024;
+  --role-bg-active: #E4EFE7;
   --role-border-active: #116830;
   --role-bg-inactive: #FFFFFF;
-  --role-border-inactive: #E5EAE7;
+  --role-border-inactive: #C6D3CB;
+
+  /* Icon Semantic Tokens */
+  --icon-primary: #0F1A13;
+  --icon-secondary: #35443B;
+  --icon-muted: #56675D;
+  --focus-ring: rgba(17, 104, 48, 0.25);
+
+  /* Semantic Status Colors – Light Mode */
+  --color-success: #16A34A;
+  --color-success-bg: rgba(22, 163, 74, 0.12);
+  --color-warning: #D97706;
+  --color-warning-bg: rgba(217, 119, 6, 0.12);
+  --color-info: #2563EB;
+  --color-info-bg: rgba(37, 99, 235, 0.12);
+  --color-error: #DC2626;
+  --color-error-bg: rgba(220, 38, 38, 0.1);
+  --color-error-border: rgba(220, 38, 38, 0.25);
 }
 
 .dark {
@@ -88,10 +107,12 @@
   --text-primary: #F5F7F6;
   --text-secondary: #A7B3AD;
   --text-muted: #798A82;
+  --text-disabled: #4E5E56;
 
   /* Borders & Shadows */
   --border: #1D3329;
   --border-subtle: #142820;
+  --border-strong: #2A4839;
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
@@ -110,6 +131,23 @@
   --role-border-active: #39D95F;
   --role-bg-inactive: #101B18;
   --role-border-inactive: #1D3329;
+
+  /* Icon Semantic Tokens */
+  --icon-primary: #F5F7F6;
+  --icon-secondary: #A7B3AD;
+  --icon-muted: #798A82;
+  --focus-ring: rgba(57, 217, 95, 0.4);
+
+  /* Semantic Status Colors – Dark Mode */
+  --color-success: #22C55E;
+  --color-success-bg: rgba(34, 197, 94, 0.15);
+  --color-warning: #F59E0B;
+  --color-warning-bg: rgba(245, 158, 11, 0.15);
+  --color-info: #3B82F6;
+  --color-info-bg: rgba(59, 130, 246, 0.15);
+  --color-error: #EF4444;
+  --color-error-bg: rgba(239, 68, 68, 0.1);
+  --color-error-border: rgba(239, 68, 68, 0.25);
 }
 
 * {
@@ -222,6 +260,18 @@ h1, h2, h3, h4, h5, h6 {
   border-color: var(--brand-primary);
   color: var(--brand-accent-text);
   background-color: var(--brand-soft);
+}
+
+/* Danger / Logout Button Style */
+.logout-danger-btn {
+  color: var(--color-error) !important;
+  border-color: var(--color-error-border) !important;
+  background-color: var(--color-error-bg) !important;
+}
+
+.logout-danger-btn:hover {
+  background-color: var(--color-error-bg) !important;
+  border-color: var(--color-error) !important;
 }
 
 /* Pill Badges */
@@ -1180,3 +1230,13 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 1.65rem;
   }
 }
+
+/* Global Loading Spinner Utility */
+.loading-workspace-spinner {
+  padding: 4rem 2rem;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
