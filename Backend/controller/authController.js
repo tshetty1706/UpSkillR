@@ -37,7 +37,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback';
 const GITHUB_CALLBACK_URL = process.env.GITHUB_CALLBACK_URL || 'http://localhost:5000/api/auth/github/callback';
 
-// Temporary In-Memory Store for Pending Registrations (User is NOT created in MongoDB until OTP is verified)
+// Temporary In-Memory Store for Pending Registrations
 const pendingRegistrations = new Map();
 
 // Helper to generate JWT Token
@@ -101,7 +101,7 @@ const sendVerificationOtpEmail = async (userEmail, otpCode) => {
   }
 };
 
-// 1. Manual Sign Up (Store in Pending Memory - DO NOT SAVE TO MONGO DB YET)
+// 1. Manual Sign Up (Save user directly to MongoDB collection based on role)
 exports.manualSignUp = async (req, res) => {
   try {
     const { fullName, email, password, role } = req.body;
@@ -129,31 +129,51 @@ exports.manualSignUp = async (req, res) => {
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    // Store in pendingRegistrations Map (User is NOT created in MongoDB yet!)
+    const userRole = role === 'instructor' ? 'instructor' : 'learner';
+    const TargetModel = userRole === 'instructor' ? Instructor : Learner;
+
+    // SAVE USER TO MONGO DB IMMEDIATELY
+    const newUser = new TargetModel({
+      fullName,
+      email: normalizedEmail,
+      password: hashedPassword,
+      role: userRole,
+      authProvider: 'local',
+      isVerified: false,
+      verificationOtp: otpCode,
+      otpExpiresAt
+    });
+
+    await newUser.save();
+    console.log(`[USER CREATED & SAVED TO MONGO DB (${userRole}s collection)] ${newUser.email}`);
+
+    // Store in pendingRegistrations Map as fallback
     pendingRegistrations.set(normalizedEmail, {
       fullName,
       email: normalizedEmail,
       hashedPassword,
-      role: role === 'instructor' ? 'instructor' : 'learner',
+      role: userRole,
       otpCode,
       otpExpiresAt
     });
 
-    console.log(`[PENDING REGISTRATION] OTP for ${normalizedEmail}: ${otpCode} (NOT in MongoDB yet)`);
-
-    // Send Gmail SMTP OTP Email
-    await sendVerificationOtpEmail(normalizedEmail, otpCode);
+    // Attempt to send OTP Email
+    try {
+      await sendVerificationOtpEmail(normalizedEmail, otpCode);
+    } catch (emailErr) {
+      console.warn(`[OTP EMAIL WARNING] Email dispatch failed for ${normalizedEmail}. Verification OTP: ${otpCode}`);
+    }
 
     return res.status(200).json({
       success: true,
-      message: 'Verification code sent to your email! Enter the 6-digit code to complete registration.',
+      message: 'Account created! Verification code sent to your email. Enter the code to complete registration.',
       email: normalizedEmail
     });
   } catch (error) {
     console.error('=== MANUAL SIGNUP ERROR ===', error);
     return res.status(500).json({
       success: false,
-      message: error?.message || 'Failed to send verification code. Please check your credentials.'
+      message: error?.message || 'Failed to create account. Please try again.'
     });
   }
 };
@@ -168,7 +188,39 @@ exports.sendOtp = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Check pending registrations first
+    const existingUserResult = await findUserByEmail(normalizedEmail);
+    if (existingUserResult) {
+      const user = existingUserResult.user;
+      if (user.isVerified) {
+        return res.status(400).json({ success: false, message: 'Email address is already verified.' });
+      }
+
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      user.verificationOtp = otpCode;
+      user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      await user.save();
+
+      // Update pendingRegistrations if present
+      const pendingData = pendingRegistrations.get(normalizedEmail);
+      if (pendingData) {
+        pendingData.otpCode = otpCode;
+        pendingData.otpExpiresAt = user.otpExpiresAt;
+        pendingRegistrations.set(normalizedEmail, pendingData);
+      }
+
+      try {
+        await sendVerificationOtpEmail(user.email, otpCode);
+      } catch (emailErr) {
+        console.warn(`[RESEND OTP EMAIL WARNING] Verification OTP for ${normalizedEmail}: ${otpCode}`);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'A new 6-digit verification code has been sent to your email.'
+      });
+    }
+
+    // Fallback: pendingRegistrations check
     const pendingData = pendingRegistrations.get(normalizedEmail);
     if (pendingData) {
       const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -176,8 +228,11 @@ exports.sendOtp = async (req, res) => {
       pendingData.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
       pendingRegistrations.set(normalizedEmail, pendingData);
 
-      console.log(`[RESEND OTP] New OTP for ${normalizedEmail}: ${newOtp}`);
-      await sendVerificationOtpEmail(normalizedEmail, newOtp);
+      try {
+        await sendVerificationOtpEmail(normalizedEmail, newOtp);
+      } catch (emailErr) {
+        console.warn(`[RESEND OTP WARNING] Verification OTP for ${normalizedEmail}: ${newOtp}`);
+      }
 
       return res.status(200).json({
         success: true,
@@ -209,12 +264,12 @@ exports.sendOtp = async (req, res) => {
     console.error('Send OTP Error:', error);
     return res.status(500).json({
       success: false,
-      message: error?.message || 'Failed to send verification email. Check Gmail credentials in .env.'
+      message: error?.message || 'Failed to send verification email.'
     });
   }
 };
 
-// 3. Verify OTP Code (CREATE & SAVE USER IN MONGODB ONLY NOW)
+// 3. Verify OTP Code (Mark user as verified in MongoDB collection)
 exports.verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -286,7 +341,8 @@ exports.verifyOtp = async (req, res) => {
             fullName: existingUser.fullName,
             email: existingUser.email,
             role: existingUser.role,
-            isVerified: true
+            isVerified: true,
+            avatar: existingUser.avatar
           }
         });
       }
@@ -297,6 +353,7 @@ exports.verifyOtp = async (req, res) => {
         existingUser.otpExpiresAt = null;
         await existingUser.save();
 
+        pendingRegistrations.delete(normalizedEmail);
         const token = generateToken(existingUser);
         return res.status(200).json({
           success: true,
@@ -307,10 +364,52 @@ exports.verifyOtp = async (req, res) => {
             fullName: existingUser.fullName,
             email: existingUser.email,
             role: existingUser.role,
-            isVerified: true
+            isVerified: true,
+            avatar: existingUser.avatar
           }
         });
       }
+    }
+
+    // 2. Fallback: Check Pending Registration
+    const pendingData = pendingRegistrations.get(normalizedEmail);
+    if (pendingData && pendingData.otpCode === cleanOtp) {
+      const userRole = pendingData.role === 'instructor' ? 'instructor' : 'learner';
+      const TargetModel = userRole === 'instructor' ? Instructor : Learner;
+
+      let user = await TargetModel.findOne({ email: normalizedEmail });
+      if (!user) {
+        user = new TargetModel({
+          fullName: pendingData.fullName,
+          email: pendingData.email,
+          password: pendingData.hashedPassword,
+          role: userRole,
+          authProvider: 'local',
+          isVerified: true
+        });
+      } else {
+        user.isVerified = true;
+        user.verificationOtp = null;
+        user.otpExpiresAt = null;
+      }
+
+      await user.save();
+      pendingRegistrations.delete(normalizedEmail);
+
+      const token = generateToken(user);
+      return res.status(201).json({
+        success: true,
+        message: 'Email verified & account created successfully!',
+        token,
+        user: {
+          id: user._id,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+          isVerified: true,
+          avatar: user.avatar
+        }
+      });
     }
 
     return res.status(400).json({ success: false, message: 'Invalid or expired verification code.' });
@@ -329,10 +428,12 @@ exports.manualLogin = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please enter both email and password.' });
     }
 
-    const user = await findUserByEmail(email);
+    const user = await findUserByEmail(email.toLowerCase().trim());
     if (!user) {
       return res.status(400).json({ success: false, message: 'Invalid credentials. User not found.' });
     }
+
+    const user = existingUserResult.user;
 
     if (!user.password) {
       return res.status(400).json({
@@ -434,8 +535,8 @@ exports.googleOAuthCallback = async (req, res) => {
       const Model = getModelByRole(role);
       user = new Model({
         fullName: name || 'Google User',
-        email: email.toLowerCase(),
-        role: role === 'instructor' ? 'instructor' : 'learner',
+        email: normalizedEmail,
+        role: userRole,
         authProvider: 'google',
         googleId,
         isVerified: true,
@@ -548,8 +649,8 @@ exports.githubOAuthCallback = async (req, res) => {
       const Model = getModelByRole(role);
       user = new Model({
         fullName: name || login || 'GitHub User',
-        email: email.toLowerCase(),
-        role: role === 'instructor' ? 'instructor' : 'learner',
+        email: normalizedEmail,
+        role: userRole,
         authProvider: 'github',
         githubId: String(githubId),
         isVerified: true,
@@ -596,8 +697,45 @@ exports.getCurrentUser = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
 
-    return res.status(200).json({ success: true, user });
+    const userObj = user.toObject ? user.toObject() : { ...user };
+    delete userObj.password;
+
+    return res.status(200).json({ success: true, user: userObj });
   } catch (error) {
     return res.status(401).json({ success: false, message: 'Invalid or expired token.' });
   }
 };
+
+// 10. Get All Registered Instructors with Stats
+exports.getInstructors = async (req, res) => {
+  try {
+    const instructors = await Instructor.find({}, 'fullName email avatar');
+    
+    const Course = require('../model/Course');
+    const Enrolment = require('../model/Enrolment');
+    
+    const instructorsWithStats = await Promise.all(
+      instructors.map(async (inst) => {
+        const courses = await Course.find({ instructorId: inst._id, status: 'published' });
+        const courseIds = courses.map(c => c._id);
+        const learnersCount = await Enrolment.countDocuments({ courseId: { $in: courseIds } });
+        
+        return {
+          _id: inst._id,
+          fullName: inst.fullName,
+          email: inst.email,
+          avatar: inst.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(inst.fullName)}&backgroundType=gradientLinear&fontSize=40`,
+          coursesCount: courses.length,
+          learnersCount,
+          expertise: courses.map(c => c.category).filter((v, i, a) => a.indexOf(v) === i)
+        };
+      })
+    );
+    
+    return res.status(200).json({ success: true, instructors: instructorsWithStats });
+  } catch (error) {
+    console.error('Get Instructors Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while fetching instructors.' });
+  }
+};
+

@@ -1,0 +1,141 @@
+/* UpSkillr Course Manager Workspace Styling */
+
+.course-manager-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.manager-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.course-manager-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.course-manager-meta {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* Tabs Bar */
+.manager-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+}
+
+.manager-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.manager-tab:hover {
+  color: var(--text-primary);
+  background-color: var(--surface-muted);
+}
+
+.manager-tab.active {
+  background-color: var(--brand-soft);
+  color: var(--brand-accent-text);
+  border-color: var(--border-subtle);
+  font-weight: 700;
+}
+
+/* Panel Card */
+.manager-panel-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.75rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.manager-form h2,
+.manager-sub-section h2 {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.publish-status-box {
+  background-color: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.status-box-info h3 {
+  font-size: 1.1rem;
+  margin-bottom: 4px;
+}
+
+.status-box-info p {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+/* Zero-lesson publish gate warning */
+.publish-lesson-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background-color: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  border-radius: var(--radius-sm);
+  margin-bottom: 1.25rem;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.publish-lesson-warning svg {
+  color: #d97706;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.publish-lesson-warning strong {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.publish-lesson-warning p {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+}

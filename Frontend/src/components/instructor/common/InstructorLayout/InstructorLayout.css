@@ -1,0 +1,48 @@
+/* UpSkillr Instructor Layout Styling */
+
+.instructor-studio-layout {
+  min-height: 100vh;
+  background-color: var(--background);
+  display: flex;
+  flex-direction: column;
+}
+
+.instructor-studio-body {
+  display: flex;
+  flex: 1;
+  width: 100%;
+}
+
+.instructor-main-workspace {
+  flex: 1;
+  padding: 2rem 0;
+  overflow-y: auto;
+}
+
+.workspace-container {
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+
+@media (max-width: 1023px) {
+  .workspace-container {
+    padding: 0 24px;
+  }
+}
+
+@media (max-width: 767px) {
+  .instructor-studio-body {
+    flex-direction: column;
+  }
+  
+  .workspace-container {
+    padding: 0 16px;
+  }
+  
+  .instructor-main-workspace {
+    padding: 1.25rem 0;
+  }
+}

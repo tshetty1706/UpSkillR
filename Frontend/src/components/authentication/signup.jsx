@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
+import { useToast } from '../../context/ToastContext';
 import Signin_page from '../../assets/illustrations/Signin_page.svg';
 import {
   User,
@@ -25,6 +26,7 @@ const API_BASE_URL = 'http://localhost:5000/api/auth';
 
 export default function SignUp() {
   const { theme, toggleTheme } = useTheme();
+  const { toast } = useToast();
   const [role, setRole] = useState('learner'); // 'learner' or 'instructor'
   const [formData, setFormData] = useState({
     fullName: '',
@@ -50,31 +52,48 @@ export default function SignUp() {
     window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
   };
 
-  // Handle URL search params on mount (for OAuth callbacks or errors)
+  // Handle URL search params on mount (for OAuth callbacks, errors, or role pre-selection)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     const userParam = urlParams.get('user');
     const errorParam = urlParams.get('error');
     const providerParam = urlParams.get('provider');
+    const roleParam = urlParams.get('role');
+
+    if (roleParam === 'instructor' || roleParam === 'learner') {
+      setRole(roleParam);
+    }
 
     if (token && userParam) {
       try {
         const user = JSON.parse(decodeURIComponent(userParam));
         localStorage.setItem('upskillr_token', token);
         localStorage.setItem('upskillr_user', JSON.stringify(user));
-        setSuccessMessage(`Successfully signed in via ${providerParam ? providerParam.toUpperCase() : 'OAuth'}! Welcome, ${user.fullName}.`);
+        const successMsg = `Successfully signed in via ${providerParam ? providerParam.toUpperCase() : 'OAuth'}! Welcome, ${user.fullName}.`;
+        setSuccessMessage(successMsg);
+        toast.success(successMsg);
+        setTimeout(() => {
+          if (user.role === 'instructor') {
+            navigate('/instructor');
+          } else {
+            navigate('/learner');
+          }
+        }, 1000);
       } catch (e) {
         console.error('Failed to parse user data from OAuth callback');
       }
     } else if (errorParam) {
+      let oauthErrorMsg = 'Authentication failed. Please try again.';
       if (errorParam === 'google_oauth_failed') {
-        setErrorMessage('Google OAuth authentication failed. Please try again.');
+        oauthErrorMsg = 'Google OAuth authentication failed. Please try again.';
       } else if (errorParam === 'github_oauth_failed') {
-        setErrorMessage('GitHub OAuth authentication failed. Please try again.');
+        oauthErrorMsg = 'GitHub OAuth authentication failed. Please try again.';
       }
+      setErrorMessage(oauthErrorMsg);
+      toast.error(oauthErrorMsg);
     }
-  }, []);
+  }, [toast]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -132,9 +151,13 @@ export default function SignUp() {
       // Show the OTP verification step so the user can verify and complete registration.
       setUnverifiedEmail(formData.email);
       setShowOtpStep(true);
-      setSuccessMessage(`Verification code sent to ${formData.email}. Enter the 6-digit code to complete registration.`);
+      const codeSentMsg = `Verification code sent to ${formData.email}. Enter the 6-digit code to complete registration.`;
+      setSuccessMessage(codeSentMsg);
+      toast.success(codeSentMsg);
     } catch (err) {
-      setErrorMessage(err.message || 'Registration failed. Please try again.');
+      const regErrorMsg = err.message || 'Registration failed. Please try again.';
+      setErrorMessage(regErrorMsg);
+      toast.error(regErrorMsg);
     } finally {
       setLoading(false);
     }
@@ -173,10 +196,23 @@ export default function SignUp() {
         localStorage.setItem('upskillr_user', JSON.stringify(data.user));
       }
 
-      setSuccessMessage('Email verified successfully! You can now log in.');
+      const isInstructor = data.user?.role === 'instructor';
+      const welcomeMsg = `Email verified successfully! Welcome to UpSkillr, ${data.user?.fullName}!`;
+      setSuccessMessage(welcomeMsg);
+      toast.success(welcomeMsg);
       setShowOtpStep(false);
+
+      setTimeout(() => {
+        if (isInstructor) {
+          navigate('/instructor');
+        } else {
+          navigate('/learner');
+        }
+      }, 1000);
     } catch (err) {
-      setErrorMessage(err.message || 'Invalid or expired OTP code.');
+      const otpErrorMsg = err.message || 'Invalid or expired OTP code.';
+      setErrorMessage(otpErrorMsg);
+      toast.error(otpErrorMsg);
     } finally {
       setLoading(false);
     }
@@ -201,9 +237,13 @@ export default function SignUp() {
         throw new Error(data.message || 'Failed to resend verification code.');
       }
 
-      setSuccessMessage(data.message || 'A new verification code has been sent to your email.');
+      const resentMsg = data.message || 'A new verification code has been sent to your email.';
+      setSuccessMessage(resentMsg);
+      toast.success(resentMsg);
     } catch (err) {
-      setErrorMessage(err.message || 'Could not resend code. Please try again.');
+      const resendErrorMsg = err.message || 'Could not resend code. Please try again.';
+      setErrorMessage(resendErrorMsg);
+      toast.error(resendErrorMsg);
     } finally {
       setResendLoading(false);
     }
@@ -339,6 +379,17 @@ export default function SignUp() {
                   <button type="button" className="resend-btn" onClick={handleResendOtp} disabled={resendLoading}>
                     {resendLoading ? 'Sending...' : 'Resend Code'}
                   </button>
+                </div>
+
+                <div style={{ marginTop: '0.75rem', textAlign: 'center' }}>
+                  <a
+                    href="/login"
+                    className="signin-link"
+                    style={{ fontSize: '0.85rem' }}
+                    onClick={(e) => { e.preventDefault(); navigate('/login'); }}
+                  >
+                    Proceed to Login Page →
+                  </a>
                 </div>
               </div>
             ) : (

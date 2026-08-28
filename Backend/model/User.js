@@ -1,63 +1,24 @@
-const mongoose = require('mongoose');
+const Learner = require('./Learner');
+const Instructor = require('./Instructor');
 
-const userSchema = new mongoose.Schema({
-  fullName: {
-    type: String,
-    required: [true, 'Full name is required'],
-    trim: true
-  },
-  email: {
-    type: String,
-    required: [true, 'Email is required'],
-    unique: true,
-    lowercase: true,
-    trim: true
-  },
-  password: {
-    type: String,
-    required: function () {
-      return this.authProvider === 'local';
-    }
-  },
-  role: {
-    type: String,
-    enum: ['learner', 'instructor'],
-    default: 'learner'
-  },
-  authProvider: {
-    type: String,
-    enum: ['local', 'google', 'github'],
-    default: 'local'
-  },
-  googleId: {
-    type: String,
-    default: null
-  },
-  githubId: {
-    type: String,
-    default: null
-  },
-  avatar: {
-    type: String,
-    default: ''
-  },
-  isVerified: {
-    type: Boolean,
-    default: false
-  },
-  verificationOtp: {
-    type: String,
-    default: null
-  },
-  otpExpiresAt: {
-    type: Date,
-    default: null
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
+/**
+ * Helper to search for a user across both 'learners' and 'instructors' collections by email.
+ * @param {string} email 
+ * @returns {Promise<{ user: Object, role: string, model: Object } | null>}
+ */
+const findUserByEmail = async (email) => {
+  if (!email) return null;
+  const normalizedEmail = email.toLowerCase().trim();
+
+  const learner = await Learner.findOne({ email: normalizedEmail });
+  if (learner) {
+    return { user: learner, role: 'learner', model: Learner };
   }
-});
+
+  const instructor = await Instructor.findOne({ email: normalizedEmail });
+  if (instructor) {
+    return { user: instructor, role: 'instructor', model: Instructor };
+  }
 
 const Learner = mongoose.model('Learner', userSchema, 'learner');
 const Instructor = mongoose.model('Instructor', userSchema, 'instructor');

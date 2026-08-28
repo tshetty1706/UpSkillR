@@ -1,0 +1,280 @@
+/* Explore Instructors Page Styling */
+
+.explore-instructors-page {
+  padding-top: 60px;
+  padding-bottom: 80px;
+  background-color: var(--background);
+  min-height: calc(100vh - 72px - 200px); /* Fill screen minus navbar and footer */
+  transition: background-color 0.25s ease;
+}
+
+.explore-header {
+  margin-bottom: 48px;
+}
+
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--brand-light);
+  color: var(--brand-primary);
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  box-shadow: inset 0 0 0 1px rgba(17, 104, 48, 0.1);
+  transition: all 0.25s ease;
+}
+
+.dark .badge-pill {
+  background-color: var(--brand-soft);
+  color: var(--brand-primary);
+  box-shadow: inset 0 0 0 1px rgba(57, 217, 95, 0.15);
+}
+
+.explore-title {
+  font-size: clamp(2.25rem, 4vw, 3.25rem); /* Fluid Typography Constraint */
+  font-weight: 800;
+  letter-spacing: -1px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, var(--text-primary) 30%, var(--brand-primary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.explore-subtitle {
+  font-size: 17px;
+  color: var(--text-secondary);
+  max-width: 640px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.explore-toolbar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 56px;
+}
+
+.width-full {
+  width: 100%;
+}
+
+.max-width-md {
+  max-width: 600px;
+}
+
+.margin-center {
+  margin: 0 auto;
+}
+
+/* Explore Instructors Grid */
+.explore-instructors-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); /* Fluid responsive grid */
+  gap: 32px;
+  margin-top: 16px;
+}
+
+/* Instructor Card Design (Premium Glassmorphism & Hover) */
+.instructor-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.instructor-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: linear-gradient(90deg, var(--brand-primary), var(--brand-primary-hover));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.instructor-card:hover {
+  transform: translateY(-8px);
+  box-shadow: var(--shadow-lg);
+  border-color: rgba(17, 104, 48, 0.25);
+  background: var(--surface-elevated);
+}
+
+.dark .instructor-card:hover {
+  border-color: rgba(57, 217, 95, 0.25);
+}
+
+.instructor-card:hover::before {
+  opacity: 1;
+}
+
+/* Avatar ring styling with glowing details */
+.instructor-avatar-container {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.instructor-avatar-ring {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  padding: 4px;
+  background: linear-gradient(135deg, var(--brand-primary) 0%, rgba(17, 104, 48, 0.1) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(17, 104, 48, 0.15);
+}
+
+.dark .instructor-avatar-ring {
+  background: linear-gradient(135deg, var(--brand-primary) 0%, rgba(57, 217, 95, 0.1) 100%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.instructor-card:hover .instructor-avatar-ring {
+  transform: rotate(360deg) scale(1.05);
+}
+
+.instructor-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  background-color: var(--surface-muted);
+  border: 2px solid var(--surface);
+}
+
+.instructor-name {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  letter-spacing: -0.2px;
+}
+
+.instructor-email {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+
+.instructor-expertise {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  min-height: 28px;
+  margin-bottom: 24px;
+}
+
+.expertise-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brand-primary);
+  background-color: var(--brand-light);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  transition: all 0.25s ease;
+  letter-spacing: 0.1px;
+}
+
+.dark .expertise-badge {
+  background-color: var(--brand-soft);
+  color: var(--brand-primary);
+}
+
+.expertise-badge.empty {
+  color: var(--text-muted);
+  background-color: var(--surface-muted);
+  font-style: italic;
+  font-weight: 500;
+}
+
+/* Stats Row for Instructor Performance Metrics */
+.instructor-stats-row {
+  display: flex;
+  width: 100%;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 16px 0;
+  margin-bottom: 24px;
+}
+
+.stat-metric {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: left;
+}
+
+.stat-metric:first-child {
+  border-right: 1px solid var(--border-subtle);
+}
+
+.stat-icon {
+  color: var(--brand-primary);
+  opacity: 0.85;
+}
+
+.stat-value {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.stat-label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+/* Button override inside cards */
+.instructor-card-footer {
+  width: 100%;
+  margin-top: auto;
+}
+
+.btn-block {
+  width: 100%;
+  justify-content: center;
+}
+
+.btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 767px) {
+  .explore-instructors-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .instructor-card {
+    padding: 24px 20px 20px;
+  }
+}

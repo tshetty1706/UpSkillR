@@ -1,0 +1,40 @@
+/* UpSkillr Instructor Analytics Component Styling */
+
+.instructor-analytics-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.analytics-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.analytics-table-wrap {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.analytics-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.88rem;
+}
+
+.analytics-table th,
+.analytics-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.analytics-table th {
+  background-color: var(--surface-muted);
+  color: var(--text-secondary);
+  font-weight: 700;
+}

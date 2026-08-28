@@ -1,0 +1,116 @@
+.not-found-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  width: 100vw;
+  padding: 16px;
+  background-color: var(--background);
+  transition: background-color 0.3s ease;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.not-found-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 500px;
+  width: 100%;
+  padding: 24px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+  box-sizing: border-box;
+}
+
+.not-found-illustration {
+  width: 100%;
+  max-width: 220px;
+  height: 220px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.not-found-illustration img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.not-found-code {
+  font-size: clamp(2.5rem, 6vw, 3.5rem);
+  font-weight: 800;
+  color: var(--brand-primary);
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+
+.not-found-title {
+  font-size: clamp(1.25rem, 3.5vw, 1.75rem);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.not-found-message {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 24px;
+  font-style: italic;
+  max-width: 400px;
+}
+
+.not-found-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 20px;
+  background-color: var(--brand-primary);
+  color: var(--btn-primary-text);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  box-shadow: var(--shadow-sm);
+}
+
+.not-found-btn:hover {
+  background-color: var(--brand-primary-hover);
+  transform: translateY(-1px);
+}
+
+.not-found-btn:active {
+  transform: translateY(0);
+}
+
+.btn-icon {
+  transition: transform 0.2s ease;
+}
+
+.not-found-btn:hover .btn-icon {
+  transform: translateX(-4px);
+}
+
+/* Tablet & Mobile responsive behavior overrides */
+@media (max-width: 768px) {
+  .not-found-container {
+    padding: 24px 16px;
+    border-radius: var(--radius-md);
+  }
+  .not-found-illustration {
+    max-width: 260px;
+  }
+}

@@ -1,15 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
-import { Search, Sun, Moon, Menu, X, BookOpen } from 'lucide-react';
+import { Search, Sun, Moon, Menu, X, BookOpen, LogOut, User, LayoutDashboard, GraduationCap } from 'lucide-react';
 import './Navbar.css';
 
 export const Navbar = () => {
   const { theme, toggleTheme, isDarkMode } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+
+  useEffect(() => {
+    const userStr = localStorage.getItem('upskillr_user');
+    if (userStr) {
+      try {
+        setCurrentUser(JSON.parse(userStr));
+      } catch (e) {
+        console.error('Failed to parse user state');
+      }
+    }
+
+    const updatePath = (e) => {
+      if (e?.detail?.path) {
+        setCurrentPath(e.detail.path);
+      } else {
+        setCurrentPath(window.location.pathname);
+      }
+    };
+
+    window.addEventListener('popstate', updatePath);
+    window.addEventListener('upskillr_navigate', updatePath);
+
+    return () => {
+      window.removeEventListener('popstate', updatePath);
+      window.removeEventListener('upskillr_navigate', updatePath);
+    };
+  }, []);
+
+  const isActive = (path) => {
+    const normCurrent = currentPath.toLowerCase();
+    const normTarget = path.toLowerCase();
+    if (normTarget === '/') {
+      return normCurrent === '/' || normCurrent === '';
+    }
+    return normCurrent.startsWith(normTarget);
+  };
 
   const navigate = (path) => {
+    const currentFull = window.location.pathname + window.location.search;
+    if (currentFull === path) return;
     window.history.pushState({}, '', path);
     window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
+    setCurrentPath(path);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('upskillr_token');
+    localStorage.removeItem('upskillr_user');
+    setCurrentUser(null);
+    navigate('/');
   };
 
   return (
@@ -32,26 +80,34 @@ export const Navbar = () => {
         <nav className="navbar-nav" aria-label="Main Navigation">
           <a 
             href="/" 
-            className="nav-link active"
+            className={`nav-link ${isActive('/') ? 'active' : ''}`}
             onClick={(e) => { e.preventDefault(); navigate('/'); }}
           >
             Home
           </a>
-          <a href="#explore" className="nav-link">Explore</a>
-          <a href="#student-space" className="nav-link">Student Space</a>
           <a 
-            href="/signup?role=instructor" 
-            className="nav-link"
-            onClick={(e) => { e.preventDefault(); navigate('/signup?role=instructor'); }}
+            href="/explore" 
+            className={`nav-link ${isActive('/explore') || isActive('/courses') ? 'active' : ''}`}
+            onClick={(e) => { e.preventDefault(); navigate('/explore'); }}
           >
-            Teach on UpSkillr
+            Courses
           </a>
-          <a href="#pricing" className="nav-link">Pricing</a>
+          <a 
+            href="/instructors" 
+            className={`nav-link ${isActive('/instructors') ? 'active' : ''}`}
+            onClick={(e) => { e.preventDefault(); navigate('/instructors'); }}
+          >
+            Instructors
+          </a>
         </nav>
 
         {/* RIGHT: Actions */}
         <div className="navbar-actions">
-          <button className="icon-btn" aria-label="Search courses">
+          <button 
+            className="icon-btn" 
+            aria-label="Search courses"
+            onClick={() => navigate('/explore')}
+          >
             <Search size={19} aria-hidden="true" />
           </button>
 
@@ -59,21 +115,57 @@ export const Navbar = () => {
             {isDarkMode ? <Sun size={19} aria-hidden="true" /> : <Moon size={19} aria-hidden="true" />}
           </button>
 
-          <a 
-            href="/login" 
-            className="login-link"
-            onClick={(e) => { e.preventDefault(); navigate('/login'); }}
-          >
-            Log in
-          </a>
+          {currentUser ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {currentUser.role === 'instructor' ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => navigate('/instructor')}
+                >
+                  <LayoutDashboard size={16} />
+                  <span>Studio</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => navigate('/learner')}
+                >
+                  <GraduationCap size={16} />
+                  <span>My Learning</span>
+                </button>
+              )}
 
-          <a 
-            href="/signup" 
-            className="btn btn-primary start-learning-btn"
-            onClick={(e) => { e.preventDefault(); navigate('/signup'); }}
-          >
-            Start Learning
-          </a>
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ padding: '8px 12px', minHeight: '38px' }}
+                onClick={handleLogout}
+                title="Log Out"
+              >
+                <LogOut size={16} />
+              </button>
+            </div>
+          ) : (
+            <>
+              <a 
+                href="/login" 
+                className="login-link"
+                onClick={(e) => { e.preventDefault(); navigate('/login'); }}
+              >
+                Log in
+              </a>
+
+              <a 
+                href="/signup" 
+                className="btn btn-primary start-learning-btn"
+                onClick={(e) => { e.preventDefault(); navigate('/signup'); }}
+              >
+                Start Learning
+              </a>
+            </>
+          )}
 
           {/* Mobile Menu Toggle */}
           <button 
@@ -93,54 +185,52 @@ export const Navbar = () => {
           <nav className="mobile-nav-links" aria-label="Mobile Navigation">
             <a 
               href="/" 
-              className="mobile-nav-link active" 
+              className={`mobile-nav-link ${isActive('/') ? 'active' : ''}`}
               onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); navigate('/'); }}
             >
               Home
             </a>
             <a 
-              href="#explore" 
-              className="mobile-nav-link" 
-              onClick={() => setMobileMenuOpen(false)}
+              href="/explore" 
+              className={`mobile-nav-link ${isActive('/explore') || isActive('/courses') ? 'active' : ''}`}
+              onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); navigate('/explore'); }}
             >
-              Explore
+              Courses
             </a>
             <a 
-              href="#student-space" 
-              className="mobile-nav-link" 
-              onClick={() => setMobileMenuOpen(false)}
+              href="/instructors" 
+              className={`mobile-nav-link ${isActive('/instructors') ? 'active' : ''}`}
+              onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); navigate('/instructors'); }}
             >
-              Student Space
-            </a>
-            <a 
-              href="/signup?role=instructor" 
-              className="mobile-nav-link" 
-              onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); navigate('/signup?role=instructor'); }}
-            >
-              Teach on UpSkillr
-            </a>
-            <a 
-              href="#pricing" 
-              className="mobile-nav-link" 
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Pricing
+              Instructors
             </a>
             <hr className="mobile-divider" />
-            <a 
-              href="/login" 
-              className="mobile-nav-link" 
-              onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); navigate('/login'); }}
-            >
-              Log in
-            </a>
-            <a 
-              href="/signup" 
-              className="btn btn-primary mobile-start-btn" 
-              onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); navigate('/signup'); }}
-            >
-              Start Learning
-            </a>
+            {currentUser ? (
+              <button
+                type="button"
+                className="btn btn-outline mobile-start-btn"
+                onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
+              >
+                Log out ({currentUser.fullName})
+              </button>
+            ) : (
+              <>
+                <a 
+                  href="/login" 
+                  className="mobile-nav-link" 
+                  onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); navigate('/login'); }}
+                >
+                  Log in
+                </a>
+                <a 
+                  href="/signup" 
+                  className="btn btn-primary mobile-start-btn" 
+                  onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); navigate('/signup'); }}
+                >
+                  Start Learning
+                </a>
+              </>
+            )}
           </nav>
         </div>
       )}
