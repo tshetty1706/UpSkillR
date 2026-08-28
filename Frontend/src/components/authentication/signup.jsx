@@ -178,11 +178,20 @@ export default function SignUp() {
         localStorage.setItem('upskillr_user', JSON.stringify(data.user));
       }
 
-      setSuccessMessage('Email verified successfully! Opening login page...');
+      const isInstructor = data.user?.role === 'instructor';
+      setSuccessMessage(
+        isInstructor
+          ? 'Email verified successfully! Opening Instructor Application...'
+          : 'Email verified successfully! Opening login page...'
+      );
       setShowOtpStep(false);
 
       setTimeout(() => {
-        navigate('/login');
+        if (isInstructor) {
+          navigate('/instructor/application');
+        } else {
+          navigate('/login');
+        }
       }, 1000);
     } catch (err) {
       setErrorMessage(err.message || 'Invalid or expired OTP code.');

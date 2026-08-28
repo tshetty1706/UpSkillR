@@ -21,7 +21,8 @@ const generateToken = (user) => {
       email: user.email,
       role: user.role,
       fullName: user.fullName,
-      isVerified: user.isVerified
+      isVerified: user.isVerified,
+      applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
     },
     JWT_SECRET,
     { expiresIn: '7d' }
@@ -251,7 +252,8 @@ exports.verifyOtp = async (req, res) => {
             email: existingUser.email,
             role: existingUser.role,
             isVerified: true,
-            avatar: existingUser.avatar
+            avatar: existingUser.avatar,
+            applicationStatus: existingUser.applicationStatus || (existingUser.role === 'instructor' ? 'not_started' : undefined)
           }
         });
       }
@@ -274,7 +276,8 @@ exports.verifyOtp = async (req, res) => {
             email: existingUser.email,
             role: existingUser.role,
             isVerified: true,
-            avatar: existingUser.avatar
+            avatar: existingUser.avatar,
+            applicationStatus: existingUser.applicationStatus || (existingUser.role === 'instructor' ? 'not_started' : undefined)
           }
         });
       }
@@ -316,7 +319,8 @@ exports.verifyOtp = async (req, res) => {
           email: user.email,
           role: user.role,
           isVerified: true,
-          avatar: user.avatar
+          avatar: user.avatar,
+          applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
         }
       });
     }
@@ -367,7 +371,8 @@ exports.manualLogin = async (req, res) => {
         email: user.email,
         role: user.role,
         isVerified: user.isVerified,
-        avatar: user.avatar
+        avatar: user.avatar,
+        applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
       }
     });
   } catch (error) {
@@ -465,7 +470,8 @@ exports.googleOAuthCallback = async (req, res) => {
         email: user.email,
         role: user.role,
         isVerified: true,
-        avatar: user.avatar
+        avatar: user.avatar,
+        applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
       })
     );
 
@@ -582,7 +588,8 @@ exports.githubOAuthCallback = async (req, res) => {
         email: user.email,
         role: user.role,
         isVerified: true,
-        avatar: user.avatar
+        avatar: user.avatar,
+        applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
       })
     );
 

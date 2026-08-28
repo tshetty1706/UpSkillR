@@ -6,6 +6,7 @@ import { Footer } from './components/common/Footer/Footer';
 import SignUp from './components/authentication/signup';
 import Login from './components/authentication/login';
 import { InstructorLayout } from './components/instructor/InstructorLayout';
+import { InstructorApplication } from './components/instructor/application/InstructorApplication';
 import { LearnerDashboard } from './components/learner/LearnerDashboard';
 import { ExploreCourses } from './components/learner/ExploreCourses';
 
@@ -85,6 +86,27 @@ function App() {
       return <SignUp />;
     }
     if (path.startsWith('/instructor')) {
+      if (!currentUser || currentUser.role !== 'instructor') {
+        return <Login />;
+      }
+
+      const appStatus = currentUser.applicationStatus || 'not_started';
+      const isApplicationPath = path.startsWith('/instructor/application');
+
+      // Application not submitted -> Force /instructor/application
+      if (appStatus !== 'submitted') {
+        if (!isApplicationPath) {
+          window.history.replaceState({}, '', '/instructor/application');
+        }
+        return <InstructorApplication user={currentUser} onLogout={handleLogout} />;
+      }
+
+      // Application submitted -> Force /instructor/dashboard if attempting /instructor/application
+      if (isApplicationPath && appStatus === 'submitted') {
+        window.history.replaceState({}, '', '/instructor/dashboard');
+        return <InstructorLayout user={currentUser} onLogout={handleLogout} />;
+      }
+
       return <InstructorLayout user={currentUser} onLogout={handleLogout} />;
     }
     if (path.startsWith('/learner')) {

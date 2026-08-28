@@ -53,7 +53,11 @@ export default function Login() {
         setSuccessMessage(`Successfully signed in via ${providerParam ? providerParam.toUpperCase() : 'OAuth'}! Welcome back, ${user.fullName}.`);
         setTimeout(() => {
           if (user.role === 'instructor') {
-            navigate('/instructor');
+            if (user.applicationStatus === 'submitted') {
+              navigate('/instructor/dashboard');
+            } else {
+              navigate('/instructor/application');
+            }
           } else {
             navigate('/');
           }
@@ -121,7 +125,11 @@ export default function Login() {
 
       setTimeout(() => {
         if (isInstructor) {
-          navigate('/instructor');
+          if (data.user?.applicationStatus === 'submitted') {
+            navigate('/instructor/dashboard');
+          } else {
+            navigate('/instructor/application');
+          }
         } else {
           navigate('/');
         }

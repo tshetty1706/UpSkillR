@@ -30,6 +30,11 @@ export const InstructorLayout = ({ user, onLogout }) => {
         }
       });
       const data = await response.json();
+      if (response.status === 403 && data.applicationStatus && data.applicationStatus !== 'submitted') {
+        window.history.pushState({}, '', '/instructor/application');
+        window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/instructor/application' } }));
+        return;
+      }
       if (data.success) {
         setCourses(data.courses || []);
         setStats(data.stats || { totalCourses: 0, publishedCourses: 0, draftCourses: 0, totalLearners: 0 });

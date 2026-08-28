@@ -41,6 +41,11 @@ const instructorSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  applicationStatus: {
+    type: String,
+    enum: ['not_started', 'draft', 'submitted'],
+    default: 'not_started'
+  },
   isVerified: {
     type: Boolean,
     default: false
