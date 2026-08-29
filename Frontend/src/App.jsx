@@ -11,6 +11,7 @@ import { LearnerDashboard } from './pages/Learner/LearnerDashboard';
 import { ExploreCourses } from './components/learner/courses/ExploreCourses/ExploreCourses';
 import { ExploreInstructors } from './components/learner/instructors/ExploreInstructors/ExploreInstructors';
 import { NotFound } from './components/common/NotFound/NotFound';
+import { InstructorApplication } from './components/instructor/application/InstructorApplication';
 
 function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -102,7 +103,6 @@ function App() {
       }
       return <SignUp />;
     }
-
     // 2. Protected Role-based Routing
     if (path.startsWith('/instructor/') || path === '/instructor') {
       if (!currentUser) {
@@ -111,6 +111,24 @@ function App() {
       if (currentUser.role !== 'instructor') {
         return <NotFound />;
       }
+
+      const appStatus = currentUser.applicationStatus || 'not_started';
+      const isApplicationPath = path.startsWith('/instructor/application');
+
+      // Application not submitted -> Force /instructor/application
+      if (appStatus !== 'submitted') {
+        if (!isApplicationPath) {
+          window.history.replaceState({}, '', '/instructor/application');
+        }
+        return <InstructorApplication user={currentUser} onLogout={handleLogout} />;
+      }
+
+      // Application submitted -> Force /instructor/dashboard if attempting /instructor/application
+      if (isApplicationPath && appStatus === 'submitted') {
+        window.history.replaceState({}, '', '/instructor/dashboard');
+        return <InstructorDashboard user={currentUser} onLogout={handleLogout} />;
+      }
+
       return <InstructorDashboard user={currentUser} onLogout={handleLogout} />;
     }
     if (path.startsWith('/learner/') || path === '/learner') {
