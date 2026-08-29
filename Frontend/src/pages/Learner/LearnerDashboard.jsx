@@ -3,11 +3,13 @@ import { BookOpen, Sun, Moon, LogOut, Compass, User } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { LearnerDashboardOverview } from '../../components/learner/dashboard/LearnerDashboardOverview/LearnerDashboardOverview';
 import { LearnerProfile } from '../../components/learner/profile/LearnerProfile';
+import { LogoutModal } from '../../components/common/LogoutModal/LogoutModal';
 
 export const LearnerDashboard = ({ user }) => {
   const [enrolments, setEnrolments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState('dashboard');
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const { theme, toggleTheme, isDarkMode } = useTheme();
 
   const handleLogout = () => {
@@ -112,7 +114,7 @@ export const LearnerDashboard = ({ user }) => {
 
             <button 
               className="btn btn-outline logout-btn logout-danger-btn"
-              onClick={handleLogout}
+              onClick={() => setShowLogoutModal(true)}
               title="Log Out"
               style={{ padding: '8px 16px', minHeight: '38px', fontSize: '13.5px' }}
             >
@@ -133,6 +135,12 @@ export const LearnerDashboard = ({ user }) => {
           onLessonComplete={handleLessonComplete}
         />
       )}
+
+      <LogoutModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleLogout}
+      />
     </div>
   );
 };

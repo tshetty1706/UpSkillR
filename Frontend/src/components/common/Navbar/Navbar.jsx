@@ -3,10 +3,12 @@ import { useTheme } from '../../../context/ThemeContext';
 import { Search, Sun, Moon, Menu, X, BookOpen, LogOut, User, LayoutDashboard, GraduationCap } from 'lucide-react';
 import './Navbar.css';
 import { Avatar } from '../Avatar/Avatar';
+import { LogoutModal } from '../LogoutModal/LogoutModal';
 
 export const Navbar = () => {
   const { theme, toggleTheme, isDarkMode } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
@@ -158,7 +160,7 @@ export const Navbar = () => {
                 type="button"
                 className="btn btn-outline"
                 style={{ padding: '8px 12px', minHeight: '38px' }}
-                onClick={handleLogout}
+                onClick={() => setShowLogoutModal(true)}
                 title="Log Out"
               >
                 <LogOut size={16} />
@@ -226,7 +228,7 @@ export const Navbar = () => {
               <button
                 type="button"
                 className="btn btn-outline mobile-start-btn"
-                onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
+                onClick={() => { setMobileMenuOpen(false); setShowLogoutModal(true); }}
               >
                 Log out ({currentUser.fullName})
               </button>
@@ -251,6 +253,12 @@ export const Navbar = () => {
           </nav>
         </div>
       )}
+
+      <LogoutModal 
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleLogout}
+      />
     </header>
   );
 };

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   LayoutDashboard,
   BookOpen,
@@ -20,9 +20,11 @@ import {
 import { useTheme } from '../../../../context/ThemeContext';
 import './InstructorSidebar.css';
 import { Avatar } from '../../../common/Avatar/Avatar';
+import { LogoutModal } from '../../../common/LogoutModal/LogoutModal';
 
 export const InstructorSidebar = ({ activeTab, setActiveTab, user, onLogout }) => {
   const { theme, toggleTheme, isDarkMode } = useTheme();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const navSections = [
     {
       title: 'MAIN',
@@ -139,7 +141,7 @@ export const InstructorSidebar = ({ activeTab, setActiveTab, user, onLogout }) =
           <button 
             type="button" 
             className="sidebar-logout-btn" 
-            onClick={onLogout} 
+            onClick={() => setShowLogoutModal(true)} 
             title="Log Out"
           >
             <LogOut size={15} />
@@ -147,6 +149,12 @@ export const InstructorSidebar = ({ activeTab, setActiveTab, user, onLogout }) =
           </button>
         </div>
       </div>
+
+      <LogoutModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={onLogout}
+      />
     </aside>
   );
 };

@@ -305,6 +305,52 @@ exports.removeResume = async (req, res) => {
 };
 
 /**
+ * Upload Certification File
+ * POST /api/instructor/application/upload/certificate
+ */
+exports.uploadCertificate = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Please select a certificate file (PDF/JPG/PNG/WEBP) to upload.' });
+    }
+
+    const certificateUrl = `/uploads/certificates/${req.file.filename}`;
+    const certFileObj = {
+      url: certificateUrl,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      mimeType: req.file.mimetype
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: 'Certificate uploaded successfully!',
+      certificateFile: certFileObj
+    });
+  } catch (error) {
+    console.error('Error uploading certificate:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to upload certificate file.' });
+  }
+};
+
+/**
+ * Remove Certification File
+ * DELETE /api/instructor/application/upload/certificate
+ */
+exports.removeCertificate = async (req, res) => {
+  try {
+    return res.status(200).json({
+      success: true,
+      message: 'Certificate file reference removed.',
+      certificateFile: { url: '', originalName: '', size: 0, mimeType: '' }
+    });
+  } catch (error) {
+    console.error('Error removing certificate file:', error);
+    return res.status(500).json({ success: false, message: 'Failed to remove certificate file.' });
+  }
+};
+
+/**
  * Validate & Submit application
  * POST /api/instructor/application/submit
  */
@@ -359,7 +405,7 @@ exports.submitApplication = async (req, res) => {
     }
 
     const courseInfo = application.coursesExpertise || {};
-    if (!courseInfo.primaryCategory?.trim() || !courseInfo.proposedCourseTitle?.trim()) {
+    if (!courseInfo.primaryCategory?.trim()) {
       return res.status(400).json({
         success: false,
         message: 'Please complete Courses & Expertise section before submitting.'
