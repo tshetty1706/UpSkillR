@@ -197,14 +197,16 @@ export default function SignUp() {
       }
 
       const isInstructor = data.user?.role === 'instructor';
-      const welcomeMsg = `Email verified successfully! Welcome to UpSkillr, ${data.user?.fullName}!`;
+      const welcomeMsg = isInstructor
+        ? `Email verified successfully! Redirecting to Instructor Application...`
+        : `Email verified successfully! Welcome to UpSkillr, ${data.user?.fullName}!`;
       setSuccessMessage(welcomeMsg);
       toast.success(welcomeMsg);
       setShowOtpStep(false);
 
       setTimeout(() => {
         if (isInstructor) {
-          navigate('/instructor');
+          navigate('/instructor/application');
         } else {
           navigate('/learner');
         }

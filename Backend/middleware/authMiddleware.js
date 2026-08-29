@@ -45,8 +45,36 @@ const requireLearner = (req, res, next) => {
   next();
 };
 
+const { Instructor } = require('../model/User');
+
+// Require Submitted Instructor role authorization for Dashboard APIs
+const requireSubmittedInstructor = async (req, res, next) => {
+  if (!req.user || req.user.role !== 'instructor') {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Only registered instructors can perform this action.'
+    });
+  }
+
+  try {
+    const instructor = await Instructor.findById(req.user.id);
+    if (!instructor || instructor.applicationStatus !== 'submitted') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Instructor application must be submitted before accessing dashboard features.',
+        applicationStatus: instructor ? instructor.applicationStatus : 'not_started'
+      });
+    }
+    next();
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server authorization check failed.' });
+  }
+};
+
 module.exports = {
   protect,
   requireInstructor,
-  requireLearner
+  requireLearner,
+  requireSubmittedInstructor
 };
+

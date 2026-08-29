@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
 import { Search, Sun, Moon, Menu, X, BookOpen, LogOut, User, LayoutDashboard, GraduationCap } from 'lucide-react';
 import './Navbar.css';
+import { Avatar } from '../Avatar/Avatar';
 
 export const Navbar = () => {
   const { theme, toggleTheme, isDarkMode } = useTheme();
@@ -10,29 +11,36 @@ export const Navbar = () => {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
   useEffect(() => {
-    const userStr = localStorage.getItem('upskillr_user');
-    if (userStr) {
-      try {
-        setCurrentUser(JSON.parse(userStr));
-      } catch (e) {
-        console.error('Failed to parse user state');
-      }
-    }
-
-    const updatePath = (e) => {
+    const updateUserAndPath = (e) => {
       if (e?.detail?.path) {
         setCurrentPath(e.detail.path);
       } else {
         setCurrentPath(window.location.pathname);
       }
+
+      const userStr = localStorage.getItem('upskillr_user');
+      if (userStr) {
+        try {
+          setCurrentUser(JSON.parse(userStr));
+        } catch (err) {
+          console.error('Failed to parse user details');
+        }
+      } else {
+        setCurrentUser(null);
+      }
     };
 
-    window.addEventListener('popstate', updatePath);
-    window.addEventListener('upskillr_navigate', updatePath);
+    // Load initial path & user
+    updateUserAndPath();
+
+    window.addEventListener('popstate', updateUserAndPath);
+    window.addEventListener('upskillr_navigate', updateUserAndPath);
+    window.addEventListener('upskillr_user_updated', updateUserAndPath);
 
     return () => {
-      window.removeEventListener('popstate', updatePath);
-      window.removeEventListener('upskillr_navigate', updatePath);
+      window.removeEventListener('popstate', updateUserAndPath);
+      window.removeEventListener('upskillr_navigate', updateUserAndPath);
+      window.removeEventListener('upskillr_user_updated', updateUserAndPath);
     };
   }, []);
 
@@ -117,6 +125,15 @@ export const Navbar = () => {
 
           {currentUser ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                className="navbar-avatar-wrapper"
+                onClick={() => navigate(currentUser.role === 'instructor' ? '/instructor' : '/learner')}
+                title="Go to Dashboard"
+                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              >
+                <Avatar image={currentUser.avatar} name={currentUser.fullName} size="small" />
+              </div>
+
               {currentUser.role === 'instructor' ? (
                 <button
                   type="button"
