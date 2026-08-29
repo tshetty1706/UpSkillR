@@ -62,12 +62,26 @@ function App() {
       }
     };
 
+    // Custom event listener for when the user profile or avatar is updated
+    const handleUserUpdate = () => {
+      const stored = localStorage.getItem('upskillr_user');
+      if (stored) {
+        try {
+          setCurrentUser(JSON.parse(stored));
+        } catch (e) {}
+      } else {
+        setCurrentUser(null);
+      }
+    };
+
     window.addEventListener('popstate', handlePopState);
     window.addEventListener('upskillr_navigate', handleNavigate);
+    window.addEventListener('upskillr_user_updated', handleUserUpdate);
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('upskillr_navigate', handleNavigate);
+      window.removeEventListener('upskillr_user_updated', handleUserUpdate);
     };
   }, []);
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Sparkles, BookOpen, Users, Award, ArrowRight, User } from 'lucide-react';
 import './ExploreInstructors.css';
+import { Avatar } from '../../../common/Avatar/Avatar';
 
 export const ExploreInstructors = () => {
   const [instructors, setInstructors] = useState([]);
@@ -84,15 +85,7 @@ export const ExploreInstructors = () => {
               <div key={inst._id} className="instructor-card">
                 <div className="instructor-avatar-container">
                   <div className="instructor-avatar-ring">
-                    <img 
-                      src={inst.avatar} 
-                      alt={inst.fullName} 
-                      className="instructor-avatar"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(inst.fullName)}`;
-                      }}
-                    />
+                    <Avatar image={inst.avatar} name={inst.fullName} size="medium" />
                   </div>
                 </div>
 

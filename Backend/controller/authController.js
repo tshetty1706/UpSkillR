@@ -651,6 +651,15 @@ exports.getCurrentUser = async (req, res) => {
     const userObj = user.toObject ? user.toObject() : { ...user };
     delete userObj.password;
 
+    if (user.role === 'instructor') {
+      const InstructorApplication = require('../model/InstructorApplication');
+      const application = await InstructorApplication.findOne({ instructorId: user._id });
+      if (application) {
+        userObj.bio = application.personalInfo?.bio || '';
+        userObj.specialization = application.personalInfo?.professionalTitle || '';
+      }
+    }
+
     return res.status(200).json({ success: true, user: userObj });
   } catch (error) {
     return res.status(401).json({ success: false, message: 'Invalid or expired token.' });
@@ -675,7 +684,7 @@ exports.getInstructors = async (req, res) => {
           _id: inst._id,
           fullName: inst.fullName,
           email: inst.email,
-          avatar: inst.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(inst.fullName)}&backgroundType=gradientLinear&fontSize=40`,
+          avatar: inst.avatar || '',
           coursesCount: courses.length,
           learnersCount,
           expertise: courses.map(c => c.category).filter((v, i, a) => a.indexOf(v) === i)
@@ -687,6 +696,185 @@ exports.getInstructors = async (req, res) => {
   } catch (error) {
     console.error('Get Instructors Error:', error);
     return res.status(500).json({ success: false, message: 'Server error while fetching instructors.' });
+  }
+};
+
+// 11. Update User Profile Settings (Name, Bio, Specialization)
+exports.updateProfile = async (req, res) => {
+  try {
+    const { fullName, bio, specialization } = req.body;
+    if (!fullName || !fullName.trim()) {
+      return res.status(400).json({ success: false, message: 'Full name is required.' });
+    }
+
+    const userId = req.user.id;
+    const role = req.user.role;
+
+    let updatedUser;
+    if (role === 'learner') {
+      updatedUser = await Learner.findByIdAndUpdate(
+        userId,
+        { fullName: fullName.trim() },
+        { new: true }
+      ).select('-password');
+    } else if (role === 'instructor') {
+      updatedUser = await Instructor.findByIdAndUpdate(
+        userId,
+        { fullName: fullName.trim() },
+        { new: true }
+      ).select('-password');
+
+      // Also update matching field in InstructorApplication if it exists
+      const InstructorApplication = require('../model/InstructorApplication');
+      const application = await InstructorApplication.findOne({ instructorId: userId });
+      if (application) {
+        application.personalInfo = {
+          ...application.personalInfo.toObject(),
+          fullName: fullName.trim(),
+          bio: bio || application.personalInfo.bio || '',
+          professionalTitle: specialization || application.personalInfo.professionalTitle || ''
+        };
+        await application.save();
+      }
+    }
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const userObj = updatedUser.toObject();
+    if (role === 'instructor') {
+      userObj.bio = bio || '';
+      userObj.specialization = specialization || '';
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully.',
+      user: userObj
+    });
+  } catch (error) {
+    console.error('Update Profile Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update profile.' });
+  }
+};
+
+// 12. Upload Profile Photo
+exports.uploadProfilePhoto = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Please select an image file to upload.' });
+    }
+
+    const userId = req.user.id;
+    const role = req.user.role;
+    const photoUrl = `/uploads/photos/${req.file.filename}`;
+
+    let updatedUser;
+    if (role === 'learner') {
+      updatedUser = await Learner.findByIdAndUpdate(
+        userId,
+        { avatar: photoUrl },
+        { new: true }
+      ).select('-password');
+    } else if (role === 'instructor') {
+      updatedUser = await Instructor.findByIdAndUpdate(
+        userId,
+        { avatar: photoUrl },
+        { new: true }
+      ).select('-password');
+
+      // Also update in InstructorApplication if it exists
+      const InstructorApplication = require('../model/InstructorApplication');
+      const application = await InstructorApplication.findOne({ instructorId: userId });
+      if (application) {
+        application.personalInfo = {
+          ...application.personalInfo.toObject(),
+          photoUrl
+        };
+        await application.save();
+      }
+    }
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const userObj = updatedUser.toObject();
+    if (role === 'instructor') {
+      const InstructorApplication = require('../model/InstructorApplication');
+      const application = await InstructorApplication.findOne({ instructorId: userId });
+      if (application) {
+        userObj.bio = application.personalInfo?.bio || '';
+        userObj.specialization = application.personalInfo?.professionalTitle || '';
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile photo uploaded successfully!',
+      user: userObj
+    });
+  } catch (error) {
+    console.error('Upload Profile Photo Error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to upload photo.' });
+  }
+};
+
+// 13. Remove Profile Photo
+exports.removeProfilePhoto = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const role = req.user.role;
+
+    let updatedUser;
+    if (role === 'learner') {
+      updatedUser = await Learner.findByIdAndUpdate(
+        userId,
+        { avatar: '' },
+        { new: true }
+      ).select('-password');
+    } else if (role === 'instructor') {
+      updatedUser = await Instructor.findByIdAndUpdate(
+        userId,
+        { avatar: '' },
+        { new: true }
+      ).select('-password');
+
+      // Also remove from InstructorApplication photoUrl if it exists
+      const InstructorApplication = require('../model/InstructorApplication');
+      const application = await InstructorApplication.findOne({ instructorId: userId });
+      if (application) {
+        application.personalInfo = {
+          ...application.personalInfo.toObject(),
+          photoUrl: ''
+        };
+        await application.save();
+      }
+    }
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const userObj = updatedUser.toObject();
+    if (role === 'instructor') {
+      const InstructorApplication = require('../model/InstructorApplication');
+      const application = await InstructorApplication.findOne({ instructorId: userId });
+      if (application) {
+        userObj.bio = application.personalInfo?.bio || '';
+        userObj.specialization = application.personalInfo?.professionalTitle || '';
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile photo removed.',
+      user: userObj
+    });
+  } catch (error) {
+    console.error('Remove Profile Photo Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to remove photo.' });
   }
 };
 

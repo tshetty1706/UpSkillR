@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Sun, Moon, LogOut, Compass } from 'lucide-react';
+import { BookOpen, Sun, Moon, LogOut, Compass, User } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { LearnerDashboardOverview } from '../../components/learner/dashboard/LearnerDashboardOverview/LearnerDashboardOverview';
+import { LearnerProfile } from '../../components/learner/profile/LearnerProfile';
 
 export const LearnerDashboard = ({ user }) => {
   const [enrolments, setEnrolments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeView, setActiveView] = useState('dashboard');
   const { theme, toggleTheme, isDarkMode } = useTheme();
 
   const handleLogout = () => {
@@ -81,6 +83,16 @@ export const LearnerDashboard = ({ user }) => {
 
           <div className="topbar-actions">
             <button 
+              className={`btn ${activeView === 'profile' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setActiveView(activeView === 'profile' ? 'dashboard' : 'profile')}
+              title="My Profile"
+              style={{ padding: '8px 16px', minHeight: '38px', fontSize: '13.5px' }}
+            >
+              <User size={15} />
+              <span>{activeView === 'profile' ? 'Dashboard' : 'My Profile'}</span>
+            </button>
+
+            <button 
               className="btn btn-outline"
               onClick={() => handleNavigate('/explore')}
               title="Explore Courses"
@@ -111,12 +123,16 @@ export const LearnerDashboard = ({ user }) => {
         </div>
       </header>
 
-      <LearnerDashboardOverview
-        user={user}
-        enrolments={enrolments}
-        loading={loading}
-        onLessonComplete={handleLessonComplete}
-      />
+      {activeView === 'profile' ? (
+        <LearnerProfile user={user} />
+      ) : (
+        <LearnerDashboardOverview
+          user={user}
+          enrolments={enrolments}
+          loading={loading}
+          onLessonComplete={handleLessonComplete}
+        />
+      )}
     </div>
   );
 };
