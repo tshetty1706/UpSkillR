@@ -899,3 +899,104 @@
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Hide scrollbars visually across all dropdowns and select elements */
+select,
+.field-select,
+.searchable-select-dropdown,
+.skills-tag-container {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+select::-webkit-scrollbar,
+.field-select::-webkit-scrollbar,
+.searchable-select-dropdown::-webkit-scrollbar,
+.skills-tag-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* Missing Required Field Review Warning */
+.review-field-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+  padding: 0.5rem 0.85rem;
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--radius-md, 6px);
+  color: #ef4444;
+  font-size: 0.825rem;
+  font-weight: 600;
+  grid-column: 1 / -1;
+}
+
+/* Skills Autocomplete Suggestions Dropdown */
+.skills-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background-color: var(--surface, #121e1a);
+  border: 1px solid var(--border, #22352e);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.5));
+  z-index: 250;
+  padding: 4px 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.skills-dropdown-menu::-webkit-scrollbar {
+  display: none;
+}
+
+.skills-dropdown-item {
+  padding: 8px 14px;
+  font-size: 0.875rem;
+  color: var(--text-primary, #ffffff);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.skills-dropdown-item:hover {
+  background-color: var(--surface-muted, #1a2c26);
+  color: var(--brand-primary, #10b981);
+}
+
+/* Review Section Missing Required Information Warning */
+.review-section-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+  padding: 0.55rem 0.85rem;
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--radius-md, 6px);
+  color: #ef4444;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* Cert Modal In-place Validation Warning */
+.cert-modal-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--radius-md, 6px);
+  color: #ef4444;
+  font-size: 0.825rem;
+  font-weight: 600;
+  margin-bottom: 0.85rem;
+}
+
+
+
+
