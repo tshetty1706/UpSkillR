@@ -14,6 +14,10 @@ jspm_packages/
 !.env.example
 *.env
 
+# Uploaded User Files (Photos, Resumes, Certificates)
+uploads/*
+!uploads/.gitkeep
+
 # Logs & Debugging
 logs/
 *.log
