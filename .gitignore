@@ -1,3 +1,7 @@
+# ──────────────────────────────────────────────────────────────
+# UpSkillr — Workspace Root .gitignore
+# ──────────────────────────────────────────────────────────────
+
 # Dependencies
 node_modules/
 **/node_modules/
@@ -7,6 +11,10 @@ node_modules/
 .env.*
 !.env.example
 *.env
+
+# Uploaded User Files in Backend
+Backend/uploads/*
+!Backend/uploads/.gitkeep
 
 # Build & Production Outputs
 dist/
