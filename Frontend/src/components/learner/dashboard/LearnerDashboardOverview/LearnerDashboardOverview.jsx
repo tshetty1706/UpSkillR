@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   BookOpen,
   CheckCircle2,
@@ -100,6 +100,7 @@ export const LearnerDashboardOverview = ({
   loading = false,
   onLessonComplete,
   onEnrolCourse,
+  onFetchPublishedCourses,
   activeTab = 'enrolled',
   setActiveTab
 }) => {
@@ -107,6 +108,16 @@ export const LearnerDashboardOverview = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedLevel, setSelectedLevel] = useState('All');
+
+  // Trigger Backend API Query Filtering when search/category/level change
+  useEffect(() => {
+    if (onFetchPublishedCourses) {
+      const handler = setTimeout(() => {
+        onFetchPublishedCourses(searchQuery, selectedCategory, selectedLevel);
+      }, 250);
+      return () => clearTimeout(handler);
+    }
+  }, [searchQuery, selectedCategory, selectedLevel, onFetchPublishedCourses]);
 
   // Interactive Lesson Accordion State (FR-07)
   const [expandedCourseId, setExpandedCourseId] = useState(null);

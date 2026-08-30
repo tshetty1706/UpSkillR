@@ -426,7 +426,27 @@ exports.deleteCourse = async (req, res) => {
 // 10. Get All Published Courses (Public / Learner Browsing)
 exports.getPublishedCourses = async (req, res) => {
   try {
-    const courses = await Course.find({ status: 'published' })
+    const { search, category, level } = req.query;
+    const filter = { status: 'published' };
+
+    if (category && category !== 'All') {
+      filter.category = category;
+    }
+
+    if (level && level !== 'All' && level !== 'All Skill Levels') {
+      filter.skillLevel = level;
+    }
+
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [
+        { title: searchRegex },
+        { description: searchRegex },
+        { instructorName: searchRegex }
+      ];
+    }
+
+    const courses = await Course.find(filter)
       .populate('instructorId', 'fullName avatar')
       .sort({ createdAt: -1 });
 
@@ -454,6 +474,10 @@ exports.getPublishedCourses = async (req, res) => {
 exports.enrolInCourse = async (req, res) => {
   try {
     const { courseId } = req.body;
+    if (!courseId) {
+      return res.status(400).json({ success: false, message: 'Course ID is required.' });
+    }
+
     const course = await Course.findById(courseId);
 
     if (!course || course.status !== 'published') {
@@ -469,10 +493,20 @@ exports.enrolInCourse = async (req, res) => {
       });
     }
 
+    let learnerName = req.user.fullName;
+    let learnerEmail = req.user.email;
+    if (!learnerName || !learnerEmail) {
+      const learner = await Learner.findById(req.user.id);
+      if (learner) {
+        learnerName = learnerName || learner.fullName;
+        learnerEmail = learnerEmail || learner.email;
+      }
+    }
+
     const enrolment = new Enrolment({
       learnerId: req.user.id,
-      learnerName: req.user.fullName || 'Learner',
-      learnerEmail: req.user.email,
+      learnerName: learnerName || 'Learner',
+      learnerEmail: learnerEmail || 'learner@upskillr.com',
       courseId: course._id,
       courseTitle: course.title,
       completedLessons: [],

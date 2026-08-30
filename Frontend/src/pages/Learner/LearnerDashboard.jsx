@@ -59,9 +59,17 @@ export const LearnerDashboard = ({ user }) => {
     }
   };
 
-  const fetchPublishedCourses = async () => {
+  const fetchPublishedCourses = async (search = '', category = 'All', level = 'All') => {
     try {
-      const response = await fetch('http://localhost:5000/api/courses/published');
+      const params = new URLSearchParams();
+      if (search && search.trim()) params.append('search', search.trim());
+      if (category && category !== 'All') params.append('category', category);
+      if (level && level !== 'All') params.append('level', level);
+
+      const queryString = params.toString();
+      const url = `http://localhost:5000/api/courses/published${queryString ? `?${queryString}` : ''}`;
+
+      const response = await fetch(url);
       const data = await response.json();
       if (data.success) {
         setPublishedCourses(data.courses || []);
@@ -74,10 +82,25 @@ export const LearnerDashboard = ({ user }) => {
   // FR-06 Single Action Enrolment Handler
   const handleEnrolCourse = async (courseId) => {
     const token = localStorage.getItem('upskillr_token');
-
-    // Optimistic fallback check
     const courseToEnrol = publishedCourses.find(c => c._id === courseId);
-    
+
+    // Optimistically update enrolments state for instant UI transition to "Enrolled — Go to Course"
+    const isAlreadyEnrolled = enrolments.some(e => (e.courseId?._id || e.courseId) === courseId);
+    if (!isAlreadyEnrolled && courseToEnrol) {
+      const optimisticEnrolment = {
+        _id: 'enrol_' + Date.now(),
+        courseId: courseToEnrol,
+        courseTitle: courseToEnrol.title,
+        completedLessons: [],
+        progressPercentage: 0,
+        enrolledAt: new Date()
+      };
+      setEnrolments(prev => [optimisticEnrolment, ...prev]);
+    }
+
+    // Trigger floating toast notification banner (FR-06 requirement)
+    showNotification('🎉 Enrolled successfully! Start learning now.');
+
     try {
       if (token) {
         const response = await fetch('http://localhost:5000/api/courses/enrol', {
@@ -89,32 +112,12 @@ export const LearnerDashboard = ({ user }) => {
           body: JSON.stringify({ courseId })
         });
         const data = await response.json();
-
         if (data.success) {
-          showNotification(`🎉 Enrolled successfully! Start learning now.`);
           await fetchMyEnrolments();
-          setActiveTab('enrolled');
-          return;
         }
       }
     } catch (err) {
       console.error('Error enrolling in course', err);
-    }
-
-    // Fallback UI enrolment addition if offline/demo mode
-    const isAlreadyEnrolled = enrolments.some(e => (e.courseId?._id || e.courseId) === courseId);
-    if (!isAlreadyEnrolled && courseToEnrol) {
-      const newEnrolment = {
-        _id: 'enrol_' + Date.now(),
-        courseId: courseToEnrol,
-        courseTitle: courseToEnrol.title,
-        completedLessons: [],
-        progressPercentage: 0,
-        enrolledAt: new Date()
-      };
-      setEnrolments(prev => [newEnrolment, ...prev]);
-      showNotification(`🎉 Enrolled successfully in "${courseToEnrol.title}"!`);
-      setActiveTab('enrolled');
     }
   };
 
@@ -254,6 +257,7 @@ export const LearnerDashboard = ({ user }) => {
           loading={loading}
           onLessonComplete={handleLessonComplete}
           onEnrolCourse={handleEnrolCourse}
+          onFetchPublishedCourses={fetchPublishedCourses}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
         />

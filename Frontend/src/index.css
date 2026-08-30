@@ -1575,7 +1575,10 @@ h1, h2, h3, h4, h5, h6 {
 
 .category-chip {
   padding: 8px 16px;
-  min-height: 38px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--radius-pill);
   border: 1px solid var(--border);
   background-color: var(--surface);
