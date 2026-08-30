@@ -8,8 +8,8 @@ import SignUp from './components/authentication/signup';
 import Login from './components/authentication/login';
 import { InstructorDashboard } from './pages/Instructor/InstructorDashboard';
 import { LearnerDashboard } from './pages/Learner/LearnerDashboard';
-import { ExploreCourses } from './components/learner/courses/ExploreCourses/ExploreCourses';
-import { ExploreInstructors } from './components/learner/instructors/ExploreInstructors/ExploreInstructors';
+import { ExploreCourses } from './components/home/ExploreCourses/ExploreCourses';
+import { ExploreInstructors } from './components/home/ExploreInstructors/ExploreInstructors'
 import { NotFound } from './components/common/NotFound/NotFound';
 import { InstructorApplication } from './components/instructor/application/InstructorApplication';
 
@@ -37,7 +37,7 @@ function App() {
       if (stored) {
         try {
           setCurrentUser(JSON.parse(stored));
-        } catch (e) {}
+        } catch (e) { }
       }
     }
 
@@ -56,7 +56,7 @@ function App() {
       if (stored) {
         try {
           setCurrentUser(JSON.parse(stored));
-        } catch (e) {}
+        } catch (e) { }
       } else {
         setCurrentUser(null);
       }
@@ -68,7 +68,7 @@ function App() {
       if (stored) {
         try {
           setCurrentUser(JSON.parse(stored));
-        } catch (e) {}
+        } catch (e) { }
       } else {
         setCurrentUser(null);
       }

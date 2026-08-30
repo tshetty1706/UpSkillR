@@ -1,0 +1,296 @@
+/* UpSkillr Explore Courses Styling */
+
+.explore-courses-page.section {
+  width: 100%;
+  padding-top: 1.5rem !important; /* Reduce excessive global top padding for a natural start */
+}
+
+/* Course Exploration Hero Layout */
+.explore-hero {
+  display: grid;
+  grid-template-columns: 1.25fr 0.75fr;
+  gap: 4rem;
+  align-items: center; /* Vertically center left content and right illustration */
+  padding: 0.75rem 0 2rem 0;
+  margin-bottom: 2rem;
+}
+
+.explore-hero-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; /* Align all left content elements to the exact same left axis */
+  text-align: left;
+}
+
+.explore-hero .hero-badge {
+  margin-bottom: 1.25rem;
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.explore-hero .explore-title {
+  font-size: clamp(2.25rem, 4vw, 3.25rem); /* Fluid Typography per AGENTS.md rule */
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-top: 0;
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 0.75rem; /* Spacing between heading and subheading for a cohesive connection */
+  line-height: 1.15;
+  letter-spacing: -1.2px;
+  text-align: left;
+}
+
+.explore-hero .explore-title .text-highlight {
+  color: var(--brand-primary);
+}
+
+.explore-hero .explore-subtitle {
+  font-size: 1.05rem;
+  color: var(--text-secondary);
+  max-width: 580px;
+  line-height: 1.6;
+  margin-top: 0;
+  margin-left: 0 !important; /* Explicitly override any global margin: 0 auto from other pages */
+  margin-right: 0;
+  margin-bottom: 1.75rem; /* Clean spacing before the search bar */
+  text-align: left;
+}
+
+/* Premium Search Input per requirements */
+.explore-hero .explore-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 480px;
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.explore-hero .explore-search-icon {
+  position: absolute;
+  left: 18px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.explore-hero .explore-search-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 20px 0 52px;
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-pill);
+  font-size: 0.95rem;
+  color: var(--input-text);
+  font-family: var(--font-family);
+  transition: all 0.25s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.explore-hero .explore-search-input::placeholder {
+  color: var(--input-placeholder);
+}
+
+.explore-hero .explore-search-input:hover {
+  border-color: var(--brand-primary);
+}
+
+.explore-hero .explore-search-input:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 4px var(--brand-emerald-glow);
+}
+
+/* Vector Illustration adaptive styling */
+.explore-hero-illustration {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center; /* Center the illustration vertically in its column */
+  width: 100%;
+}
+
+.explore-illustration {
+  width: 100%;
+  max-width: 350px; /* Keep illustration balanced, not dominating heading */
+}
+
+.explore-illustration svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Illustration default / Light Mode vector colors (Image 1 style) */
+.explore-illustration svg .ill-accent-green {
+  fill: var(--brand-primary);
+  transition: fill 0.25s ease;
+}
+
+.explore-illustration svg .ill-dark {
+  fill: #3f3d56;
+  transition: fill 0.25s ease;
+}
+
+.explore-illustration svg .ill-dark-neutral {
+  fill: #2f2e41;
+  transition: fill 0.25s ease;
+}
+
+.explore-illustration svg .ill-light {
+  fill: #FFFFFF;
+  transition: fill 0.25s ease;
+}
+
+.explore-illustration svg .ill-light-neutral {
+  fill: #f2f2f2;
+  transition: fill 0.25s ease;
+}
+
+.explore-illustration svg .ill-border {
+  fill: #ccc;
+  transition: fill 0.25s ease;
+}
+
+.explore-illustration svg .ill-skin {
+  fill: #ffb8b8;
+}
+
+.explore-illustration svg .ill-skin-detail {
+  fill: #a0616a;
+}
+
+.explore-illustration svg .ill-accent-pink {
+  fill: #ff6584;
+  transition: fill 0.25s ease;
+}
+
+/* Illustration Dark Mode vector colors (Image 2 style) */
+.dark .explore-illustration svg .ill-dark {
+  fill: #16241D; /* Deep dark forest green-charcoal */
+}
+
+.dark .explore-illustration svg .ill-dark-neutral {
+  fill: #0F1A15; /* Deeper charcoal black */
+}
+
+.dark .explore-illustration svg .ill-light {
+  fill: #101B18; /* Surface/input dark background */
+}
+
+.dark .explore-illustration svg .ill-light-neutral {
+  fill: #0D1715; /* Surface-muted dark background */
+}
+
+.dark .explore-illustration svg .ill-border {
+  fill: #1D3329; /* Dark border lines */
+}
+
+.dark .explore-illustration svg .ill-skin {
+  fill: #e8a6a6;
+}
+
+.dark .explore-illustration svg .ill-skin-detail {
+  fill: #8f5059;
+}
+
+.dark .explore-illustration svg .ill-accent-pink {
+  fill: var(--brand-primary);
+}
+
+/* Filter chips toolbar */
+.explore-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+/* Responsive grid overrides */
+@media (max-width: 1023px) {
+  .explore-hero {
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 2.5rem;
+    padding: 0.5rem 0 1.5rem 0;
+  }
+  .explore-illustration {
+    max-width: 290px;
+  }
+}
+
+@media (max-width: 767px) {
+  .explore-hero {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    padding: 0.5rem 0 1.5rem 0;
+    text-align: left;
+  }
+  .explore-hero-content {
+    align-items: flex-start;
+  }
+  .explore-hero-illustration {
+    order: 2;
+    justify-content: center;
+  }
+  .explore-illustration {
+    max-width: 260px;
+  }
+}
+
+.category-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.chip:hover,
+.chip.active {
+  background-color: var(--brand-primary);
+  color: var(--btn-primary-text);
+  border-color: var(--brand-primary);
+}
+
+.explore-courses-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.explore-course-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.explore-course-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--brand-primary);
+}
+
+.instructor-tag {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}

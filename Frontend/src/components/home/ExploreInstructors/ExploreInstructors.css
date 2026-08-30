@@ -4,7 +4,8 @@
   padding-top: 60px;
   padding-bottom: 80px;
   background-color: var(--background);
-  min-height: calc(100vh - 72px - 200px); /* Fill screen minus navbar and footer */
+  min-height: calc(100vh - 72px - 200px);
+  /* Fill screen minus navbar and footer */
   transition: background-color 0.25s ease;
 }
 
@@ -36,12 +37,14 @@
 }
 
 .explore-title {
-  font-size: clamp(2.25rem, 4vw, 3.25rem); /* Fluid Typography Constraint */
+  font-size: clamp(2.25rem, 4vw, 3.25rem);
+  /* Fluid Typography Constraint */
   font-weight: 800;
   letter-spacing: -1px;
   margin-bottom: 16px;
   background: linear-gradient(135deg, var(--text-primary) 30%, var(--brand-primary));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
@@ -74,7 +77,8 @@
 /* Explore Instructors Grid */
 .explore-instructors-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); /* Fluid responsive grid */
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  /* Fluid responsive grid */
   gap: 32px;
   margin-top: 16px;
 }

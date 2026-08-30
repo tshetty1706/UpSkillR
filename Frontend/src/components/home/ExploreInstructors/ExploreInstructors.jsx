@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Sparkles, BookOpen, Users, Award, ArrowRight, User } from 'lucide-react';
 import './ExploreInstructors.css';
-import { Avatar } from '../../../common/Avatar/Avatar';
+import { Avatar } from '../../common/Avatar/Avatar';
 
 export const ExploreInstructors = () => {
   const [instructors, setInstructors] = useState([]);
@@ -35,7 +35,7 @@ export const ExploreInstructors = () => {
 
   const filteredInstructors = instructors.filter((inst) => {
     const matchesName = inst.fullName.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesExpertise = inst.expertise && inst.expertise.some(exp => 
+    const matchesExpertise = inst.expertise && inst.expertise.some(exp =>
       exp.toLowerCase().includes(searchQuery.toLowerCase())
     );
     return matchesName || matchesExpertise;

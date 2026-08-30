@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, Search, Video, Users, CheckCircle2, Star, Sparkles, ArrowRight } from 'lucide-react';
 import './ExploreCourses.css';
-import { useToast } from '../../../../context/ToastContext';
+import { useToast } from '../../../context/ToastContext';
+import exploreCoursesSvg from '../../../assets/illustrations/explore_courses.svg?raw';
 
 export const ExploreCourses = () => {
   const { toast } = useToast();
@@ -101,8 +102,8 @@ export const ExploreCourses = () => {
 
   const filteredCourses = courses.filter((c) => {
     const matchesCategory = selectedCategory === 'all' || c.category.toLowerCase() === selectedCategory.toLowerCase();
-    const matchesSearch = 
-      c.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    const matchesSearch =
+      c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (c.instructorName && c.instructorName.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesCategory && matchesSearch;
@@ -113,19 +114,39 @@ export const ExploreCourses = () => {
   return (
     <div className="explore-courses-page section">
       <div className="container">
-        {/* Header */}
-        <div className="explore-header text-center">
-          <div className="badge-pill">
-            <Sparkles size={14} />
-            <span>Explore Catalog</span>
+        {/* Explore Hero Redesign */}
+        <div className="explore-hero">
+          <div className="explore-hero-content">
+            <div className="badge-pill hero-badge">
+              <Sparkles size={14} />
+              <span>EXPLORE CATALOG</span>
+            </div>
+            <h1 className="explore-title">
+              Explore <span className="text-highlight">Expert-Led</span> Courses
+            </h1>
+            <p className="explore-subtitle">
+              Master real-world skills with courses created by expert instructors on UpSkillr.
+            </p>
+            <div className="explore-search-box">
+              <Search size={20} className="explore-search-icon" />
+              <input
+                type="text"
+                className="explore-search-input"
+                placeholder="Search courses, skills, or topics..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
           </div>
-          <h1 className="explore-title">Explore Expert-Led Courses</h1>
-          <p className="explore-subtitle">
-            Master real-world skills with courses created by expert instructors on UpSkillr.
-          </p>
+          <div className="explore-hero-illustration">
+            <div
+              className="explore-illustration"
+              dangerouslySetInnerHTML={{ __html: exploreCoursesSvg }}
+            />
+          </div>
         </div>
 
-        {/* Search & Filter Bar */}
+        {/* Filter Bar */}
         <div className="explore-toolbar">
           <div className="category-chips">
             {categories.map((cat) => (
@@ -138,17 +159,6 @@ export const ExploreCourses = () => {
                 {cat === 'all' ? 'All Categories' : cat}
               </button>
             ))}
-          </div>
-
-          <div className="search-box-wrapper">
-            <Search size={18} className="search-icon" />
-            <input
-              type="text"
-              className="search-input"
-              placeholder="Search courses..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
           </div>
         </div>
 
