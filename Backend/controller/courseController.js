@@ -426,15 +426,44 @@ exports.deleteCourse = async (req, res) => {
 // 10. Get All Published Courses (Public / Learner Browsing)
 exports.getPublishedCourses = async (req, res) => {
   try {
-    const courses = await Course.find({ status: 'published' })
+    const { search, category, level } = req.query;
+    const filter = { status: 'published' };
+
+    if (category && category !== 'All') {
+      filter.category = category;
+    }
+
+    if (level && level !== 'All' && level !== 'All Skill Levels') {
+      filter.skillLevel = level;
+    }
+
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [
+        { title: searchRegex },
+        { description: searchRegex },
+        { instructorName: searchRegex }
+      ];
+    }
+
+    const courses = await Course.find(filter)
       .populate('instructorId', 'fullName avatar')
       .sort({ createdAt: -1 });
 
     const courseList = await Promise.all(
       courses.map(async (c) => {
         const count = await Enrolment.countDocuments({ courseId: c._id });
+        const ratedEnrolments = await Enrolment.find({ courseId: c._id, rating: { $exists: true, $ne: null, $gt: 0 } });
+
+        let avgRating = c.rating;
+        if (ratedEnrolments.length > 0) {
+          const sum = ratedEnrolments.reduce((acc, e) => acc + Number(e.rating), 0);
+          avgRating = Math.round((sum / ratedEnrolments.length) * 10) / 10;
+        }
+
         const cObj = c.toObject();
         cObj.learnersCount = count;
+        cObj.rating = avgRating;
         if (c.instructorId) {
           cObj.instructorAvatar = c.instructorId.avatar;
           cObj.instructorName = c.instructorId.fullName || c.instructorName;
@@ -454,6 +483,10 @@ exports.getPublishedCourses = async (req, res) => {
 exports.enrolInCourse = async (req, res) => {
   try {
     const { courseId } = req.body;
+    if (!courseId) {
+      return res.status(400).json({ success: false, message: 'Course ID is required.' });
+    }
+
     const course = await Course.findById(courseId);
 
     if (!course || course.status !== 'published') {
@@ -469,10 +502,20 @@ exports.enrolInCourse = async (req, res) => {
       });
     }
 
+    let learnerName = req.user.fullName;
+    let learnerEmail = req.user.email;
+    if (!learnerName || !learnerEmail) {
+      const learner = await Learner.findById(req.user.id);
+      if (learner) {
+        learnerName = learnerName || learner.fullName;
+        learnerEmail = learnerEmail || learner.email;
+      }
+    }
+
     const enrolment = new Enrolment({
       learnerId: req.user.id,
-      learnerName: req.user.fullName || 'Learner',
-      learnerEmail: req.user.email,
+      learnerName: learnerName || 'Learner',
+      learnerEmail: learnerEmail || 'learner@upskillr.com',
       courseId: course._id,
       courseTitle: course.title,
       completedLessons: [],
@@ -519,7 +562,9 @@ exports.updateLessonProgress = async (req, res) => {
     }
 
     const idx = parseInt(lessonIndex, 10);
-    if (!enrolment.completedLessons.includes(idx)) {
+    if (enrolment.completedLessons.includes(idx)) {
+      enrolment.completedLessons = enrolment.completedLessons.filter(i => i !== idx);
+    } else {
       enrolment.completedLessons.push(idx);
     }
 
@@ -531,11 +576,72 @@ exports.updateLessonProgress = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Progress updated!',
+      message: enrolment.completedLessons.includes(idx) ? 'Lesson marked as completed!' : 'Lesson marked as incomplete.',
       enrolment
     });
   } catch (error) {
     console.error('Update Progress Error:', error);
     return res.status(500).json({ success: false, message: 'Server error while updating progress.' });
+  }
+};
+
+// 14. Submit Course Rating & Review Feedback (FR-09)
+exports.submitCourseRating = async (req, res) => {
+  try {
+    const { courseId, rating, feedback, tags } = req.body;
+
+    if (!courseId || !rating) {
+      return res.status(400).json({ success: false, message: 'Course ID and rating (1-5) are required.' });
+    }
+
+    let enrolment = await Enrolment.findOne({
+      courseId,
+      $or: [
+        { learnerId: req.user.id },
+        { learnerEmail: req.user.email }
+      ]
+    });
+
+    if (!enrolment) {
+      enrolment = await Enrolment.findOne({ courseId });
+    }
+
+    if (!enrolment) {
+      return res.status(404).json({ success: false, message: 'Enrolment record not found.' });
+    }
+
+    // Save rating and review feedback on Enrolment
+    enrolment.rating = Number(rating);
+    enrolment.feedback = feedback || '';
+    enrolment.feedbackTags = Array.isArray(tags) ? tags : [];
+    enrolment.ratedAt = Date.now();
+
+    if (req.user && req.user.fullName && !enrolment.learnerName) {
+      enrolment.learnerName = req.user.fullName;
+    }
+
+    await enrolment.save();
+
+    // Recalculate average rating across all rated enrolments for this course
+    const targetCourseId = enrolment.courseId || courseId;
+    const ratedEnrolments = await Enrolment.find({
+      courseId: targetCourseId,
+      rating: { $exists: true, $ne: null, $gt: 0 }
+    });
+
+    if (ratedEnrolments.length > 0) {
+      const sum = ratedEnrolments.reduce((acc, e) => acc + Number(e.rating), 0);
+      const avgRating = Math.round((sum / ratedEnrolments.length) * 10) / 10;
+      await Course.findByIdAndUpdate(targetCourseId, { rating: avgRating });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Thank you for your rating and feedback!',
+      enrolment
+    });
+  } catch (error) {
+    console.error('Submit Course Rating Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while submitting rating.' });
   }
 };

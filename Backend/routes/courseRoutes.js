@@ -33,6 +33,7 @@ router.delete('/:id/assessments/:assessmentIndex', protect, requireSubmittedInst
 router.post('/enrol', protect, requireLearner, courseController.enrolInCourse);
 router.get('/learner/my-enrolments', protect, requireLearner, courseController.getLearnerEnrolments);
 router.post('/progress', protect, requireLearner, courseController.updateLessonProgress);
+router.post('/rate', protect, requireLearner, courseController.submitCourseRating);
 
 // Public / Authorized Course Detail
 router.get('/:id', courseController.getCourseById);
