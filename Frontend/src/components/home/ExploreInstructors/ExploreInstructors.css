@@ -9,8 +9,30 @@
   transition: background-color 0.25s ease;
 }
 
-.explore-header {
-  margin-bottom: 48px;
+/* Hero section layout */
+.explore-hero {
+  display: grid;
+  grid-template-columns: 1.25fr 0.75fr;
+  align-items: center;
+  gap: 2.5rem;
+  padding: 0.5rem 0 2rem 0;
+  margin-bottom: 2rem;
+}
+
+.explore-hero-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.explore-instructors-page.section {
+  padding-top: 1.5rem !important;
+}
+
+/* Badge pill */
+.hero-badge {
+  margin-bottom: 1rem !important;
 }
 
 .badge-pill {
@@ -36,9 +58,18 @@
   box-shadow: inset 0 0 0 1px rgba(57, 217, 95, 0.15);
 }
 
+/* Heading highlight */
+.text-highlight {
+  color: var(--brand-primary);
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-hover));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+}
+
 .explore-title {
   font-size: clamp(2.25rem, 4vw, 3.25rem);
-  /* Fluid Typography Constraint */
   font-weight: 800;
   letter-spacing: -1px;
   margin-bottom: 16px;
@@ -46,33 +77,170 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  text-align: left;
 }
 
+/* Subheading */
 .explore-subtitle {
-  font-size: 17px;
-  color: var(--text-secondary);
-  max-width: 640px;
-  margin: 0 auto;
+  font-size: 1.05rem !important;
   line-height: 1.6;
+  color: var(--text-secondary);
+  margin-top: 0.5rem !important;
+  margin-bottom: 2rem !important;
+  max-width: 580px;
+  text-align: left;
+  margin-left: 0 !important;
 }
 
-.explore-toolbar {
+/* Search Box matching ExploreCourses exactly */
+.explore-search-box {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  align-items: center;
+}
+
+.explore-search-icon {
+  position: absolute;
+  left: 16px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.explore-search-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 16px 0 48px;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.explore-search-input:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px rgba(17, 104, 48, 0.12);
+  background-color: var(--surface-elevated);
+}
+
+.dark .explore-search-input:focus {
+  box-shadow: 0 0 0 3px rgba(57, 217, 95, 0.15);
+}
+
+/* Right Column Illustration spacing */
+.explore-hero-illustration {
   display: flex;
   justify-content: center;
-  margin-bottom: 56px;
+  align-items: center;
 }
 
-.width-full {
+.explore-illustration {
   width: 100%;
+  max-width: 320px;
+  height: auto;
 }
 
-.max-width-md {
-  max-width: 600px;
+.explore-illustration svg {
+  width: 100%;
+  height: auto;
 }
 
-.margin-center {
-  margin: 0 auto;
+/* Vector Theme Colors for explore_instructor.svg */
+.explore-illustration svg .ill-accent-green {
+  fill: var(--brand-primary);
+  transition: fill 0.25s ease;
 }
+
+.explore-illustration svg .ill-dark {
+  fill: #3f3d56;
+  transition: fill 0.25s ease;
+}
+
+.explore-illustration svg .ill-dark-neutral {
+  fill: #2f2e41;
+  transition: fill 0.25s ease;
+}
+
+.explore-illustration svg .ill-light {
+  fill: #FFFFFF;
+  transition: fill 0.25s ease;
+}
+
+.explore-illustration svg .ill-light-neutral {
+  fill: #f2f2f2;
+  transition: fill 0.25s ease;
+}
+
+.explore-illustration svg .ill-border {
+  fill: #ccc;
+  transition: fill 0.25s ease;
+}
+
+.explore-illustration svg .ill-skin {
+  fill: #ffb8b8;
+}
+
+.explore-illustration svg .ill-skin-detail {
+  fill: #a0616a;
+}
+
+/* Vector Dark Mode Colors override */
+.dark .explore-illustration svg .ill-dark {
+  fill: #16241D;
+}
+
+.dark .explore-illustration svg .ill-dark-neutral {
+  fill: #0F1A15;
+}
+
+.dark .explore-illustration svg .ill-light {
+  fill: #101B18;
+}
+
+.dark .explore-illustration svg .ill-light-neutral {
+  fill: #0D1715;
+}
+
+.dark .explore-illustration svg .ill-border {
+  fill: #1D3329;
+}
+
+/* Responsive grid overrides */
+@media (max-width: 1023px) {
+  .explore-hero {
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 2.5rem;
+    padding: 0.5rem 0 1.5rem 0;
+  }
+  .explore-illustration {
+    max-width: 290px;
+  }
+}
+
+@media (max-width: 767px) {
+  .explore-hero {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    padding: 0.5rem 0 1.5rem 0;
+    text-align: left;
+  }
+  .explore-hero-content {
+    align-items: flex-start;
+  }
+  .explore-hero-illustration {
+    order: 2;
+    justify-content: center;
+  }
+  .explore-illustration {
+    max-width: 260px;
+  }
+}
+
 
 /* Explore Instructors Grid */
 .explore-instructors-grid {

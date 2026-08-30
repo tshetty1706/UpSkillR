@@ -9,7 +9,7 @@
 .explore-hero {
   display: grid;
   grid-template-columns: 1.25fr 0.75fr;
-  gap: 4rem;
+  gap: 2.5rem;
   align-items: center; /* Vertically center left content and right illustration */
   padding: 0.75rem 0 2rem 0;
   margin-bottom: 2rem;
@@ -106,7 +106,7 @@
 /* Vector Illustration adaptive styling */
 .explore-hero-illustration {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center; /* Center the illustration vertically in its column */
   width: 100%;
 }
@@ -199,14 +199,113 @@
   fill: var(--brand-primary);
 }
 
-/* Filter chips toolbar */
-.explore-toolbar {
+/* Filter and Search Toolbars matching reference image */
+.explore-toolbar-top {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 1rem;
-  margin-bottom: 2rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
   flex-wrap: wrap;
+  gap: 12px;
+}
+
+.explore-toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-btn {
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 14px !important;
+  font-size: 0.85rem !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  border-color: var(--border) !important;
+  color: var(--text-secondary) !important;
+  background-color: var(--surface) !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toolbar-btn:hover {
+  background-color: var(--brand-soft) !important;
+  border-color: var(--brand-primary) !important;
+  color: var(--brand-accent-text) !important;
+}
+
+.explore-toolbar-sort {
+  position: relative;
+}
+
+.explore-toolbar-bottom {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 2rem;
+  position: relative;
+}
+
+.category-chips-scroll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none; /* Hide scrollbar for Firefox */
+  width: 100%;
+  padding-right: 48px; /* space for next arrow */
+}
+
+.category-chips-scroll::-webkit-scrollbar {
+  display: none; /* Hide scrollbar for Chrome/Safari */
+}
+
+.chip {
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.chip:hover,
+.chip.active {
+  background-color: var(--brand-primary);
+  color: var(--btn-primary-text);
+  border-color: var(--brand-primary);
+}
+
+.scroll-next-btn {
+  position: absolute;
+  right: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+  z-index: 2;
+}
+
+.scroll-next-btn:hover {
+  background-color: var(--brand-soft);
+  border-color: var(--brand-primary);
+  color: var(--brand-accent-text);
 }
 
 /* Responsive grid overrides */
@@ -240,57 +339,327 @@
   }
 }
 
-.category-chips {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.chip {
-  padding: 6px 14px;
-  border-radius: var(--radius-pill);
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  font-family: var(--font-family);
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.chip:hover,
-.chip.active {
-  background-color: var(--brand-primary);
-  color: var(--btn-primary-text);
-  border-color: var(--brand-primary);
-}
-
+/* Course Discovery Cards Grid - 4 Columns Desktop */
 .explore-courses-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+  margin-bottom: 3rem;
 }
 
+@media (max-width: 1199px) {
+  .explore-courses-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .explore-courses-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 580px) {
+  .explore-courses-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Course Card styling */
 .explore-course-card {
   background-color: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 12px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  height: 100%;
 }
 
 .explore-course-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-4px);
   border-color: var(--brand-primary);
+  box-shadow: 0 8px 24px rgba(17, 104, 48, 0.06);
 }
 
-.instructor-tag {
-  font-size: 0.78rem;
+.dark .explore-course-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.course-card-thumb-wrap {
+  position: relative;
+  width: 100%;
+  height: 150px; /* Compact height */
+  overflow: hidden;
+  background-color: var(--surface-muted, #f8f8f8);
+}
+
+.dark .course-card-thumb-wrap {
+  background-color: #0c1512;
+}
+
+.course-card-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.explore-course-card:hover .course-card-thumb {
+  transform: scale(1.02);
+}
+
+.course-bookmark-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: rgba(15, 26, 21, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+  z-index: 1;
+}
+
+.course-bookmark-btn:hover {
+  background-color: var(--brand-primary);
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+.course-card-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  gap: 8px;
+}
+
+.course-category {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--brand-primary);
+  letter-spacing: 0.5px;
+}
+
+.course-card-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  height: 1.35em;
+}
+
+.course-card-description {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  height: 2.8em;
+}
+
+/* Skills Badge pills */
+.course-card-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 2px 0;
+  height: 22px;
+  overflow: hidden;
+}
+
+.course-skill-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background-color: var(--brand-soft, #eef5f0);
+  color: var(--brand-accent-text, #176830);
+  white-space: nowrap;
+}
+
+.dark .course-skill-badge {
+  background-color: #12281e;
+  color: #39d95f;
+}
+
+/* Instructor & Rating Row */
+.course-instructor-rating-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.course-instructor-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.course-instructor-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.course-instructor-avatar-placeholder {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background-color: var(--border-subtle, #e2eae5);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dark .course-instructor-avatar-placeholder {
+  background-color: #1a2c26;
+}
+
+.course-instructor-name {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.course-rating-info {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.course-rating-star {
+  color: #f59e0b;
+}
+
+.course-rating-count {
   color: var(--text-muted);
-  margin-bottom: 0.5rem;
+  font-weight: 400;
+  font-size: 0.78rem;
+}
+
+/* Metadata Row (Level / Duration / Lessons) */
+.course-metadata-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.course-level-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: capitalize;
+}
+
+.course-level-badge.beginner {
+  background-color: rgba(34, 197, 94, 0.1);
+  color: #15803d;
+}
+
+.dark .course-level-badge.beginner {
+  background-color: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.course-level-badge.intermediate {
+  background-color: rgba(249, 115, 22, 0.1);
+  color: #c2410c;
+}
+
+.dark .course-level-badge.intermediate {
+  background-color: rgba(249, 115, 22, 0.15);
+  color: #fb923c;
+}
+
+.course-level-badge.advanced {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #b91c1c;
+}
+
+.dark .course-level-badge.advanced {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.course-level-badge.all-levels {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #1d4ed8;
+}
+
+.dark .course-level-badge.all-levels {
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.course-meta-divider {
+  color: var(--border-subtle);
+  font-size: 0.65rem;
+}
+
+.course-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Card Footer */
+.course-card-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-subtle, #e2eae5);
+  background-color: var(--surface);
+}
+
+.dark .course-card-footer-row {
+  border-top-color: var(--border, #1d3329);
+}
+
+.course-updated-date {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.course-view-btn {
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 12px !important;
+  font-size: 0.8rem !important;
+  border-radius: 6px !important;
+  font-weight: 600 !important;
 }

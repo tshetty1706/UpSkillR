@@ -5,7 +5,7 @@ const { Instructor, Learner } = require('../model/User');
 // 1. Create a new Course Draft (Instructor Only)
 exports.createCourse = async (req, res) => {
   try {
-    const { title, description, category, skillLevel, thumbnail, price } = req.body;
+    const { title, description, category, skillLevel, thumbnail, price, skills } = req.body;
 
     if (!title || !description || !category) {
       return res.status(400).json({ success: false, message: 'Please provide course title, description, and category.' });
@@ -27,7 +27,8 @@ exports.createCourse = async (req, res) => {
       price: price || 0,
       instructorId: req.user.id,
       instructorName: req.user.fullName || 'UpSkillr Instructor',
-      status: 'draft'
+      status: 'draft',
+      skills: Array.isArray(skills) ? skills : (skills ? skills.split(',').map(s => s.trim()).filter(Boolean) : [])
     });
 
     await course.save();
@@ -114,7 +115,7 @@ exports.getCourseById = async (req, res) => {
 // 4. Update Course Info (Instructor Only)
 exports.updateCourse = async (req, res) => {
   try {
-    const { title, description, category, skillLevel, thumbnail, price, lastUpdatedAt } = req.body;
+    const { title, description, category, skillLevel, thumbnail, price, skills, lastUpdatedAt } = req.body;
     const course = await Course.findById(req.params.id);
 
     if (!course) {
@@ -144,6 +145,9 @@ exports.updateCourse = async (req, res) => {
     if (skillLevel) course.skillLevel = skillLevel;
     if (thumbnail) course.thumbnail = thumbnail;
     if (price !== undefined) course.price = price;
+    if (skills !== undefined) {
+      course.skills = Array.isArray(skills) ? skills : (skills ? skills.split(',').map(s => s.trim()).filter(Boolean) : []);
+    }
 
     await course.save();
 
@@ -422,13 +426,19 @@ exports.deleteCourse = async (req, res) => {
 // 10. Get All Published Courses (Public / Learner Browsing)
 exports.getPublishedCourses = async (req, res) => {
   try {
-    const courses = await Course.find({ status: 'published' }).sort({ createdAt: -1 });
+    const courses = await Course.find({ status: 'published' })
+      .populate('instructorId', 'fullName avatar')
+      .sort({ createdAt: -1 });
 
     const courseList = await Promise.all(
       courses.map(async (c) => {
         const count = await Enrolment.countDocuments({ courseId: c._id });
         const cObj = c.toObject();
         cObj.learnersCount = count;
+        if (c.instructorId) {
+          cObj.instructorAvatar = c.instructorId.avatar;
+          cObj.instructorName = c.instructorId.fullName || c.instructorName;
+        }
         return cObj;
       })
     );
