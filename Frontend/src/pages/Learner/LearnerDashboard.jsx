@@ -169,6 +169,37 @@ export const LearnerDashboard = ({ user }) => {
     }
   };
 
+  // FR-09 Course Rating & Review Handler
+  const handleRatingSubmit = async (courseId, ratingData) => {
+    const token = localStorage.getItem('upskillr_token');
+    showNotification('⭐ Rating and review submitted! Thank you.');
+
+    try {
+      if (token) {
+        const response = await fetch('http://localhost:5000/api/courses/rate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            courseId,
+            rating: ratingData.rating,
+            feedback: ratingData.feedback,
+            tags: ratingData.tags
+          })
+        });
+        const data = await response.json();
+        if (data.success) {
+          fetchMyEnrolments();
+          fetchPublishedCourses();
+        }
+      }
+    } catch (err) {
+      console.error('Error submitting rating to server', err);
+    }
+  };
+
   return (
     <div className="learner-dashboard-layout">
       {/* Toast Notification Banner */}
@@ -258,6 +289,7 @@ export const LearnerDashboard = ({ user }) => {
           onLessonComplete={handleLessonComplete}
           onEnrolCourse={handleEnrolCourse}
           onFetchPublishedCourses={fetchPublishedCourses}
+          onRatingSubmit={handleRatingSubmit}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
         />

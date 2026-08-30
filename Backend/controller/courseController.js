@@ -453,8 +453,17 @@ exports.getPublishedCourses = async (req, res) => {
     const courseList = await Promise.all(
       courses.map(async (c) => {
         const count = await Enrolment.countDocuments({ courseId: c._id });
+        const ratedEnrolments = await Enrolment.find({ courseId: c._id, rating: { $exists: true, $ne: null, $gt: 0 } });
+
+        let avgRating = c.rating;
+        if (ratedEnrolments.length > 0) {
+          const sum = ratedEnrolments.reduce((acc, e) => acc + Number(e.rating), 0);
+          avgRating = Math.round((sum / ratedEnrolments.length) * 10) / 10;
+        }
+
         const cObj = c.toObject();
         cObj.learnersCount = count;
+        cObj.rating = avgRating;
         if (c.instructorId) {
           cObj.instructorAvatar = c.instructorId.avatar;
           cObj.instructorName = c.instructorId.fullName || c.instructorName;
@@ -573,5 +582,66 @@ exports.updateLessonProgress = async (req, res) => {
   } catch (error) {
     console.error('Update Progress Error:', error);
     return res.status(500).json({ success: false, message: 'Server error while updating progress.' });
+  }
+};
+
+// 14. Submit Course Rating & Review Feedback (FR-09)
+exports.submitCourseRating = async (req, res) => {
+  try {
+    const { courseId, rating, feedback, tags } = req.body;
+
+    if (!courseId || !rating) {
+      return res.status(400).json({ success: false, message: 'Course ID and rating (1-5) are required.' });
+    }
+
+    let enrolment = await Enrolment.findOne({
+      courseId,
+      $or: [
+        { learnerId: req.user.id },
+        { learnerEmail: req.user.email }
+      ]
+    });
+
+    if (!enrolment) {
+      enrolment = await Enrolment.findOne({ courseId });
+    }
+
+    if (!enrolment) {
+      return res.status(404).json({ success: false, message: 'Enrolment record not found.' });
+    }
+
+    // Save rating and review feedback on Enrolment
+    enrolment.rating = Number(rating);
+    enrolment.feedback = feedback || '';
+    enrolment.feedbackTags = Array.isArray(tags) ? tags : [];
+    enrolment.ratedAt = Date.now();
+
+    if (req.user && req.user.fullName && !enrolment.learnerName) {
+      enrolment.learnerName = req.user.fullName;
+    }
+
+    await enrolment.save();
+
+    // Recalculate average rating across all rated enrolments for this course
+    const targetCourseId = enrolment.courseId || courseId;
+    const ratedEnrolments = await Enrolment.find({
+      courseId: targetCourseId,
+      rating: { $exists: true, $ne: null, $gt: 0 }
+    });
+
+    if (ratedEnrolments.length > 0) {
+      const sum = ratedEnrolments.reduce((acc, e) => acc + Number(e.rating), 0);
+      const avgRating = Math.round((sum / ratedEnrolments.length) * 10) / 10;
+      await Course.findByIdAndUpdate(targetCourseId, { rating: avgRating });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Thank you for your rating and feedback!',
+      enrolment
+    });
+  } catch (error) {
+    console.error('Submit Course Rating Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while submitting rating.' });
   }
 };

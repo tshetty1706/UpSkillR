@@ -37,6 +37,23 @@ const enrolmentSchema = new mongoose.Schema({
   lastAccessedAt: {
     type: Date,
     default: Date.now
+  },
+  rating: {
+    type: Number,
+    min: 1,
+    max: 5,
+    default: null
+  },
+  feedback: {
+    type: String,
+    default: ''
+  },
+  feedbackTags: [{
+    type: String
+  }],
+  ratedAt: {
+    type: Date,
+    default: null
   }
 });
 

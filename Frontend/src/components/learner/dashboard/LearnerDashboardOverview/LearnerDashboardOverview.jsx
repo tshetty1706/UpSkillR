@@ -101,6 +101,7 @@ export const LearnerDashboardOverview = ({
   onLessonComplete,
   onEnrolCourse,
   onFetchPublishedCourses,
+  onRatingSubmit,
   activeTab = 'enrolled',
   setActiveTab
 }) => {
@@ -191,6 +192,10 @@ export const LearnerDashboardOverview = ({
     try {
       localStorage.setItem('upskillr_learner_ratings', JSON.stringify(updatedMap));
     } catch (e) {}
+
+    if (onRatingSubmit) {
+      onRatingSubmit(courseId, ratingData);
+    }
   };
 
   return (
@@ -306,7 +311,12 @@ export const LearnerDashboardOverview = ({
                   ];
 
                   const isExpanded = expandedCourseId === (course._id || enrol._id);
-                  const userRating = ratingsMap[course._id];
+                  const userRating = (enrol.rating ? {
+                    rating: enrol.rating,
+                    feedback: enrol.feedback,
+                    tags: enrol.feedbackTags || [],
+                    date: enrol.ratedAt ? new Date(enrol.ratedAt).toLocaleDateString() : 'recently'
+                  } : null) || ratingsMap[course._id];
 
                   return (
                     <div
@@ -567,7 +577,20 @@ export const LearnerDashboardOverview = ({
           isOpen={!!ratingModalCourse}
           onClose={() => setRatingModalCourse(null)}
           course={ratingModalCourse}
-          initialRating={ratingModalCourse ? ratingsMap[ratingModalCourse._id] : null}
+          initialRating={ratingModalCourse ? (() => {
+            const enrolRecord = enrolments.find(e => {
+              const id = typeof e.courseId === 'object' ? e.courseId._id : e.courseId;
+              return id === ratingModalCourse._id;
+            });
+            if (enrolRecord && enrolRecord.rating) {
+              return {
+                rating: enrolRecord.rating,
+                feedback: enrolRecord.feedback,
+                tags: enrolRecord.feedbackTags || []
+              };
+            }
+            return ratingsMap[ratingModalCourse._id] || null;
+          })() : null}
           onSubmit={handleRatingSubmit}
         />
       </div>

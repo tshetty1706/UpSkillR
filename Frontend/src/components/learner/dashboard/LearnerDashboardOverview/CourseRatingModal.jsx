@@ -1,12 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Star, X, CheckCircle2, MessageSquare, Tag } from 'lucide-react';
 
 export const CourseRatingModal = ({ isOpen, onClose, course, initialRating, onSubmit }) => {
-  const [rating, setRating] = useState(initialRating?.rating || 5);
+  const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
-  const [feedback, setFeedback] = useState(initialRating?.feedback || '');
-  const [selectedTags, setSelectedTags] = useState(initialRating?.tags || []);
+  const [feedback, setFeedback] = useState('');
+  const [selectedTags, setSelectedTags] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && course) {
+      setRating(initialRating?.rating || 5);
+      setFeedback(initialRating?.feedback || '');
+      setSelectedTags(initialRating?.tags || initialRating?.feedbackTags || []);
+      setHoverRating(0);
+    }
+  }, [isOpen, course?._id]);
 
   if (!isOpen || !course) return null;
 
