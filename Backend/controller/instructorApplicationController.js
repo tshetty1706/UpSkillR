@@ -88,6 +88,12 @@ exports.updateApplication = async (req, res) => {
       if (personalInfo.photoUrl !== undefined) {
         instructor.avatar = personalInfo.photoUrl || '';
       }
+      if (personalInfo.professionalTitle !== undefined) {
+        instructor.designation = personalInfo.professionalTitle || '';
+      }
+      if (personalInfo.bio !== undefined) {
+        instructor.bio = personalInfo.bio || '';
+      }
     }
 
     if (professionalInfo) {
@@ -98,6 +104,9 @@ exports.updateApplication = async (req, res) => {
           : [];
       }
       application.professionalInfo = { ...application.professionalInfo.toObject(), ...profData };
+      if (profData.keySkills !== undefined) {
+        instructor.keySkills = profData.keySkills;
+      }
     }
 
     if (education) {
@@ -373,18 +382,18 @@ exports.submitApplication = async (req, res) => {
 
     // Check required fields per section
     const pInfo = application.personalInfo || {};
-    if (!pInfo.fullName?.trim() || !pInfo.email?.trim() || !pInfo.phone?.trim() || !pInfo.professionalTitle?.trim()) {
+    if (!pInfo.fullName?.trim() || !pInfo.email?.trim() || !pInfo.phone?.trim() || !pInfo.professionalTitle?.trim() || !pInfo.bio?.trim() || !pInfo.photoUrl?.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Please complete all required fields in Personal Information before submitting.'
+        message: 'Please complete all required fields in Personal Information (including Bio and Profile Photo) before submitting.'
       });
     }
 
     const profInfo = application.professionalInfo || {};
-    if (!profInfo.currentRole?.trim() || !profInfo.yearsOfExperience?.trim()) {
+    if (!profInfo.currentRole?.trim() || !profInfo.yearsOfExperience?.trim() || !profInfo.keySkills || profInfo.keySkills.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Please complete all required fields in Professional Information before submitting.'
+        message: 'Please complete all required fields in Professional Information (including Key Technical Skills) before submitting.'
       });
     }
 
@@ -429,6 +438,9 @@ exports.submitApplication = async (req, res) => {
     if (pInfo.photoUrl) {
       instructor.avatar = pInfo.photoUrl;
     }
+    instructor.designation = pInfo.professionalTitle || '';
+    instructor.bio = pInfo.bio || '';
+    instructor.keySkills = profInfo.keySkills || [];
     await instructor.save();
 
     return res.status(200).json({

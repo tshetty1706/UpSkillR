@@ -229,13 +229,20 @@ const getSectionValidationErrors = (formData) => {
     phoneDigits.length < selectedCountry.minLength ||
     phoneDigits.length > selectedCountry.maxLength ||
     !pInfo.professionalTitle?.trim() ||
-    (pInfo.professionalTitle === 'Other' && !pInfo.professionalTitleOther?.trim())
+    (pInfo.professionalTitle === 'Other' && !pInfo.professionalTitleOther?.trim()) ||
+    !pInfo.bio?.trim() ||
+    !pInfo.photoUrl?.trim()
   ) {
     sectionErrors.personalInfo = true;
   }
 
   // 2. Professional Information
-  if (!profInfo.currentRole?.trim() || !profInfo.yearsOfExperience?.trim()) {
+  if (
+    !profInfo.currentRole?.trim() ||
+    !profInfo.yearsOfExperience?.trim() ||
+    !profInfo.keySkills ||
+    profInfo.keySkills.length === 0
+  ) {
     sectionErrors.professionalInfo = true;
   }
 
@@ -1244,7 +1251,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
                 </div>
 
                 <div className="photo-uploader-info">
-                  <span className="photo-title">Profile Photo</span>
+                  <span className="photo-title">Profile Photo <span className="required-star">*</span></span>
                   <span className="photo-desc">
                     {photoFullUrl
                       ? 'Custom profile photo uploaded. You can replace or remove it.'
@@ -1395,7 +1402,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
               )}
 
               <div className="form-group-field" style={{ marginTop: '1rem' }}>
-                <label className="field-label">Short Instructor Bio</label>
+                <label className="field-label">Short Instructor Bio <span className="required-star">*</span></label>
                 <textarea
                   className="field-textarea"
                   placeholder="Write a brief intro highlighting your background, expertise, and teaching philosophy..."
@@ -1477,7 +1484,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
 
               {/* Key Technical Skills & Expertise Tag Input with Autocomplete Suggestions Dropdown */}
               <div className="form-group-field" style={{ position: 'relative' }}>
-                <label className="field-label">Key Technical Skills & Expertise</label>
+                <label className="field-label">Key Technical Skills & Expertise <span className="required-star">*</span></label>
                 <div className="skills-tag-container">
                   {(formData.professionalInfo.keySkills || []).map((skill, idx) => (
                     <span key={idx} className="skill-tag-chip">

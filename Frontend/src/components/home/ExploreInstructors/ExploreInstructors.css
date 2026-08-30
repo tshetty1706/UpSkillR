@@ -245,208 +245,366 @@
 /* Explore Instructors Grid */
 .explore-instructors-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  /* Fluid responsive grid */
-  gap: 32px;
+  grid-template-columns: repeat(auto-fill, minmax(285px, 1fr));
+  gap: 24px;
   margin-top: 16px;
 }
 
-/* Instructor Card Design (Premium Glassmorphism & Hover) */
+/* Instructor Card Design */
 .instructor-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 32px 24px 24px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
   box-shadow: var(--shadow-sm);
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease;
   position: relative;
   overflow: hidden;
 }
 
+/* Top accent hover glow matching theme */
 .instructor-card::before {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 6px;
-  background: linear-gradient(90deg, var(--brand-primary), var(--brand-primary-hover));
-  opacity: 0;
-  transition: opacity 0.3s ease;
+  height: 4px;
+  background: var(--accent-color);
+  opacity: 0.15;
+  transition: opacity 0.3s ease, height 0.3s ease;
 }
 
 .instructor-card:hover {
-  transform: translateY(-8px);
-  box-shadow: var(--shadow-lg);
-  border-color: rgba(17, 104, 48, 0.25);
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--accent-color);
   background: var(--surface-elevated);
-}
-
-.dark .instructor-card:hover {
-  border-color: rgba(57, 217, 95, 0.25);
 }
 
 .instructor-card:hover::before {
   opacity: 1;
+  height: 5px;
 }
 
-/* Avatar ring styling with glowing details */
-.instructor-avatar-container {
-  position: relative;
-  margin-bottom: 24px;
-}
-
-.instructor-avatar-ring {
-  width: 100px;
-  height: 100px;
+/* Bookmark Button styling */
+.instructor-bookmark-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-disabled);
+  padding: 6px;
   border-radius: 50%;
-  padding: 4px;
-  background: linear-gradient(135deg, var(--brand-primary) 0%, rgba(17, 104, 48, 0.1) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(17, 104, 48, 0.15);
+  transition: color 0.2s ease, background-color 0.2s ease;
+  z-index: 5;
 }
 
-.dark .instructor-avatar-ring {
-  background: linear-gradient(135deg, var(--brand-primary) 0%, rgba(57, 217, 95, 0.1) 100%);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+.instructor-bookmark-btn:hover {
+  color: var(--accent-color);
+  background-color: var(--accent-light);
 }
 
-.instructor-card:hover .instructor-avatar-ring {
-  transform: rotate(360deg) scale(1.05);
+.dark .instructor-bookmark-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
-.instructor-avatar {
+/* Top Header Block styling */
+.instructor-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
   width: 100%;
-  height: 100%;
+}
+
+/* Avatar Container with Leaf/Glow Background Circle */
+.instructor-avatar-container {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.instructor-avatar-bg-shape {
+  position: absolute;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
-  object-fit: cover;
-  background-color: var(--surface-muted);
+  background: var(--accent-light);
+  transform: translate(-4px, 4px);
+  z-index: 1;
+  transition: transform 0.3s ease;
+}
+
+.instructor-card:hover .instructor-avatar-bg-shape {
+  transform: translate(-2px, 2px) scale(1.05);
+}
+
+.instructor-avatar-wrapper {
+  position: relative;
+  z-index: 2;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  overflow: hidden;
   border: 2px solid var(--surface);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Header Text Area */
+.instructor-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  text-align: left;
+}
+
+.instructor-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .instructor-name {
-  font-size: 19px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 4px;
   letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.instructor-email {
-  font-size: 13.5px;
-  color: var(--text-muted);
-  margin-bottom: 20px;
+.verified-icon {
+  color: #16A34A; /* Verified checkmark remains green always */
+  fill: rgba(22, 163, 74, 0.1);
+  flex-shrink: 0;
 }
 
-.instructor-expertise {
+.instructor-designation {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Skills Chips Row */
+.instructor-skills-chips {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  min-height: 28px;
-  margin-bottom: 24px;
+  gap: 6px;
+  margin-bottom: 16px;
+  min-height: 24px;
 }
 
-.expertise-badge {
+.skill-chip {
   font-size: 11px;
   font-weight: 600;
-  color: var(--brand-primary);
-  background-color: var(--brand-light);
-  padding: 4px 10px;
-  border-radius: var(--radius-pill);
-  transition: all 0.25s ease;
-  letter-spacing: 0.1px;
+  color: var(--accent-color);
+  background-color: var(--accent-light);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
 }
 
-.dark .expertise-badge {
-  background-color: var(--brand-soft);
-  color: var(--brand-primary);
-}
-
-.expertise-badge.empty {
+.skill-chip.empty {
   color: var(--text-muted);
-  background-color: var(--surface-muted);
+  background-color: var(--background);
   font-style: italic;
   font-weight: 500;
 }
 
-/* Stats Row for Instructor Performance Metrics */
-.instructor-stats-row {
+.skill-chip.more-count {
+  background-color: var(--accent-light);
+  border-color: transparent;
+  font-weight: 700;
+}
+
+.instructor-card:hover .skill-chip {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Metrics Row: 3 columns with vertical separators */
+.instructor-metrics-row {
   display: flex;
   width: 100%;
   border-top: 1px solid var(--border-subtle);
   border-bottom: 1px solid var(--border-subtle);
-  padding: 16px 0;
-  margin-bottom: 24px;
+  padding: 12px 0;
+  margin-bottom: 16px;
 }
 
-.stat-metric {
+.metric-col {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  text-align: left;
+  gap: 4px;
+  text-align: center;
 }
 
-.stat-metric:first-child {
+.metric-col:not(:last-child) {
   border-right: 1px solid var(--border-subtle);
 }
 
-.stat-icon {
-  color: var(--brand-primary);
-  opacity: 0.85;
+.metric-value-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-primary);
 }
 
-.stat-value {
-  display: block;
-  font-size: 16px;
+.metric-icon {
+  color: var(--accent-color);
+  flex-shrink: 0;
+}
+
+.metric-icon.star-icon {
+  color: #EAB308; /* Star color remains yellow/gold */
+}
+
+.metric-icon.star-icon.empty {
+  color: var(--text-disabled);
+}
+
+.metric-value {
+  font-size: 14.5px;
   font-weight: 700;
   color: var(--text-primary);
-  line-height: 1.1;
+  line-height: 1.2;
 }
 
-.stat-label {
-  display: block;
+.metric-label {
   font-size: 11px;
   color: var(--text-muted);
-  text-transform: uppercase;
-  font-weight: 600;
-  letter-spacing: 0.3px;
+  font-weight: 500;
+  line-height: 1;
 }
 
-/* Button override inside cards */
+/* Instructor Short Bio */
+.instructor-bio-text {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  text-align: left;
+  margin-bottom: 20px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  height: 2.9em;
+}
+
+/* CTA Explore Courses Button */
 .instructor-card-footer {
   width: 100%;
   margin-top: auto;
 }
 
-.btn-block {
+.instructor-explore-courses-btn {
   width: 100%;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.25s ease;
 }
 
-.btn:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-  pointer-events: none;
+.instructor-explore-courses-btn:hover {
+  background: var(--accent-color);
+  color: var(--btn-primary-text) !important;
+  border-color: var(--accent-color);
 }
 
-/* Responsive adjustments */
+.instructor-explore-courses-btn .arrow-icon {
+  transition: transform 0.2s ease;
+}
+
+.instructor-explore-courses-btn:hover .arrow-icon {
+  transform: translateX(3px);
+}
+
+/* Card Accent Themes - Deterministic classes mapping index */
+.instructor-card.accent-green {
+  --accent-color: var(--brand-primary);
+  --accent-light: var(--brand-light);
+}
+
+.instructor-card.accent-purple {
+  --accent-color: #8B5CF6;
+  --accent-light: rgba(139, 92, 246, 0.08);
+}
+
+.instructor-card.accent-blue {
+  --accent-color: #3B82F6;
+  --accent-light: rgba(59, 130, 246, 0.08);
+}
+
+.instructor-card.accent-orange {
+  --accent-color: #F59E0B;
+  --accent-light: rgba(245, 158, 11, 0.08);
+}
+
+.dark .instructor-card.accent-purple {
+  --accent-color: #a78bfa;
+  --accent-light: rgba(167, 139, 250, 0.12);
+}
+
+.dark .instructor-card.accent-blue {
+  --accent-color: #60a5fa;
+  --accent-light: rgba(96, 165, 250, 0.12);
+}
+
+.dark .instructor-card.accent-orange {
+  --accent-color: #fbbf24;
+  --accent-light: rgba(251, 191, 36, 0.12);
+}
+
+/* Responsive Grid and Breakpoints */
+@media (max-width: 1023px) {
+  .explore-instructors-grid {
+    grid-template-columns: repeat(auto-fill, minmax(245px, 1fr));
+    gap: 20px;
+  }
+}
+
 @media (max-width: 767px) {
   .explore-instructors-grid {
     grid-template-columns: 1fr;
-    gap: 24px;
+    gap: 16px;
   }
 
   .instructor-card {
-    padding: 24px 20px 20px;
+    padding: 16px;
   }
 }

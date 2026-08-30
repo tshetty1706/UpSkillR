@@ -666,31 +666,83 @@ exports.getCurrentUser = async (req, res) => {
   }
 };
 
-// 10. Get All Registered Instructors with Stats
+// 10. Get All Registered Instructors with Stats (Performance Optimized, No N+1 Queries)
 exports.getInstructors = async (req, res) => {
   try {
-    const instructors = await Instructor.find({}, 'fullName email avatar');
+    const instructors = await Instructor.find(
+      {},
+      'fullName email avatar isVerified designation bio keySkills'
+    );
     
     const Course = require('../model/Course');
     const Enrolment = require('../model/Enrolment');
     
-    const instructorsWithStats = await Promise.all(
-      instructors.map(async (inst) => {
-        const courses = await Course.find({ instructorId: inst._id, status: 'published' });
-        const courseIds = courses.map(c => c._id);
-        const learnersCount = await Enrolment.countDocuments({ courseId: { $in: courseIds } });
+    // Fetch all published courses
+    const courses = await Course.find({ status: 'published' });
+    
+    // Aggregate enrolments by courseId in a single query
+    const enrolmentsGrouped = await Enrolment.aggregate([
+      {
+        $group: {
+          _id: '$courseId',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+    
+    // Map courseId to enrollment counts for O(1) lookups
+    const enrolmentsMap = {};
+    enrolmentsGrouped.forEach((item) => {
+      if (item._id) {
+        enrolmentsMap[item._id.toString()] = item.count;
+      }
+    });
+    
+    const instructorsWithStats = instructors.map((inst) => {
+      // Filter courses belonging to this instructor
+      const instCourses = courses.filter(
+        (c) => c.instructorId && c.instructorId.toString() === inst._id.toString()
+      );
+      
+      let learnersCount = 0;
+      let totalRatingsSum = 0;
+      let ratedCoursesCount = 0;
+      let ratingsCount = 0;
+      
+      instCourses.forEach((c) => {
+        learnersCount += (enrolmentsMap[c._id.toString()] || 0);
+        if (c.rating !== null && c.rating !== undefined) {
+          totalRatingsSum += c.rating;
+          ratedCoursesCount += 1;
+        }
+        ratingsCount += (c.reviewCount || 0);
+      });
+      
+      const averageRating = ratedCoursesCount > 0
+        ? Math.round((totalRatingsSum / ratedCoursesCount) * 10) / 10
+        : null;
         
-        return {
-          _id: inst._id,
-          fullName: inst.fullName,
-          email: inst.email,
-          avatar: inst.avatar || '',
-          coursesCount: courses.length,
-          learnersCount,
-          expertise: courses.map(c => c.category).filter((v, i, a) => a.indexOf(v) === i)
-        };
-      })
-    );
+      // For expertise, use the instructor's keySkills if populated,
+      // fallback to course categories if keySkills is empty
+      let expertise = inst.keySkills && inst.keySkills.length > 0
+        ? inst.keySkills
+        : instCourses.map(c => c.category).filter((v, i, a) => a.indexOf(v) === i);
+        
+      return {
+        _id: inst._id,
+        fullName: inst.fullName,
+        email: inst.email,
+        avatar: inst.avatar || '',
+        isVerified: inst.isVerified || false,
+        designation: inst.designation || 'Expert Educator',
+        bio: inst.bio || '',
+        expertise,
+        coursesCount: instCourses.length,
+        learnersCount,
+        rating: averageRating,
+        ratingsCount
+      };
+    });
     
     return res.status(200).json({ success: true, instructors: instructorsWithStats });
   } catch (error) {
@@ -720,7 +772,11 @@ exports.updateProfile = async (req, res) => {
     } else if (role === 'instructor') {
       updatedUser = await Instructor.findByIdAndUpdate(
         userId,
-        { fullName: fullName.trim() },
+        { 
+          fullName: fullName.trim(),
+          bio: bio || '',
+          designation: specialization || ''
+        },
         { new: true }
       ).select('-password');
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Sparkles, BookOpen, Users, Award, ArrowRight, User } from 'lucide-react';
+import { Search, Sparkles, BookOpen, Users, Award, ArrowRight, User, Bookmark, CheckCircle2, Star } from 'lucide-react';
 import './ExploreInstructors.css';
 import { Avatar } from '../../common/Avatar/Avatar';
 import exploreInstructorSvg from '../../../assets/illustrations/explore_instructor.svg?raw';
@@ -88,63 +88,128 @@ export const ExploreInstructors = () => {
           </div>
         ) : (
           <div className="explore-instructors-grid">
-            {filteredInstructors.map((inst) => (
-              <div key={inst._id} className="instructor-card">
-                <div className="instructor-avatar-container">
-                  <div className="instructor-avatar-ring">
-                    <Avatar image={inst.avatar} name={inst.fullName} size="medium" />
+            {filteredInstructors.map((inst, index) => {
+              const cardAccents = ['accent-green', 'accent-purple', 'accent-blue', 'accent-orange'];
+              const accentClass = cardAccents[index % cardAccents.length];
+              
+              const maxSkills = 3;
+              const displaySkills = (inst.expertise || []).slice(0, maxSkills);
+              const hasMoreSkills = (inst.expertise || []).length > maxSkills;
+              const remainingSkillsCount = (inst.expertise || []).length - maxSkills;
+              
+              const formatNumber = (num) => {
+                if (num >= 1000) {
+                  return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+                }
+                return num;
+              };
+              
+              return (
+                <div key={inst._id} className={`instructor-card ${accentClass}`}>
+                  {/* Decorative Bookmark */}
+                  <button className="instructor-bookmark-btn" aria-label="Bookmark instructor">
+                    <Bookmark size={18} className="bookmark-icon" />
+                  </button>
+                  
+                  {/* Top Header Block: Horizontal Layout */}
+                  <div className="instructor-card-header">
+                    <div className="instructor-avatar-container">
+                      <div className="instructor-avatar-bg-shape" />
+                      <div className="instructor-avatar-wrapper">
+                        <Avatar image={inst.avatar} name={inst.fullName} size="medium" />
+                      </div>
+                    </div>
+                    
+                    <div className="instructor-header-info">
+                      <div className="instructor-name-row">
+                        <h3 className="instructor-name">{inst.fullName}</h3>
+                        {inst.isVerified && (
+                          <CheckCircle2 size={14} className="verified-icon" />
+                        )}
+                      </div>
+                      <p className="instructor-designation">
+                        {inst.designation || 'Expert Educator'}
+                      </p>
+                    </div>
                   </div>
-                </div>
-
-                <div className="instructor-card-body">
-                  <h3 className="instructor-name">{inst.fullName}</h3>
-                  <p className="instructor-email">{inst.email}</p>
-
-                  <div className="instructor-expertise">
-                    {inst.expertise && inst.expertise.length > 0 ? (
-                      inst.expertise.map((exp, idx) => (
-                        <span key={idx} className="expertise-badge">
-                          {exp}
+                  
+                  {/* Skill Chips / Tags Row */}
+                  <div className="instructor-skills-chips">
+                    {displaySkills.length > 0 ? (
+                      displaySkills.map((skill, idx) => (
+                        <span key={idx} className="skill-chip">
+                          {skill}
                         </span>
                       ))
                     ) : (
-                      <span className="expertise-badge empty">
-                        General Education
+                      <span className="skill-chip empty">General Education</span>
+                    )}
+                    {hasMoreSkills && (
+                      <span className="skill-chip more-count">
+                        +{remainingSkillsCount}
                       </span>
                     )}
                   </div>
-
-                  <div className="instructor-stats-row">
-                    <div className="stat-metric">
-                      <BookOpen size={14} className="stat-icon" />
-                      <div>
-                        <span className="stat-value">{inst.coursesCount || 0}</span>
-                        <span className="stat-label">Courses</span>
+                  
+                  {/* Metrics Row: 3 Columns with vertical separators */}
+                  <div className="instructor-metrics-row">
+                    {/* Column 1: Rating */}
+                    {inst.rating !== null && inst.rating !== undefined ? (
+                      <div className="metric-col">
+                        <div className="metric-value-wrapper">
+                          <Star size={14} className="metric-icon star-icon" fill="currentColor" />
+                          <span className="metric-value">{inst.rating.toFixed(1)}</span>
+                        </div>
+                        <span className="metric-label">({inst.ratingsCount || 0} reviews)</span>
                       </div>
+                    ) : (
+                      <div className="metric-col empty-rating">
+                        <div className="metric-value-wrapper">
+                          <Star size={14} className="metric-icon star-icon empty" />
+                          <span className="metric-value">—</span>
+                        </div>
+                        <span className="metric-label">No ratings yet</span>
+                      </div>
+                    )}
+                    
+                    {/* Column 2: Learners */}
+                    <div className="metric-col">
+                      <div className="metric-value-wrapper">
+                        <Users size={14} className="metric-icon" />
+                        <span className="metric-value">{formatNumber(inst.learnersCount || 0)}</span>
+                      </div>
+                      <span className="metric-label">Learners</span>
                     </div>
-                    <div className="stat-metric">
-                      <Users size={14} className="stat-icon" />
-                      <div>
-                        <span className="stat-value">{inst.learnersCount || 0}</span>
-                        <span className="stat-label">Students</span>
+                    
+                    {/* Column 3: Courses */}
+                    <div className="metric-col">
+                      <div className="metric-value-wrapper">
+                        <BookOpen size={14} className="metric-icon" />
+                        <span className="metric-value">{inst.coursesCount || 0}</span>
                       </div>
+                      <span className="metric-label">Courses</span>
                     </div>
                   </div>
+                  
+                  {/* Short bio */}
+                  <p className="instructor-bio-text">
+                    {inst.bio || 'Project-based instructor helping developers build practical web apps.'}
+                  </p>
+                  
+                  {/* Footer Explore courses CTA button */}
+                  <div className="instructor-card-footer">
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-block instructor-explore-courses-btn"
+                      onClick={() => handleViewCourses(inst.fullName)}
+                    >
+                      <span>Explore Courses</span>
+                      <ArrowRight size={14} className="arrow-icon" />
+                    </button>
+                  </div>
                 </div>
-
-                <div className="instructor-card-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline btn-block"
-                    onClick={() => handleViewCourses(inst.fullName)}
-                    disabled={!inst.coursesCount}
-                  >
-                    <span>View Courses</span>
-                    <ArrowRight size={16} />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
