@@ -53,7 +53,8 @@ export const CourseCreateWizard = ({ courses = [], onCourseCreated, onCancel }) 
     category: 'Web Development',
     skillLevel: 'Beginner',
     thumbnail: DEFAULT_THUMBNAIL,
-    price: 0
+    price: 0,
+    skills: ''
   });
   const [step1Dirty, setStep1Dirty] = useState(false);
   const [titleWarningAcknowledged, setTitleWarningAcknowledged] = useState(false);
@@ -125,7 +126,10 @@ export const CourseCreateWizard = ({ courses = [], onCourseCreated, onCancel }) 
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`
           },
-          body: JSON.stringify(courseInfo)
+          body: JSON.stringify({
+            ...courseInfo,
+            skills: courseInfo.skills ? courseInfo.skills.split(',').map(s => s.trim()).filter(Boolean) : []
+          })
         });
         data = await response.json();
       } else {
@@ -136,7 +140,10 @@ export const CourseCreateWizard = ({ courses = [], onCourseCreated, onCancel }) 
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`
           },
-          body: JSON.stringify(courseInfo)
+          body: JSON.stringify({
+            ...courseInfo,
+            skills: courseInfo.skills ? courseInfo.skills.split(',').map(s => s.trim()).filter(Boolean) : []
+          })
         });
         data = await response.json();
       }
@@ -144,6 +151,15 @@ export const CourseCreateWizard = ({ courses = [], onCourseCreated, onCancel }) 
       if (data.success) {
         setCourseId(data.course._id);
         setCourse(data.course);
+        setCourseInfo({
+          title: data.course.title,
+          description: data.course.description,
+          category: data.course.category,
+          skillLevel: data.course.skillLevel,
+          thumbnail: data.course.thumbnail,
+          price: data.course.price,
+          skills: Array.isArray(data.course.skills) ? data.course.skills.join(', ') : ''
+        });
         setSaveState('saved');
         setStep1Dirty(false);
         setDuplicateWarning('');
@@ -425,6 +441,18 @@ export const CourseCreateWizard = ({ courses = [], onCourseCreated, onCancel }) 
                     <option key={lvl} value={lvl}>{lvl}</option>
                   ))}
                 </select>
+              </div>
+
+              <div className="form-group span-2">
+                <label className="form-label">Topics / Skills (comma-separated)</label>
+                <input
+                  type="text"
+                  name="skills"
+                  className="form-input"
+                  placeholder="e.g. React, Hooks, Router"
+                  value={courseInfo.skills}
+                  onChange={handleInfoChange}
+                />
               </div>
 
               <div className="form-group span-2">

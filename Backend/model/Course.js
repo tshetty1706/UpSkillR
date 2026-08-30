@@ -75,6 +75,10 @@ const courseSchema = new mongoose.Schema({
   lessons: [lessonSchema],
   resources: [resourceSchema],
   assessments: [assessmentSchema],
+  skills: {
+    type: [String],
+    default: []
+  },
   rating: {
     type: Number,
     default: null

@@ -32,7 +32,8 @@ export const CourseManager = ({ courseId, onBack, onUpdateCourse, onPublishToggl
     category: '',
     skillLevel: 'Beginner',
     thumbnail: '',
-    price: 0
+    price: 0,
+    skills: ''
   });
 
   // Lesson form
@@ -61,7 +62,8 @@ export const CourseManager = ({ courseId, onBack, onUpdateCourse, onPublishToggl
           category: data.course.category,
           skillLevel: data.course.skillLevel,
           thumbnail: data.course.thumbnail,
-          price: data.course.price
+          price: data.course.price,
+          skills: Array.isArray(data.course.skills) ? data.course.skills.join(', ') : ''
         });
       }
     } catch (err) {
@@ -84,6 +86,7 @@ export const CourseManager = ({ courseId, onBack, onUpdateCourse, onPublishToggl
         },
         body: JSON.stringify({
           ...editInfo,
+          skills: editInfo.skills ? editInfo.skills.split(',').map(s => s.trim()).filter(Boolean) : [],
           lastUpdatedAt: course?.updatedAt
         })
       });
@@ -388,6 +391,17 @@ export const CourseManager = ({ courseId, onBack, onUpdateCourse, onPublishToggl
                   <option value="Advanced">Advanced</option>
                   <option value="All Levels">All Levels</option>
                 </select>
+              </div>
+
+              <div className="form-group span-2">
+                <label className="form-label">Topics / Skills (comma-separated)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. React, Hooks, Router"
+                  value={editInfo.skills}
+                  onChange={(e) => setEditInfo({ ...editInfo, skills: e.target.value })}
+                />
               </div>
 
               <div className="form-group span-2">
