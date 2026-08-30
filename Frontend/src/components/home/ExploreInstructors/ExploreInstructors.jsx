@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Sparkles, BookOpen, Users, Award, ArrowRight, User } from 'lucide-react';
 import './ExploreInstructors.css';
 import { Avatar } from '../../common/Avatar/Avatar';
+import exploreInstructorSvg from '../../../assets/illustrations/explore_instructor.svg?raw';
 
 export const ExploreInstructors = () => {
   const [instructors, setInstructors] = useState([]);
@@ -44,28 +45,34 @@ export const ExploreInstructors = () => {
   return (
     <div className="explore-instructors-page section">
       <div className="container">
-        {/* Header */}
-        <div className="explore-header text-center">
-          <div className="badge-pill">
-            <Sparkles size={14} />
-            <span>Expert Mentors</span>
+        {/* Explore Hero Redesign */}
+        <div className="explore-hero">
+          <div className="explore-hero-content">
+            <div className="badge-pill hero-badge">
+              <Sparkles size={14} />
+              <span>EXPERT MENTORS</span>
+            </div>
+            <h1 className="explore-title">
+              Learn from the <span className="text-highlight">Best</span>
+            </h1>
+            <p className="explore-subtitle">
+              Connect with our industry-leading instructors, master real-world skills, and accelerate your learning journey.
+            </p>
+            <div className="explore-search-box">
+              <Search size={20} className="explore-search-icon" />
+              <input
+                type="text"
+                className="explore-search-input"
+                placeholder="Search instructors by name or expertise (e.g. Web Development)..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
           </div>
-          <h1 className="explore-title">Learn from the Best</h1>
-          <p className="explore-subtitle">
-            Connect with our industry-leading instructors, master real-world skills, and accelerate your learning journey.
-          </p>
-        </div>
-
-        {/* Search Bar */}
-        <div className="explore-toolbar">
-          <div className="search-box-wrapper width-full max-width-md margin-center">
-            <Search size={18} className="search-icon" />
-            <input
-              type="text"
-              className="search-input"
-              placeholder="Search instructors by name or expertise (e.g. Web Development)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+          <div className="explore-hero-illustration">
+            <div
+              className="explore-illustration"
+              dangerouslySetInnerHTML={{ __html: exploreInstructorSvg }}
             />
           </div>
         </div>

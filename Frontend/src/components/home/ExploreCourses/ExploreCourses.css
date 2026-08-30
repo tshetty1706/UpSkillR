@@ -9,7 +9,7 @@
 .explore-hero {
   display: grid;
   grid-template-columns: 1.25fr 0.75fr;
-  gap: 4rem;
+  gap: 2.5rem;
   align-items: center; /* Vertically center left content and right illustration */
   padding: 0.75rem 0 2rem 0;
   margin-bottom: 2rem;
@@ -106,7 +106,7 @@
 /* Vector Illustration adaptive styling */
 .explore-hero-illustration {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center; /* Center the illustration vertically in its column */
   width: 100%;
 }
