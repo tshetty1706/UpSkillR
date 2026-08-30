@@ -381,7 +381,7 @@ export const LearnerDashboardOverview = ({
                               onClick={() => setRatingModalCourse(course)}
                             >
                               <Star size={15} />
-                              <span>{userRating ? 'Edit Review' : 'Rate & Review (FR-09)'}</span>
+                              <span>{userRating ? 'Edit Review' : 'Rate & Review'}</span>
                             </button>
                           )}
                         </div>
