@@ -41,6 +41,18 @@ const instructorSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  designation: {
+    type: String,
+    default: ''
+  },
+  bio: {
+    type: String,
+    default: ''
+  },
+  keySkills: {
+    type: [String],
+    default: []
+  },
   applicationStatus: {
     type: String,
     enum: ['not_started', 'draft', 'submitted'],

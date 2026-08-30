@@ -83,6 +83,10 @@ const courseSchema = new mongoose.Schema({
     type: Number,
     default: null
   },
+  reviewCount: {
+    type: Number,
+    default: 0
+  },
   createdAt: {
     type: Date,
     default: Date.now
