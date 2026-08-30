@@ -519,7 +519,9 @@ exports.updateLessonProgress = async (req, res) => {
     }
 
     const idx = parseInt(lessonIndex, 10);
-    if (!enrolment.completedLessons.includes(idx)) {
+    if (enrolment.completedLessons.includes(idx)) {
+      enrolment.completedLessons = enrolment.completedLessons.filter(i => i !== idx);
+    } else {
       enrolment.completedLessons.push(idx);
     }
 
@@ -531,7 +533,7 @@ exports.updateLessonProgress = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Progress updated!',
+      message: enrolment.completedLessons.includes(idx) ? 'Lesson marked as completed!' : 'Lesson marked as incomplete.',
       enrolment
     });
   } catch (error) {
