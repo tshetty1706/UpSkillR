@@ -98,5 +98,13 @@ Frontend web application will be running on: `http://localhost:5173`
 
 ---
 
+## 📱 Browser & Responsive Compatibility Standard
+
+Every new feature, page, and component in **UpSkillr** must be compatible with current major desktop browsers and usable at tablet screen sizes. Contributors must verify responsive behavior before considering their work complete. Existing functionality, design system, and unrelated components must not be broken in the process.
+
+Please refer to the full [Browser & Responsive Compatibility Standard](file:///c:/Project%202026/MERN_Internship/UpSkillR/AGENTS.md) for detailed guidelines, breakpoints, and implementation principles.
+
+---
+
 ## 📄 License
 Copyright © 2026 **UpSkillr**. All rights reserved.
