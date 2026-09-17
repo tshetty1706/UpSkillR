@@ -629,20 +629,14 @@ exports.githubOAuthCallback = async (req, res) => {
   }
 };
 
-// 9. Get Current User Profile
+// 9. Get Current User Profile (Protected by AuthN middleware)
 exports.getCurrentUser = async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, message: 'Unauthorized. Token missing.' });
-    }
+    const userId = req.user.id;
 
-    const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-
-    let user = await Learner.findById(decoded.id).select('-password');
+    let user = await Learner.findById(userId).select('-password');
     if (!user) {
-      user = await Instructor.findById(decoded.id).select('-password');
+      user = await Instructor.findById(userId).select('-password');
     }
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });
@@ -662,7 +656,8 @@ exports.getCurrentUser = async (req, res) => {
 
     return res.status(200).json({ success: true, user: userObj });
   } catch (error) {
-    return res.status(401).json({ success: false, message: 'Invalid or expired token.' });
+    console.error('getCurrentUser error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while fetching user profile.' });
   }
 };
 

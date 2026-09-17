@@ -52,7 +52,13 @@ export const CourseManager = ({ courseId, onBack, onUpdateCourse, onPublishToggl
   const fetchCourseDetails = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/courses/${courseId}`);
+      const token = localStorage.getItem('upskillr_token');
+      const response = await fetch(`http://localhost:5000/api/courses/${courseId}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
       const data = await response.json();
       if (data.success) {
         setCourse(data.course);

@@ -48,7 +48,7 @@ router.get('/github', authController.githubOAuthRedirect);
 router.get('/github/callback', authController.githubOAuthCallback);
 
 // User Profile Routes
-router.get('/me', authController.getCurrentUser);
+router.get('/me', protect, authController.getCurrentUser);
 router.put('/profile', protect, authController.updateProfile);
 router.post('/profile/upload/photo', protect, photoUpload.single('file'), authController.uploadProfilePhoto);
 router.delete('/profile/upload/photo', protect, authController.removeProfilePhoto);

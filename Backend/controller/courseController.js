@@ -1,6 +1,7 @@
 const Course = require('../model/Course');
 const Enrolment = require('../model/Enrolment');
 const { Instructor, Learner } = require('../model/User');
+const mongoose = require('mongoose');
 
 // 1. Create a new Course Draft (Instructor Only)
 exports.createCourse = async (req, res) => {
@@ -18,13 +19,14 @@ exports.createCourse = async (req, res) => {
       title: { $regex: new RegExp(`^${escapedTitle}$`, 'i') }
     });
 
+    // Never trust req.body.instructorId; always enforce req.user.id from validated JWT
     const course = new Course({
-      title,
-      description,
-      category,
+      title: title.trim(),
+      description: description.trim(),
+      category: category.trim(),
       skillLevel: skillLevel || 'Beginner',
       thumbnail: thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80',
-      price: price || 0,
+      price: price !== undefined ? Number(price) : 0,
       instructorId: req.user.id,
       instructorName: req.user.fullName || 'UpSkillr Instructor',
       status: 'draft',
@@ -93,10 +95,11 @@ exports.getInstructorCourses = async (req, res) => {
   }
 };
 
-// 3. Get Course Details by ID
+// 3. Get Course Details by ID (Instructor Course Management)
+// Protected by AuthN + RoleCheck + OwnershipCheck (req.course already verified)
 exports.getCourseById = async (req, res) => {
   try {
-    const course = await Course.findById(req.params.id);
+    const course = req.course || await Course.findOne({ _id: req.params.id, instructorId: req.user.id });
     if (!course) {
       return res.status(404).json({ success: false, message: 'Course not found.' });
     }
@@ -112,18 +115,41 @@ exports.getCourseById = async (req, res) => {
   }
 };
 
+// 3b. Get Public Course by ID (Published Courses Only for Public / Learner Preview)
+exports.getPublicCourseById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid course ID format.' });
+    }
+
+    const course = await Course.findOne({ _id: id, status: 'published' })
+      .populate('instructorId', 'fullName avatar designation bio');
+
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found or not published.' });
+    }
+
+    const enrolCount = await Enrolment.countDocuments({ courseId: course._id });
+    const courseObj = course.toObject();
+    courseObj.learnersCount = enrolCount;
+
+    return res.status(200).json({ success: true, course: courseObj });
+  } catch (error) {
+    console.error('Get Public Course By ID Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while fetching public course details.' });
+  }
+};
+
 // 4. Update Course Info (Instructor Only)
+// Protected by AuthN + RoleCheck + OwnershipCheck
 exports.updateCourse = async (req, res) => {
   try {
     const { title, description, category, skillLevel, thumbnail, price, skills, lastUpdatedAt } = req.body;
-    const course = await Course.findById(req.params.id);
+    const course = req.course;
 
     if (!course) {
       return res.status(404).json({ success: false, message: 'Course not found.' });
-    }
-
-    if (course.instructorId.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Unauthorized to modify this course.' });
     }
 
     // Optimistic Concurrency Check using updatedAt
@@ -139,12 +165,12 @@ exports.updateCourse = async (req, res) => {
       }
     }
 
-    if (title) course.title = title;
-    if (description) course.description = description;
-    if (category) course.category = category;
+    if (title) course.title = title.trim();
+    if (description) course.description = description.trim();
+    if (category) course.category = category.trim();
     if (skillLevel) course.skillLevel = skillLevel;
     if (thumbnail) course.thumbnail = thumbnail;
-    if (price !== undefined) course.price = price;
+    if (price !== undefined) course.price = Number(price);
     if (skills !== undefined) {
       course.skills = Array.isArray(skills) ? skills : (skills ? skills.split(',').map(s => s.trim()).filter(Boolean) : []);
     }
@@ -162,219 +188,28 @@ exports.updateCourse = async (req, res) => {
   }
 };
 
-// 5. Add / Update / Delete Lesson in Course
-exports.addLesson = async (req, res) => {
+// 5. Delete Course
+// Protected by AuthN + RoleCheck + OwnershipCheck
+exports.deleteCourse = async (req, res) => {
   try {
-    const { title, description, videoUrl, duration, content } = req.body;
-    const course = await Course.findById(req.params.id);
+    const courseId = req.course._id;
 
-    if (!course) {
-      return res.status(404).json({ success: false, message: 'Course not found.' });
-    }
+    // Constrain deletion with instructorId for defense-in-depth
+    await Course.findOneAndDelete({ _id: courseId, instructorId: req.user.id });
+    await Enrolment.deleteMany({ courseId });
 
-    if (course.instructorId.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Unauthorized to modify this course.' });
-    }
-
-    const newLesson = {
-      title,
-      description: description || '',
-      videoUrl: videoUrl || '',
-      duration: duration || '10 min',
-      order: course.lessons.length + 1,
-      content: content || ''
-    };
-
-    course.lessons.push(newLesson);
-    await course.save();
-
-    return res.status(200).json({
-      success: true,
-      message: 'Lesson added successfully!',
-      course
-    });
+    return res.status(200).json({ success: true, message: 'Course deleted successfully.' });
   } catch (error) {
-    console.error('Add Lesson Error:', error);
-    return res.status(500).json({ success: false, message: 'Server error while adding lesson.' });
+    console.error('Delete Course Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while deleting course.' });
   }
 };
 
-exports.deleteLesson = async (req, res) => {
-  try {
-    const { lessonIndex } = req.params;
-    const course = await Course.findById(req.params.id);
-
-    if (!course) {
-      return res.status(404).json({ success: false, message: 'Course not found.' });
-    }
-
-    if (course.instructorId.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Unauthorized to modify this course.' });
-    }
-
-    const idx = parseInt(lessonIndex, 10);
-    if (isNaN(idx) || idx < 0 || idx >= course.lessons.length) {
-      return res.status(400).json({ success: false, message: 'Invalid lesson index.' });
-    }
-
-    course.lessons.splice(idx, 1);
-    await course.save();
-
-    return res.status(200).json({
-      success: true,
-      message: 'Lesson deleted successfully!',
-      course
-    });
-  } catch (error) {
-    console.error('Delete Lesson Error:', error);
-    return res.status(500).json({ success: false, message: 'Server error while deleting lesson.' });
-  }
-};
-
-// 6. Add / Delete Resource in Course
-exports.addResource = async (req, res) => {
-  try {
-    const { title, fileUrl, fileType, fileSize } = req.body;
-    const course = await Course.findById(req.params.id);
-
-    if (!course) {
-      return res.status(404).json({ success: false, message: 'Course not found.' });
-    }
-
-    if (course.instructorId.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Unauthorized to modify this course.' });
-    }
-
-    course.resources.push({
-      title,
-      fileUrl: fileUrl || '#',
-      fileType: fileType || 'PDF',
-      fileSize: fileSize || '1.5 MB'
-    });
-
-    await course.save();
-
-    return res.status(200).json({
-      success: true,
-      message: 'Resource added successfully!',
-      course
-    });
-  } catch (error) {
-    console.error('Add Resource Error:', error);
-    return res.status(500).json({ success: false, message: 'Server error while adding resource.' });
-  }
-};
-
-exports.deleteResource = async (req, res) => {
-  try {
-    const { resourceIndex } = req.params;
-    const course = await Course.findById(req.params.id);
-
-    if (!course) {
-      return res.status(404).json({ success: false, message: 'Course not found.' });
-    }
-
-    if (course.instructorId.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Unauthorized to modify this course.' });
-    }
-
-    const idx = parseInt(resourceIndex, 10);
-    if (isNaN(idx) || idx < 0 || idx >= course.resources.length) {
-      return res.status(400).json({ success: false, message: 'Invalid resource index.' });
-    }
-
-    course.resources.splice(idx, 1);
-    await course.save();
-
-    return res.status(200).json({
-      success: true,
-      message: 'Resource deleted successfully!',
-      course
-    });
-  } catch (error) {
-    console.error('Delete Resource Error:', error);
-    return res.status(500).json({ success: false, message: 'Server error while deleting resource.' });
-  }
-};
-
-// 7. Add / Delete Assessment in Course
-exports.addAssessment = async (req, res) => {
-  try {
-    const { title, instructions, passingScore, questions } = req.body;
-    const course = await Course.findById(req.params.id);
-
-    if (!course) {
-      return res.status(404).json({ success: false, message: 'Course not found.' });
-    }
-
-    if (course.instructorId.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Unauthorized to modify this course.' });
-    }
-
-    course.assessments.push({
-      title,
-      instructions: instructions || '',
-      passingScore: passingScore || 70,
-      questions: questions || []
-    });
-
-    await course.save();
-
-    return res.status(200).json({
-      success: true,
-      message: 'Assessment added successfully!',
-      course
-    });
-  } catch (error) {
-    console.error('Add Assessment Error:', error);
-    return res.status(500).json({ success: false, message: 'Server error while adding assessment.' });
-  }
-};
-
-exports.deleteAssessment = async (req, res) => {
-  try {
-    const { assessmentIndex } = req.params;
-    const course = await Course.findById(req.params.id);
-
-    if (!course) {
-      return res.status(404).json({ success: false, message: 'Course not found.' });
-    }
-
-    if (course.instructorId.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Unauthorized to modify this course.' });
-    }
-
-    const idx = parseInt(assessmentIndex, 10);
-    if (isNaN(idx) || idx < 0 || idx >= course.assessments.length) {
-      return res.status(400).json({ success: false, message: 'Invalid assessment index.' });
-    }
-
-    course.assessments.splice(idx, 1);
-    await course.save();
-
-    return res.status(200).json({
-      success: true,
-      message: 'Assessment deleted successfully!',
-      course
-    });
-  } catch (error) {
-    console.error('Delete Assessment Error:', error);
-    return res.status(500).json({ success: false, message: 'Server error while deleting assessment.' });
-  }
-};
-
-// 8. Toggle / Set Publish Status (Instructor Only)
+// 6. Toggle / Set Publish Status (Instructor Only)
+// Protected by AuthN + RoleCheck + OwnershipCheck
 exports.publishCourse = async (req, res) => {
   try {
-    const course = await Course.findById(req.params.id);
-
-    if (!course) {
-      return res.status(404).json({ success: false, message: 'Course not found.' });
-    }
-
-    if (course.instructorId.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Unauthorized to modify this course.' });
-    }
+    const course = req.course;
 
     const targetStatus = req.body.status || (course.status === 'published' ? 'draft' : 'published');
 
@@ -400,30 +235,325 @@ exports.publishCourse = async (req, res) => {
   }
 };
 
-// 9. Delete Course
-exports.deleteCourse = async (req, res) => {
+// ─── Lessons (Instructor Scoped & Ownership Verified) ───
+
+// 7. Get All Lessons in Course
+exports.getCourseLessons = async (req, res) => {
   try {
-    const course = await Course.findById(req.params.id);
-
-    if (!course) {
-      return res.status(404).json({ success: false, message: 'Course not found.' });
-    }
-
-    if (course.instructorId.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Unauthorized to delete this course.' });
-    }
-
-    await Course.findByIdAndDelete(req.params.id);
-    await Enrolment.deleteMany({ courseId: req.params.id });
-
-    return res.status(200).json({ success: true, message: 'Course deleted successfully.' });
+    return res.status(200).json({
+      success: true,
+      lessons: req.course.lessons || []
+    });
   } catch (error) {
-    console.error('Delete Course Error:', error);
-    return res.status(500).json({ success: false, message: 'Server error while deleting course.' });
+    console.error('Get Course Lessons Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while fetching lessons.' });
   }
 };
 
-// 10. Get All Published Courses (Public / Learner Browsing)
+// 8. Add Lesson to Course
+exports.addLesson = async (req, res) => {
+  try {
+    const { title, description, videoUrl, duration, content } = req.body;
+    const course = req.course;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ success: false, message: 'Lesson title is required.' });
+    }
+
+    const newLesson = {
+      title: title.trim(),
+      description: description || '',
+      videoUrl: videoUrl || '',
+      duration: duration || '10 min',
+      order: course.lessons.length + 1,
+      content: content || ''
+    };
+
+    course.lessons.push(newLesson);
+    await course.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Lesson added successfully!',
+      course
+    });
+  } catch (error) {
+    console.error('Add Lesson Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while adding lesson.' });
+  }
+};
+
+// 9. Get Single Lesson in Course
+exports.getLesson = async (req, res) => {
+  try {
+    return res.status(200).json({
+      success: true,
+      lesson: req.lesson
+    });
+  } catch (error) {
+    console.error('Get Lesson Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while fetching lesson.' });
+  }
+};
+
+// 10. Update Lesson in Course
+exports.updateLesson = async (req, res) => {
+  try {
+    const { title, description, videoUrl, duration, content } = req.body;
+    const course = req.course;
+    const lesson = req.lesson;
+
+    if (title) lesson.title = title.trim();
+    if (description !== undefined) lesson.description = description;
+    if (videoUrl !== undefined) lesson.videoUrl = videoUrl;
+    if (duration !== undefined) lesson.duration = duration;
+    if (content !== undefined) lesson.content = content;
+
+    await course.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Lesson updated successfully!',
+      course,
+      lesson
+    });
+  } catch (error) {
+    console.error('Update Lesson Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while updating lesson.' });
+  }
+};
+
+// 11. Delete Lesson from Course
+exports.deleteLesson = async (req, res) => {
+  try {
+    const course = req.course;
+    const idx = req.lessonIndex;
+
+    course.lessons.splice(idx, 1);
+    await course.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Lesson deleted successfully!',
+      course
+    });
+  } catch (error) {
+    console.error('Delete Lesson Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while deleting lesson.' });
+  }
+};
+
+// ─── Resources (Instructor Scoped & Ownership Verified) ───
+
+// 12. Get All Resources in Course
+exports.getCourseResources = async (req, res) => {
+  try {
+    return res.status(200).json({
+      success: true,
+      resources: req.course.resources || []
+    });
+  } catch (error) {
+    console.error('Get Course Resources Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while fetching resources.' });
+  }
+};
+
+// 13. Add Resource to Course
+exports.addResource = async (req, res) => {
+  try {
+    const { title, fileUrl, fileType, fileSize } = req.body;
+    const course = req.course;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ success: false, message: 'Resource title is required.' });
+    }
+
+    course.resources.push({
+      title: title.trim(),
+      fileUrl: fileUrl || '#',
+      fileType: fileType || 'PDF',
+      fileSize: fileSize || '1.5 MB'
+    });
+
+    await course.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Resource added successfully!',
+      course
+    });
+  } catch (error) {
+    console.error('Add Resource Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while adding resource.' });
+  }
+};
+
+// 14. Get Single Resource in Course
+exports.getResource = async (req, res) => {
+  try {
+    return res.status(200).json({
+      success: true,
+      resource: req.resource
+    });
+  } catch (error) {
+    console.error('Get Resource Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while fetching resource.' });
+  }
+};
+
+// 15. Update Resource in Course
+exports.updateResource = async (req, res) => {
+  try {
+    const { title, fileUrl, fileType, fileSize } = req.body;
+    const course = req.course;
+    const resource = req.resource;
+
+    if (title) resource.title = title.trim();
+    if (fileUrl !== undefined) resource.fileUrl = fileUrl;
+    if (fileType !== undefined) resource.fileType = fileType;
+    if (fileSize !== undefined) resource.fileSize = fileSize;
+
+    await course.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Resource updated successfully!',
+      course,
+      resource
+    });
+  } catch (error) {
+    console.error('Update Resource Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while updating resource.' });
+  }
+};
+
+// 16. Delete Resource from Course
+exports.deleteResource = async (req, res) => {
+  try {
+    const course = req.course;
+    const idx = req.resourceIndex;
+
+    course.resources.splice(idx, 1);
+    await course.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Resource deleted successfully!',
+      course
+    });
+  } catch (error) {
+    console.error('Delete Resource Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while deleting resource.' });
+  }
+};
+
+// ─── Assessments (Instructor Scoped & Ownership Verified) ───
+
+// 17. Get All Assessments in Course
+exports.getCourseAssessments = async (req, res) => {
+  try {
+    return res.status(200).json({
+      success: true,
+      assessments: req.course.assessments || []
+    });
+  } catch (error) {
+    console.error('Get Course Assessments Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while fetching assessments.' });
+  }
+};
+
+// 18. Add Assessment to Course
+exports.addAssessment = async (req, res) => {
+  try {
+    const { title, instructions, passingScore, questions } = req.body;
+    const course = req.course;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ success: false, message: 'Assessment title is required.' });
+    }
+
+    course.assessments.push({
+      title: title.trim(),
+      instructions: instructions || '',
+      passingScore: passingScore || 70,
+      questions: questions || []
+    });
+
+    await course.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Assessment added successfully!',
+      course
+    });
+  } catch (error) {
+    console.error('Add Assessment Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while adding assessment.' });
+  }
+};
+
+// 19. Get Single Assessment in Course
+exports.getAssessment = async (req, res) => {
+  try {
+    return res.status(200).json({
+      success: true,
+      assessment: req.assessment
+    });
+  } catch (error) {
+    console.error('Get Assessment Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while fetching assessment.' });
+  }
+};
+
+// 20. Update Assessment in Course
+exports.updateAssessment = async (req, res) => {
+  try {
+    const { title, instructions, passingScore, questions } = req.body;
+    const course = req.course;
+    const assessment = req.assessment;
+
+    if (title) assessment.title = title.trim();
+    if (instructions !== undefined) assessment.instructions = instructions;
+    if (passingScore !== undefined) assessment.passingScore = Number(passingScore);
+    if (questions !== undefined) assessment.questions = questions;
+
+    await course.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Assessment updated successfully!',
+      course,
+      assessment
+    });
+  } catch (error) {
+    console.error('Update Assessment Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while updating assessment.' });
+  }
+};
+
+// 21. Delete Assessment from Course
+exports.deleteAssessment = async (req, res) => {
+  try {
+    const course = req.course;
+    const idx = req.assessmentIndex;
+
+    course.assessments.splice(idx, 1);
+    await course.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Assessment deleted successfully!',
+      course
+    });
+  } catch (error) {
+    console.error('Delete Assessment Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while deleting assessment.' });
+  }
+};
+
+// ─── Public / Learner Course Browsing & Enrollment ───
+
+// 22. Get All Published Courses (Public / Learner Browsing)
 exports.getPublishedCourses = async (req, res) => {
   try {
     const { search, category, level } = req.query;
@@ -479,7 +609,7 @@ exports.getPublishedCourses = async (req, res) => {
   }
 };
 
-// 11. Enrol in Course (Learner Only)
+// 23. Enrol in Course (Learner Only)
 exports.enrolInCourse = async (req, res) => {
   try {
     const { courseId } = req.body;
@@ -535,7 +665,7 @@ exports.enrolInCourse = async (req, res) => {
   }
 };
 
-// 12. Get Learner Enrolments
+// 24. Get Learner Enrolments
 exports.getLearnerEnrolments = async (req, res) => {
   try {
     const enrolments = await Enrolment.find({ learnerId: req.user.id }).populate('courseId');
@@ -546,7 +676,7 @@ exports.getLearnerEnrolments = async (req, res) => {
   }
 };
 
-// 13. Update Lesson Completion & Progress
+// 25. Update Lesson Completion & Progress
 exports.updateLessonProgress = async (req, res) => {
   try {
     const { courseId, lessonIndex } = req.body;
@@ -585,7 +715,9 @@ exports.updateLessonProgress = async (req, res) => {
   }
 };
 
-// 14. Submit Course Rating & Review Feedback (FR-09)
+// 26. Submit Course Rating & Review Feedback
+// STRICT SECURITY AUDIT FIX: Enforce that learnerId strictly matches req.user.id.
+// Eliminated previous IDOR flaw where un-enrolled learners hijacked other learners' records.
 exports.submitCourseRating = async (req, res) => {
   try {
     const { courseId, rating, feedback, tags } = req.body;
@@ -594,24 +726,26 @@ exports.submitCourseRating = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Course ID and rating (1-5) are required.' });
     }
 
-    let enrolment = await Enrolment.findOne({
+    const numericRating = Number(rating);
+    if (isNaN(numericRating) || numericRating < 1 || numericRating > 5) {
+      return res.status(400).json({ success: false, message: 'Rating must be a number between 1 and 5.' });
+    }
+
+    // Must be enrolled to rate: match strictly against req.user.id
+    const enrolment = await Enrolment.findOne({
       courseId,
-      $or: [
-        { learnerId: req.user.id },
-        { learnerEmail: req.user.email }
-      ]
+      learnerId: req.user.id
     });
 
     if (!enrolment) {
-      enrolment = await Enrolment.findOne({ courseId });
-    }
-
-    if (!enrolment) {
-      return res.status(404).json({ success: false, message: 'Enrolment record not found.' });
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden. You must be enrolled in this course to submit a rating.'
+      });
     }
 
     // Save rating and review feedback on Enrolment
-    enrolment.rating = Number(rating);
+    enrolment.rating = numericRating;
     enrolment.feedback = feedback || '';
     enrolment.feedbackTags = Array.isArray(tags) ? tags : [];
     enrolment.ratedAt = Date.now();
@@ -632,7 +766,10 @@ exports.submitCourseRating = async (req, res) => {
     if (ratedEnrolments.length > 0) {
       const sum = ratedEnrolments.reduce((acc, e) => acc + Number(e.rating), 0);
       const avgRating = Math.round((sum / ratedEnrolments.length) * 10) / 10;
-      await Course.findByIdAndUpdate(targetCourseId, { rating: avgRating });
+      await Course.findByIdAndUpdate(targetCourseId, {
+        rating: avgRating,
+        reviewCount: ratedEnrolments.length
+      });
     }
 
     return res.status(200).json({

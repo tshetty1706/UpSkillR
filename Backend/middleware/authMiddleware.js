@@ -1,8 +1,17 @@
 const jwt = require('jsonwebtoken');
+const { Instructor } = require('../model/User');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'upskillr_jwt_secret_key_2026_super_secure';
 
-// Protect middleware to verify JWT token
+/**
+ * Protect middleware: validates JWT token and establishes authenticated user.
+ *
+ * Requirements:
+ * - Missing token -> 401
+ * - Invalid, expired, or malformed token -> 401
+ * - Establishes normalized req.user
+ * - Never trusts client-supplied user identity
+ */
 const protect = (req, res, next) => {
   let token;
 
@@ -10,44 +19,72 @@ const protect = (req, res, next) => {
     token = req.headers.authorization.split(' ')[1];
   }
 
-  if (!token) {
-    return res.status(401).json({ success: false, message: 'Unauthorized. Access token missing.' });
+  if (!token || token === 'null' || token === 'undefined') {
+    return res.status(401).json({
+      success: false,
+      message: 'Unauthorized. Access token missing or empty.'
+    });
   }
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
+
+    if (!decoded || !decoded.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized. Invalid token payload.'
+      });
+    }
+
+    // Establish normalized authenticated user
+    req.user = {
+      id: decoded.id.toString(),
+      email: decoded.email,
+      role: decoded.role,
+      fullName: decoded.fullName,
+      isVerified: decoded.isVerified,
+      applicationStatus: decoded.applicationStatus
+    };
+
     next();
   } catch (error) {
-    return res.status(401).json({ success: false, message: 'Invalid or expired token. Please log in again.' });
-  }
-};
-
-// Require Instructor role authorization
-const requireInstructor = (req, res, next) => {
-  if (!req.user || req.user.role !== 'instructor') {
-    return res.status(403).json({
+    return res.status(401).json({
       success: false,
-      message: 'Access denied. Only registered instructors can perform this action.'
+      message: 'Invalid or expired token. Please log in again.'
     });
   }
-  next();
 };
 
-// Require Learner role authorization
-const requireLearner = (req, res, next) => {
-  if (!req.user || req.user.role !== 'learner') {
-    return res.status(403).json({
-      success: false,
-      message: 'Access denied. Only registered learners can perform this action.'
-    });
-  }
-  next();
+/**
+ * Generic RoleCheck middleware factory
+ * @param {...string} roles - Allowed roles e.g. ('instructor')
+ */
+const requireRole = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: `Access denied. Required role: ${roles.join(' or ')}.`
+      });
+    }
+    next();
+  };
 };
 
-const { Instructor } = require('../model/User');
+/**
+ * Require Instructor role authorization
+ */
+const requireInstructor = requireRole('instructor');
 
-// Require Submitted Instructor role authorization for Dashboard APIs
+/**
+ * Require Learner role authorization
+ */
+const requireLearner = requireRole('learner');
+
+/**
+ * Require Submitted Instructor role authorization for Course/Dashboard operations.
+ * Validates role === 'instructor' AND verifies in DB that applicationStatus === 'submitted'.
+ */
 const requireSubmittedInstructor = async (req, res, next) => {
   if (!req.user || req.user.role !== 'instructor') {
     return res.status(403).json({
@@ -67,14 +104,18 @@ const requireSubmittedInstructor = async (req, res, next) => {
     }
     next();
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Server authorization check failed.' });
+    console.error('requireSubmittedInstructor DB check error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server authorization check failed.'
+    });
   }
 };
 
 module.exports = {
   protect,
+  requireRole,
   requireInstructor,
   requireLearner,
   requireSubmittedInstructor
 };
-
