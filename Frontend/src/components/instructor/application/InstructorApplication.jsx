@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
+import { useToast } from '../../../context/ToastContext';
 import './InstructorApplication.css';
 import {
   BookOpen,
@@ -284,14 +285,13 @@ const getSectionValidationErrors = (formData) => {
 
 export const InstructorApplication = ({ user, onLogout }) => {
   const { theme } = useTheme();
+  const { toast } = useToast();
 
   // Active step state (1 to 7)
   const [activeStep, setActiveStep] = useState(1);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Native OS file picker refs
@@ -307,7 +307,6 @@ export const InstructorApplication = ({ user, onLogout }) => {
   const [showCertModal, setShowCertModal] = useState(false);
   const [editingCertIndex, setEditingCertIndex] = useState(null);
   const [certUploading, setCertUploading] = useState(false);
-  const [certModalError, setCertModalError] = useState('');
   const [certForm, setCertForm] = useState({
     name: '',
     issuingOrganization: '',
@@ -481,7 +480,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
       }
     } catch (err) {
       console.error('Failed to load application data:', err);
-      setErrorMessage('Could not load application data from server.');
+      toast.error('Could not load application data from server.');
     } finally {
       setLoading(false);
     }
@@ -532,8 +531,6 @@ export const InstructorApplication = ({ user, onLogout }) => {
     };
     setFormData(updated);
 
-    if (errorMessage) setErrorMessage('');
-
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
@@ -565,7 +562,6 @@ export const InstructorApplication = ({ user, onLogout }) => {
       personalInfo: updatedPersonalInfo
     };
     setFormData(updated);
-    if (errorMessage) setErrorMessage('');
 
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
@@ -627,17 +623,16 @@ export const InstructorApplication = ({ user, onLogout }) => {
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      setErrorMessage('Profile photo size must be less than 5MB.');
+      toast.error('Profile photo size must be less than 5MB.');
       return;
     }
 
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.type.toLowerCase())) {
-      setErrorMessage('Please select a valid image file (PNG, JPG, or WEBP).');
+      toast.error('Please select a valid image file (PNG, JPG, or WEBP).');
       return;
     }
 
-    setErrorMessage('');
     setAutoSaveStatus('saving');
 
     const formDataPayload = new FormData();
@@ -673,25 +668,23 @@ export const InstructorApplication = ({ user, onLogout }) => {
         }
 
         setAutoSaveStatus('saved');
-        setSuccessMessage('Profile photo updated successfully!');
+        toast.success('Profile photo updated successfully!');
         setTimeout(() => {
-          setSuccessMessage('');
           setAutoSaveStatus('idle');
         }, 3000);
       } else {
-        setErrorMessage(data.message || 'Failed to upload photo.');
+        toast.error(data.message || 'Failed to upload photo.');
         setAutoSaveStatus('error');
       }
     } catch (err) {
       console.error('Photo upload error:', err);
-      setErrorMessage('Network error while uploading photo.');
+      toast.error('Network error while uploading photo.');
       setAutoSaveStatus('error');
     }
   };
 
   // Remove Photo Handler
   const handleRemovePhoto = async () => {
-    setErrorMessage('');
     setAutoSaveStatus('saving');
     try {
       const token = localStorage.getItem('upskillr_token');
@@ -722,14 +715,13 @@ export const InstructorApplication = ({ user, onLogout }) => {
         }
 
         setAutoSaveStatus('saved');
-        setSuccessMessage('Profile photo removed.');
+        toast.success('Profile photo removed.');
         setTimeout(() => {
-          setSuccessMessage('');
           setAutoSaveStatus('idle');
         }, 3000);
       }
     } catch (err) {
-      setErrorMessage('Failed to remove photo.');
+      toast.error('Failed to remove photo.');
       setAutoSaveStatus('error');
     }
   };
@@ -740,17 +732,16 @@ export const InstructorApplication = ({ user, onLogout }) => {
     if (!file) return;
 
     if (file.size > 10 * 1024 * 1024) {
-      setErrorMessage('Resume file size must be less than 10MB.');
+      toast.error('Resume file size must be less than 10MB.');
       return;
     }
 
     const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
     if (!['.pdf', '.doc', '.docx'].includes(ext)) {
-      setErrorMessage('Please select a valid document format (.pdf, .doc, or .docx).');
+      toast.error('Please select a valid document format (.pdf, .doc, or .docx).');
       return;
     }
 
-    setErrorMessage('');
     setAutoSaveStatus('saving');
 
     const formDataPayload = new FormData();
@@ -775,25 +766,23 @@ export const InstructorApplication = ({ user, onLogout }) => {
         };
         setFormData(updated);
         setAutoSaveStatus('saved');
-        setSuccessMessage('Resume document uploaded successfully!');
+        toast.success('Resume document uploaded successfully!');
         setTimeout(() => {
-          setSuccessMessage('');
           setAutoSaveStatus('idle');
         }, 3000);
       } else {
-        setErrorMessage(data.message || 'Failed to upload resume.');
+        toast.error(data.message || 'Failed to upload resume.');
         setAutoSaveStatus('error');
       }
     } catch (err) {
       console.error('Resume upload error:', err);
-      setErrorMessage('Network error while uploading resume.');
+      toast.error('Network error while uploading resume.');
       setAutoSaveStatus('error');
     }
   };
 
   // Remove Resume Handler
   const handleRemoveResume = async () => {
-    setErrorMessage('');
     setAutoSaveStatus('saving');
     try {
       const token = localStorage.getItem('upskillr_token');
@@ -813,14 +802,13 @@ export const InstructorApplication = ({ user, onLogout }) => {
         };
         setFormData(updated);
         setAutoSaveStatus('saved');
-        setSuccessMessage('Resume document removed.');
+        toast.success('Resume document removed.');
         setTimeout(() => {
-          setSuccessMessage('');
           setAutoSaveStatus('idle');
         }, 3000);
       }
     } catch (err) {
-      setErrorMessage('Failed to remove resume.');
+      toast.error('Failed to remove resume.');
       setAutoSaveStatus('error');
     }
   };
@@ -831,18 +819,17 @@ export const InstructorApplication = ({ user, onLogout }) => {
     if (!file) return;
 
     if (file.size > 10 * 1024 * 1024) {
-      setCertModalError('Certificate file size must be less than 10MB.');
+      toast.error('Certificate file size must be less than 10MB.');
       return;
     }
 
     const allowedExts = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
     const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
     if (!allowedExts.includes(ext)) {
-      setCertModalError('Please select a valid certificate file (PDF, JPG, PNG, or WEBP).');
+      toast.error('Please select a valid certificate file (PDF, JPG, PNG, or WEBP).');
       return;
     }
 
-    setCertModalError('');
     setCertUploading(true);
 
     const formDataPayload = new FormData();
@@ -863,11 +850,11 @@ export const InstructorApplication = ({ user, onLogout }) => {
           certificateFile: data.certificateFile
         }));
       } else {
-        setCertModalError(data.message || 'Failed to upload certificate file.');
+        toast.error(data.message || 'Failed to upload certificate file.');
       }
     } catch (err) {
       console.error('Certificate file upload error:', err);
-      setCertModalError('Network error while uploading certificate file.');
+      toast.error('Network error while uploading certificate file.');
     } finally {
       setCertUploading(false);
     }
@@ -963,10 +950,9 @@ export const InstructorApplication = ({ user, onLogout }) => {
 
   const handleSaveCert = () => {
     if (!certForm.name.trim() || !certForm.issuingOrganization.trim()) {
-      setCertModalError('Fill required information');
+      toast.error('Please fill in all required certificate details.');
       return;
     }
-    setCertModalError('');
 
     const currentCerts = [...(formData.coursesExpertise.certifications || [])];
     if (editingCertIndex !== null) {
@@ -1004,7 +990,6 @@ export const InstructorApplication = ({ user, onLogout }) => {
 
   // Step Navigation Handlers
   const handleSaveAndContinue = () => {
-    setErrorMessage('');
     const next = Math.min(activeStep + 1, 7);
     setActiveStep(next);
     saveToServer(formData, next);
@@ -1012,7 +997,6 @@ export const InstructorApplication = ({ user, onLogout }) => {
   };
 
   const handleBack = () => {
-    setErrorMessage('');
     const prev = Math.max(activeStep - 1, 1);
     setActiveStep(prev);
     saveToServer(formData, prev);
@@ -1021,14 +1005,11 @@ export const InstructorApplication = ({ user, onLogout }) => {
 
   // Submit Application Handler
   const handleSubmitApplication = async () => {
-    setErrorMessage('');
-    setSuccessMessage('');
-
     const sectionErrors = getSectionValidationErrors(formData);
     const hasSectionErrors = Object.values(sectionErrors).some(Boolean);
 
     if (hasSectionErrors) {
-      setErrorMessage('Please complete all missing required fields before submitting.');
+      toast.error('Please complete all missing required fields before submitting.');
       return;
     }
 
@@ -1061,16 +1042,16 @@ export const InstructorApplication = ({ user, onLogout }) => {
           localStorage.setItem('upskillr_user', JSON.stringify(data.user));
           window.dispatchEvent(new Event('upskillr_user_updated'));
         }
-        setSuccessMessage('Application submitted successfully! Redirecting to Instructor Studio...');
+        toast.success('Application submitted successfully! Redirecting to Instructor Studio...');
         setTimeout(() => {
           navigate('/instructor/dashboard');
         }, 1500);
       } else {
-        setErrorMessage(data.message || 'Failed to submit application.');
+        toast.error(data.message || 'Failed to submit application.');
       }
     } catch (err) {
       console.error('Submission error:', err);
-      setErrorMessage('Network error while submitting application.');
+      toast.error('Network error while submitting application.');
     } finally {
       setSubmitting(false);
     }
@@ -1216,21 +1197,6 @@ export const InstructorApplication = ({ user, onLogout }) => {
 
         {/* Right Column: Active Form Workspace Section */}
         <section className="app-form-workspace">
-          {/* Global Alert Banners */}
-          {errorMessage && (
-            <div className="app-alert-banner error">
-              <AlertCircle size={20} />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
-          {successMessage && (
-            <div className="app-alert-banner success">
-              <CheckCircle2 size={20} />
-              <span>{successMessage}</span>
-            </div>
-          )}
-
           {/* STEP 1: Personal Information */}
           {activeStep === 1 && (
             <div className="form-section-content">

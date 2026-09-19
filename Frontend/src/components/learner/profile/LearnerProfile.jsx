@@ -2,15 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Mail, Save, Camera } from 'lucide-react';
 import './LearnerProfile.css';
 import { Avatar } from '../../common/Avatar/Avatar';
+import { useToast } from '../../../context/ToastContext';
 
 export const LearnerProfile = ({ user }) => {
+  const { toast } = useToast();
   const [profile, setProfile] = useState({
     fullName: user?.fullName || 'Learner',
     email: user?.email || '',
     avatar: user?.avatar || ''
   });
-  const [savedMessage, setSavedMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
 
   // Keep state synced with user prop
   useEffect(() => {
@@ -25,8 +25,6 @@ export const LearnerProfile = ({ user }) => {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    setErrorMessage('');
-    setSavedMessage('');
 
     try {
       const token = localStorage.getItem('upskillr_token');
@@ -43,7 +41,7 @@ export const LearnerProfile = ({ user }) => {
       const data = await response.json();
 
       if (data.success) {
-        setSavedMessage('Profile information saved successfully!');
+        toast.success('Profile information saved successfully!');
         const storedUser = localStorage.getItem('upskillr_user');
         if (storedUser) {
           try {
@@ -53,22 +51,18 @@ export const LearnerProfile = ({ user }) => {
           } catch (err) {}
         }
         window.dispatchEvent(new Event('upskillr_user_updated'));
-        setTimeout(() => setSavedMessage(''), 3000);
       } else {
-        setErrorMessage(data.message || 'Failed to update profile.');
+        toast.error(data.message || 'Failed to update profile.');
       }
     } catch (err) {
       console.error('Error saving learner profile:', err);
-      setErrorMessage('Failed to save profile changes.');
+      toast.error('Failed to save profile changes.');
     }
   };
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    setErrorMessage('');
-    setSavedMessage('');
 
     const formDataPayload = new FormData();
     formDataPayload.append('file', file);
@@ -83,7 +77,7 @@ export const LearnerProfile = ({ user }) => {
       const data = await response.json();
 
       if (data.success) {
-        setSavedMessage('Profile photo uploaded successfully!');
+        toast.success('Profile photo uploaded successfully!');
         setProfile((prev) => ({ ...prev, avatar: data.user.avatar }));
 
         const storedUser = localStorage.getItem('upskillr_user');
@@ -95,20 +89,16 @@ export const LearnerProfile = ({ user }) => {
           } catch (err) {}
         }
         window.dispatchEvent(new Event('upskillr_user_updated'));
-        setTimeout(() => setSavedMessage(''), 3000);
       } else {
-        setErrorMessage(data.message || 'Failed to upload photo.');
+        toast.error(data.message || 'Failed to upload photo.');
       }
     } catch (err) {
       console.error('Error uploading photo:', err);
-      setErrorMessage('Error uploading profile photo.');
+      toast.error('Error uploading profile photo.');
     }
   };
 
   const handlePhotoRemove = async () => {
-    setErrorMessage('');
-    setSavedMessage('');
-
     try {
       const token = localStorage.getItem('upskillr_token');
       const response = await fetch('http://localhost:5000/api/auth/profile/upload/photo', {
@@ -118,7 +108,7 @@ export const LearnerProfile = ({ user }) => {
       const data = await response.json();
 
       if (data.success) {
-        setSavedMessage('Profile photo removed.');
+        toast.success('Profile photo removed.');
         setProfile((prev) => ({ ...prev, avatar: '' }));
 
         const storedUser = localStorage.getItem('upskillr_user');
@@ -130,13 +120,12 @@ export const LearnerProfile = ({ user }) => {
           } catch (err) {}
         }
         window.dispatchEvent(new Event('upskillr_user_updated'));
-        setTimeout(() => setSavedMessage(''), 3000);
       } else {
-        setErrorMessage(data.message || 'Failed to remove photo.');
+        toast.error(data.message || 'Failed to remove photo.');
       }
     } catch (err) {
       console.error('Error removing photo:', err);
-      setErrorMessage('Failed to remove profile photo.');
+      toast.error('Failed to remove profile photo.');
     }
   };
 
@@ -149,17 +138,6 @@ export const LearnerProfile = ({ user }) => {
         </div>
 
         <div className="learner-profile-card">
-          {savedMessage && (
-            <div className="alert-box success" style={{ marginBottom: '1.25rem' }}>
-              <span>{savedMessage}</span>
-            </div>
-          )}
-          {errorMessage && (
-            <div className="alert-box danger" style={{ marginBottom: '1.25rem' }}>
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
           <div className="learner-avatar-row">
             <Avatar image={profile.avatar} name={profile.fullName} size="large" />
             <div className="learner-avatar-meta">

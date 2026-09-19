@@ -372,16 +372,8 @@ exports.manualLogin = async (req, res) => {
     }
 
     const user = await findUserByEmail(email.toLowerCase().trim());
-    if (!user) {
-      return res.status(400).json({ success: false, message: 'Invalid credentials. User not found.' });
-    }
-
-
-    if (!user.password) {
-      return res.status(400).json({
-        success: false,
-        message: `This email registered using ${user.authProvider.toUpperCase()} OAuth. Please sign in with ${user.authProvider}.`
-      });
+    if (!user || !user.password) {
+      return res.status(400).json({ success: false, message: 'Invalid email or password.' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
