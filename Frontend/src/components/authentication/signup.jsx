@@ -15,8 +15,6 @@ import {
   Moon,
   GraduationCap,
   Presentation,
-  ShieldAlert,
-  CheckCircle2,
   MailCheck,
   KeyRound,
   BookOpen
@@ -37,8 +35,6 @@ export default function SignUp() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
 
   // Email Verification OTP State
   const [showOtpStep, setShowOtpStep] = useState(false);
@@ -71,7 +67,6 @@ export default function SignUp() {
         localStorage.setItem('upskillr_token', token);
         localStorage.setItem('upskillr_user', JSON.stringify(user));
         const successMsg = `Successfully signed in via ${providerParam ? providerParam.toUpperCase() : 'OAuth'}! Welcome, ${user.fullName}.`;
-        setSuccessMessage(successMsg);
         toast.success(successMsg);
         setTimeout(() => {
           if (user.role === 'instructor') {
@@ -90,40 +85,37 @@ export default function SignUp() {
       } else if (errorParam === 'github_oauth_failed') {
         oauthErrorMsg = 'GitHub OAuth authentication failed. Please try again.';
       }
-      setErrorMessage(oauthErrorMsg);
       toast.error(oauthErrorMsg);
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, [toast]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errorMessage) setErrorMessage('');
   };
 
   const handleManualSignUp = async (e) => {
     e.preventDefault();
-    setErrorMessage('');
-    setSuccessMessage('');
 
     if (!formData.fullName.trim()) {
-      setErrorMessage('Please enter your full name.');
+      toast.error('Please enter your full name.');
       return;
     }
     if (!formData.email.trim()) {
-      setErrorMessage('Please enter your email address.');
+      toast.error('Please enter your email address.');
       return;
     }
     if (!formData.password) {
-      setErrorMessage('Please enter a password.');
+      toast.error('Please enter a password.');
       return;
     }
     if (formData.password.length < 8) {
-      setErrorMessage('Password must be at least 8 characters.');
+      toast.error('Password must be at least 8 characters.');
       return;
     }
     if (formData.password !== formData.confirmPassword) {
-      setErrorMessage('Passwords do not match.');
+      toast.error('Passwords do not match.');
       return;
     }
 
@@ -152,11 +144,9 @@ export default function SignUp() {
       setUnverifiedEmail(formData.email);
       setShowOtpStep(true);
       const codeSentMsg = `Verification code sent to ${formData.email}. Enter the 6-digit code to complete registration.`;
-      setSuccessMessage(codeSentMsg);
       toast.success(codeSentMsg);
     } catch (err) {
       const regErrorMsg = err.message || 'Registration failed. Please try again.';
-      setErrorMessage(regErrorMsg);
       toast.error(regErrorMsg);
     } finally {
       setLoading(false);
@@ -165,11 +155,9 @@ export default function SignUp() {
 
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
-    setErrorMessage('');
-    setSuccessMessage('');
 
     if (!otpCode.trim() || otpCode.length < 6) {
-      setErrorMessage('Please enter a valid 6-digit OTP code.');
+      toast.error('Please enter a valid 6-digit OTP code.');
       return;
     }
 
@@ -200,7 +188,6 @@ export default function SignUp() {
       const welcomeMsg = isInstructor
         ? `Email verified successfully! Redirecting to Instructor Application...`
         : `Email verified successfully! Welcome to UpSkillr, ${data.user?.fullName}!`;
-      setSuccessMessage(welcomeMsg);
       toast.success(welcomeMsg);
       setShowOtpStep(false);
 
@@ -213,7 +200,6 @@ export default function SignUp() {
       }, 1000);
     } catch (err) {
       const otpErrorMsg = err.message || 'Invalid or expired OTP code.';
-      setErrorMessage(otpErrorMsg);
       toast.error(otpErrorMsg);
     } finally {
       setLoading(false);
@@ -221,8 +207,6 @@ export default function SignUp() {
   };
 
   const handleResendOtp = async () => {
-    setErrorMessage('');
-    setSuccessMessage('');
     setResendLoading(true);
 
     try {
@@ -240,11 +224,9 @@ export default function SignUp() {
       }
 
       const resentMsg = data.message || 'A new verification code has been sent to your email.';
-      setSuccessMessage(resentMsg);
       toast.success(resentMsg);
     } catch (err) {
       const resendErrorMsg = err.message || 'Could not resend code. Please try again.';
-      setErrorMessage(resendErrorMsg);
       toast.error(resendErrorMsg);
     } finally {
       setResendLoading(false);
@@ -326,21 +308,6 @@ export default function SignUp() {
         {/* Right Column: Form Card */}
         <section className="signup-right">
           <div className="signup-card">
-            {/* Alert Messages */}
-            {errorMessage && (
-              <div className="alert-box error">
-                <ShieldAlert size={18} />
-                <span>{errorMessage}</span>
-              </div>
-            )}
-
-            {successMessage && (
-              <div className="alert-box success">
-                <CheckCircle2 size={18} />
-                <span>{successMessage}</span>
-              </div>
-            )}
-
             {/* STEP 2: Resend OTP Verification Step */}
             {showOtpStep ? (
               <div className="otp-box">

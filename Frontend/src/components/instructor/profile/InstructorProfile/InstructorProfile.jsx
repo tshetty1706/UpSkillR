@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { UserCheck, Mail, Shield, Save, User, Camera } from 'lucide-react';
 import './InstructorProfile.css';
 import { Avatar } from '../../../common/Avatar/Avatar';
+import { useToast } from '../../../../context/ToastContext';
 
 export const InstructorProfile = ({ user }) => {
+  const { toast } = useToast();
   const [profile, setProfile] = useState({
     fullName: user?.fullName || 'Instructor',
     email: user?.email || '',
@@ -11,8 +13,6 @@ export const InstructorProfile = ({ user }) => {
     bio: user?.bio || 'Passionate instructor building engaging, skill-focused online courses on UpSkillr.',
     specialization: user?.specialization || 'Software Engineering & Web Development'
   });
-  const [savedMessage, setSavedMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
 
   // Sync state if user prop changes
   useEffect(() => {
@@ -29,8 +29,6 @@ export const InstructorProfile = ({ user }) => {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    setErrorMessage('');
-    setSavedMessage('');
 
     try {
       const token = localStorage.getItem('upskillr_token');
@@ -49,7 +47,7 @@ export const InstructorProfile = ({ user }) => {
       const data = await response.json();
 
       if (data.success) {
-        setSavedMessage('Profile information saved successfully!');
+        toast.success('Profile information saved successfully!');
         const storedUser = localStorage.getItem('upskillr_user');
         if (storedUser) {
           try {
@@ -61,22 +59,18 @@ export const InstructorProfile = ({ user }) => {
           } catch (err) {}
         }
         window.dispatchEvent(new Event('upskillr_user_updated'));
-        setTimeout(() => setSavedMessage(''), 3000);
       } else {
-        setErrorMessage(data.message || 'Failed to update profile.');
+        toast.error(data.message || 'Failed to update profile.');
       }
     } catch (err) {
       console.error('Error saving profile:', err);
-      setErrorMessage('Failed to save profile changes.');
+      toast.error('Failed to save profile changes.');
     }
   };
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    setErrorMessage('');
-    setSavedMessage('');
 
     const formDataPayload = new FormData();
     formDataPayload.append('file', file);
@@ -91,7 +85,7 @@ export const InstructorProfile = ({ user }) => {
       const data = await response.json();
 
       if (data.success) {
-        setSavedMessage('Profile photo uploaded successfully!');
+        toast.success('Profile photo uploaded successfully!');
         setProfile((prev) => ({ ...prev, avatar: data.user.avatar }));
         
         const storedUser = localStorage.getItem('upskillr_user');
@@ -103,20 +97,16 @@ export const InstructorProfile = ({ user }) => {
           } catch (err) {}
         }
         window.dispatchEvent(new Event('upskillr_user_updated'));
-        setTimeout(() => setSavedMessage(''), 3000);
       } else {
-        setErrorMessage(data.message || 'Failed to upload photo.');
+        toast.error(data.message || 'Failed to upload photo.');
       }
     } catch (err) {
       console.error('Error uploading photo:', err);
-      setErrorMessage('Error uploading profile photo.');
+      toast.error('Error uploading profile photo.');
     }
   };
 
   const handlePhotoRemove = async () => {
-    setErrorMessage('');
-    setSavedMessage('');
-
     try {
       const token = localStorage.getItem('upskillr_token');
       const response = await fetch('http://localhost:5000/api/auth/profile/upload/photo', {
@@ -126,7 +116,7 @@ export const InstructorProfile = ({ user }) => {
       const data = await response.json();
 
       if (data.success) {
-        setSavedMessage('Profile photo removed.');
+        toast.success('Profile photo removed.');
         setProfile((prev) => ({ ...prev, avatar: '' }));
 
         const storedUser = localStorage.getItem('upskillr_user');
@@ -138,13 +128,12 @@ export const InstructorProfile = ({ user }) => {
           } catch (err) {}
         }
         window.dispatchEvent(new Event('upskillr_user_updated'));
-        setTimeout(() => setSavedMessage(''), 3000);
       } else {
-        setErrorMessage(data.message || 'Failed to remove photo.');
+        toast.error(data.message || 'Failed to remove photo.');
       }
     } catch (err) {
       console.error('Error removing photo:', err);
-      setErrorMessage('Failed to remove profile photo.');
+      toast.error('Failed to remove profile photo.');
     }
   };
 
@@ -156,17 +145,6 @@ export const InstructorProfile = ({ user }) => {
       </div>
 
       <div className="profile-card">
-        {savedMessage && (
-          <div className="alert-box success" style={{ marginBottom: '1rem' }}>
-            <span>{savedMessage}</span>
-          </div>
-        )}
-        {errorMessage && (
-          <div className="alert-box danger" style={{ marginBottom: '1rem', color: 'var(--color-error)', backgroundColor: 'var(--color-error-bg)', border: '1px solid var(--color-error-border)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
-            <span>{errorMessage}</span>
-          </div>
-        )}
-
         <div className="profile-avatar-row">
           <Avatar image={profile.avatar} name={profile.fullName} size="large" />
           <div className="avatar-meta">

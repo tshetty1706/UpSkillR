@@ -1,25 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Sun, Moon, LogOut, Compass, User, Sparkles, LayoutDashboard } from 'lucide-react';
+import { BookOpen, Sun, Moon, LogOut, Compass, User, LayoutDashboard } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
+import { useToast } from '../../context/ToastContext';
 import { LearnerDashboardOverview } from '../../components/learner/dashboard/LearnerDashboardOverview/LearnerDashboardOverview';
 import { LearnerProfile } from '../../components/learner/profile/LearnerProfile';
 import { LogoutModal } from '../../components/common/LogoutModal/LogoutModal';
 
 export const LearnerDashboard = ({ user }) => {
+  const { toast } = useToast();
   const [enrolments, setEnrolments] = useState([]);
   const [publishedCourses, setPublishedCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState('dashboard');
   const [activeTab, setActiveTab] = useState('enrolled');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [toastMessage, setToastMessage] = useState(null);
-
-  const { isDarkMode, toggleTheme } = useTheme();
-
-  const showNotification = (msg) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
 
   const handleLogout = () => {
     localStorage.removeItem('upskillr_token');
@@ -140,7 +134,7 @@ export const LearnerDashboard = ({ user }) => {
           const newPercentage = Math.round((updatedCompleted.length / Math.max(totalLessons, 1)) * 100);
 
           if (newPercentage === 100 && enrol.progressPercentage !== 100) {
-            showNotification(`🏆 Congratulations! You completed this course! Rate & Review is unlocked.`);
+            toast.success(`🏆 Congratulations! You completed this course! Rate & Review is unlocked.`);
           }
 
           return {
@@ -172,7 +166,7 @@ export const LearnerDashboard = ({ user }) => {
   // FR-09 Course Rating & Review Handler
   const handleRatingSubmit = async (courseId, ratingData) => {
     const token = localStorage.getItem('upskillr_token');
-    showNotification('⭐ Rating and review submitted! Thank you.');
+    toast.success('⭐ Rating and review submitted! Thank you.');
 
     try {
       if (token) {
@@ -202,14 +196,6 @@ export const LearnerDashboard = ({ user }) => {
 
   return (
     <div className="learner-dashboard-layout">
-      {/* Toast Notification Banner */}
-      {toastMessage && (
-        <div className="learner-toast-banner" role="alert">
-          <Sparkles size={18} />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
       {/* Topbar Header */}
       <header className="dashboard-topbar">
         <div className="container topbar-container">

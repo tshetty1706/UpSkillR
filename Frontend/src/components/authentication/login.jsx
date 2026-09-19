@@ -11,8 +11,6 @@ import {
   ArrowLeft,
   Sun,
   Moon,
-  ShieldAlert,
-  CheckCircle2,
   RotateCcw,
   TrendingUp,
   Smartphone,
@@ -31,8 +29,6 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
 
   const navigate = (path) => {
     window.history.pushState({}, '', path);
@@ -53,7 +49,6 @@ export default function Login() {
         localStorage.setItem('upskillr_token', token);
         localStorage.setItem('upskillr_user', JSON.stringify(user));
         const welcomeMsg = `Successfully signed in via ${providerParam ? providerParam.toUpperCase() : 'OAuth'}! Welcome back, ${user.fullName}.`;
-        setSuccessMessage(welcomeMsg);
         toast.success(welcomeMsg);
         setTimeout(() => {
           if (user.role === 'instructor') {
@@ -78,28 +73,25 @@ export default function Login() {
       } else if (errorParam === 'github_token_failed') {
         oauthError = 'Failed to retrieve GitHub access token.';
       }
-      setErrorMessage(oauthError);
       toast.error(oauthError);
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, [toast]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errorMessage) setErrorMessage('');
   };
 
   const handleManualLogin = async (e) => {
     e.preventDefault();
-    setErrorMessage('');
-    setSuccessMessage('');
 
     if (!formData.email.trim()) {
-      setErrorMessage('Please enter your email address.');
+      toast.error('Please enter your email address.');
       return;
     }
     if (!formData.password) {
-      setErrorMessage('Please enter your password.');
+      toast.error('Please enter your password.');
       return;
     }
 
@@ -129,7 +121,6 @@ export default function Login() {
 
       const isInstructor = data.user?.role === 'instructor';
       const successMsg = `Welcome back, ${data.user.fullName}! Opening ${isInstructor ? 'Instructor Studio' : 'Learner Dashboard'}...`;
-      setSuccessMessage(successMsg);
       toast.success(successMsg);
 
       setTimeout(() => {
@@ -145,7 +136,6 @@ export default function Login() {
       }, 800);
     } catch (err) {
       const errorMsg = err.message || 'Could not complete login. Check backend connection.';
-      setErrorMessage(errorMsg);
       toast.error(errorMsg);
     } finally {
       setLoading(false);
@@ -268,21 +258,6 @@ export default function Login() {
           <div className="login-card">
             <h2 className="card-title">Sign In</h2>
             <p className="card-subtitle">Enter your credentials to access your account</p>
-
-            {/* Alert Messages */}
-            {errorMessage && (
-              <div className="alert-box error">
-                <ShieldAlert size={18} />
-                <span>{errorMessage}</span>
-              </div>
-            )}
-
-            {successMessage && (
-              <div className="alert-box success">
-                <CheckCircle2 size={18} />
-                <span>{successMessage}</span>
-              </div>
-            )}
 
             {/* Manual Login Form */}
             <form className="login-form" onSubmit={handleManualLogin}>
