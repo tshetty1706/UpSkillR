@@ -1,0 +1,222 @@
+/* ═══════════════════════════════════════════════════════════════════
+   COURSE CREATION STEPPER (Strictly Horizontal Flow)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.cc-stepper-nav {
+  width: 100%;
+  padding: 1rem 1.5rem;
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--surface, #ffffff);
+  border-bottom: 1px solid var(--border, #c6d3cb);
+  box-sizing: border-box;
+}
+
+.cc-stepper-inner {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.cc-stepper-list {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  list-style: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100%;
+  gap: 0;
+}
+
+.cc-stepper-item {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  flex: 1;
+  position: relative;
+  min-width: 0;
+}
+
+.cc-stepper-item:last-child {
+  flex: 0 0 auto;
+}
+
+.cc-stepper-btn {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 0.65rem;
+  background: transparent !important;
+  border: none !important;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-pill, 9999px);
+  cursor: default;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.cc-stepper-item.clickable .cc-stepper-btn {
+  cursor: pointer;
+}
+
+.cc-stepper-item.clickable .cc-stepper-btn:hover {
+  background-color: var(--surface-muted, rgba(17, 104, 48, 0.06)) !important;
+}
+
+/* Step Circle */
+.cc-stepper-circle {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 50%;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.88rem;
+  transition: all 0.25s ease;
+  background-color: var(--surface-muted, #ebf0ec);
+  color: var(--text-muted, #56675d);
+  border: 2px solid var(--border, #c6d3cb);
+  box-sizing: border-box;
+}
+
+.cc-stepper-num {
+  line-height: 1;
+}
+
+.cc-stepper-check {
+  color: #ffffff;
+}
+
+/* Step Label */
+.cc-stepper-label {
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--text-muted, #56675d);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+/* ─── Active Step ─── */
+.cc-stepper-item.active .cc-stepper-circle {
+  background-color: var(--brand-primary, #116830);
+  border-color: var(--brand-primary, #116830);
+  color: #ffffff;
+  box-shadow: 0 0 0 4px var(--focus-ring, rgba(17, 104, 48, 0.2));
+}
+
+.cc-stepper-item.active .cc-stepper-label {
+  color: var(--brand-primary, #116830);
+  font-weight: 700;
+}
+
+/* ─── Completed Step ─── */
+.cc-stepper-item.completed .cc-stepper-circle {
+  background-color: var(--brand-primary, #116830);
+  border-color: var(--brand-primary, #116830);
+  color: #ffffff;
+}
+
+.cc-stepper-item.completed .cc-stepper-label {
+  color: var(--text-primary, #0f1a13);
+  font-weight: 600;
+}
+
+/* ─── Horizontal Connector Line ─── */
+.cc-stepper-connector {
+  flex: 1;
+  height: 2px;
+  min-width: 24px;
+  background-color: var(--border, #c6d3cb);
+  margin: 0 0.85rem;
+  transition: background-color 0.3s ease;
+}
+
+.cc-stepper-connector.completed {
+  background-color: var(--brand-primary, #116830);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DARK MODE
+   ═══════════════════════════════════════════════════════════════════ */
+
+.dark .cc-stepper-nav {
+  background-color: var(--surface, #101b18);
+  border-color: var(--border, #243831);
+}
+
+.dark .cc-stepper-circle {
+  background-color: var(--surface-elevated, #162420);
+  border-color: var(--border, #243831);
+  color: #8fa397;
+}
+
+.dark .cc-stepper-label {
+  color: #8fa397;
+}
+
+.dark .cc-stepper-item.completed .cc-stepper-circle,
+.dark .cc-stepper-item.active .cc-stepper-circle {
+  background-color: var(--brand-primary, #39d95f);
+  border-color: var(--brand-primary, #39d95f);
+  color: #090f13;
+}
+
+.dark .cc-stepper-item.active .cc-stepper-circle {
+  box-shadow: 0 0 0 4px rgba(57, 217, 95, 0.2);
+}
+
+.dark .cc-stepper-item.active .cc-stepper-label {
+  color: var(--brand-primary, #39d95f);
+}
+
+.dark .cc-stepper-item.completed .cc-stepper-label {
+  color: #e5e7eb;
+}
+
+.dark .cc-stepper-connector {
+  background-color: var(--border, #243831);
+}
+
+.dark .cc-stepper-connector.completed {
+  background-color: var(--brand-primary, #39d95f);
+}
+
+.dark .cc-stepper-item.clickable .cc-stepper-btn:hover {
+  background-color: rgba(57, 217, 95, 0.1) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TABLET & MOBILE RESPONSIVENESS
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 900px) {
+  .cc-stepper-nav {
+    padding: 0.85rem 1rem;
+  }
+  .cc-stepper-label {
+    font-size: 0.82rem;
+  }
+  .cc-stepper-connector {
+    margin: 0 0.5rem;
+    min-width: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .cc-stepper-label {
+    display: none;
+  }
+  .cc-stepper-btn {
+    padding: 0.25rem;
+  }
+  .cc-stepper-connector {
+    margin: 0 0.4rem;
+  }
+}

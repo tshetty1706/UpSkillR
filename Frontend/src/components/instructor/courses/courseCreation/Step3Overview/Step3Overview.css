@@ -1,0 +1,509 @@
+.step-overview-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 2rem;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+}
+
+.step-overview-form-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.step-overview-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.step-overview-heading {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f1a13);
+  margin: 0;
+}
+
+.step-overview-subheading {
+  font-size: 0.95rem;
+  color: var(--text-secondary, #35443b);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.overview-form-card {
+  background-color: var(--surface, #ffffff);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-lg, 16px);
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.field-subnote {
+  font-size: 0.83rem;
+  color: var(--text-muted, #56675d);
+  margin: -0.2rem 0 0.4rem 0;
+  line-height: 1.4;
+}
+
+/* Guided Inspiration & Suggestion Chips */
+.summary-prompts-row,
+.quick-suggestions-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.65rem;
+}
+
+.prompts-label,
+.suggestions-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted, #56675d);
+}
+
+.prompt-chip,
+.suggestion-pill-btn {
+  background-color: var(--brand-light, #e4efe7);
+  color: var(--brand-primary, #116830);
+  border: 1px solid rgba(17, 104, 48, 0.18);
+  border-radius: 9999px;
+  padding: 0.28rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.3;
+}
+
+.prompt-chip:hover,
+.suggestion-pill-btn:hover {
+  background-color: var(--brand-primary, #116830);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.form-textarea {
+  resize: none;
+}
+
+.overview-desc-area {
+  resize: none !important;
+  line-height: 1.55;
+}
+
+/* Certificate Toggle Box */
+.certificate-toggle-box {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.25rem 1.5rem;
+  background-color: var(--surface-muted, #f8faf9);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-md, 12px);
+}
+
+.cert-left-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.cert-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+  flex-shrink: 0;
+}
+
+.cert-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.cert-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: var(--border, #c6d3cb);
+  transition: 0.3s;
+  border-radius: 9999px;
+}
+
+.cert-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.cert-switch input:checked + .cert-slider {
+  background-color: var(--brand-primary, #116830);
+}
+
+.cert-switch input:checked + .cert-slider:before {
+  transform: translateX(22px);
+}
+
+.cert-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm, 8px);
+  background-color: var(--brand-light, #e4efe7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cert-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f1a13);
+}
+
+.cert-desc {
+  margin: 0.2rem 0 0 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary, #35443b);
+  line-height: 1.4;
+}
+
+/* Syllabus Preview Banner */
+.syllabus-preview-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.2rem;
+  background-color: var(--surface-muted, #f8faf9);
+  border: 1px dashed var(--border, #c6d3cb);
+  border-radius: var(--radius-md, 12px);
+}
+
+.syllabus-banner-icon {
+  color: var(--brand-primary, #116830);
+  margin-top: 0.15rem;
+}
+
+.syllabus-banner-text h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f1a13);
+}
+
+.syllabus-banner-text p {
+  margin: 0.25rem 0 0 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary, #35443b);
+  line-height: 1.4;
+}
+
+/* Optional Accordion Section */
+.optional-accordion-section {
+  border-top: 1px solid var(--border, #c6d3cb);
+  padding-top: 1rem;
+}
+
+.accordion-toggle-btn {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: transparent;
+  border: none;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--brand-primary, #116830);
+  cursor: pointer;
+  padding: 0.5rem 0;
+}
+
+.optional-fields-container {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.add-faq-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8rem;
+  background-color: var(--brand-light, #e4efe7);
+  color: var(--brand-primary, #116830);
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+}
+
+.faq-edit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background-color: var(--surface-muted, #f8faf9);
+  padding: 0.75rem;
+  border-radius: var(--radius-md, 10px);
+  position: relative;
+}
+
+.delete-faq-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: transparent;
+  border: none;
+  color: var(--color-error, #dc2626);
+  cursor: pointer;
+}
+
+/* Footer Actions */
+.footer-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.btn-preview-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.75rem 1.3rem;
+  background-color: transparent;
+  border: 1px solid var(--brand-primary, #116830);
+  color: var(--brand-primary, #116830);
+  border-radius: var(--radius-md, 12px);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-preview-action:hover {
+  background-color: var(--brand-light, #e4efe7);
+}
+
+/* Right Sidebar Guidance Column */
+.step-overview-sidebar-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Illustration Card */
+.illustration-quote-card {
+  background-color: var(--surface, #ffffff);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-lg, 16px);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.vector-illustration-box {
+  width: 100%;
+  height: 140px;
+  background: radial-gradient(circle, rgba(17, 104, 48, 0.12) 0%, transparent 70%);
+  border-radius: var(--radius-md, 12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.stacked-books-mockup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.book-spine {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #ffffff;
+  padding: 2px 14px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.spine-plan { background-color: #15803d; }
+.spine-create { background-color: #16a34a; }
+.spine-teach { background-color: #22c55e; }
+.spine-inspire { background-color: #4ade80; color: #0f1a13; }
+
+.avatar-working-graphic {
+  font-size: 2.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.graphic-lightbulb {
+  font-size: 1.4rem;
+  animation: bounce 2s infinite ease-in-out;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.illustration-quote {
+  font-size: 0.88rem;
+  font-style: italic;
+  color: var(--text-primary, #0f1a13);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.quote-author {
+  font-size: 0.8rem;
+  color: var(--brand-primary, #116830);
+  font-weight: 700;
+  margin-top: 0.35rem;
+}
+
+/* Guidance Check List */
+.guidance-check-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.guidance-check-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary, #35443b);
+  line-height: 1.4;
+}
+
+/* Inspirational Quote Card */
+.inspirational-quote-card {
+  background-color: var(--surface, #ffffff);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-lg, 16px);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.inspirational-icon {
+  color: var(--brand-primary, #116830);
+}
+
+.inspirational-text {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary, #0f1a13);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.inspirational-subtext {
+  font-size: 0.78rem;
+  color: var(--text-muted, #56675d);
+}
+
+.inspirational-bar {
+  width: 40px;
+  height: 3px;
+  background-color: var(--brand-primary, #116830);
+  border-radius: 9999px;
+  margin-top: 0.5rem;
+}
+
+.doodle-sidebar-note {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--brand-primary, #116830);
+  text-align: center;
+  padding: 0.5rem;
+}
+
+/* Dark Mode */
+.dark .overview-form-card,
+.dark .illustration-quote-card,
+.dark .guidance-card,
+.dark .inspirational-quote-card {
+  background-color: var(--surface, #101b18);
+  border-color: var(--border, #243831);
+}
+
+.dark .rich-editor-toolbar {
+  background-color: var(--surface-elevated, #162420);
+  border-color: var(--border, #243831);
+}
+
+.dark .toolbar-select {
+  background: var(--surface, #101b18);
+  border-color: var(--border, #243831);
+  color: #e5e7eb;
+}
+
+.dark .certificate-toggle-box,
+.dark .syllabus-preview-banner,
+.dark .faq-edit-row {
+  background-color: var(--surface-elevated, #162420);
+  border-color: var(--border, #243831);
+}
+
+.dark .cert-icon-wrap {
+  background-color: rgba(57, 217, 95, 0.15);
+}
+
+.dark .btn-preview-action {
+  border-color: var(--brand-primary, #39d95f);
+  color: var(--brand-primary, #39d95f);
+}
+
+.dark .btn-preview-action:hover {
+  background-color: rgba(57, 217, 95, 0.12);
+}
+
+.dark .quote-author,
+.dark .inspirational-icon,
+.dark .inspirational-bar,
+.dark .doodle-sidebar-note,
+.dark .add-faq-btn {
+  color: var(--brand-primary, #39d95f);
+}
+
+.dark .add-faq-btn {
+  background-color: rgba(57, 217, 95, 0.15);
+}
+
+/* Tablet responsiveness */
+@media (max-width: 900px) {
+  .step-overview-layout {
+    grid-template-columns: 1fr;
+  }
+}

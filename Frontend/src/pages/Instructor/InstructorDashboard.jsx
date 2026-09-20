@@ -4,6 +4,8 @@ import { InstructorSidebar } from '../../components/instructor/common/Instructor
 import { InstructorDashboardOverview } from '../../components/instructor/dashboard/InstructorDashboardOverview/InstructorDashboardOverview';
 import { MyCourses } from '../../components/instructor/courses/MyCourses/MyCourses';
 import { CourseManager } from '../../components/instructor/courses/CourseManager/CourseManager';
+import { CourseCreationFlow } from '../../components/instructor/courses/courseCreation/CourseCreationFlow';
+import { InstructorQuestionsManager } from '../../components/instructor/questions/InstructorQuestionsManager';
 import { InstructorProfile } from '../../components/instructor/profile/InstructorProfile/InstructorProfile';
 import { InstructorAnalytics } from '../../components/instructor/analytics/InstructorAnalytics/InstructorAnalytics';
 import { useToast } from '../../context/ToastContext';
@@ -152,6 +154,21 @@ export const InstructorDashboard = ({ user, onLogout }) => {
           />
         );
 
+      case 'create-course':
+        return (
+          <CourseCreationFlow
+            user={user}
+            onCancel={() => setActiveTab('my-courses')}
+            onCourseCreated={() => {
+              fetchInstructorData();
+            }}
+            onNavigate={handleNavigate}
+          />
+        );
+
+      case 'inquiries':
+        return <InstructorQuestionsManager />;
+
       case 'analytics':
       case 'learners':
         return <InstructorAnalytics stats={stats} courses={courses} />;
@@ -170,6 +187,19 @@ export const InstructorDashboard = ({ user, onLogout }) => {
         );
     }
   };
+
+  if (activeTab === 'create-course') {
+    return (
+      <CourseCreationFlow
+        user={user}
+        onCancel={() => setActiveTab('my-courses')}
+        onCourseCreated={() => {
+          fetchInstructorData();
+        }}
+        onNavigate={handleNavigate}
+      />
+    );
+  }
 
   return (
     <InstructorLayout

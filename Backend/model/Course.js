@@ -75,7 +75,7 @@ const courseSchema = new mongoose.Schema({
   },
   description: {
     type: String,
-    required: [true, 'Course description is required'],
+    default: '',
     trim: true
   },
   fullDescription: {
@@ -93,13 +93,22 @@ const courseSchema = new mongoose.Schema({
     enum: ['Beginner', 'Intermediate', 'Advanced', 'All Levels'],
     default: 'Beginner'
   },
+  language: {
+    type: String,
+    default: 'English',
+    trim: true
+  },
+  overviewViews: {
+    type: Number,
+    default: 0
+  },
   tags: {
     type: [String],
     default: []
   },
   prerequisites: {
-    type: String,
-    default: ''
+    type: mongoose.Schema.Types.Mixed,
+    default: []
   },
   certificate: {
     type: Boolean,

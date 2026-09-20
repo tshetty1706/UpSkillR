@@ -1,0 +1,1073 @@
+.course-overview-template-root {
+  width: 100%;
+  background-color: var(--background, #f3f6f4);
+  color: var(--text-primary, #0f1a13);
+}
+
+/* Hero Banner */
+.overview-hero-banner {
+  background-color: var(--surface, #ffffff);
+  border-bottom: 1px solid var(--border, #c6d3cb);
+  padding: 3rem 1.5rem;
+}
+
+.overview-hero-container {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.overview-hero-content {
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.overview-tags-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.overview-badge-cat {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background-color: var(--brand-light, #e4efe7);
+  color: var(--brand-primary, #116830);
+  padding: 0.25rem 0.6rem;
+  border-radius: 9999px;
+}
+
+.overview-badge-lvl,
+.overview-badge-lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted, #56675d);
+  background-color: var(--surface-muted, #ebf0ec);
+  padding: 0.25rem 0.6rem;
+  border-radius: 9999px;
+}
+
+.overview-hero-title {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f1a13);
+  margin: 0;
+  line-height: 1.25;
+}
+
+.overview-hero-desc {
+  font-size: 1.05rem;
+  color: var(--text-secondary, #35443b);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.overview-hero-meta-bar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  font-size: 0.88rem;
+  color: var(--text-muted, #56675d);
+  flex-wrap: wrap;
+}
+
+.overview-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.meta-icon {
+  color: var(--brand-primary, #116830);
+}
+
+.rating-meta {
+  color: #d97706;
+}
+
+.star-icon-fill {
+  fill: #d97706;
+  color: #d97706;
+}
+
+.overview-instructor-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.instructor-mini-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--brand-light, #e4efe7);
+  color: var(--brand-primary, #116830);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.instructor-mini-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.instructor-mini-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.inst-label {
+  font-size: 0.75rem;
+  color: var(--text-muted, #56675d);
+}
+
+.inst-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f1a13);
+}
+
+/* Main Body Layout */
+.overview-body-container {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem;
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 2.5rem;
+}
+
+.overview-main-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.overview-section {
+  background-color: var(--surface, #ffffff);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-lg, 16px);
+  padding: 2rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.section-heading {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f1a13);
+  margin: 0 0 1rem 0;
+}
+
+.section-subnote {
+  font-size: 0.88rem;
+  color: var(--text-muted, #56675d);
+  margin: -0.5rem 0 1rem 0;
+}
+
+/* What You'll Learn Outcomes Grid */
+.outcomes-section {
+  border-color: var(--brand-primary, #116830);
+  background-color: var(--brand-soft, #eef5f0);
+}
+
+.outcomes-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.outcome-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+  color: var(--text-primary, #0f1a13);
+  line-height: 1.4;
+}
+
+.outcome-check-icon {
+  color: var(--brand-primary, #116830);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Section Title Rows with Icon */
+.section-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.title-with-meta {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.title-left-group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.section-title-icon {
+  color: var(--brand-primary, #116830);
+  flex-shrink: 0;
+}
+
+.section-title-row .section-heading {
+  margin: 0;
+}
+
+.read-time-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  background-color: var(--surface-muted, #ebf0ec);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted, #56675d);
+}
+
+/* About Course Card & Best-in-Class Description Formatting */
+.about-course-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.description-formatted-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.desc-lead-paragraph {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--text-primary, #0f1a13);
+  line-height: 1.7;
+  margin: 0 0 1rem 0;
+  border-left: 3px solid var(--brand-primary, #116830);
+  padding-left: 1rem;
+}
+
+.desc-paragraph {
+  font-size: 0.95rem;
+  color: var(--text-secondary, #35443b);
+  line-height: 1.7;
+  margin: 0 0 0.95rem 0;
+}
+
+.desc-empty-text {
+  font-style: italic;
+  color: var(--text-muted, #56675d);
+  margin: 0;
+}
+
+.desc-bullet-list,
+.desc-mixed-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin: 0.5rem 0 1rem 0;
+  list-style: none;
+  padding: 0;
+}
+
+.desc-bullet-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  font-size: 0.92rem;
+  color: var(--text-primary, #0f1a13);
+  line-height: 1.45;
+}
+
+.desc-bullet-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--brand-light, #e4efe7);
+  color: var(--brand-primary, #116830);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Course Value Pillars Strip */
+.course-value-pillars-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border, #c6d3cb);
+  margin-top: 0.25rem;
+}
+
+.value-pillar-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  background-color: var(--surface-muted, #f8faf9);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-sm, 8px);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary, #35443b);
+  transition: all 0.2s ease;
+}
+
+.value-pillar-badge:hover {
+  border-color: var(--brand-primary, #116830);
+  background-color: var(--brand-soft, #eef5f0);
+}
+
+.pillar-icon {
+  color: var(--brand-primary, #116830);
+  flex-shrink: 0;
+}
+
+/* Skills You'll Gain - Point Identity Grid */
+.skills-point-identity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.skill-point-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background-color: var(--surface-muted, #f8faf9);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-md, 12px);
+  transition: all 0.2s ease;
+}
+
+.skill-point-card:hover {
+  border-color: var(--brand-primary, #116830);
+  background-color: var(--brand-soft, #eef5f0);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(17, 104, 48, 0.08);
+}
+
+.skill-point-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background-color: var(--brand-primary, #116830);
+  color: #ffffff;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(17, 104, 48, 0.25);
+}
+
+.skill-point-text {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-primary, #0f1a13);
+  line-height: 1.35;
+}
+
+/* Key Course Highlights / Benefits Feature Cards */
+.benefits-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.benefit-feature-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: linear-gradient(135deg, var(--surface, #ffffff) 0%, var(--brand-soft, #f4fbf6) 100%);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-md, 12px);
+  transition: all 0.2s ease;
+}
+
+.benefit-feature-card:hover {
+  border-color: var(--brand-primary, #116830);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(17, 104, 48, 0.08);
+}
+
+.benefit-card-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background-color: var(--brand-light, #e4efe7);
+  color: var(--brand-primary, #116830);
+  flex-shrink: 0;
+}
+
+.benefit-feature-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary, #0f1a13);
+  line-height: 1.35;
+}
+
+/* Target Audience Badges */
+.audience-badges-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.audience-badge-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.95rem;
+  background-color: var(--surface-muted, #f8faf9);
+  border-left: 3px solid var(--brand-primary, #116830);
+  border-radius: 0 var(--radius-sm, 8px) var(--radius-sm, 8px) 0;
+}
+
+.audience-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--brand-primary, #116830);
+  flex-shrink: 0;
+}
+
+.audience-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary, #0f1a13);
+}
+
+/* Chips Lists */
+.chips-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.overview-chip {
+  display: inline-block;
+  padding: 0.4rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.prereq-chip {
+  background-color: var(--surface-muted, #ebf0ec);
+  color: var(--text-secondary, #35443b);
+  border: 1px solid var(--border, #c6d3cb);
+}
+
+.skill-chip {
+  background-color: var(--brand-light, #e4efe7);
+  color: var(--brand-primary, #116830);
+}
+
+.tech-chip {
+  background-color: var(--surface-muted, #ebf0ec);
+  color: var(--text-primary, #0f1a13);
+  border: 1px solid var(--border, #c6d3cb);
+}
+
+.audience-chip {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+/* Benefits */
+.benefits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.benefit-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.92rem;
+  color: var(--text-primary, #0f1a13);
+}
+
+.benefit-bullet {
+  color: var(--brand-primary, #116830);
+  font-weight: 800;
+}
+
+/* FAQ Accordion */
+.faq-accordion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.faq-card {
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-md, 12px);
+  overflow: hidden;
+}
+
+.faq-question-btn {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  background-color: var(--surface-muted, #f8faf9);
+  border: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary, #0f1a13);
+  text-align: left;
+  cursor: pointer;
+}
+
+.faq-answer-text {
+  padding: 1rem 1.25rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary, #35443b);
+  line-height: 1.5;
+  background-color: var(--surface, #ffffff);
+  border-top: 1px solid var(--border, #c6d3cb);
+}
+
+/* Q&A Section */
+.qa-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.qa-ask-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
+}
+
+.qa-input-area {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: var(--input-bg, #ffffff);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-md, 12px);
+  color: var(--text-primary, #0f1a13);
+  font-size: 0.92rem;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.btn-ask-submit {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.6rem 1.2rem;
+  background-color: var(--brand-primary, #116830);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm, 8px);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-ask-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.qa-questions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.empty-qa-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-muted, #56675d);
+  gap: 0.5rem;
+}
+
+.qa-card-item {
+  background-color: var(--surface-muted, #f8faf9);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-md, 12px);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.qa-user-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted, #56675d);
+}
+
+.qa-question-text {
+  font-size: 0.95rem;
+  color: var(--text-primary, #0f1a13);
+  margin: 0.2rem 0 0 0;
+  font-weight: 500;
+}
+
+.qa-reply-box {
+  background-color: var(--surface, #ffffff);
+  border-left: 3px solid var(--brand-primary, #116830);
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+}
+
+.qa-instructor-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--brand-primary, #116830);
+  text-transform: uppercase;
+}
+
+.qa-reply-text {
+  margin: 0.3rem 0 0 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary, #35443b);
+  line-height: 1.45;
+}
+
+/* Reviews Section */
+.empty-reviews-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 2.5rem 1.5rem;
+  color: var(--text-muted, #56675d);
+}
+
+.empty-star-icon {
+  color: var(--border, #c6d3cb);
+  margin-bottom: 0.5rem;
+}
+
+.empty-reviews-box h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--text-primary, #0f1a13);
+}
+
+.empty-reviews-box p {
+  margin: 0.4rem 0 0 0;
+  font-size: 0.88rem;
+  max-width: 440px;
+}
+
+.real-reviews-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.review-card-item {
+  background-color: var(--surface-muted, #f8faf9);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-md, 12px);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.review-rating-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.review-stars {
+  display: flex;
+  gap: 2px;
+}
+
+.star-filled {
+  fill: #d97706;
+  color: #d97706;
+}
+
+.star-empty {
+  color: var(--border, #c6d3cb);
+}
+
+.review-date {
+  font-size: 0.75rem;
+  color: var(--text-muted, #56675d);
+}
+
+.review-feedback-quote {
+  font-size: 0.88rem;
+  color: var(--text-secondary, #35443b);
+  margin: 0;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.review-learner-author {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary, #0f1a13);
+}
+
+/* Right Sticky Sidebar */
+.overview-sticky-sidebar {
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 2rem;
+  height: fit-content;
+}
+
+.overview-card-sticky {
+  background-color: var(--surface, #ffffff);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-xl, 20px);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.overview-card-thumb-wrap {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background-color: var(--surface-muted, #ebf0ec);
+  overflow: hidden;
+}
+
+.overview-card-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.overview-card-details {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.price-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.price-label {
+  font-size: 0.9rem;
+  color: var(--text-muted, #56675d);
+}
+
+.price-value {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--brand-primary, #116830);
+}
+
+.cert-feature-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  background-color: var(--brand-light, #e4efe7);
+  border-radius: var(--radius-sm, 8px);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--brand-primary, #116830);
+}
+
+.btn-enroll-primary {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  background-color: var(--brand-primary, #116830);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-md, 12px);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-enroll-primary:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.preview-mode-banner {
+  padding: 0.75rem;
+  text-align: center;
+  background-color: var(--surface-muted, #ebf0ec);
+  border-radius: var(--radius-md, 12px);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--brand-primary, #116830);
+}
+
+/* Instructor Box in Sidebar */
+.instructor-sidebar-box {
+  border-top: 1px solid var(--border, #c6d3cb);
+  padding-top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.instructor-sidebar-box h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f1a13);
+}
+
+.inst-sidebar-headline {
+  font-size: 0.85rem;
+  color: var(--brand-primary, #116830);
+  font-weight: 600;
+  margin: 0;
+}
+
+.inst-sidebar-bio {
+  font-size: 0.82rem;
+  color: var(--text-secondary, #35443b);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.inst-note-callout {
+  padding: 0.6rem 0.8rem;
+  background-color: var(--surface-muted, #f8faf9);
+  border-left: 2px solid var(--brand-primary, #116830);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--text-secondary, #35443b);
+}
+
+.inst-links-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.inst-social-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  background-color: var(--surface-muted, #ebf0ec);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary, #35443b);
+  text-decoration: none;
+  text-transform: capitalize;
+}
+
+.inst-social-link:hover {
+  color: var(--brand-primary, #116830);
+}
+
+/* Dark Mode */
+.dark .course-overview-template-root {
+  background-color: var(--background, #090f13);
+}
+
+.dark .overview-hero-banner,
+.dark .overview-section,
+.dark .overview-card-sticky {
+  background-color: var(--surface, #101b18);
+  border-color: var(--border, #243831);
+}
+
+.dark .outcomes-section {
+  background-color: rgba(57, 217, 95, 0.08);
+  border-color: var(--brand-primary, #39d95f);
+}
+
+.dark .overview-badge-cat,
+.dark .skill-chip,
+.dark .cert-feature-badge {
+  background-color: rgba(57, 217, 95, 0.15);
+  color: var(--brand-primary, #39d95f);
+}
+
+.dark .overview-badge-lvl,
+.dark .overview-badge-lang,
+.dark .prereq-chip,
+.dark .tech-chip,
+.dark .faq-question-btn,
+.dark .qa-card-item,
+.dark .review-card-item,
+.dark .preview-mode-banner,
+.dark .inst-social-link {
+  background-color: var(--surface-elevated, #162420);
+  border-color: var(--border, #243831);
+  color: #d1d5db;
+}
+
+.dark .faq-answer-text,
+.dark .qa-reply-box {
+  background-color: var(--surface, #101b18);
+  border-color: var(--border, #243831);
+}
+
+.dark .btn-enroll-primary,
+.dark .btn-ask-submit {
+  background-color: var(--brand-primary, #39d95f);
+  color: #090f13;
+}
+
+.dark .price-value,
+.dark .qa-instructor-badge,
+.dark .inst-sidebar-headline {
+  color: var(--brand-primary, #39d95f);
+}
+
+.dark .title-with-meta .read-time-badge {
+  background-color: var(--surface-elevated, #162420);
+  color: #9ca3af;
+}
+
+.dark .desc-lead-paragraph {
+  color: #f3f4f6;
+  border-left-color: var(--brand-primary, #39d95f);
+}
+
+.dark .desc-paragraph {
+  color: #d1d5db;
+}
+
+.dark .desc-empty-text {
+  color: #6b7280;
+}
+
+.dark .desc-bullet-item {
+  color: #e5e7eb;
+}
+
+.dark .desc-bullet-check {
+  background-color: rgba(57, 217, 95, 0.15);
+  color: var(--brand-primary, #39d95f);
+}
+
+.dark .value-pillar-badge {
+  background-color: var(--surface-elevated, #162420);
+  border-color: var(--border, #243831);
+  color: #d1d5db;
+}
+
+.dark .value-pillar-badge:hover {
+  background-color: rgba(57, 217, 95, 0.1);
+  border-color: var(--brand-primary, #39d95f);
+}
+
+.dark .pillar-icon {
+  color: var(--brand-primary, #39d95f);
+}
+
+.dark .skill-point-card {
+  background-color: var(--surface-elevated, #162420);
+  border-color: var(--border, #243831);
+}
+
+.dark .skill-point-card:hover {
+  background-color: rgba(57, 217, 95, 0.08);
+  border-color: var(--brand-primary, #39d95f);
+}
+
+.dark .skill-point-marker {
+  background-color: var(--brand-primary, #39d95f);
+  color: #090f13;
+  box-shadow: 0 2px 6px rgba(57, 217, 95, 0.3);
+}
+
+.dark .skill-point-text {
+  color: #e5e7eb;
+}
+
+.dark .benefit-feature-card {
+  background: linear-gradient(135deg, var(--surface, #101b18) 0%, rgba(57, 217, 95, 0.05) 100%);
+  border-color: var(--border, #243831);
+}
+
+.dark .benefit-feature-card:hover {
+  border-color: var(--brand-primary, #39d95f);
+}
+
+.dark .benefit-card-badge {
+  background-color: rgba(57, 217, 95, 0.15);
+  color: var(--brand-primary, #39d95f);
+}
+
+.dark .audience-badge-item {
+  background-color: var(--surface-elevated, #162420);
+  border-left-color: var(--brand-primary, #39d95f);
+}
+
+.dark .audience-dot {
+  background-color: var(--brand-primary, #39d95f);
+}
+
+/* Tablet responsiveness */
+@media (max-width: 900px) {
+  .overview-body-container {
+    grid-template-columns: 1fr;
+  }
+  .outcomes-grid {
+    grid-template-columns: 1fr;
+  }
+  .real-reviews-grid {
+    grid-template-columns: 1fr;
+  }
+  .skills-point-identity-grid,
+  .benefits-cards-grid {
+    grid-template-columns: 1fr;
+  }
+  .overview-sticky-sidebar {
+    position: static;
+  }
+}
+

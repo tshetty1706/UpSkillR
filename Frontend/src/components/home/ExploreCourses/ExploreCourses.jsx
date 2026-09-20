@@ -16,6 +16,9 @@ export const ExploreCourses = () => {
   const [enrolledMap, setEnrolledMap] = useState({});
   const [selectedCourseView, setSelectedCourseView] = useState(null);
   const [activeModalTab, setActiveModalTab] = useState('overview');
+  const [overviewDetails, setOverviewDetails] = useState(null);
+  const [newQuestionText, setNewQuestionText] = useState('');
+  const [isSubmittingQ, setIsSubmittingQ] = useState(false);
 
   useEffect(() => {
     fetchPublishedCourses();
@@ -102,6 +105,53 @@ export const ExploreCourses = () => {
       }
     } catch (err) {
       toast.error('Error during enrolment.');
+    }
+  };
+
+  const handleOpenCourseModal = async (course) => {
+    setSelectedCourseView(course);
+    setActiveModalTab('overview');
+    setOverviewDetails(null);
+    try {
+      const res = await fetch(`http://localhost:5000/api/courses/public/${course._id}/overview`);
+      const json = await res.json();
+      if (json.success) {
+        setOverviewDetails(json);
+      }
+    } catch (e) {
+      console.error('Error fetching course overview:', e);
+    }
+  };
+
+  const handleAskDoubt = async (e) => {
+    e.preventDefault();
+    if (!newQuestionText.trim() || !selectedCourseView) return;
+    const token = localStorage.getItem('upskillr_token');
+    if (!token) {
+      toast.warning('Please log in as a learner to ask a doubt.');
+      return;
+    }
+    setIsSubmittingQ(true);
+    try {
+      const res = await fetch(`http://localhost:5000/api/courses/${selectedCourseView._id}/questions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ question: newQuestionText.trim() })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Your question has been sent to the instructor!');
+        setNewQuestionText('');
+      } else {
+        toast.error(data.message || 'Failed to submit question.');
+      }
+    } catch (err) {
+      toast.error('Network error. Please try again.');
+    } finally {
+      setIsSubmittingQ(false);
     }
   };
 
@@ -328,10 +378,7 @@ export const ExploreCourses = () => {
                   <button
                     type="button"
                     className="btn btn-primary course-view-btn"
-                    onClick={() => {
-                      setSelectedCourseView(course);
-                      setActiveModalTab('overview');
-                    }}
+                    onClick={() => handleOpenCourseModal(course)}
                   >
                     <span>View Course</span>
                   </button>
@@ -457,6 +504,83 @@ export const ExploreCourses = () => {
                       <Award size={20} className="award-icon" />
                       <span>{selectedCourseView.certificate !== false ? 'Completion Certificate Included' : 'No Certificate Granted'}</span>
                     </div>
+                  </div>
+
+                  {/* Pre-enrollment Q&A / Doubts */}
+                  <div className="content-section qa-content-box" style={{ marginTop: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
+                      <HelpCircle size={20} className="accent-green" />
+                      <h3 style={{ margin: 0 }}>Course Doubts & Inquiries</h3>
+                    </div>
+                    <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                      Have a question before enrolling? Ask the instructor directly.
+                    </p>
+
+                    <form onSubmit={handleAskDoubt} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                      <textarea
+                        rows={2}
+                        className="form-textarea"
+                        placeholder="Ask your question here..."
+                        value={newQuestionText}
+                        onChange={(e) => setNewQuestionText(e.target.value)}
+                      />
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={!newQuestionText.trim() || isSubmittingQ}
+                        style={{ alignSelf: 'flex-end', fontSize: '0.85rem', padding: '0.45rem 1rem' }}
+                      >
+                        {isSubmittingQ ? 'Submitting...' : 'Submit Question'}
+                      </button>
+                    </form>
+
+                    <div className="answered-qa-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {(overviewDetails?.questions || []).length === 0 ? (
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
+                          No inquiries asked yet. Be the first to ask!
+                        </p>
+                      ) : (
+                        (overviewDetails?.questions || []).map((q, idx) => (
+                          <div key={idx} style={{ background: 'var(--surface-muted)', padding: '0.85rem', borderRadius: '8px' }}>
+                            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>{q.userName} asked:</div>
+                            <p style={{ margin: '0.25rem 0 0.5rem 0', fontSize: '0.92rem' }}>{q.question}</p>
+                            {q.instructorReply && (
+                              <div style={{ background: 'var(--surface)', borderLeft: '3px solid var(--brand-primary)', padding: '0.5rem 0.75rem', borderRadius: '4px' }}>
+                                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--brand-primary)' }}>Instructor Answer:</div>
+                                <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.88rem' }}>{q.instructorReply}</p>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Real Reviews */}
+                  <div className="content-section" style={{ marginTop: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
+                      <Star size={20} className="star-icon-fill" style={{ fill: '#d97706', color: '#d97706' }} />
+                      <h3 style={{ margin: 0 }}>Learner Reviews & Ratings</h3>
+                    </div>
+                    {(overviewDetails?.reviews || []).length === 0 ? (
+                      <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
+                        No reviews yet. Real feedback will appear here as learners complete lessons.
+                      </p>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        {(overviewDetails?.reviews || []).map((rev, rIdx) => (
+                          <div key={rIdx} style={{ background: 'var(--surface-muted)', padding: '0.85rem', borderRadius: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '0.35rem' }}>
+                              {[...Array(5)].map((_, s) => (
+                                <Star key={s} size={13} style={{ fill: s < rev.rating ? '#d97706' : 'none', color: '#d97706' }} />
+                              ))}
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.88rem', fontStyle: 'italic' }}>"{rev.feedback}"</p>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>— {rev.learnerName}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (

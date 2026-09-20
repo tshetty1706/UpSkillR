@@ -1,8 +1,13 @@
 const Course = require('../model/Course');
+const CourseOverview = require('../model/CourseOverview');
+const CourseQuestion = require('../model/CourseQuestion');
+const CourseView = require('../model/CourseView');
 const Enrolment = require('../model/Enrolment');
 const AssessmentSubmission = require('../model/AssessmentSubmission');
 const { Instructor, Learner } = require('../model/User');
 const mongoose = require('mongoose');
+const crypto = require('crypto');
+const fs = require('fs');
 
 // 2. Get All Courses owned by Instructor + Stats
 exports.getInstructorCourses = async (req, res) => {
@@ -1224,3 +1229,565 @@ exports.submitCourseRating = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Server error.' });
   }
 };
+
+// ─── Course Creation Meta Options ───
+exports.getCourseMetaOptions = async (req, res) => {
+  try {
+    const categories = [
+      'Web Development',
+      'Data Science',
+      'Design',
+      'Business',
+      'Marketing',
+      'Artificial Intelligence',
+      'Cybersecurity',
+      'Cloud Computing',
+      'Mobile Development',
+      'DevOps'
+    ];
+    const skillLevels = ['Beginner', 'Intermediate', 'Advanced', 'All Levels'];
+    const languages = [
+      'English',
+      'Spanish',
+      'French',
+      'German',
+      'Hindi',
+      'Japanese',
+      'Chinese',
+      'Portuguese'
+    ];
+
+    return res.status(200).json({
+      success: true,
+      categories,
+      skillLevels,
+      languages
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Failed to fetch course options.' });
+  }
+};
+
+// ─── Atomic Course Creation ───
+exports.createCourse = async (req, res) => {
+  try {
+    let body = req.body;
+    if (typeof body.overview === 'string') {
+      try {
+        body.overview = JSON.parse(body.overview);
+      } catch (e) {
+        body.overview = {};
+      }
+    }
+    if (typeof body.tags === 'string') {
+      try {
+        body.tags = JSON.parse(body.tags);
+      } catch (e) {
+        body.tags = body.tags.split(',').map((t) => t.trim()).filter(Boolean);
+      }
+    }
+
+    const {
+      title,
+      category,
+      skillLevel = 'Beginner',
+      language = 'English',
+      shortDescription,
+      tags = [],
+      price = 0,
+      overview = {}
+    } = body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ success: false, message: 'Course title is required.' });
+    }
+    if (!category || !category.trim()) {
+      return res.status(400).json({ success: false, message: 'Course category is required.' });
+    }
+
+    const effectiveShortDescription = (shortDescription && shortDescription.trim()) || (body.description && body.description.trim()) || '';
+    if (!effectiveShortDescription) {
+      return res.status(400).json({ success: false, message: 'Short description is required.' });
+    }
+
+    const effectiveFullDescription = (overview.fullDescription && overview.fullDescription.trim()) || effectiveShortDescription;
+
+    let finalThumbnail = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80';
+    if (req.file) {
+      finalThumbnail = `http://localhost:5000/uploads/thumbnails/${req.file.filename}`;
+    } else if (body.thumbnail && typeof body.thumbnail === 'string' && body.thumbnail.trim()) {
+      finalThumbnail = body.thumbnail.trim();
+    }
+
+    const instructorId = req.user.id;
+    const instructorName = req.user.fullName || 'UpSkillr Instructor';
+
+    const escapedTitle = title.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const duplicate = await Course.findOne({
+      instructorId,
+      title: { $regex: new RegExp(`^${escapedTitle}$`, 'i') }
+    });
+
+    if (duplicate) {
+      return res.status(400).json({
+        success: false,
+        message: 'You already have a course with this exact title. Please choose a unique title.'
+      });
+    }
+
+    const parsedTags = Array.isArray(tags) ? tags : [];
+
+    const cleanArray = (val) => {
+      if (Array.isArray(val)) return val.map((v) => (typeof v === 'string' ? v.trim() : v)).filter(Boolean);
+      if (typeof val === 'string') return val.split('\n').map((v) => v.trim()).filter(Boolean);
+      return [];
+    };
+
+    const prerequisites = cleanArray(overview.prerequisites);
+    const learningOutcomes = cleanArray(overview.learningOutcomes);
+    const skills = cleanArray(overview.skills);
+    const techStack = cleanArray(overview.techStack);
+    const targetAudience = cleanArray(overview.targetAudience);
+    const benefits = cleanArray(overview.benefits);
+    const certificate = overview.certificate !== undefined ? Boolean(overview.certificate) : true;
+    const instructorMessage = (overview.instructorMessage || '').trim();
+    const optionalLinks = Array.isArray(overview.optionalLinks)
+      ? overview.optionalLinks.filter((l) => l && l.url && l.url.trim())
+      : [];
+    const faqs = Array.isArray(overview.faqs)
+      ? overview.faqs.filter((f) => f && f.question && f.question.trim() && f.answer && f.answer.trim())
+      : [];
+
+    const course = new Course({
+      title: title.trim(),
+      category: category.trim(),
+      skillLevel,
+      language: (language || 'English').trim(),
+      shortDescription: effectiveShortDescription,
+      description: effectiveShortDescription,
+      fullDescription: effectiveFullDescription,
+      tags: parsedTags,
+      thumbnail: finalThumbnail,
+      price: Number(price) || 0,
+      instructorId,
+      instructorName,
+      status: 'draft',
+      modules: [],
+      lessons: [],
+      resources: [],
+      assessments: [],
+      prerequisites,
+      whatYouWillLearn: learningOutcomes,
+      skills,
+      techStack,
+      certificate
+    });
+
+    await course.save();
+
+    const courseOverview = new CourseOverview({
+      courseId: course._id,
+      fullDescription: effectiveFullDescription,
+      prerequisites,
+      learningOutcomes,
+      skills,
+      techStack,
+      targetAudience,
+      benefits,
+      certificate,
+      instructorMessage,
+      optionalLinks,
+      faqs
+    });
+
+    await courseOverview.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Course created successfully as Draft!',
+      course,
+      overview: courseOverview,
+      duplicateWarning: duplicate
+        ? `You already have a course with a similar title: "${duplicate.title}".`
+        : null
+    });
+  } catch (error) {
+    console.error('Create Course Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while creating course.' });
+  }
+};
+
+// ─── Public Course Overview (with real views, real reviews, answered Q&A) ───
+exports.getPublicCourseOverview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const course = await Course.findById(id);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found.' });
+    }
+
+    let overview = await CourseOverview.findOne({ courseId: id });
+    if (!overview) {
+      overview = {
+        courseId: course._id,
+        fullDescription: course.fullDescription || course.description || '',
+        prerequisites: Array.isArray(course.prerequisites)
+          ? course.prerequisites
+          : course.prerequisites
+          ? [course.prerequisites]
+          : [],
+        learningOutcomes: course.whatYouWillLearn || [],
+        skills: course.skills || [],
+        techStack: course.techStack || [],
+        targetAudience: [],
+        benefits: [],
+        certificate: course.certificate !== undefined ? course.certificate : true,
+        instructorMessage: '',
+        optionalLinks: [],
+        faqs: []
+      };
+    }
+
+    let instructorProfile = null;
+    try {
+      const instructorUser = await Instructor.findById(course.instructorId).select(
+        'fullName profilePhoto bio headline email'
+      );
+      if (instructorUser) {
+        instructorProfile = {
+          name: instructorUser.fullName,
+          profilePhoto: instructorUser.profilePhoto || '',
+          bio: instructorUser.bio || '',
+          headline: instructorUser.headline || 'UpSkillr Instructor',
+          email: instructorUser.email
+        };
+      }
+    } catch (e) {}
+
+    const enrolments = await Enrolment.find({ courseId: id });
+    const totalEnrolments = enrolments.length;
+
+    const ratedEnrolments = enrolments.filter((e) => e.rating !== null && e.rating !== undefined);
+    const averageRating =
+      ratedEnrolments.length > 0
+        ? ratedEnrolments.reduce((sum, e) => sum + e.rating, 0) / ratedEnrolments.length
+        : null;
+
+    const reviews = ratedEnrolments
+      .filter((e) => e.feedback && e.feedback.trim().length > 0)
+      .map((e) => ({
+        rating: e.rating,
+        feedback: e.feedback,
+        tags: e.feedbackTags || [],
+        ratedAt: e.ratedAt,
+        learnerName: e.learnerName || 'Learner'
+      }));
+
+    const questions = await CourseQuestion.find({ courseId: id, status: 'answered' })
+      .sort({ replyTimestamp: -1 })
+      .select('userName userAvatar question status instructorReply replyTimestamp createdAt');
+
+    // 24h Deduplicated View Tracking
+    try {
+      const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+      const userAgent = req.headers['user-agent'] || '';
+      const viewerHash = crypto
+        .createHash('sha256')
+        .update(`${clientIp}-${userAgent}-${req.user ? req.user.id : ''}`)
+        .digest('hex');
+
+      const existingView = await CourseView.findOne({ courseId: id, viewerHash });
+      if (!existingView) {
+        await CourseView.create({ courseId: id, viewerHash });
+        await Course.findByIdAndUpdate(id, { $inc: { overviewViews: 1 } });
+        course.overviewViews = (course.overviewViews || 0) + 1;
+      }
+    } catch (viewErr) {}
+
+    return res.status(200).json({
+      success: true,
+      course,
+      overview,
+      instructor: instructorProfile,
+      stats: {
+        totalEnrolments,
+        averageRating: averageRating !== null ? Math.round(averageRating * 10) / 10 : null,
+        reviewCount: ratedEnrolments.length,
+        overviewViews: course.overviewViews || 0
+      },
+      reviews,
+      questions
+    });
+  } catch (error) {
+    console.error('Get Public Course Overview Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error retrieving course overview.' });
+  }
+};
+
+// ─── Instructor-Scoped Course Overview Fetch ───
+exports.getCourseOverview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const course = await Course.findById(id);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found.' });
+    }
+
+    let overview = await CourseOverview.findOne({ courseId: id });
+    if (!overview) {
+      overview = {
+        courseId: course._id,
+        fullDescription: course.fullDescription || course.description || '',
+        prerequisites: Array.isArray(course.prerequisites) ? course.prerequisites : [],
+        learningOutcomes: course.whatYouWillLearn || [],
+        skills: course.skills || [],
+        techStack: course.techStack || [],
+        targetAudience: [],
+        benefits: [],
+        certificate: course.certificate !== undefined ? course.certificate : true,
+        instructorMessage: '',
+        optionalLinks: [],
+        faqs: []
+      };
+    }
+
+    return res.status(200).json({ success: true, course, overview });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error fetching overview.' });
+  }
+};
+
+// ─── Independent Edit: Basic Information ───
+exports.updateCourseBasicInfo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, category, skillLevel, language, shortDescription, tags, price } = req.body;
+
+    const course = await Course.findById(id);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found.' });
+    }
+
+    if (title && title.trim()) course.title = title.trim();
+    if (category && category.trim()) course.category = category.trim();
+    if (skillLevel) course.skillLevel = skillLevel;
+    if (language) course.language = language.trim();
+    if (shortDescription && shortDescription.trim()) {
+      course.shortDescription = shortDescription.trim();
+      course.description = shortDescription.trim();
+    }
+    if (tags !== undefined) course.tags = Array.isArray(tags) ? tags : [];
+    if (price !== undefined) course.price = Number(price) || 0;
+
+    await course.save();
+    return res.status(200).json({ success: true, message: 'Course basic info updated!', course });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error updating basic info.' });
+  }
+};
+
+// ─── Independent Edit: Thumbnail ───
+exports.updateCourseThumbnail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const course = await Course.findById(id);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found.' });
+    }
+
+    let thumbnailUrl = course.thumbnail;
+    if (req.file) {
+      thumbnailUrl = `http://localhost:5000/uploads/thumbnails/${req.file.filename}`;
+    } else if (req.body.thumbnailUrl && req.body.thumbnailUrl.trim()) {
+      thumbnailUrl = req.body.thumbnailUrl.trim();
+    }
+
+    course.thumbnail = thumbnailUrl;
+    await course.save();
+    return res.status(200).json({ success: true, message: 'Thumbnail updated successfully!', thumbnail: thumbnailUrl, course });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error updating thumbnail.' });
+  }
+};
+
+// ─── Independent Edit: Overview ───
+exports.updateCourseOverview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const course = await Course.findById(id);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found.' });
+    }
+
+    const {
+      fullDescription,
+      prerequisites,
+      learningOutcomes,
+      skills,
+      techStack,
+      targetAudience,
+      benefits,
+      certificate,
+      instructorMessage,
+      optionalLinks,
+      faqs
+    } = req.body;
+
+    let overview = await CourseOverview.findOne({ courseId: id });
+    if (!overview) {
+      overview = new CourseOverview({
+        courseId: id,
+        fullDescription: fullDescription || course.description || ''
+      });
+    }
+
+    if (fullDescription !== undefined) {
+      overview.fullDescription = fullDescription.trim();
+      course.fullDescription = fullDescription.trim();
+    }
+    if (prerequisites !== undefined) {
+      overview.prerequisites = Array.isArray(prerequisites) ? prerequisites : [];
+      course.prerequisites = overview.prerequisites;
+    }
+    if (learningOutcomes !== undefined) {
+      overview.learningOutcomes = Array.isArray(learningOutcomes) ? learningOutcomes : [];
+      course.whatYouWillLearn = overview.learningOutcomes;
+    }
+    if (skills !== undefined) {
+      overview.skills = Array.isArray(skills) ? skills : [];
+      course.skills = overview.skills;
+    }
+    if (techStack !== undefined) {
+      overview.techStack = Array.isArray(techStack) ? techStack : [];
+      course.techStack = overview.techStack;
+    }
+    if (targetAudience !== undefined) overview.targetAudience = Array.isArray(targetAudience) ? targetAudience : [];
+    if (benefits !== undefined) overview.benefits = Array.isArray(benefits) ? benefits : [];
+    if (certificate !== undefined) {
+      overview.certificate = Boolean(certificate);
+      course.certificate = Boolean(certificate);
+    }
+    if (instructorMessage !== undefined) overview.instructorMessage = (instructorMessage || '').trim();
+    if (optionalLinks !== undefined) overview.optionalLinks = Array.isArray(optionalLinks) ? optionalLinks : [];
+    if (faqs !== undefined) overview.faqs = Array.isArray(faqs) ? faqs : [];
+
+    await overview.save();
+    await course.save();
+
+    return res.status(200).json({ success: true, message: 'Course overview updated!', overview, course });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error updating overview.' });
+  }
+};
+
+// ─── Learner Pre-Enrollment Doubt / Question ───
+exports.askCourseQuestion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { question } = req.body;
+
+    if (!question || !question.trim()) {
+      return res.status(400).json({ success: false, message: 'Question content is required.' });
+    }
+
+    const course = await Course.findById(id);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found.' });
+    }
+
+    const newQuestion = new CourseQuestion({
+      courseId: id,
+      userId: req.user.id,
+      userName: req.user.fullName || 'Learner',
+      userAvatar: req.user.profilePhoto || '',
+      question: question.trim(),
+      status: 'pending'
+    });
+
+    await newQuestion.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Your question has been submitted to the instructor!',
+      question: newQuestion
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error submitting question.' });
+  }
+};
+
+// ─── Public Course Questions ───
+exports.getCourseQuestions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid course ID format.' });
+    }
+    const questions = await CourseQuestion.find({ courseId: id, status: 'answered' }).sort({
+      replyTimestamp: -1
+    });
+
+    return res.status(200).json({ success: true, questions });
+  } catch (error) {
+    console.error('getCourseQuestions error:', error);
+    return res.status(500).json({ success: false, message: 'Server error fetching questions.' });
+  }
+};
+
+// ─── Instructor All Inquiries / Questions ───
+exports.getInstructorQuestions = async (req, res) => {
+  try {
+    const instructorId = req.user.id;
+    const courses = await Course.find({ instructorId }).select('_id title thumbnail');
+    const courseMap = {};
+    const courseIds = courses.map((c) => {
+      courseMap[c._id.toString()] = { title: c.title, thumbnail: c.thumbnail };
+      return c._id;
+    });
+
+    const questions = await CourseQuestion.find({ courseId: { $in: courseIds } })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const questionsWithCourse = questions.map((q) => ({
+      ...q,
+      courseTitle: courseMap[q.courseId.toString()]?.title || 'Unknown Course',
+      courseThumbnail: courseMap[q.courseId.toString()]?.thumbnail || ''
+    }));
+
+    return res.status(200).json({ success: true, questions: questionsWithCourse });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error fetching instructor questions.' });
+  }
+};
+
+// ─── Instructor Reply to Learner Question ───
+exports.replyCourseQuestion = async (req, res) => {
+  try {
+    const { id, questionId } = req.params;
+    const { reply } = req.body;
+
+    if (!reply || !reply.trim()) {
+      return res.status(400).json({ success: false, message: 'Reply content is required.' });
+    }
+
+    const question = await CourseQuestion.findOne({ _id: questionId, courseId: id });
+    if (!question) {
+      return res.status(404).json({ success: false, message: 'Question not found.' });
+    }
+
+    question.instructorReply = reply.trim();
+    question.status = 'answered';
+    question.replyTimestamp = new Date();
+    await question.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Reply published successfully!',
+      question
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error replying to question.' });
+  }
+};
+

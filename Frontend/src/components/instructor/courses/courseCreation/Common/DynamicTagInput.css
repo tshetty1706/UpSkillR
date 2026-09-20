@@ -1,0 +1,112 @@
+.dynamic-tag-input-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.dynamic-tag-input-box {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.dynamic-tag-input-field {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  padding-right: 2.75rem;
+  background-color: var(--input-bg, #ffffff);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-md, 12px);
+  color: var(--text-primary, #0f1a13);
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.dynamic-tag-input-field:focus {
+  outline: none;
+  border-color: var(--brand-primary, #116830);
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(17, 104, 48, 0.2));
+}
+
+.dynamic-tag-add-btn {
+  position: absolute;
+  right: 0.5rem;
+  background-color: var(--brand-primary, #116830);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm, 8px);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.dynamic-tag-add-btn:hover {
+  opacity: 0.9;
+}
+
+.dynamic-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.dynamic-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background-color: var(--surface-muted, #ebf0ec);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: 9999px;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-primary, #0f1a13);
+  transition: all 0.2s ease;
+  animation: chipFadeIn 0.2s ease-out;
+}
+
+@keyframes chipFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.dynamic-tag-remove-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #56675d);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+  transition: color 0.15s;
+}
+
+.dynamic-tag-remove-btn:hover {
+  color: var(--color-error, #dc2626);
+}
+
+.dynamic-tag-helper {
+  font-size: 0.8rem;
+  color: var(--text-muted, #56675d);
+}
+
+/* Dark mode enhancements */
+.dark .dynamic-tag-chip {
+  background-color: var(--surface-elevated, #162420);
+  border-color: var(--border, #243831);
+  color: #e5e7eb;
+}

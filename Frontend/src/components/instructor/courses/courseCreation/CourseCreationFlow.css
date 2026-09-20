@@ -1,0 +1,202 @@
+.course-creation-flow-root {
+  min-height: 100vh;
+  width: 100%;
+  background-color: var(--background, #f3f6f4);
+  color: var(--text-primary, #0f1a13);
+  display: flex;
+  flex-direction: column;
+}
+
+/* App Bar */
+.creation-flow-appbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background-color: var(--surface, #ffffff);
+  border-bottom: 1px solid var(--border, #c6d3cb);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.appbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.appbar-logo {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--brand-primary, #116830);
+  letter-spacing: -0.02em;
+}
+
+.appbar-divider {
+  color: var(--border, #c6d3cb);
+  font-size: 1.1rem;
+}
+
+.appbar-subtitle {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-secondary, #35443b);
+}
+
+.appbar-exit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  background-color: transparent;
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-sm, 8px);
+  color: var(--text-secondary, #35443b);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.appbar-exit-btn:hover {
+  background-color: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+/* Sticky Stepper Wrapper */
+.creation-stepper-sticky-wrapper {
+  background-color: var(--surface, #ffffff);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+  position: sticky;
+  top: 57px;
+  z-index: 90;
+}
+
+/* Main Container */
+.creation-step-container {
+  flex: 1;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+/* Exit Modal Confirmation */
+.exit-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(9, 15, 19, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.exit-modal-box {
+  background-color: var(--surface, #ffffff);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-xl, 20px);
+  padding: 2.5rem;
+  max-width: 460px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: var(--shadow-lg);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.exit-modal-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: #fef3c7;
+  color: #d97706;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.exit-modal-box h3 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f1a13);
+}
+
+.exit-modal-box p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary, #35443b);
+  line-height: 1.5;
+}
+
+.exit-modal-actions {
+  display: flex;
+  gap: 0.8rem;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.btn-exit-cancel {
+  flex: 1;
+  min-height: 44px;
+  padding: 0.75rem;
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-md, 12px);
+  background-color: transparent;
+  color: var(--text-primary, #0f1a13);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-exit-discard {
+  flex: 1;
+  min-height: 44px;
+  padding: 0.75rem;
+  background-color: #dc2626;
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-md, 12px);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-exit-discard:hover {
+  opacity: 0.92;
+}
+
+/* Dark Mode */
+.dark .course-creation-flow-root {
+  background-color: var(--background, #090f13);
+}
+
+.dark .creation-flow-appbar,
+.dark .creation-stepper-sticky-wrapper,
+.dark .exit-modal-box {
+  background-color: var(--surface, #101b18);
+  border-color: var(--border, #243831);
+}
+
+.dark .appbar-logo {
+  color: var(--brand-primary, #39d95f);
+}
+
+.dark .appbar-exit-btn {
+  border-color: var(--border, #243831);
+  color: #d1d5db;
+}
+
+.dark .exit-modal-icon {
+  background-color: rgba(217, 119, 6, 0.2);
+  color: #fbbf24;
+}

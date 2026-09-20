@@ -19,8 +19,31 @@ const {
 
 // ─── Multer Storage Configurations ───
 const resourcesDir = path.join(__dirname, '../uploads/resources');
+const thumbnailsDir = path.join(__dirname, '../uploads/thumbnails');
 
 if (!fs.existsSync(resourcesDir)) fs.mkdirSync(resourcesDir, { recursive: true });
+if (!fs.existsSync(thumbnailsDir)) fs.mkdirSync(thumbnailsDir, { recursive: true });
+
+const thumbnailStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, thumbnailsDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `thumb-${Date.now()}${ext}`);
+  }
+});
+
+const thumbnailUpload = multer({
+  storage: thumbnailStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (allowed.includes(file.mimetype.toLowerCase())) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid image format. Only JPG, PNG, and WebP allowed.'));
+    }
+  }
+});
 
 const resourceStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, resourcesDir),
@@ -54,9 +77,13 @@ router.use((req, res, next) => {
   next();
 });
 
+// ─── 0. Course Meta Options ───
+router.get('/meta/options', courseController.getCourseMetaOptions);
+
 // ─── 1. Public / Learner Course Browsing Routes ───
 router.get('/published', courseController.getPublishedCourses);
 router.get('/public/:id', courseController.getPublicCourseById);
+router.get('/public/:id/overview', courseController.getPublicCourseOverview);
 
 // ─── 2. Learner-Only Protected Routes ───
 router.post('/enrol', protect, requireLearner, courseController.enrolInCourse);
@@ -66,10 +93,21 @@ router.post('/rate', protect, requireLearner, courseController.submitCourseRatin
 
 // ─── 3. Instructor Course Management (Collection Level) ───
 router.get('/instructor/my-courses', protect, requireSubmittedInstructor, courseController.getInstructorCourses);
+router.get('/instructor/questions', protect, requireSubmittedInstructor, courseController.getInstructorQuestions);
+router.post('/', protect, requireSubmittedInstructor, thumbnailUpload.single('thumbnail'), courseController.createCourse);
+
+// ─── 4. Parameterized Course Routes ───
+router.get('/:id/questions', courseController.getCourseQuestions);
+router.post('/:id/questions', protect, requireLearner, courseController.askCourseQuestion);
 
 // ─── 4. Instructor Course-Scoped Protected Routes ───
 router.get('/:id', protect, requireSubmittedInstructor, verifyCourseOwnership, courseController.getCourseById);
+router.get('/:id/overview', protect, requireSubmittedInstructor, verifyCourseOwnership, courseController.getCourseOverview);
 router.put('/:id', protect, requireSubmittedInstructor, verifyCourseOwnership, courseController.updateCourse);
+router.put('/:id/basic-info', protect, requireSubmittedInstructor, verifyCourseOwnership, courseController.updateCourseBasicInfo);
+router.put('/:id/thumbnail', protect, requireSubmittedInstructor, verifyCourseOwnership, thumbnailUpload.single('thumbnail'), courseController.updateCourseThumbnail);
+router.put('/:id/overview', protect, requireSubmittedInstructor, verifyCourseOwnership, courseController.updateCourseOverview);
+router.post('/:id/questions/:questionId/reply', protect, requireSubmittedInstructor, verifyCourseOwnership, courseController.replyCourseQuestion);
 router.delete('/:id', protect, requireSubmittedInstructor, verifyCourseOwnership, courseController.deleteCourse);
 router.post('/:id/publish', protect, requireSubmittedInstructor, verifyCourseOwnership, courseController.publishCourse);
 
@@ -91,6 +129,8 @@ router.get('/:id/resources', protect, requireSubmittedInstructor, verifyCourseOw
 router.post('/:id/resources', protect, requireSubmittedInstructor, verifyCourseOwnership, courseController.addResource);
 router.post('/:id/lessons/:lessonIndex/resources/upload', protect, requireSubmittedInstructor, verifyCourseOwnership, resourceUpload.single('file'), courseController.uploadLessonResource);
 router.delete('/:id/lessons/:lessonIndex/resources/:resourceId', protect, requireSubmittedInstructor, verifyCourseOwnership, courseController.deleteLessonResource);
+router.get('/:id/resources/:resourceIndex', protect, requireSubmittedInstructor, verifyCourseOwnership, verifyResourceBelongsToCourse, courseController.getResource);
+router.put('/:id/resources/:resourceIndex', protect, requireSubmittedInstructor, verifyCourseOwnership, verifyResourceBelongsToCourse, courseController.updateResource);
 router.delete('/:id/resources/:resourceIndex', protect, requireSubmittedInstructor, verifyCourseOwnership, verifyResourceBelongsToCourse, courseController.deleteResource);
 
 // ─── 8. Lesson Assessments & Question Authoring ───
