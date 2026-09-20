@@ -3,7 +3,6 @@ import { InstructorLayout } from '../../components/instructor/common/InstructorL
 import { InstructorSidebar } from '../../components/instructor/common/InstructorSidebar/InstructorSidebar';
 import { InstructorDashboardOverview } from '../../components/instructor/dashboard/InstructorDashboardOverview/InstructorDashboardOverview';
 import { MyCourses } from '../../components/instructor/courses/MyCourses/MyCourses';
-import { CourseCreateWizard } from '../../components/instructor/courses/CourseCreateWizard/CourseCreateWizard';
 import { CourseManager } from '../../components/instructor/courses/CourseManager/CourseManager';
 import { InstructorProfile } from '../../components/instructor/profile/InstructorProfile/InstructorProfile';
 import { InstructorAnalytics } from '../../components/instructor/analytics/InstructorAnalytics/InstructorAnalytics';
@@ -58,18 +57,6 @@ export const InstructorDashboard = ({ user, onLogout }) => {
     setActiveTab(tab);
     if (courseId) {
       setSelectedCourseId(courseId);
-    }
-  };
-
-  // Called by CourseCreateWizard when the course is saved or published
-  const handleCourseCreated = async (course) => {
-    await fetchInstructorData();
-    if (course?._id) {
-      // Navigate to CourseManager so the instructor can add resources/assessments
-      setSelectedCourseId(course._id);
-      setActiveTab('manage-course');
-    } else {
-      setActiveTab('my-courses');
     }
   };
 
@@ -155,15 +142,6 @@ export const InstructorDashboard = ({ user, onLogout }) => {
           />
         );
 
-      case 'create-course':
-        return (
-          <CourseCreateWizard
-            courses={courses}
-            onCourseCreated={handleCourseCreated}
-            onCancel={() => setActiveTab('my-courses')}
-          />
-        );
-
       case 'manage-course':
         return (
           <CourseManager
@@ -196,14 +174,12 @@ export const InstructorDashboard = ({ user, onLogout }) => {
   return (
     <InstructorLayout
       sidebar={
-        activeTab === 'create-course' ? null : (
-          <InstructorSidebar
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            user={user}
-            onLogout={onLogout}
-          />
-        )
+        <InstructorSidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          user={user}
+          onLogout={onLogout}
+        />
       }
       loading={loading}
     >

@@ -31,8 +31,7 @@ export const InstructorSidebar = ({ activeTab, setActiveTab, user, onLogout }) =
       items: [
         { id: 'home', label: 'Home Page', icon: Home },
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { id: 'my-courses', label: 'My Courses', icon: BookOpen },
-        { id: 'create-course', label: 'Create Course', icon: PlusCircle }
+        { id: 'my-courses', label: 'My Courses', icon: BookOpen }
       ]
     },
     {

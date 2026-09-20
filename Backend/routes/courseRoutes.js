@@ -19,10 +19,8 @@ const {
 
 // ─── Multer Storage Configurations ───
 const resourcesDir = path.join(__dirname, '../uploads/resources');
-const thumbnailsDir = path.join(__dirname, '../uploads/thumbnails');
 
 if (!fs.existsSync(resourcesDir)) fs.mkdirSync(resourcesDir, { recursive: true });
-if (!fs.existsSync(thumbnailsDir)) fs.mkdirSync(thumbnailsDir, { recursive: true });
 
 const resourceStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, resourcesDir),
@@ -50,27 +48,6 @@ const resourceUpload = multer({
   }
 });
 
-const thumbnailStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, thumbnailsDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `thumb-${Date.now()}${ext}`);
-  }
-});
-
-const thumbnailUpload = multer({
-  storage: thumbnailStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (allowed.includes(file.mimetype.toLowerCase())) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid image format. Only JPG, PNG, and WEBP allowed.'));
-    }
-  }
-});
-
 // Middleware to prevent browser caching of API responses
 router.use((req, res, next) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -89,8 +66,6 @@ router.post('/rate', protect, requireLearner, courseController.submitCourseRatin
 
 // ─── 3. Instructor Course Management (Collection Level) ───
 router.get('/instructor/my-courses', protect, requireSubmittedInstructor, courseController.getInstructorCourses);
-router.post('/', protect, requireSubmittedInstructor, courseController.createCourse);
-router.post('/upload/thumbnail', protect, requireSubmittedInstructor, thumbnailUpload.single('file'), courseController.uploadThumbnail);
 
 // ─── 4. Instructor Course-Scoped Protected Routes ───
 router.get('/:id', protect, requireSubmittedInstructor, verifyCourseOwnership, courseController.getCourseById);
