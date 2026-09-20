@@ -158,7 +158,7 @@ export const MyCourses = ({ courses, onNavigate, onPublishToggle }) => {
                   onClick={() => onNavigate('manage-course', course._id)}
                 >
                   <FileEdit size={15} />
-                  <span>Edit Course</span>
+                  <span>Workspace</span>
                 </button>
 
                 <button

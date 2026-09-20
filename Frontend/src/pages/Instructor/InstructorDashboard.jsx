@@ -99,7 +99,7 @@ export const InstructorDashboard = ({ user, onLogout }) => {
 
     if (tab === 'manage-course' && courseId) {
       window.history.pushState({}, '', `/instructor/courses/${courseId}/workspace`);
-    } else if (tab === 'my-courses' || tab === 'lessons') {
+    } else if (tab === 'my-courses') {
       window.history.pushState({}, '', '/instructor/courses');
     } else if (tab === 'create-course') {
       window.history.pushState({}, '', '/instructor/courses/create');
@@ -185,8 +185,6 @@ export const InstructorDashboard = ({ user, onLogout }) => {
         );
 
       case 'my-courses':
-      case 'lessons':
-      case 'resources':
       case 'assessments':
         return (
           <MyCourses
