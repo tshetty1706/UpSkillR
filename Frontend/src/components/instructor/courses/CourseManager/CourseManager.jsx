@@ -32,8 +32,8 @@ import { DynamicTagInput } from '../courseCreation/Common/DynamicTagInput';
 import { DynamicListInput } from '../courseCreation/Common/DynamicListInput';
 import { CourseOverviewTemplate } from '../courseCreation/OverviewTemplate/CourseOverviewTemplate';
 import { CourseAnnouncements } from './CourseAnnouncements/CourseAnnouncements';
-
-const API_BASE = 'http://localhost:5000/api';
+import { CourseModules } from './CourseModules/CourseModules';
+import { API_BASE } from '../../../../config/api';
 
 const CATEGORY_OPTIONS = [
   'Web Development',
@@ -56,12 +56,13 @@ export const CourseManager = ({
   user = null,
   onBack,
   onUpdateCourse,
-  onPublishToggle
+  onPublishToggle,
+  onNavigate
 }) => {
   const { toast } = useToast();
 
   // Active Workspace Tab: 'modules' | 'details' | 'overview' | 'publish' | 'analytics'
-  const [activeTab, setActiveTab] = useState('details');
+  const [activeTab, setActiveTab] = useState('modules');
 
   // Course Data
   const [course, setCourse] = useState(null);
@@ -420,24 +421,24 @@ export const CourseManager = ({
 
   const currentPreviewOverview = isEditingOverview
     ? {
-        ...overviewForm,
-        fullDescription: overviewForm.fullDescription || '',
-        learningOutcomes: overviewForm.learningOutcomes || [],
-        skills: overviewForm.skills || [],
-        prerequisites: overviewForm.prerequisites || [],
-        techStack: overviewForm.techStack || [],
-        certificate: overviewForm.certificate !== false,
-        faqs: overviewForm.faqs || []
-      }
+      ...overviewForm,
+      fullDescription: overviewForm.fullDescription || '',
+      learningOutcomes: overviewForm.learningOutcomes || [],
+      skills: overviewForm.skills || [],
+      prerequisites: overviewForm.prerequisites || [],
+      techStack: overviewForm.techStack || [],
+      certificate: overviewForm.certificate !== false,
+      faqs: overviewForm.faqs || []
+    }
     : (overview || {
-        fullDescription: course?.shortDescription || course?.description || '',
-        learningOutcomes: course?.whatYouWillLearn || [],
-        skills: course?.tags || [],
-        prerequisites: course?.prerequisites || [],
-        techStack: course?.techStack || [],
-        certificate: course?.certificate !== false,
-        faqs: []
-      });
+      fullDescription: course?.shortDescription || course?.description || '',
+      learningOutcomes: course?.whatYouWillLearn || [],
+      skills: course?.tags || [],
+      prerequisites: course?.prerequisites || [],
+      techStack: course?.techStack || [],
+      certificate: course?.certificate !== false,
+      faqs: []
+    });
 
   return (
     <div className="course-workspace-container">
@@ -504,14 +505,14 @@ export const CourseManager = ({
 
       {/* ═══ 5 WORKSPACE NAVIGATION TABS (Strictly Based on Reference Diagram) ═══ */}
       <nav className="workspace-tabs-nav-bar" aria-label="Course Workspace Tabs">
-        {/* Tab 1: Modules */}
+        {/* Tab 1: Course Content */}
         <button
           type="button"
           className={`workspace-tab-btn ${activeTab === 'modules' ? 'active' : ''}`}
           onClick={() => setActiveTab('modules')}
         >
-          <Layers size={17} />
-          <span>Modules</span>
+          <Layers size={21} strokeWidth={2.2} />
+          <span>Course Content</span>
         </button>
 
         {/* Tab 2: Course Details & Syllabus */}
@@ -520,7 +521,7 @@ export const CourseManager = ({
           className={`workspace-tab-btn ${activeTab === 'details' ? 'active' : ''}`}
           onClick={() => setActiveTab('details')}
         >
-          <BookOpen size={17} />
+          <BookOpen size={21} strokeWidth={2.2} />
           <span>Course Details & Syllabus</span>
         </button>
 
@@ -530,7 +531,7 @@ export const CourseManager = ({
           className={`workspace-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
           onClick={() => setActiveTab('overview')}
         >
-          <Sparkles size={17} />
+          <Sparkles size={21} strokeWidth={2.2} />
           <span>Course Overview</span>
         </button>
 
@@ -540,7 +541,7 @@ export const CourseManager = ({
           className={`workspace-tab-btn ${activeTab === 'announcements' ? 'active' : ''}`}
           onClick={() => setActiveTab('announcements')}
         >
-          <Bell size={17} />
+          <Bell size={21} strokeWidth={2.2} />
           <span>Announcements</span>
         </button>
 
@@ -550,7 +551,7 @@ export const CourseManager = ({
           className={`workspace-tab-btn ${activeTab === 'publish' ? 'active' : ''}`}
           onClick={() => setActiveTab('publish')}
         >
-          <Globe size={17} />
+          <Globe size={21} strokeWidth={2.2} />
           <span>Publish Status</span>
         </button>
 
@@ -560,7 +561,7 @@ export const CourseManager = ({
           className={`workspace-tab-btn ${activeTab === 'analytics' ? 'active' : ''}`}
           onClick={() => setActiveTab('analytics')}
         >
-          <BarChart3 size={17} />
+          <BarChart3 size={21} strokeWidth={2.2} />
           <span>Analytics</span>
         </button>
       </nav>
@@ -568,26 +569,16 @@ export const CourseManager = ({
       {/* ═══ ACTIVE TAB CONTENT PANEL ═══ */}
       <main className="workspace-content-card">
         {/* ─────────────────────────────────────────────────────────────
-            TAB 1: MODULES (Kept Clean and Empty as Instructed)
+            TAB 1: MODULES (Curriculum Authoring & Learner Simulation)
            ───────────────────────────────────────────────────────────── */}
         {activeTab === 'modules' && (
-          <section className="workspace-panel-section modules-empty-panel">
-            <div className="empty-modules-wrapper">
-              <div className="empty-module-icon-box">
-                <Layers size={36} />
-              </div>
-              <h2 className="empty-module-title">No modules yet</h2>
-              <p className="empty-module-desc">
-                Course modules and lessons will appear here once you start building your curriculum.
-              </p>
-              <p className="empty-module-subtext">
-                Start building your curriculum when you're ready.
-              </p>
-              <div className="module-phase-pill">
-                <Clock size={14} />
-                <span>Curriculum & Lesson Authoring Phase (Coming in Next Milestone)</span>
-              </div>
-            </div>
+          <section className="workspace-panel-section modules-editor-panel">
+            <CourseModules
+              courseId={courseId}
+              course={course}
+              onCurriculumUpdated={fetchWorkspaceData}
+              onNavigate={onNavigate}
+            />
           </section>
         )}
 
@@ -701,8 +692,8 @@ export const CourseManager = ({
                   </div>
                 </div>
 
-                {/* Card 3: Syllabus Section (Clean Empty State as Specified) */}
-                <div className="workspace-info-card syllabus-empty-section">
+                {/* Card 3: Syllabus Section (Dynamic Curriculum Reflection) */}
+                <div className="workspace-info-card syllabus-structure-section">
                   <div className="syllabus-header-row">
                     <div className="syllabus-title-group">
                       <FileText size={20} className="accent-green" />
@@ -711,16 +702,42 @@ export const CourseManager = ({
                       </h3>
                     </div>
                     <span className="syllabus-counter-badge">
-                      {(course.modules?.length || 0)} Modules • {(course.lessons?.length || 0)} Lessons
+                      {(course.modules?.length || 0)} Modules • {course.modules?.reduce((acc, m) => acc + (m.lessons?.length || 0), 0) || (course.lessons?.length || 0)} Lessons
                     </span>
                   </div>
 
-                  <div className="empty-syllabus-banner">
-                    <p className="empty-syllabus-main">No syllabus available yet</p>
-                    <p className="empty-syllabus-sub">
-                      Your syllabus will appear here after modules and lessons are created.
-                    </p>
-                  </div>
+                  {(!course.modules || course.modules.length === 0) ? (
+                    <div className="empty-syllabus-banner">
+                      <p className="empty-syllabus-main">No syllabus available yet</p>
+                      <p className="empty-syllabus-sub">
+                        Your syllabus will appear here after modules and lessons are created in the Modules tab.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="syllabus-modules-summary-list">
+                      {course.modules.map((mod, idx) => (
+                        <div key={mod._id || idx} className="syllabus-mod-item">
+                          <div className="syllabus-mod-top">
+                            <span className="syllabus-mod-title">Module {idx + 1}: {mod.title}</span>
+                            <span className={`state-badge-sm ${mod.state || 'draft'}`}>{mod.state || 'draft'}</span>
+                          </div>
+                          {mod.description && <p className="syllabus-mod-desc">{mod.description}</p>}
+                          {mod.lessons && mod.lessons.length > 0 && (
+                            <ul className="syllabus-lesson-bullets">
+                              {mod.lessons.map((less, lIdx) => (
+                                <li key={less._id || lIdx} className="syllabus-lesson-bullet">
+                                  <span>{idx + 1}.{lIdx + 1} {less.title}</span>
+                                  <span className="lesson-item-count">
+                                    {(less.items?.length || 0)} items
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1397,21 +1414,52 @@ export const CourseManager = ({
                     <CheckCircle2 size={18} className="check-icon-green" />
                     <span>Course Thumbnail uploaded</span>
                   </li>
-                  <li className={`checklist-item ${(course.lessons?.length || 0) > 0 ? 'checked' : 'pending'}`}>
-                    {(course.lessons?.length || 0) > 0 ? (
+                  <li className={`checklist-item ${((course.modules?.length || 0) > 0 || (course.lessons?.length || 0) > 0) ? 'checked' : 'pending'}`}>
+                    {((course.modules?.length || 0) > 0 || (course.lessons?.length || 0) > 0) ? (
                       <CheckCircle2 size={18} className="check-icon-green" />
                     ) : (
                       <AlertCircle size={18} className="check-icon-amber" />
                     )}
                     <span>
-                      At least one lesson configured (Current: {course.lessons?.length || 0} lessons)
+                      At least one module and lesson configured (Current: {course.modules?.length || 0} modules, {course.modules?.reduce((acc, m) => acc + (m.lessons?.length || 0), 0) || (course.lessons?.length || 0)} lessons)
                     </span>
                   </li>
                 </ul>
-                {(course.lessons?.length || 0) === 0 && (
+                {(!course.modules || course.modules.length === 0) && (
                   <p className="checklist-warning-note">
-                    * UpSkillR requires at least 1 lesson before publishing a course live to learners.
+                    * UpSkillR requires at least 1 module and lesson before publishing a course live to learners.
                   </p>
+                )}
+              </div>
+
+              {/* Curriculum Tree Audit Section */}
+              <div className="curriculum-audit-card">
+                <h3 className="checklist-heading">Curriculum Tree Status Audit</h3>
+                <div className="audit-stats-row">
+                  <div className="audit-stat-pill">
+                    <span className="audit-stat-num">{course.modules?.length || 0}</span>
+                    <span className="audit-stat-label">Total Modules</span>
+                  </div>
+                  <div className="audit-stat-pill published">
+                    <span className="audit-stat-num">{course.modules?.filter(m => m.state === 'published').length || 0}</span>
+                    <span className="audit-stat-label">Published Modules</span>
+                  </div>
+                  <div className="audit-stat-pill draft">
+                    <span className="audit-stat-num">{course.modules?.filter(m => m.state === 'draft').length || 0}</span>
+                    <span className="audit-stat-label">Draft Modules</span>
+                  </div>
+                  <div className="audit-stat-pill">
+                    <span className="audit-stat-num">
+                      {course.modules?.reduce((acc, m) => acc + (m.lessons?.length || 0), 0) || 0}
+                    </span>
+                    <span className="audit-stat-label">Total Lessons</span>
+                  </div>
+                </div>
+                {course.modules?.some(m => !m.lessons || m.lessons.length === 0) && (
+                  <div className="audit-alert-box">
+                    <AlertCircle size={16} />
+                    <span>Auto-Draft Rule in effect: One or more modules contain zero lessons and are locked in draft mode.</span>
+                  </div>
                 )}
               </div>
             </div>

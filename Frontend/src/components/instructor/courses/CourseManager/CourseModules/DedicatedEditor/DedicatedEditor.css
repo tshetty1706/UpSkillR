@@ -1,0 +1,291 @@
+/* ==========================================================================
+   DedicatedEditor.css — Standalone Full-Page Course Content Editor Styles
+   Matches UpSkillr Course Creation standalone architecture & AGENTS.md
+   ========================================================================== */
+
+.dedicated-editor-root {
+  min-height: 100vh;
+  width: 100%;
+  background-color: var(--background, #f3f6f4);
+  color: var(--text-primary, #0f1a13);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Top Dedicated App Bar ── */
+.dedicated-editor-appbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 2rem;
+  background-color: var(--surface, #ffffff);
+  border-bottom: 1px solid var(--border, #c6d3cb);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.appbar-left-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 280px;
+}
+
+.appbar-brand-mark {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.brand-logo-text {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--brand-primary, #116830);
+  letter-spacing: -0.02em;
+}
+
+.brand-badge-studio {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--brand-soft, #e8f5ec);
+  color: var(--brand-primary, #116830);
+  letter-spacing: 0.05em;
+}
+
+.appbar-vertical-divider {
+  width: 1px;
+  height: 22px;
+  background-color: var(--border, #c6d3cb);
+}
+
+/* Back to Workspace button */
+.btn-back-to-workspace {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.45rem 0.95rem;
+  background-color: var(--surface-subtle, #f8faf9);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-sm, 8px);
+  color: var(--text-primary, #0f1a13);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 38px;
+}
+
+.btn-back-to-workspace:hover {
+  background-color: var(--surface-muted, #edf2ef);
+  border-color: var(--brand-primary, #116830);
+  color: var(--brand-primary, #116830);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Breadcrumbs in App Bar */
+.editor-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.crumb-segment {
+  color: var(--text-secondary, #35443b);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.crumb-course-name {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  color: var(--text-primary, #0f1a13);
+}
+
+.crumb-arrow {
+  color: var(--text-muted, #68796e);
+}
+
+.crumb-active {
+  font-weight: 700;
+  color: var(--brand-primary, #116830);
+}
+
+/* Right App Bar Group */
+.appbar-right-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill, 9999px);
+  font-size: 0.775rem;
+  font-weight: 600;
+  border: 1px solid var(--border, #c6d3cb);
+  background: var(--surface, #ffffff);
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.status-published .status-dot {
+  background-color: #10b981;
+}
+
+.status-published {
+  color: #10b981;
+  background-color: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.status-draft .status-dot {
+  background-color: #f59e0b;
+}
+
+.status-draft {
+  color: #f59e0b;
+  background-color: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.btn-preview-learner-appbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0.45rem 0.95rem;
+  border-radius: var(--radius-sm, 8px);
+  font-size: 0.85rem;
+  font-weight: 600;
+  background-color: var(--surface, #ffffff);
+  border: 1px solid var(--border, #c6d3cb);
+  color: var(--text-primary, #0f1a13);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 38px;
+}
+
+.btn-preview-learner-appbar:hover {
+  background-color: var(--surface-muted, #edf2ef);
+  border-color: var(--brand-primary, #116830);
+  color: var(--brand-primary, #116830);
+}
+
+.btn-preview-learner-appbar.active {
+  background-color: var(--brand-primary, #116830);
+  color: #ffffff;
+  border-color: var(--brand-primary, #116830);
+}
+
+/* ── Main Container (Centered, Max 1440px per AGENTS.md) ── */
+.dedicated-editor-main-container {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 32px 32px 64px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  flex: 1;
+}
+
+.dedicated-guidance-wrapper {
+  width: 100%;
+}
+
+.dedicated-editor-content-card {
+  background-color: var(--surface, #ffffff);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-lg, 12px);
+  padding: 32px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* Loading & Error States */
+.dedicated-editor-loading-state,
+.dedicated-editor-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  gap: 16px;
+  text-align: center;
+  padding: 32px;
+}
+
+.dedicated-editor-error-state h3 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f1a13);
+  margin: 0;
+}
+
+.dedicated-editor-error-state p {
+  color: var(--text-secondary, #35443b);
+  max-width: 480px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── Responsive Adaptations per AGENTS.md ── */
+@media (max-width: 1023px) {
+  /* Tablet View (768px – 1023px) */
+  .dedicated-editor-main-container {
+    padding: 24px;
+  }
+
+  .dedicated-editor-content-card {
+    padding: 24px;
+  }
+
+  .crumb-course-name {
+    max-width: 160px;
+  }
+}
+
+@media (max-width: 767px) {
+  /* Mobile View (< 768px) */
+  .dedicated-editor-appbar {
+    padding: 0.75rem 1rem;
+  }
+
+  .dedicated-editor-main-container {
+    padding: 16px;
+  }
+
+  .dedicated-editor-content-card {
+    padding: 16px;
+  }
+
+  .appbar-vertical-divider,
+  .editor-breadcrumbs {
+    display: none;
+  }
+
+  .appbar-left-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .appbar-right-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

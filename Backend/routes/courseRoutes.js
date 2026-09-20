@@ -6,6 +6,8 @@ const multer = require('multer');
 
 const courseController = require('../controller/courseController');
 const announcementController = require('../controller/announcementController');
+const courseContentController = require('../controller/courseContentController');
+const assessmentReviewController = require('../controller/assessmentReviewController');
 const {
   protect,
   requireLearner,
@@ -72,6 +74,32 @@ const resourceUpload = multer({
   }
 });
 
+const videosDir = path.join(__dirname, '../uploads/videos');
+if (!fs.existsSync(videosDir)) fs.mkdirSync(videosDir, { recursive: true });
+
+const videoStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, videosDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const cleanBase = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9]/g, '_');
+    cb(null, `vid-${Date.now()}-${cleanBase}${ext}`);
+  }
+});
+
+const videoUpload = multer({
+  storage: videoStorage,
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB
+  fileFilter: (req, file, cb) => {
+    const allowedExts = ['.mp4', '.mov', '.webm', '.mkv', '.avi'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedExts.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid video format. Only MP4, MOV, WebM, MKV, and AVI allowed.'));
+    }
+  }
+});
+
 // Middleware to prevent browser caching of API responses
 router.use((req, res, next) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -96,6 +124,36 @@ router.post('/rate', protect, requireLearner, courseController.submitCourseRatin
 router.get('/instructor/my-courses', protect, requireSubmittedInstructor, courseController.getInstructorCourses);
 router.get('/instructor/questions', protect, requireSubmittedInstructor, courseController.getInstructorQuestions);
 router.post('/', protect, requireSubmittedInstructor, thumbnailUpload.single('thumbnail'), courseController.createCourse);
+
+// ─── Assessment Review Surface (Sidebar) ───
+router.get('/instructor/assessments-review', protect, requireSubmittedInstructor, assessmentReviewController.getInstructorAssessmentsReview);
+router.post('/instructor/assessments-review/:submissionId/grant-attempt', protect, requireSubmittedInstructor, assessmentReviewController.grantExtraAttempt);
+router.post('/instructor/assessments-review/:submissionId/mark-complete', protect, requireSubmittedInstructor, assessmentReviewController.markCompleteManually);
+router.post('/instructor/assessments-review/:submissionId/resolve-appeal', protect, requireSubmittedInstructor, assessmentReviewController.resolveAppeal);
+router.post('/instructor/assessments-review/:submissionId/reset-attempts', protect, requireSubmittedInstructor, assessmentReviewController.resetAttempts);
+
+// ─── ID-Based Curriculum System ───
+router.get('/:courseId/curriculum', protect, requireSubmittedInstructor, courseContentController.getCurriculumTree);
+router.post('/:courseId/curriculum/modules', protect, requireSubmittedInstructor, courseContentController.createModule);
+router.patch('/:courseId/curriculum/modules/:moduleId', protect, requireSubmittedInstructor, courseContentController.updateModule);
+router.patch('/:courseId/curriculum/modules/:moduleId/toggle-state', protect, requireSubmittedInstructor, courseContentController.toggleModuleState);
+router.patch('/:courseId/curriculum/modules/:moduleId/reorder', protect, requireSubmittedInstructor, courseContentController.reorderModule);
+router.post('/:courseId/curriculum/modules/:moduleId/lessons', protect, requireSubmittedInstructor, courseContentController.createLesson);
+router.patch('/:courseId/curriculum/modules/:moduleId/lessons/:lessonId', protect, requireSubmittedInstructor, courseContentController.updateLesson);
+router.patch('/:courseId/curriculum/modules/:moduleId/lessons/:lessonId/toggle-state', protect, requireSubmittedInstructor, courseContentController.toggleLessonState);
+router.patch('/:courseId/curriculum/modules/:moduleId/lessons/:lessonId/reorder', protect, requireSubmittedInstructor, courseContentController.reorderLesson);
+router.post('/:courseId/curriculum/lessons/:lessonId/items', protect, requireSubmittedInstructor, courseContentController.createContentItem);
+router.patch('/:courseId/curriculum/lessons/:lessonId/items/:itemId', protect, requireSubmittedInstructor, courseContentController.updateContentItem);
+router.patch('/:courseId/curriculum/lessons/:lessonId/items/:itemId/toggle-state', protect, requireSubmittedInstructor, courseContentController.toggleContentItemState);
+router.patch('/:courseId/curriculum/lessons/:lessonId/items/:itemId/reorder', protect, requireSubmittedInstructor, courseContentController.reorderContentItem);
+router.post('/:courseId/curriculum/notes', protect, requireSubmittedInstructor, courseContentController.attachNote);
+router.patch('/:courseId/curriculum/notes/:noteId', protect, requireSubmittedInstructor, courseContentController.updateNote);
+router.patch('/:courseId/curriculum/notes/:noteId/toggle-state', protect, requireSubmittedInstructor, courseContentController.toggleNoteState);
+router.post('/:courseId/curriculum/assessments', protect, requireSubmittedInstructor, courseContentController.createAssessment);
+router.patch('/:courseId/curriculum/assessments/:assessmentId', protect, requireSubmittedInstructor, courseContentController.updateAssessment);
+router.patch('/:courseId/curriculum/assessments/:assessmentId/toggle-state', protect, requireSubmittedInstructor, courseContentController.toggleAssessmentState);
+router.post('/:courseId/curriculum/upload/video', protect, requireSubmittedInstructor, videoUpload.single('video'), courseContentController.uploadVideoFromDevice);
+router.post('/:courseId/curriculum/upload/resource', protect, requireSubmittedInstructor, resourceUpload.single('file'), courseContentController.uploadResourceFromDevice);
 
 // ─── 4. Parameterized Course Routes ───
 router.get('/:id/questions', courseController.getCourseQuestions);

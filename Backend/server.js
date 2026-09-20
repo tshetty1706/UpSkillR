@@ -7,6 +7,8 @@ const authRoutes = require('./routes/authRoutes');
 const courseRoutes = require('./routes/courseRoutes');
 const instructorApplicationRoutes = require('./routes/instructorApplicationRoutes');
 
+const mediaRoutes = require('./routes/mediaRoutes');
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -25,6 +27,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/instructor/application', instructorApplicationRoutes);
+app.use('/api/media', mediaRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

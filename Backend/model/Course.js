@@ -44,9 +44,91 @@ const assessmentSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+const notesSchema = new mongoose.Schema({
+  title: { type: String, required: true, trim: true },
+  scope: { type: String, enum: ['course', 'module', 'lesson'], default: 'course' },
+  moduleId: { type: mongoose.Schema.Types.ObjectId, default: null },
+  lessonId: { type: mongoose.Schema.Types.ObjectId, default: null },
+  type: { type: String, default: 'article' },
+  noteType: { type: String, default: 'article' },
+  content: { type: String, default: '' },
+  markdownContent: { type: String, default: '' },
+  mediaUrl: { type: String, default: '' },
+  fileUrl: { type: String, default: '' },
+  cloudinaryPublicId: { type: String, default: '' },
+  fileType: { type: String, default: 'md' },
+  fileSize: { type: String, default: '' },
+  state: { type: String, enum: ['draft', 'published'], default: 'draft' },
+  sortKey: { type: String, default: 'a0' },
+  uploadedAt: { type: Date, default: Date.now }
+});
+
+const contentItemSchema = new mongoose.Schema({
+  title: { type: String, required: true, trim: true },
+  type: { type: String, required: true, lowercase: true, enum: ['video', 'quiz', 'Video', 'Quiz'] },
+  state: { type: String, enum: ['draft', 'published'], default: 'draft' },
+  sortKey: { type: String, default: 'a0' },
+  version: { type: Number, default: 1 },
+  video: {
+    muxAssetId: { type: String, default: '' },
+    muxPlaybackId: { type: String, default: '' },
+    duration: { type: Number, default: 0 },
+    watchedThresholdPercent: { type: Number, default: 90 },
+    status: { type: String, default: 'ready' }
+  },
+  videoDetails: {
+    muxAssetId: { type: String, default: '' },
+    muxPlaybackId: { type: String, default: '' },
+    duration: { type: String, default: '' },
+    durationSeconds: { type: Number, default: 0 },
+    watchedPctThreshold: { type: Number, default: 90 }
+  },
+  quiz: {
+    instructions: { type: String, default: '' },
+    passThresholdPercent: { type: Number, default: 70 },
+    maxAttempts: { type: Number, default: 3 },
+    cooldownHours: { type: Number, default: 6 },
+    questions: [questionSchema]
+  },
+  quizDetails: {
+    instructions: { type: String, default: '' },
+    passThreshold: { type: Number, default: 70 },
+    maxAttempts: { type: Number, default: 3 },
+    cooldownHours: { type: Number, default: 6 },
+    questions: [questionSchema]
+  },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const courseAssessmentSchema = new mongoose.Schema({
+  title: { type: String, required: true, trim: true },
+  description: { type: String, default: '' },
+  instructions: { type: String, default: '' },
+  state: { type: String, enum: ['draft', 'published'], default: 'draft' },
+  sortKey: { type: String, default: 'a0' },
+  version: { type: Number, default: 1 },
+  requiredModuleIds: [{ type: mongoose.Schema.Types.ObjectId }],
+  requiresModules: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Module' }],
+  passThresholdPercent: { type: Number, default: 70 },
+  passThreshold: { type: Number, default: 70 },
+  maxAttempts: { type: Number, default: 3 },
+  cooldownHours: { type: Number, default: 6 },
+  questions: [questionSchema],
+  totalMarks: { type: Number, default: 10 },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
 const lessonSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   description: { type: String, default: '' },
+  state: { type: String, enum: ['draft', 'published'], default: 'draft' },
+  sortKey: { type: String, default: 'a0' },
+  items: [contentItemSchema],
+  contentItems: [contentItemSchema],
+  notes: [notesSchema],
+  // Legacy fields preserved for backward compatibility
   videoUrl: { type: String, default: '' },
   duration: { type: String, default: '10 min' },
   order: { type: Number, default: 1 },
@@ -58,8 +140,11 @@ const lessonSchema = new mongoose.Schema({
 const moduleSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   description: { type: String, default: '' },
-  order: { type: Number, default: 1 },
-  lessons: [lessonSchema]
+  state: { type: String, enum: ['draft', 'published'], default: 'draft' },
+  sortKey: { type: String, default: 'a0' },
+  lessons: [lessonSchema],
+  notes: [notesSchema],
+  order: { type: Number, default: 1 }
 });
 
 const courseSchema = new mongoose.Schema({
@@ -144,7 +229,14 @@ const courseSchema = new mongoose.Schema({
     enum: ['draft', 'published'],
     default: 'draft'
   },
+  state: {
+    type: String,
+    enum: ['draft', 'published'],
+    default: 'draft'
+  },
   modules: [moduleSchema],
+  courseAssessments: [courseAssessmentSchema],
+  notes: [notesSchema],
   lessons: [lessonSchema],
   resources: [resourceSchema],
   assessments: [assessmentSchema],

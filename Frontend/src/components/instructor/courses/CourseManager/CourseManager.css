@@ -276,20 +276,29 @@
 .workspace-tab-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 16px;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0 18px;
   border-radius: var(--radius-sm, 8px);
   background: transparent;
   border: 1px solid transparent;
   color: var(--text-secondary);
   font-family: inherit;
-  font-size: 0.88rem;
+  font-size: 0.92rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
   user-select: none;
+}
+
+.workspace-tab-btn svg {
+  width: 21px;
+  height: 21px;
+  min-width: 21px;
+  min-height: 21px;
+  flex-shrink: 0;
+  stroke-width: 2.2px;
 }
 
 .workspace-tab-btn:hover {
@@ -1716,3 +1725,128 @@ input:checked + .slider-round:before {
     padding: 0.75rem;
   }
 }
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   DYNAMIC SYLLABUS & CURRICULUM AUDIT ADDITIONS
+   ═════════════════════════════════════════════════════════════════════════════ */
+.syllabus-modules-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.syllabus-mod-item {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.syllabus-mod-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.syllabus-mod-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.syllabus-mod-desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.syllabus-lesson-bullets {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.syllabus-lesson-bullet {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  padding: 4px 8px;
+  background: var(--surface);
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+}
+
+.lesson-item-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Curriculum Audit Card */
+.curriculum-audit-card {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--border);
+}
+
+.audit-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.audit-stat-pill {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: center;
+}
+
+.audit-stat-pill.published {
+  border-color: var(--color-success);
+  background: var(--color-success-bg);
+}
+
+.audit-stat-pill.draft {
+  border-color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+.audit-stat-num {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.audit-stat-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.audit-alert-box {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--color-error-bg);
+  color: var(--color-error);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+

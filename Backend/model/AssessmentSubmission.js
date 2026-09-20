@@ -43,7 +43,7 @@ const assessmentSubmissionSchema = new mongoose.Schema({
   },
   lessonId: {
     type: mongoose.Schema.Types.ObjectId,
-    required: true
+    default: null
   },
   assessmentId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -100,6 +100,44 @@ const assessmentSubmissionSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  maxAttempts: {
+    type: Number,
+    default: 3
+  },
+  cooldownUntil: {
+    type: Date,
+    default: null
+  },
+  extraAttemptsGranted: {
+    type: Number,
+    default: 0
+  },
+  manuallyMarkedComplete: {
+    type: Boolean,
+    default: false
+  },
+  appealStatus: {
+    type: String,
+    enum: ['none', 'pending', 'approved', 'rejected'],
+    default: 'none'
+  },
+  appealMessage: {
+    type: String,
+    default: ''
+  },
+  appealedAt: {
+    type: Date,
+    default: null
+  },
+  auditLog: [
+    {
+      action: { type: String, required: true },
+      performedBy: { type: String, default: 'Instructor' },
+      performedByRole: { type: String, default: 'instructor' },
+      reason: { type: String, required: true },
+      timestamp: { type: Date, default: Date.now }
+    }
+  ],
   answers: [answerSchema],
   gradeRecords: [gradeRecordSchema]
 });
