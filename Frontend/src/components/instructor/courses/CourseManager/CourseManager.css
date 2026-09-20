@@ -139,3 +139,108 @@
   font-size: 0.84rem;
   color: var(--text-secondary);
 }
+
+/* Modal Overlay & Dialogs */
+.modal-backdrop-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 1rem;
+}
+
+.modal-dialog-box {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  padding: 1.75rem;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: var(--shadow-lg, 0 10px 25px rgba(0,0,0,0.3));
+  color: var(--text-primary);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-dialog-box h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: var(--text-primary);
+}
+
+/* ── Dropdown Select & Option Theme Styling ── */
+select,
+.form-select,
+.modal-dialog-box select,
+.course-manager-workspace select {
+  color-scheme: light;
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+}
+
+.dark select,
+.dark .form-select,
+.dark .modal-dialog-box select,
+.dark .course-manager-workspace select {
+  color-scheme: dark;
+  background-color: var(--input-bg);
+  color: var(--input-text);
+}
+
+select option,
+.form-select option,
+.modal-dialog-box select option,
+.course-manager-workspace select option {
+  background-color: var(--surface, #ffffff);
+  color: var(--text-primary, #0F1A13);
+  padding: 10px;
+}
+
+.dark select option,
+.dark .form-select option,
+.dark .modal-dialog-box select option,
+.dark .course-manager-workspace select option {
+  background-color: var(--surface, #101B18);
+  color: var(--text-primary, #F5F7F6);
+}
+
+.modal-dialog-box select option:checked,
+.modal-dialog-box select option:hover,
+.form-select option:checked,
+.form-select option:hover {
+  background-color: var(--brand-primary) !important;
+  color: var(--btn-primary-text) !important;
+}
+
+/* ── Number Input Spin Arrows Theme Match ── */
+input[type="number"] {
+  color-scheme: light;
+}
+
+.dark input[type="number"] {
+  color-scheme: dark;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  cursor: pointer;
+  opacity: 0.8;
+  margin: 0 2px;
+}
+
+input[type="number"]::-webkit-inner-spin-button:hover,
+input[type="number"]::-webkit-outer-spin-button:hover {
+  opacity: 1;
+}
+
+

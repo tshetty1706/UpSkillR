@@ -188,6 +188,43 @@ textarea:focus-visible {
   border-radius: var(--radius-sm);
 }
 
+/* Color Scheme Theme Integration for Native Form Controls */
+select,
+input[type="number"] {
+  color-scheme: light;
+}
+
+.dark select,
+.dark input[type="number"] {
+  color-scheme: dark;
+}
+
+/* Custom Global Theme Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-muted);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brand-primary);
+}
+
+/* Firefox Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) var(--surface-muted);
+}
+
 /* Standardized Responsive Page Container */
 .container {
   width: 100%;
