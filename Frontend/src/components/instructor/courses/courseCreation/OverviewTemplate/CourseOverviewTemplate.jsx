@@ -13,7 +13,9 @@ import {
   ChevronUp,
   Clock,
   Sparkles,
-  Zap
+  Zap,
+  Send,
+  HelpCircle
 } from 'lucide-react';
 import './CourseOverviewTemplate.css';
 

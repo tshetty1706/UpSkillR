@@ -12,8 +12,33 @@ import { useToast } from '../../context/ToastContext';
 
 export const InstructorDashboard = ({ user, onLogout }) => {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [selectedCourseId, setSelectedCourseId] = useState(null);
+  const getInitialRoute = () => {
+    const path = window.location.pathname;
+    const workspaceMatch = path.match(/\/instructor\/courses\/([a-f0-9]{24})\/workspace/i);
+    if (workspaceMatch) {
+      return { tab: 'manage-course', courseId: workspaceMatch[1] };
+    }
+    if (path.startsWith('/instructor/courses/create')) {
+      return { tab: 'create-course', courseId: null };
+    }
+    if (path.startsWith('/instructor/courses')) {
+      return { tab: 'my-courses', courseId: null };
+    }
+    if (path.startsWith('/instructor/analytics')) {
+      return { tab: 'analytics', courseId: null };
+    }
+    if (path.startsWith('/instructor/inquiries')) {
+      return { tab: 'inquiries', courseId: null };
+    }
+    if (path.startsWith('/instructor/profile')) {
+      return { tab: 'profile', courseId: null };
+    }
+    return { tab: 'dashboard', courseId: null };
+  };
+
+  const initialRoute = getInitialRoute();
+  const [activeTab, setActiveTab] = useState(initialRoute.tab);
+  const [selectedCourseId, setSelectedCourseId] = useState(initialRoute.courseId);
   const [courses, setCourses] = useState([]);
   const [stats, setStats] = useState({
     totalCourses: 0,
@@ -26,6 +51,15 @@ export const InstructorDashboard = ({ user, onLogout }) => {
 
   useEffect(() => {
     fetchInstructorData();
+
+    const syncRouteFromPath = () => {
+      const route = getInitialRoute();
+      setActiveTab(route.tab);
+      setSelectedCourseId(route.courseId);
+    };
+
+    window.addEventListener('popstate', syncRouteFromPath);
+    return () => window.removeEventListener('popstate', syncRouteFromPath);
   }, []);
 
   const fetchInstructorData = async () => {
@@ -59,6 +93,24 @@ export const InstructorDashboard = ({ user, onLogout }) => {
     setActiveTab(tab);
     if (courseId) {
       setSelectedCourseId(courseId);
+    } else if (tab !== 'manage-course') {
+      setSelectedCourseId(null);
+    }
+
+    if (tab === 'manage-course' && courseId) {
+      window.history.pushState({}, '', `/instructor/courses/${courseId}/workspace`);
+    } else if (tab === 'my-courses' || tab === 'lessons') {
+      window.history.pushState({}, '', '/instructor/courses');
+    } else if (tab === 'create-course') {
+      window.history.pushState({}, '', '/instructor/courses/create');
+    } else if (tab === 'analytics') {
+      window.history.pushState({}, '', '/instructor/analytics');
+    } else if (tab === 'inquiries') {
+      window.history.pushState({}, '', '/instructor/inquiries');
+    } else if (tab === 'profile') {
+      window.history.pushState({}, '', '/instructor/profile');
+    } else if (tab === 'dashboard') {
+      window.history.pushState({}, '', '/instructor/dashboard');
     }
   };
 
@@ -148,7 +200,8 @@ export const InstructorDashboard = ({ user, onLogout }) => {
         return (
           <CourseManager
             courseId={selectedCourseId}
-            onBack={() => setActiveTab('my-courses')}
+            user={user}
+            onBack={() => handleNavigate('my-courses')}
             onUpdateCourse={handleUpdateCourse}
             onPublishToggle={handlePublishToggle}
           />
@@ -206,7 +259,7 @@ export const InstructorDashboard = ({ user, onLogout }) => {
       sidebar={
         <InstructorSidebar
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          setActiveTab={(tab) => handleNavigate(tab)}
           user={user}
           onLogout={onLogout}
         />
