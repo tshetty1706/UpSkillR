@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Search, Video, Users, CheckCircle2, Star, Sparkles, ArrowRight, Bookmark, Clock, User, SlidersHorizontal, BarChart2, ChevronRight } from 'lucide-react';
+import {
+  BookOpen, Search, Video, Users, CheckCircle2, Star, Sparkles, ArrowRight, Bookmark, Clock, User,
+  SlidersHorizontal, BarChart2, ChevronRight, X, Award, FileText, Layers, FileCode, HelpCircle
+} from 'lucide-react';
 import './ExploreCourses.css';
 import { useToast } from '../../../context/ToastContext';
 import exploreCoursesSvg from '../../../assets/illustrations/explore_courses.svg?raw';
@@ -11,6 +14,8 @@ export const ExploreCourses = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [enrolledMap, setEnrolledMap] = useState({});
+  const [selectedCourseView, setSelectedCourseView] = useState(null);
+  const [activeModalTab, setActiveModalTab] = useState('overview');
 
   useEffect(() => {
     fetchPublishedCourses();
@@ -320,7 +325,14 @@ export const ExploreCourses = () => {
                   <span className="course-updated-date">
                     {course.updatedAt ? `Last updated: ${formatLastUpdated(course.updatedAt)}` : ''}
                   </span>
-                  <button type="button" className="btn btn-primary course-view-btn">
+                  <button
+                    type="button"
+                    className="btn btn-primary course-view-btn"
+                    onClick={() => {
+                      setSelectedCourseView(course);
+                      setActiveModalTab('overview');
+                    }}
+                  >
                     <span>View Course</span>
                   </button>
                 </div>
@@ -329,6 +341,175 @@ export const ExploreCourses = () => {
           </div>
         )}
       </div>
+
+      {/* GeeksforGeeks Style Course Details Modal */}
+      {selectedCourseView && (
+        <div className="course-view-modal-overlay" onClick={() => setSelectedCourseView(null)}>
+          <div className="course-view-modal-container" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="course-view-modal-close-btn"
+              onClick={() => setSelectedCourseView(null)}
+            >
+              <X size={20} />
+            </button>
+
+            {/* Modal Header / Banner */}
+            <div className="course-view-modal-header">
+              <div className="header-info-main">
+                <div className="badges-row">
+                  <span className="modal-category-badge">{selectedCourseView.category}</span>
+                  <span className="modal-level-badge">{selectedCourseView.skillLevel || 'Beginner'}</span>
+                </div>
+                <h2 className="modal-course-title">{selectedCourseView.title}</h2>
+                <p className="modal-course-subtitle">
+                  {selectedCourseView.shortDescription || selectedCourseView.description}
+                </p>
+
+                <div className="modal-instructor-meta">
+                  {selectedCourseView.instructorAvatar ? (
+                    <img src={selectedCourseView.instructorAvatar} alt="Instructor" className="instructor-avatar-img" />
+                  ) : (
+                    <div className="instructor-avatar-placeholder"><User size={16} /></div>
+                  )}
+                  <span>Created by <strong>{selectedCourseView.instructorName || 'Instructor'}</strong></span>
+                </div>
+              </div>
+
+              {selectedCourseView.thumbnail && (
+                <div className="modal-thumb-box">
+                  <img src={selectedCourseView.thumbnail} alt={selectedCourseView.title} />
+                </div>
+              )}
+            </div>
+
+            {/* Modal Navigation Tabs */}
+            <div className="course-view-modal-tabs">
+              <button
+                type="button"
+                className={`tab-btn ${activeModalTab === 'overview' ? 'active' : ''}`}
+                onClick={() => setActiveModalTab('overview')}
+              >
+                <FileText size={16} />
+                <span>Course Overview</span>
+              </button>
+              <button
+                type="button"
+                className={`tab-btn ${activeModalTab === 'syllabus' ? 'active' : ''}`}
+                onClick={() => setActiveModalTab('syllabus')}
+              >
+                <BookOpen size={16} />
+                <span>Syllabus & Modules ({selectedCourseView.modules?.length || 0})</span>
+              </button>
+            </div>
+
+            {/* Modal Tab Body */}
+            <div className="course-view-modal-body">
+              {activeModalTab === 'overview' ? (
+                <div className="overview-tab-content">
+                  {/* Full Description */}
+                  <div className="content-section">
+                    <h3>Course Description</h3>
+                    <p style={{ whiteSpace: 'pre-line' }}>
+                      {selectedCourseView.fullDescription || selectedCourseView.description || 'No detailed description provided.'}
+                    </p>
+                  </div>
+
+                  {/* What You Will Learn */}
+                  {selectedCourseView.whatYouWillLearn?.length > 0 && (
+                    <div className="content-section">
+                      <h3>What You'll Learn</h3>
+                      <div className="learning-outcomes-grid">
+                        {selectedCourseView.whatYouWillLearn.map((item, idx) => (
+                          <div key={idx} className="learning-outcome-card">
+                            <CheckCircle2 size={18} className="green-check" />
+                            <span>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Prerequisites */}
+                  {selectedCourseView.prerequisites && (
+                    <div className="content-section">
+                      <h3>Prerequisites</h3>
+                      <p>{selectedCourseView.prerequisites}</p>
+                    </div>
+                  )}
+
+                  {/* Tech Stack */}
+                  {selectedCourseView.techStack?.length > 0 && (
+                    <div className="content-section">
+                      <h3>Technologies Covered</h3>
+                      <div className="tech-chips-flex">
+                        {selectedCourseView.techStack.map((tech, idx) => (
+                          <span key={idx} className="tech-chip-badge">{tech}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Certificate */}
+                  <div className="content-section">
+                    <h3>Certificate</h3>
+                    <div className="certificate-badge-box">
+                      <Award size={20} className="award-icon" />
+                      <span>{selectedCourseView.certificate !== false ? 'Completion Certificate Included' : 'No Certificate Granted'}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="syllabus-tab-content">
+                  {(!selectedCourseView.modules || selectedCourseView.modules.length === 0) ? (
+                    <p className="empty-syllabus-text">No modules or syllabus available for this course yet.</p>
+                  ) : (
+                    <div className="modules-accordion-list">
+                      {selectedCourseView.modules.map((mod, mIdx) => (
+                        <div key={mIdx} className="module-accordion-item">
+                          <div className="module-accordion-header">
+                            <span className="mod-num">Module {mIdx + 1}</span>
+                            <h4>{mod.title}</h4>
+                            <span className="mod-count">{mod.lessons?.length || 0} Lessons</span>
+                          </div>
+
+                          <div className="module-accordion-body">
+                            {mod.lessons?.map((les, lIdx) => (
+                              <div key={lIdx} className="lesson-detail-row">
+                                <Video size={14} className="lesson-icon" />
+                                <span className="lesson-title">{les.title}</span>
+                                {les.duration && <span className="lesson-duration">{les.duration}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="course-view-modal-footer">
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setSelectedCourseView(null)}
+              >
+                <span>Close</span>
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => handleEnrol(selectedCourseView._id, selectedCourseView.title)}
+              >
+                <span>{enrolledMap[selectedCourseView._id] ? 'Already Enrolled' : 'Enrol Now'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -196,12 +196,14 @@ export const InstructorDashboard = ({ user, onLogout }) => {
   return (
     <InstructorLayout
       sidebar={
-        <InstructorSidebar
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          user={user}
-          onLogout={onLogout}
-        />
+        activeTab === 'create-course' ? null : (
+          <InstructorSidebar
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            user={user}
+            onLogout={onLogout}
+          />
+        )
       }
       loading={loading}
     >

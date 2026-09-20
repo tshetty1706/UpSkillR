@@ -1,32 +1,65 @@
 const mongoose = require('mongoose');
 
+const resourceSchema = new mongoose.Schema({
+  title: { type: String, required: true, trim: true },
+  description: { type: String, default: '' },
+  fileUrl: { type: String, required: true },
+  fileType: { type: String, default: 'PDF' },
+  fileSize: { type: String, default: '1.0 MB' },
+  originalName: { type: String, default: '' },
+  uploadedAt: { type: Date, default: Date.now }
+});
+
+const questionSchema = new mongoose.Schema({
+  questionText: { type: String, required: true, trim: true },
+  type: {
+    type: String,
+    enum: ['mcq', 'true_false', 'short_answer', 'long_answer'],
+    default: 'mcq'
+  },
+  options: [{ type: String }],
+  correctAnswer: { type: mongoose.Schema.Types.Mixed, default: '' },
+  correctAnswerIndex: { type: Number, default: 0 },
+  marks: { type: Number, default: 1 },
+  evaluationInstructions: { type: String, default: '' },
+  order: { type: Number, default: 1 }
+});
+
+const assessmentSchema = new mongoose.Schema({
+  title: { type: String, required: true, trim: true },
+  description: { type: String, default: '' },
+  instructions: { type: String, default: '' },
+  type: { type: String, default: 'Quiz' },
+  totalMarks: { type: Number, default: 10 },
+  passingMarks: { type: Number, default: 5 },
+  timeLimit: { type: Number, default: 30 }, // in minutes
+  attemptsAllowed: { type: Number, default: 1 },
+  dueDate: { type: Date, default: null },
+  status: {
+    type: String,
+    enum: ['draft', 'published'],
+    default: 'draft'
+  },
+  questions: [questionSchema],
+  createdAt: { type: Date, default: Date.now }
+});
+
 const lessonSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   description: { type: String, default: '' },
   videoUrl: { type: String, default: '' },
   duration: { type: String, default: '10 min' },
   order: { type: Number, default: 1 },
-  content: { type: String, default: '' }
+  content: { type: String, default: '' },
+  resources: [resourceSchema],
+  assessments: [assessmentSchema]
 });
 
-const resourceSchema = new mongoose.Schema({
+const moduleSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
-  fileUrl: { type: String, required: true },
-  fileType: { type: String, default: 'Document' },
-  fileSize: { type: String, default: '1.2 MB' }
-});
-
-const questionSchema = new mongoose.Schema({
-  questionText: { type: String, required: true },
-  options: [{ type: String, required: true }],
-  correctAnswerIndex: { type: Number, default: 0 }
-});
-
-const assessmentSchema = new mongoose.Schema({
-  title: { type: String, required: true, trim: true },
-  instructions: { type: String, default: '' },
-  passingScore: { type: Number, default: 70 },
-  questions: [questionSchema]
+  description: { type: String, default: '' },
+  order: { type: Number, default: 1 },
+  lessons: [lessonSchema]
 });
 
 const courseSchema = new mongoose.Schema({
@@ -35,9 +68,19 @@ const courseSchema = new mongoose.Schema({
     required: [true, 'Course title is required'],
     trim: true
   },
+  shortDescription: {
+    type: String,
+    default: '',
+    trim: true
+  },
   description: {
     type: String,
     required: [true, 'Course description is required'],
+    trim: true
+  },
+  fullDescription: {
+    type: String,
+    default: '',
     trim: true
   },
   category: {
@@ -49,6 +92,26 @@ const courseSchema = new mongoose.Schema({
     type: String,
     enum: ['Beginner', 'Intermediate', 'Advanced', 'All Levels'],
     default: 'Beginner'
+  },
+  tags: {
+    type: [String],
+    default: []
+  },
+  prerequisites: {
+    type: String,
+    default: ''
+  },
+  certificate: {
+    type: Boolean,
+    default: true
+  },
+  whatYouWillLearn: {
+    type: [String],
+    default: []
+  },
+  techStack: {
+    type: [String],
+    default: []
   },
   thumbnail: {
     type: String,
@@ -72,6 +135,7 @@ const courseSchema = new mongoose.Schema({
     enum: ['draft', 'published'],
     default: 'draft'
   },
+  modules: [moduleSchema],
   lessons: [lessonSchema],
   resources: [resourceSchema],
   assessments: [assessmentSchema],
