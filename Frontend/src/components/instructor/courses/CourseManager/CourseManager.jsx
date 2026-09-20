@@ -23,13 +23,15 @@ import {
   RefreshCw,
   Trash2,
   Zap,
-  Plus
+  Plus,
+  Bell
 } from 'lucide-react';
 import './CourseManager.css';
 import { useToast } from '../../../../context/ToastContext';
 import { DynamicTagInput } from '../courseCreation/Common/DynamicTagInput';
 import { DynamicListInput } from '../courseCreation/Common/DynamicListInput';
 import { CourseOverviewTemplate } from '../courseCreation/OverviewTemplate/CourseOverviewTemplate';
+import { CourseAnnouncements } from './CourseAnnouncements/CourseAnnouncements';
 
 const API_BASE = 'http://localhost:5000/api';
 
@@ -532,7 +534,17 @@ export const CourseManager = ({
           <span>Course Overview</span>
         </button>
 
-        {/* Tab 4: Publish Status */}
+        {/* Tab 4: Announcements (Strictly positioned between Course Overview and Publish Status) */}
+        <button
+          type="button"
+          className={`workspace-tab-btn ${activeTab === 'announcements' ? 'active' : ''}`}
+          onClick={() => setActiveTab('announcements')}
+        >
+          <Bell size={17} />
+          <span>Announcements</span>
+        </button>
+
+        {/* Tab 5: Publish Status */}
         <button
           type="button"
           className={`workspace-tab-btn ${activeTab === 'publish' ? 'active' : ''}`}
@@ -1296,7 +1308,20 @@ export const CourseManager = ({
         )}
 
         {/* ─────────────────────────────────────────────────────────────
-            TAB 4: PUBLISH STATUS (Existing Implementation Preserved)
+            TAB 4: ANNOUNCEMENTS (Course-Specific Updates & Delivery)
+           ───────────────────────────────────────────────────────────── */}
+        {activeTab === 'announcements' && (
+          <section className="workspace-panel-section announcements-panel">
+            <CourseAnnouncements
+              courseId={courseId}
+              course={course}
+              user={user}
+            />
+          </section>
+        )}
+
+        {/* ─────────────────────────────────────────────────────────────
+            TAB 5: PUBLISH STATUS (Existing Implementation Preserved)
            ───────────────────────────────────────────────────────────── */}
         {activeTab === 'publish' && (
           <section className="workspace-panel-section publish-status-panel">

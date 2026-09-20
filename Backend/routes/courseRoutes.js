@@ -5,6 +5,7 @@ const fs = require('fs');
 const multer = require('multer');
 
 const courseController = require('../controller/courseController');
+const announcementController = require('../controller/announcementController');
 const {
   protect,
   requireLearner,
@@ -151,5 +152,13 @@ router.post('/:id/lessons/:lessonIndex/assessments/:assessmentId/questions/reord
 router.get('/:id/assessments/:assessmentId/submissions', protect, requireSubmittedInstructor, verifyCourseOwnership, courseController.getAssessmentSubmissions);
 router.get('/submissions/:submissionId', protect, requireSubmittedInstructor, courseController.getSubmissionDetails);
 router.post('/submissions/:submissionId/grade', protect, requireSubmittedInstructor, courseController.gradeSubmission);
+
+// ─── 11. Course Announcements ───
+router.get('/:id/announcements', protect, requireSubmittedInstructor, verifyCourseOwnership, announcementController.getCourseAnnouncements);
+router.post('/:id/announcements', protect, requireSubmittedInstructor, verifyCourseOwnership, announcementController.createAnnouncement);
+router.put('/:id/announcements/:announcementId', protect, requireSubmittedInstructor, verifyCourseOwnership, announcementController.updateAnnouncement);
+router.delete('/:id/announcements/:announcementId', protect, requireSubmittedInstructor, verifyCourseOwnership, announcementController.deleteAnnouncement);
+router.patch('/:id/announcements/:announcementId/publish', protect, requireSubmittedInstructor, verifyCourseOwnership, announcementController.togglePublishAnnouncement);
+router.get('/:id/learner-announcements', protect, requireLearner, announcementController.getLearnerCourseAnnouncements);
 
 module.exports = router;
