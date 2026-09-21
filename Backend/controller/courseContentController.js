@@ -798,13 +798,20 @@ exports.attachNote = async (req, res) => {
     const {
       title,
       scope = 'course', // 'course' | 'module' | 'lesson'
+      attachableType,
+      attachableId,
       moduleId = null,
       lessonId = null,
       type = 'article_md', // 'article_md' | 'pdf' | 'image'
       markdownContent = '',
+      bodyMarkdown = '',
+      content = '',
       fileUrl = '',
+      mediaUrl = '',
+      cloudinaryUrl = '',
       cloudinaryPublicId = '',
-      fileSize = ''
+      fileSize = '',
+      state = 'draft'
     } = req.body;
 
     if (!title || !title.trim()) {
@@ -816,22 +823,31 @@ exports.attachNote = async (req, res) => {
     const lastNote = notes[notes.length - 1];
     const sortKey = generateSortKey(lastNote ? lastNote.sortKey : null, null);
 
+    const finalScope = scope || attachableType || 'course';
+    const finalMd = markdownContent || bodyMarkdown || content || '';
+    const finalFileUrl = fileUrl || mediaUrl || cloudinaryUrl || '';
+    const cleanType = type === 'article' ? 'article_md' : type;
+
     const newNote = {
       _id: new mongoose.Types.ObjectId(),
       title: title.trim(),
-      scope,
+      scope: finalScope,
+      attachableType: finalScope,
+      attachableId: attachableId || null,
       moduleId: moduleId && mongoose.Types.ObjectId.isValid(moduleId) ? moduleId : null,
       lessonId: lessonId && mongoose.Types.ObjectId.isValid(lessonId) ? lessonId : null,
-      type: type === 'article' ? 'article_md' : type,
-      noteType: type === 'article' ? 'article_md' : type,
-      markdownContent: markdownContent || '',
-      content: markdownContent || '',
-      fileUrl: fileUrl || '',
-      mediaUrl: fileUrl || '',
+      type: cleanType,
+      noteType: cleanType,
+      markdownContent: finalMd,
+      content: finalMd,
+      bodyMarkdown: finalMd,
+      fileUrl: finalFileUrl,
+      mediaUrl: finalFileUrl,
+      cloudinaryUrl: finalFileUrl,
       cloudinaryPublicId: cloudinaryPublicId || '',
-      fileType: type === 'pdf' ? 'pdf' : (type === 'image' ? 'image' : 'md'),
+      fileType: cleanType === 'pdf' ? 'pdf' : (cleanType === 'image' ? 'image' : 'md'),
       fileSize: fileSize || '',
-      state: 'draft',
+      state: state === 'published' ? 'published' : 'draft',
       effective_visible: false,
       sortKey,
       uploadedAt: new Date()
@@ -854,25 +870,57 @@ exports.attachNote = async (req, res) => {
 exports.updateNote = async (req, res) => {
   try {
     const { courseId, noteId } = req.params;
-    const { title, markdownContent, fileUrl, cloudinaryPublicId, scope, moduleId, lessonId } = req.body;
+    const {
+      title,
+      markdownContent,
+      bodyMarkdown,
+      content,
+      fileUrl,
+      mediaUrl,
+      cloudinaryUrl,
+      cloudinaryPublicId,
+      scope,
+      attachableType,
+      attachableId,
+      moduleId,
+      lessonId,
+      type,
+      state
+    } = req.body;
 
     const course = await verifyCourse(courseId, req.user);
     const note = course.notes.id(noteId);
     if (!note) return res.status(404).json({ success: false, message: 'Note not found.' });
 
     if (title && title.trim()) note.title = title.trim();
-    if (markdownContent !== undefined) {
-      note.markdownContent = markdownContent;
-      note.content = markdownContent;
+    const md = markdownContent !== undefined ? markdownContent : (bodyMarkdown !== undefined ? bodyMarkdown : content);
+    if (md !== undefined) {
+      note.markdownContent = md;
+      note.content = md;
+      note.bodyMarkdown = md;
     }
-    if (fileUrl !== undefined) {
-      note.fileUrl = fileUrl;
-      note.mediaUrl = fileUrl;
+    const fUrl = fileUrl !== undefined ? fileUrl : (mediaUrl !== undefined ? mediaUrl : cloudinaryUrl);
+    if (fUrl !== undefined) {
+      note.fileUrl = fUrl;
+      note.mediaUrl = fUrl;
+      note.cloudinaryUrl = fUrl;
     }
     if (cloudinaryPublicId !== undefined) note.cloudinaryPublicId = cloudinaryPublicId;
-    if (scope) note.scope = scope;
-    if (moduleId !== undefined) note.moduleId = moduleId;
-    if (lessonId !== undefined) note.lessonId = lessonId;
+    if (scope || attachableType) {
+      const finalScope = scope || attachableType;
+      note.scope = finalScope;
+      note.attachableType = finalScope;
+    }
+    if (moduleId !== undefined) note.moduleId = moduleId && mongoose.Types.ObjectId.isValid(moduleId) ? moduleId : null;
+    if (lessonId !== undefined) note.lessonId = lessonId && mongoose.Types.ObjectId.isValid(lessonId) ? lessonId : null;
+    if (attachableId !== undefined) note.attachableId = attachableId;
+    if (type !== undefined) {
+      note.type = type === 'article' ? 'article_md' : type;
+      note.noteType = note.type;
+    }
+    if (state !== undefined) {
+      note.state = state === 'published' ? 'published' : 'draft';
+    }
 
     recomputeEffectiveVisibility(course);
     await course.save();
@@ -1136,13 +1184,17 @@ exports.uploadResourceFromDevice = async (req, res) => {
 
     res.json({
       success: true,
+      url: uploadRes.secure_url,
       fileUrl: uploadRes.secure_url,
+      secure_url: uploadRes.secure_url,
       publicId: uploadRes.public_id,
       fileName: req.file.originalname,
-      fileSize: fileSizeMb
+      fileSize: fileSizeMb,
+      format: uploadRes.format || ''
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('uploadResourceFromDevice error:', err.message);
+    res.status(500).json({ success: false, message: err.message || 'Failed to upload resource to Cloudinary.' });
   }
 };
 

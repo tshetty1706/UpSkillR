@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   BookOpen,
@@ -8,17 +8,17 @@ import {
   Eye,
   CheckCircle2,
   EyeOff,
-  Filter,
   Layers,
-  Sparkles,
-  ExternalLink,
-  X,
   RefreshCw,
-  Clock
+  Search,
+  Edit2,
+  X,
+  ExternalLink,
+  AlertCircle
 } from 'lucide-react';
-import { InstructorTip } from './Common/InstructorTip';
 import { MarkdownEditor, renderMarkdownToHTML } from './Common/MarkdownEditor';
 import { DeviceFileUploader } from './Common/DeviceFileUploader';
+import './CourseModules.css';
 
 export const NotesResourcesEditor = ({
   courseId,
@@ -30,7 +30,13 @@ export const NotesResourcesEditor = ({
   getAuthHeader,
   toast
 }) => {
-  // Active creation tab: 'article' | 'pdf' | 'image'
+  // Selected note ID for editing (null means currently creating a new note)
+  const [selectedNoteId, setSelectedNoteId] = useState(() => {
+    return notes.length > 0 ? notes[0]._id : null;
+  });
+  const [isCreatingNew, setIsCreatingNew] = useState(() => notes.length === 0);
+
+  // Active resource format: 'article' | 'pdf' | 'image'
   const [activeTab, setActiveTab] = useState('article');
 
   // Form State
@@ -42,42 +48,185 @@ export const NotesResourcesEditor = ({
   const [mediaUrl, setMediaUrl] = useState('');
   const [mediaName, setMediaName] = useState('');
   const [mediaPublicId, setMediaPublicId] = useState('');
+  const [resourceState, setResourceState] = useState('draft'); // 'draft' | 'published'
   const [saving, setSaving] = useState(false);
 
-  // List filter state
-  const [filterType, setFilterType] = useState('all'); // 'all' | 'article' | 'pdf' | 'image'
-  const [filterScope, setFilterScope] = useState('all');
+  // Search filter
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Resource viewer modal state
-  const [viewingNote, setViewingNote] = useState(null);
+  // In-app Viewer Modal State
+  const [viewerModal, setViewerModal] = useState({
+    isOpen: false,
+    title: '',
+    url: '',
+    type: 'pdf', // 'pdf' | 'image' | 'article'
+    content: '',
+    scopeLabel: ''
+  });
+
+  // Synchronize selection when notes change or on initial load
+  useEffect(() => {
+    if (notes.length > 0) {
+      if (!selectedNoteId && !isCreatingNew) {
+        loadNoteIntoEditor(notes[0]);
+      } else if (selectedNoteId) {
+        const found = notes.find(n => n._id === selectedNoteId);
+        if (found) {
+          // Keep form in sync if background update happens
+          setResourceState(found.state || 'draft');
+        } else if (!isCreatingNew) {
+          loadNoteIntoEditor(notes[0]);
+        }
+      }
+    } else {
+      handleSelectCreateNew('article');
+    }
+  }, [notes]);
+
+  // Handle ESC key to close viewer modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && viewerModal.isOpen) {
+        closeViewerModal();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [viewerModal.isOpen]);
+
+  // Load a note into the editor
+  const loadNoteIntoEditor = (note) => {
+    if (!note) return;
+    setSelectedNoteId(note._id);
+    setIsCreatingNew(false);
+
+    const format = (note.type === 'article' || note.type === 'article_md') ? 'article' : (note.type || 'article');
+    setActiveTab(format);
+    setTitle(note.title || '');
+
+    const scopeVal = note.scope || note.attachableType || 'course';
+    setScope(scopeVal);
+
+    const modId = note.moduleId || (note.attachableType === 'module' ? note.attachableId : '') || '';
+    const lesId = note.lessonId || (note.attachableType === 'lesson' ? note.attachableId : '') || '';
+    setSelectedModuleId(modId);
+    setSelectedLessonId(lesId);
+
+    setMarkdownContent(note.markdownContent || note.content || note.bodyMarkdown || '');
+    setMediaUrl(note.fileUrl || note.mediaUrl || note.cloudinaryUrl || '');
+    setMediaName(note.fileName || note.title || '');
+    setMediaPublicId(note.cloudinaryPublicId || '');
+    setResourceState(note.state || 'draft');
+  };
+
+  // Switch to creating a new resource of specified format
+  const handleSelectCreateNew = (formatType) => {
+    setSelectedNoteId(null);
+    setIsCreatingNew(true);
+    setActiveTab(formatType);
+    setTitle('');
+    setScope('course');
+    setSelectedModuleId('');
+    setSelectedLessonId('');
+    setMarkdownContent('');
+    setMediaUrl('');
+    setMediaName('');
+    setMediaPublicId('');
+    setResourceState('draft');
+  };
+
+  // Open viewer modal for a resource
+  const openViewerModal = (item) => {
+    const itemType = item.type === 'article_md' || item.type === 'article' ? 'article' : (item.type || 'pdf');
+    const itemUrl = item.fileUrl || item.mediaUrl || item.cloudinaryUrl || item.url || '';
+    const itemContent = item.markdownContent || item.content || item.bodyMarkdown || '';
+
+    setViewerModal({
+      isOpen: true,
+      title: item.title || 'Resource Preview',
+      url: itemUrl,
+      type: itemType,
+      content: itemContent,
+      scopeLabel: getScopeLabel(item)
+    });
+  };
+
+  const closeViewerModal = () => {
+    setViewerModal(prev => ({ ...prev, isOpen: false }));
+  };
 
   // Find lessons for selected module
   const currentModule = modules.find(m => m._id === selectedModuleId);
   const availableLessons = currentModule ? currentModule.lessons || [] : [];
 
-  /* ─────────────────────────────────────────────────────────────
-     MUTATION HANDLERS (Live Backend Integration)
-     ───────────────────────────────────────────────────────────── */
-  const handleToggleNoteState = async (noteId) => {
-    try {
-      const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/notes/${noteId}/toggle-state`, {
-        method: 'PATCH',
-        headers: getAuthHeader()
+  // Helper for scope label display in sidebar items
+  const getScopeLabel = (note) => {
+    if (!note) return 'Course Level';
+    const scopeVal = note.attachableType || note.scope || 'course';
+    const modId = note.moduleId || (note.attachableType === 'module' ? note.attachableId : null);
+    const lesId = note.lessonId || (note.attachableType === 'lesson' ? note.attachableId : null);
+
+    if (scopeVal === 'course') return 'Course Level';
+    if (scopeVal === 'module') {
+      const mod = modules.find(m => m._id === modId);
+      return mod?.title ? `Module: ${mod.title}` : 'Module Level';
+    }
+    if (scopeVal === 'lesson') {
+      let lessonTitle = 'Lesson Level';
+      modules.forEach(m => {
+        const found = (m.lessons || []).find(l => l._id === lesId);
+        if (found) lessonTitle = `Lesson: ${found.title}`;
       });
-      const data = await res.json();
-      if (data.success) {
-        toast.success(`Resource toggled to ${data.note?.state || 'new state'}`);
-        if (onCurriculumUpdated) onCurriculumUpdated();
-      } else {
-        toast.error(data.message || 'Failed to toggle resource state');
+      return lessonTitle;
+    }
+    return 'Course Level';
+  };
+
+  // Helper for format display name
+  const getFormatLabel = (type) => {
+    if (type === 'article' || type === 'article_md') return 'Article (Markdown)';
+    if (type === 'pdf') return 'PDF Document';
+    if (type === 'image') return 'Image / Diagram';
+    return 'Resource';
+  };
+
+  // Filter notes by search query
+  const filteredNotes = notes.filter((note) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    const titleMatch = (note.title || '').toLowerCase().includes(q);
+    const scopeMatch = getScopeLabel(note).toLowerCase().includes(q);
+    const typeMatch = (note.type || '').toLowerCase().includes(q);
+    return titleMatch || scopeMatch || typeMatch;
+  });
+
+  // Toggle Publish / Draft State for the currently loaded/created resource
+  const handleTogglePublishState = async () => {
+    if (selectedNoteId && !isCreatingNew) {
+      try {
+        const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/notes/${selectedNoteId}/state`, {
+          method: 'PATCH',
+          headers: getAuthHeader()
+        });
+        const data = await res.json();
+        if (data.success) {
+          setResourceState(data.state);
+          toast.success(`Resource is now ${data.state === 'published' ? 'Published' : 'in Draft'}`);
+          if (onCurriculumUpdated) onCurriculumUpdated();
+        } else {
+          toast.error(data.message || 'Failed to update resource state');
+        }
+      } catch (err) {
+        toast.error('Network error updating resource state');
       }
-    } catch (err) {
-      console.error('Error toggling note state:', err);
-      toast.error('Network error toggling resource state');
+    } else {
+      // Local state toggle for new note being authored
+      setResourceState(prev => (prev === 'published' ? 'draft' : 'published'));
     }
   };
 
-  const handleCreateResource = async (e) => {
+  // Save / Update Resource Handler
+  const handleSaveResource = async (e) => {
     e.preventDefault();
     if (!title.trim()) {
       toast.error('Please enter a resource title');
@@ -88,14 +237,14 @@ export const NotesResourcesEditor = ({
       return;
     }
     if ((activeTab === 'pdf' || activeTab === 'image') && !mediaUrl) {
-      toast.error(`Please upload a ${activeTab.toUpperCase()} file from your device`);
+      toast.error(`Please upload a ${activeTab.toUpperCase()} file from your computer`);
       return;
     }
 
     setSaving(true);
     try {
       const attachableId = scope === 'course' ? courseId : scope === 'module' ? selectedModuleId : selectedLessonId;
-      if (!attachableId) {
+      if (scope !== 'course' && !attachableId) {
         toast.error('Please select the target module or lesson');
         setSaving(false);
         return;
@@ -103,498 +252,622 @@ export const NotesResourcesEditor = ({
 
       const payload = {
         title: title.trim(),
+        scope,
         attachableType: scope,
-        attachableId,
+        attachableId: attachableId || courseId,
+        moduleId: scope === 'module' || scope === 'lesson' ? selectedModuleId : null,
+        lessonId: scope === 'lesson' ? selectedLessonId : null,
         type: activeTab === 'article' ? 'article_md' : activeTab,
+        markdownContent: activeTab === 'article' ? markdownContent : '',
         bodyMarkdown: activeTab === 'article' ? markdownContent : '',
+        content: activeTab === 'article' ? markdownContent : '',
+        fileUrl: mediaUrl || '',
+        mediaUrl: mediaUrl || '',
         cloudinaryUrl: mediaUrl || '',
-        cloudinaryPublicId: mediaPublicId || ''
+        cloudinaryPublicId: mediaPublicId || '',
+        fileName: mediaName || title.trim(),
+        state: resourceState
       };
 
-      const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/notes`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success('Resource attached successfully');
-        setTitle('');
-        setMarkdownContent('');
-        setMediaUrl('');
-        setMediaName('');
-        setMediaPublicId('');
-        if (onCurriculumUpdated) onCurriculumUpdated();
+      if (selectedNoteId && !isCreatingNew) {
+        // UPDATE EXISTING RESOURCE
+        const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/notes/${selectedNoteId}`, {
+          method: 'PATCH',
+          headers: getAuthHeader(),
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          toast.success('Resource updated successfully');
+          if (onCurriculumUpdated) onCurriculumUpdated();
+        } else {
+          toast.error(data.message || 'Failed to update resource');
+        }
       } else {
-        toast.error(data.message || 'Failed to attach resource');
+        // CREATE NEW RESOURCE
+        const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/notes`, {
+          method: 'POST',
+          headers: getAuthHeader(),
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          toast.success('Resource attached successfully');
+          if (data.note?._id) {
+            setSelectedNoteId(data.note._id);
+            setIsCreatingNew(false);
+          }
+          if (onCurriculumUpdated) onCurriculumUpdated();
+        } else {
+          toast.error(data.message || 'Failed to attach resource');
+        }
       }
     } catch (err) {
-      console.error('Error attaching resource:', err);
-      toast.error('Network error creating resource');
+      toast.error('Network error saving resource');
     } finally {
       setSaving(false);
     }
   };
 
-  // Filtered notes
-  const filteredNotes = notes.filter(n => {
-    const noteType = n.type === 'article_md' ? 'article' : n.type;
-    const noteScope = n.attachableType || n.scope || 'course';
-    if (filterType !== 'all' && noteType !== filterType) return false;
-    if (filterScope !== 'all' && noteScope !== filterScope) return false;
-    return true;
-  });
-
-  const getScopeLabel = (note) => {
-    const scopeVal = note.attachableType || note.scope || 'course';
-    const modId = note.moduleId || (note.attachableType === 'module' ? note.attachableId : null);
-    const lesId = note.lessonId || (note.attachableType === 'lesson' ? note.attachableId : null);
-
-    if (scopeVal === 'course') return 'Course Wide';
-    if (scopeVal === 'module') {
-      const mod = modules.find(m => m._id === modId);
-      return `Module: ${mod?.title || 'Unknown Module'}`;
-    }
-    if (scopeVal === 'lesson') {
-      let lessonTitle = 'Unknown Lesson';
-      modules.forEach(m => {
-        const found = (m.lessons || []).find(l => l._id === lesId);
-        if (found) lessonTitle = found.title;
-      });
-      return `Lesson: ${lessonTitle}`;
-    }
-    return 'Course';
-  };
-
   return (
-    <div className="notes-resources-editor-subpage">
-      {/* ── Subpage Header ── */}
-      <div className="subpage-header-row">
-        <div className="subpage-title-group">
-          <button
-            type="button"
-            className="btn-back-nav"
-            onClick={onBack}
-            title="Return to Course Content hub"
-          >
-            <ArrowLeft size={18} />
-            <span>Back to Course Content</span>
-          </button>
-          <div className="subpage-heading-block">
-            <h2 className="subpage-title">Notes & Supplementary Resources</h2>
-            <p className="subpage-subtitle">
-              Notes are supplementary — learners are never required to open or finish them.
-            </p>
-          </div>
-        </div>
+    <div className="notes-resources-page-container">
+      {/* ══════════════════════════════════════════════════════════
+          TOP BAR: Back navigation, title & description
+          ══════════════════════════════════════════════════════════ */}
+      <header className="notes-page-topbar">
+        <button
+          type="button"
+          className="notes-back-btn"
+          onClick={onBack}
+          aria-label="Back to Course Content"
+        >
+          <ArrowLeft size={16} />
+          <span>Back to Course Content</span>
+        </button>
 
-        <div className="subpage-header-actions">
-          <span className="resources-count-badge">
-            {notes.length} Total Attached
-          </span>
-        </div>
-      </div>
-
-      {/* ── Resource Creator Section ── */}
-      <div className="resource-creator-card">
-        <div className="creator-card-header">
-          <h3 className="creator-card-title">Add New Resource</h3>
-          <p className="creator-card-subtitle">
-            Choose the resource format and target scope below.
+        <div className="notes-header-text-block">
+          <h1 className="notes-main-title">Notes & Supplementary Resources</h1>
+          <p className="notes-sub-description">
+            Provide supplementary articles, cheatsheets, slides, and diagrams for your learners.
           </p>
         </div>
+      </header>
 
-        {/* Format Selector Tabs */}
-        <div className="resource-type-tabs">
-          <button
-            type="button"
-            className={`type-tab-btn ${activeTab === 'article' ? 'active' : ''}`}
-            onClick={() => setActiveTab('article')}
-          >
-            <FileText size={17} />
-            <div className="tab-text">
-              <span className="tab-name">Article (Markdown)</span>
-              <span className="tab-desc">Formatted text, code, tables & guides</span>
+      {/* ══════════════════════════════════════════════════════════
+          MAIN TWO-PANEL LAYOUT
+          ══════════════════════════════════════════════════════════ */}
+      <div className="notes-main-grid-layout">
+        {/* ══════════════════════════════════════════════════════════
+            LEFT PANEL: Attached Resources List & Create New Selectors
+            ══════════════════════════════════════════════════════════ */}
+        <aside className="notes-left-sidebar">
+          <div className="notes-sidebar-card">
+            {/* Header: Attached Resources & Count */}
+            <div className="notes-sidebar-header">
+              <h4 className="sidebar-section-title">Attached Resources</h4>
+              <span className="sidebar-count-text">Total Attached: {notes.length}</span>
             </div>
-          </button>
 
-          <button
-            type="button"
-            className={`type-tab-btn ${activeTab === 'pdf' ? 'active' : ''}`}
-            onClick={() => setActiveTab('pdf')}
-          >
-            <BookOpen size={17} />
-            <div className="tab-text">
-              <span className="tab-name">Upload PDF</span>
-              <span className="tab-desc">Cheatsheets, slides & reference docs</span>
+            {/* Search Input */}
+            <div className="notes-search-wrap">
+              <Search size={14} className="notes-search-icon" />
+              <input
+                type="text"
+                className="notes-search-input"
+                placeholder="Search resources..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
-          </button>
 
-          <button
-            type="button"
-            className={`type-tab-btn ${activeTab === 'image' ? 'active' : ''}`}
-            onClick={() => setActiveTab('image')}
-          >
-            <ImageIcon size={17} />
-            <div className="tab-text">
-              <span className="tab-name">Upload Image</span>
-              <span className="tab-desc">System diagrams, flowcharts & schematics</span>
-            </div>
-          </button>
-        </div>
-
-        {/* Resource Creation Form */}
-        <form onSubmit={handleCreateResource} className="resource-form-body">
-          {/* Scope Selection Row */}
-          <div className="scope-selection-box">
-            <h4 className="scope-box-heading">
-              <Layers size={15} />
-              <span>Target Scope</span>
-            </h4>
-            <p className="scope-box-caption" style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '4px 0 12px 0' }}>
-              Attach this at the Course, Module, or Lesson level — wherever it's most relevant.
-            </p>
-            <div className="form-grid-3">
-              <div className="form-field-group">
-                <label className="field-label">Scope Level</label>
-                <select
-                  className="field-select"
-                  value={scope}
-                  onChange={(e) => {
-                    setScope(e.target.value);
-                    if (e.target.value === 'course') {
-                      setSelectedModuleId('');
-                      setSelectedLessonId('');
-                    }
-                  }}
-                >
-                  <option value="course">Course Level (General Reference)</option>
-                  <option value="module">Module Level</option>
-                  <option value="lesson">Lesson Level</option>
-                </select>
-              </div>
-
-              {scope !== 'course' && (
-                <div className="form-field-group">
-                  <label className="field-label">Target Module <span className="text-danger">*</span></label>
-                  <select
-                    className="field-select"
-                    required
-                    value={selectedModuleId}
-                    onChange={(e) => {
-                      setSelectedModuleId(e.target.value);
-                      setSelectedLessonId('');
-                    }}
-                  >
-                    <option value="">Select a Module...</option>
-                    {modules.map((m, idx) => (
-                      <option key={m._id} value={m._id}>
-                        Module {idx + 1}: {m.title}
-                      </option>
-                    ))}
-                  </select>
+            {/* Vertical Scrollable Attached Resources List */}
+            <div className="notes-attached-list">
+              {filteredNotes.length === 0 ? (
+                <div className="notes-list-empty">
+                  <p>{notes.length === 0 ? 'No resources attached yet.' : 'No matching resources found.'}</p>
                 </div>
-              )}
-
-              {scope === 'lesson' && (
-                <div className="form-field-group">
-                  <label className="field-label">Target Lesson <span className="text-danger">*</span></label>
-                  <select
-                    className="field-select"
-                    required
-                    disabled={!selectedModuleId}
-                    value={selectedLessonId}
-                    onChange={(e) => setSelectedLessonId(e.target.value)}
-                  >
-                    <option value="">Select a Lesson...</option>
-                    {availableLessons.map((l, idx) => (
-                      <option key={l._id} value={l._id}>
-                        Lesson {idx + 1}: {l.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Title Field */}
-          <div className="form-field-group">
-            <label className="field-label">
-              Resource Title <span className="text-danger">*</span>
-            </label>
-            <input
-              type="text"
-              className="field-input"
-              required
-              placeholder={
-                activeTab === 'article'
-                  ? 'e.g., Guide to REST API Architectural Constraints'
-                  : activeTab === 'pdf'
-                    ? 'e.g., Complete Docker & Kubernetes Cheatsheet'
-                    : 'e.g., Microservices Architecture & Event Pipeline Diagram'
-              }
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
-
-          {/* TAB 1: Markdown Article Editor */}
-          {activeTab === 'article' && (
-            <div className="tab-content-panel">
-              <label className="field-label">
-                Article Markdown Content <span className="text-danger">*</span>
-              </label>
-              <MarkdownEditor
-                value={markdownContent}
-                onChange={setMarkdownContent}
-                placeholder="Write your study notes, tutorial steps, or reference guide using rich Markdown..."
-                minHeight="340px"
-              />
-            </div>
-          )}
-
-          {/* TAB 2: Upload PDF */}
-          {activeTab === 'pdf' && (
-            <div className="tab-content-panel">
-              <label className="field-label">
-                Select PDF Document from Computer <span className="text-danger">*</span>
-              </label>
-              <DeviceFileUploader
-                fileType="pdf"
-                accept="application/pdf,.pdf"
-                maxSizeMB={25}
-                uploadEndpoint={`${apiBase}/courses/${courseId}/curriculum/upload/resource`}
-                getAuthHeader={getAuthHeader}
-                currentUrl={mediaUrl}
-                currentName={mediaName}
-                onUploadSuccess={({ url, publicId, fileName }) => {
-                  setMediaUrl(url);
-                  setMediaPublicId(publicId || '');
-                  setMediaName(fileName);
-                  if (!title) {
-                    setTitle(fileName.replace(/\.[^/.]+$/, ''));
-                  }
-                }}
-                helpText="Upload PDF documentation, slides, or cheatsheets directly from your device (Up to 25MB)."
-              />
-            </div>
-          )}
-
-          {/* TAB 3: Upload Image */}
-          {activeTab === 'image' && (
-            <div className="tab-content-panel">
-              <label className="field-label">
-                Select Image / Diagram from Computer <span className="text-danger">*</span>
-              </label>
-              <DeviceFileUploader
-                fileType="image"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                maxSizeMB={15}
-                uploadEndpoint={`${apiBase}/courses/${courseId}/curriculum/upload/resource`}
-                getAuthHeader={getAuthHeader}
-                currentUrl={mediaUrl}
-                currentName={mediaName}
-                onUploadSuccess={({ url, publicId, fileName }) => {
-                  setMediaUrl(url);
-                  setMediaPublicId(publicId || '');
-                  setMediaName(fileName);
-                  if (!title) {
-                    setTitle(fileName.replace(/\.[^/.]+$/, ''));
-                  }
-                }}
-                helpText="Upload PNG, JPG, WebP, or GIF diagrams and illustrations from your device (Up to 15MB)."
-              />
-            </div>
-          )}
-
-          {/* Submit Button */}
-          <div className="form-submit-row">
-            <button
-              type="submit"
-              className="btn-primary-action"
-              disabled={saving}
-            >
-              {saving ? (
-                <>
-                  <RefreshCw size={15} className="spinner-rotate" />
-                  <span>Attaching Resource...</span>
-                </>
               ) : (
-                <>
-                  <Plus size={16} />
-                  <span>Attach Resource to Course</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
+                filteredNotes.map((note) => {
+                  const isSelected = selectedNoteId === note._id && !isCreatingNew;
+                  const noteType = note.type === 'article_md' ? 'article' : (note.type || 'article');
+                  const hasViewableUrl = !!(note.fileUrl || note.mediaUrl || note.cloudinaryUrl || note.content);
 
-      {/* ── Attached Resources Repository ── */}
-      <div className="resources-repository-section">
-        <div className="repository-header-row">
-          <div className="repo-title-group">
-            <h3 className="repo-title">Attached Resources ({filteredNotes.length})</h3>
-            <p className="repo-subtitle">Manage visibility and preview attached materials.</p>
-          </div>
-
-          {/* Filter Controls */}
-          <div className="repo-filters-group">
-            <div className="filter-pill-group">
-              <button
-                type="button"
-                className={`filter-btn ${filterType === 'all' ? 'active' : ''}`}
-                onClick={() => setFilterType('all')}
-              >
-                All Formats
-              </button>
-              <button
-                type="button"
-                className={`filter-btn ${filterType === 'article' ? 'active' : ''}`}
-                onClick={() => setFilterType('article')}
-              >
-                Articles
-              </button>
-              <button
-                type="button"
-                className={`filter-btn ${filterType === 'pdf' ? 'active' : ''}`}
-                onClick={() => setFilterType('pdf')}
-              >
-                PDFs
-              </button>
-              <button
-                type="button"
-                className={`filter-btn ${filterType === 'image' ? 'active' : ''}`}
-                onClick={() => setFilterType('image')}
-              >
-                Images
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Resources Cards List */}
-        {filteredNotes.length === 0 ? (
-          <div className="resources-empty-state">
-            <BookOpen size={36} />
-            <h4>No Resources Found</h4>
-            <p>No supplementary resources match the current filter. Use the form above to add one.</p>
-          </div>
-        ) : (
-          <div className="resources-cards-grid">
-            {filteredNotes.map((note) => {
-              const isDraft = note.state === 'draft';
-
-              return (
-                <div key={note._id} className={`resource-card item-type-${note.type} ${isDraft ? 'is-draft' : ''}`}>
-                  <div className="card-top-header">
-                    <div className="card-type-icon-box">
-                      {(note.type === 'article' || note.type === 'article_md') && <FileText size={20} />}
-                      {note.type === 'pdf' && <BookOpen size={20} />}
-                      {note.type === 'image' && <ImageIcon size={20} />}
-                    </div>
-
-                    <div className="card-state-actions">
-                      <button
-                        type="button"
-                        className={`btn-state-badge state-${note.state}`}
-                        onClick={() => handleToggleNoteState(note._id)}
-                        title={`Click to set to ${isDraft ? 'Published' : 'Draft'}`}
-                      >
-                        {isDraft ? <EyeOff size={13} /> : <CheckCircle2 size={13} />}
-                        <span>{isDraft ? 'Draft' : 'Published'}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="card-body-content">
-                    <h4 className="resource-card-title">{note.title}</h4>
-                    <div className="resource-meta-chips">
-                      <span className="meta-chip chip-scope">{getScopeLabel(note)}</span>
-                      <span className="meta-chip chip-format">{(note.type === 'article_md' ? 'ARTICLE' : note.type).toUpperCase()}</span>
-                    </div>
-
-                    {(note.type === 'article' || note.type === 'article_md') && (note.bodyMarkdown || note.content) && (
-                      <p className="article-preview-snip">
-                        {(note.bodyMarkdown || note.content).substring(0, 120)}...
-                      </p>
-                    )}
-
-                    {note.type === 'image' && (note.cloudinaryUrl || note.mediaUrl) && (
-                      <div className="resource-thumb-preview">
-                        <img src={note.cloudinaryUrl || note.mediaUrl} alt={note.title} />
+                  return (
+                    <div
+                      key={note._id}
+                      className={`notes-list-item ${isSelected ? 'is-selected' : ''}`}
+                      onClick={() => loadNoteIntoEditor(note)}
+                    >
+                      {/* Left: Type Icon Box */}
+                      <div className={`item-icon-box type-${noteType}`}>
+                        {(noteType === 'article' || noteType === 'article_md') && <FileText size={16} />}
+                        {noteType === 'pdf' && <BookOpen size={16} />}
+                        {noteType === 'image' && <ImageIcon size={16} />}
                       </div>
-                    )}
-                  </div>
 
-                  <div className="card-footer-toolbar">
-                    <button
-                      type="button"
-                      className="btn-view-resource"
-                      onClick={() => setViewingNote(note)}
-                    >
-                      <Eye size={14} />
-                      <span>Preview Resource</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                      {/* Middle: Info */}
+                      <div className="item-info-col">
+                        <span className="item-format-name">{getFormatLabel(note.type)}</span>
+                        <h5 className="item-title" title={note.title}>{note.title}</h5>
+                        <span className="item-scope-label">{getScopeLabel(note)}</span>
+                      </div>
 
-      {/* ── Resource Preview Modal / Drawer ── */}
-      {viewingNote && (
-        <div className="resource-preview-modal-overlay" onClick={() => setViewingNote(null)}>
-          <div className="resource-preview-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="preview-modal-header">
-              <div className="preview-header-info">
-                <h3>{viewingNote.title}</h3>
-                <span className="modal-scope-tag">{getScopeLabel(viewingNote)}</span>
-              </div>
-              <button
-                type="button"
-                className="btn-modal-close"
-                onClick={() => setViewingNote(null)}
-              >
-                <X size={20} />
-              </button>
+                      {/* Right: Actions */}
+                      <div className="item-actions-col">
+                        {hasViewableUrl && (
+                          <button
+                            type="button"
+                            className="btn-item-view"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openViewerModal(note);
+                            }}
+                            title={`View ${getFormatLabel(note.type)}`}
+                          >
+                            <Eye size={13} />
+                            <span>View</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="btn-item-edit"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            loadNoteIntoEditor(note);
+                          }}
+                          title="Edit Resource"
+                        >
+                          <Edit2 size={13} />
+                          <span>Edit</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
 
-            <div className="preview-modal-body">
-              {(viewingNote.type === 'article' || viewingNote.type === 'article_md') && (
-                <div
-                  className="article-modal-rendered md-rendered-content"
-                  dangerouslySetInnerHTML={{
-                    __html: renderMarkdownToHTML(viewingNote.bodyMarkdown || viewingNote.content || '')
-                  }}
+            {/* Bottom: Create New Section */}
+            <div className="notes-create-new-section">
+              <h4 className="sidebar-section-title">Create New</h4>
+              <div className="create-new-buttons-stack">
+                <button
+                  type="button"
+                  className={`create-type-btn ${isCreatingNew && activeTab === 'article' ? 'is-active' : ''}`}
+                  onClick={() => handleSelectCreateNew('article')}
+                >
+                  <FileText size={16} className="create-btn-icon" />
+                  <span className="create-btn-label">Article (Markdown)</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`create-type-btn ${isCreatingNew && activeTab === 'pdf' ? 'is-active' : ''}`}
+                  onClick={() => handleSelectCreateNew('pdf')}
+                >
+                  <BookOpen size={16} className="create-btn-icon" />
+                  <span className="create-btn-label">Upload PDF</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`create-type-btn ${isCreatingNew && activeTab === 'image' ? 'is-active' : ''}`}
+                  onClick={() => handleSelectCreateNew('image')}
+                >
+                  <ImageIcon size={16} className="create-btn-icon" />
+                  <span className="create-btn-label">Upload Image</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* ══════════════════════════════════════════════════════════
+            RIGHT PANEL: Full Resource Editor
+            ══════════════════════════════════════════════════════════ */}
+        <main className="notes-right-editor-pane">
+          <div className="notes-editor-card">
+            {/* Top Action Header */}
+            <div className="notes-editor-header-bar">
+              <div className="editor-mode-indicator">
+                <span className="mode-badge">
+                  {isCreatingNew ? 'NEW RESOURCE' : 'EDITING RESOURCE'}
+                </span>
+                <span className="mode-type-tag">
+                  {getFormatLabel(activeTab)}
+                </span>
+              </div>
+
+              <div className="editor-header-actions">
+                {/* View Current Resource Button (if persisted / uploaded) */}
+                {((activeTab === 'pdf' || activeTab === 'image') && mediaUrl) && (
+                  <button
+                    type="button"
+                    className="btn-header-view-action"
+                    onClick={() => openViewerModal({ title, url: mediaUrl, type: activeTab, scope })}
+                    title={`Preview this ${activeTab.toUpperCase()}`}
+                  >
+                    <Eye size={14} />
+                    <span>View {activeTab === 'pdf' ? 'PDF' : 'Image'}</span>
+                  </button>
+                )}
+
+                {/* Publish / Unpublish Switch */}
+                <button
+                  type="button"
+                  className={`btn-node-state-toggle state-${resourceState}`}
+                  onClick={handleTogglePublishState}
+                  title="Toggle between Draft and Published state"
+                >
+                  {resourceState === 'draft' ? <EyeOff size={14} /> : <CheckCircle2 size={14} />}
+                  <span>{resourceState === 'draft' ? 'Draft' : 'Published'}</span>
+                </button>
+
+                {/* Save Changes / Create Button */}
+                <button
+                  type="button"
+                  className="btn-brand-save"
+                  disabled={saving}
+                  onClick={handleSaveResource}
+                >
+                  {saving ? (
+                    <>
+                      <RefreshCw size={15} className="spinner-rotate" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>{isCreatingNew ? 'Attach Resource' : 'Save Changes'}</span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Form Fields */}
+            <form onSubmit={handleSaveResource} className="notes-editor-form-body">
+              {/* Target Scope Card */}
+              <div className="scope-selection-box">
+                <h4 className="scope-box-heading">
+                  <Layers size={15} />
+                  <span>Target Scope</span>
+                </h4>
+                <p className="scope-box-caption">
+                  Attach this at the Course, Module, or Lesson level — wherever it's most relevant.
+                </p>
+                <div className="form-grid-3">
+                  <div className="form-field-group">
+                    <label className="field-label">Scope Level</label>
+                    <select
+                      className="field-select"
+                      value={scope}
+                      onChange={(e) => {
+                        setScope(e.target.value);
+                        if (e.target.value === 'course') {
+                          setSelectedModuleId('');
+                          setSelectedLessonId('');
+                        }
+                      }}
+                    >
+                      <option value="course">Course Level (Global to Course)</option>
+                      <option value="module">Module Level</option>
+                      <option value="lesson">Lesson Level</option>
+                    </select>
+                  </div>
+
+                  {(scope === 'module' || scope === 'lesson') && (
+                    <div className="form-field-group">
+                      <label className="field-label">
+                        Target Module <span className="text-danger">*</span>
+                      </label>
+                      <select
+                        className="field-select"
+                        required
+                        value={selectedModuleId}
+                        onChange={(e) => {
+                          setSelectedModuleId(e.target.value);
+                          setSelectedLessonId('');
+                        }}
+                      >
+                        <option value="">Select a Module...</option>
+                        {modules.map((m, idx) => (
+                          <option key={m._id} value={m._id}>
+                            Module {idx + 1}: {m.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {scope === 'lesson' && (
+                    <div className="form-field-group">
+                      <label className="field-label">
+                        Target Lesson <span className="text-danger">*</span>
+                      </label>
+                      <select
+                        className="field-select"
+                        required
+                        disabled={!selectedModuleId}
+                        value={selectedLessonId}
+                        onChange={(e) => setSelectedLessonId(e.target.value)}
+                      >
+                        <option value="">Select a Lesson...</option>
+                        {availableLessons.map((l, idx) => (
+                          <option key={l._id} value={l._id}>
+                            Lesson {idx + 1}: {l.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Resource Title Field */}
+              <div className="form-field-group">
+                <label className="field-label">
+                  Resource Title <span className="text-danger">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="field-input"
+                  required
+                  placeholder={
+                    activeTab === 'article'
+                      ? 'e.g., Guide to REST API Architectural Constraints'
+                      : activeTab === 'pdf'
+                        ? 'e.g., Complete Docker & Kubernetes Cheatsheet'
+                        : 'e.g., Microservices Architecture & Event Pipeline Diagram'
+                  }
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
                 />
+              </div>
+
+              {/* ── FORMAT 1: Article (Markdown) ── */}
+              {activeTab === 'article' && (
+                <div className="tab-content-panel">
+                  <label className="field-label">
+                    Article Markdown Content <span className="text-danger">*</span>
+                  </label>
+                  <MarkdownEditor
+                    value={markdownContent}
+                    onChange={setMarkdownContent}
+                    placeholder="Write your study notes, tutorial steps, or reference guide using rich Markdown..."
+                    minHeight="360px"
+                  />
+                </div>
               )}
 
-              {viewingNote.type === 'pdf' && (
-                <div className="pdf-modal-preview">
-                  <BookOpen size={48} className="pdf-large-icon" />
-                  <h4>{viewingNote.title}</h4>
-                  <p>PDF Document is attached to this course.</p>
-                  {(viewingNote.cloudinaryUrl || viewingNote.mediaUrl) && (
-                    <a
-                      href={viewingNote.cloudinaryUrl || viewingNote.mediaUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-primary-action"
-                    >
-                      <ExternalLink size={15} />
-                      <span>Open PDF Document</span>
-                    </a>
+              {/* ── FORMAT 2: Upload PDF ── */}
+              {activeTab === 'pdf' && (
+                <div className="tab-content-panel">
+                  <label className="field-label">
+                    Select PDF Document from Computer <span className="text-danger">*</span>
+                  </label>
+                  <DeviceFileUploader
+                    fileType="pdf"
+                    accept="application/pdf,.pdf"
+                    maxSizeMB={25}
+                    uploadEndpoint={`${apiBase}/courses/${courseId}/curriculum/upload/resource`}
+                    getAuthHeader={getAuthHeader}
+                    currentUrl={mediaUrl}
+                    currentName={mediaName}
+                    onUploadSuccess={({ url, publicId, fileName }) => {
+                      setMediaUrl(url);
+                      setMediaPublicId(publicId || '');
+                      setMediaName(fileName);
+                      if (!title) {
+                        setTitle(fileName.replace(/\.[^/.]+$/, ''));
+                      }
+                    }}
+                    helpText="Upload PDF documentation, slides, or cheatsheets directly from your device (Up to 25MB)."
+                  />
+
+                  {/* Attached PDF Preview / Actions Card */}
+                  {mediaUrl && (
+                    <div className="attached-resource-action-card">
+                      <div className="attached-resource-info">
+                        <div className="attached-resource-icon type-pdf">
+                          <BookOpen size={20} />
+                        </div>
+                        <div className="attached-resource-details">
+                          <span className="attached-resource-label">Uploaded PDF File</span>
+                          <span className="attached-resource-name">{mediaName || title || 'document.pdf'}</span>
+                        </div>
+                      </div>
+
+                      <div className="attached-resource-actions">
+                        <button
+                          type="button"
+                          className="btn-view-resource-card"
+                          onClick={() => openViewerModal({ title, url: mediaUrl, type: 'pdf', scope })}
+                        >
+                          <Eye size={15} />
+                          <span>View PDF</span>
+                        </button>
+
+                        <a
+                          href={mediaUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn-external-link-card"
+                          title="Open PDF in new browser tab"
+                        >
+                          <ExternalLink size={15} />
+                          <span>Open in Tab</span>
+                        </a>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
 
-              {viewingNote.type === 'image' && (
-                <div className="image-modal-preview">
-                  <img src={viewingNote.cloudinaryUrl || viewingNote.mediaUrl} alt={viewingNote.title} />
+              {/* ── FORMAT 3: Upload Image ── */}
+              {activeTab === 'image' && (
+                <div className="tab-content-panel">
+                  <label className="field-label">
+                    Select Image / Diagram from Computer <span className="text-danger">*</span>
+                  </label>
+                  <DeviceFileUploader
+                    fileType="image"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    maxSizeMB={15}
+                    uploadEndpoint={`${apiBase}/courses/${courseId}/curriculum/upload/resource`}
+                    getAuthHeader={getAuthHeader}
+                    currentUrl={mediaUrl}
+                    currentName={mediaName}
+                    onUploadSuccess={({ url, publicId, fileName }) => {
+                      setMediaUrl(url);
+                      setMediaPublicId(publicId || '');
+                      setMediaName(fileName);
+                      if (!title) {
+                        setTitle(fileName.replace(/\.[^/.]+$/, ''));
+                      }
+                    }}
+                    helpText="Upload PNG, JPG, WebP, or GIF diagrams and illustrations from your device (Up to 15MB)."
+                  />
+
+                  {/* Attached Image Preview / Actions Card */}
+                  {mediaUrl && (
+                    <div className="attached-resource-action-card image-mode">
+                      <div className="attached-resource-info">
+                        <div className="attached-image-thumb-wrap" onClick={() => openViewerModal({ title, url: mediaUrl, type: 'image', scope })}>
+                          <img src={mediaUrl} alt={mediaName || 'Uploaded Diagram'} className="attached-image-thumb" />
+                        </div>
+                        <div className="attached-resource-details">
+                          <span className="attached-resource-label">Uploaded Image / Diagram</span>
+                          <span className="attached-resource-name">{mediaName || title || 'image.png'}</span>
+                        </div>
+                      </div>
+
+                      <div className="attached-resource-actions">
+                        <button
+                          type="button"
+                          className="btn-view-resource-card"
+                          onClick={() => openViewerModal({ title, url: mediaUrl, type: 'image', scope })}
+                        >
+                          <Eye size={15} />
+                          <span>View Image</span>
+                        </button>
+
+                        <a
+                          href={mediaUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn-external-link-card"
+                          title="Open Image in new browser tab"
+                        >
+                          <ExternalLink size={15} />
+                          <span>Open in Tab</span>
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </form>
+          </div>
+        </main>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════
+          IN-APP RESOURCE VIEWER MODAL
+          ══════════════════════════════════════════════════════════ */}
+      {viewerModal.isOpen && (
+        <div className="resource-viewer-modal-backdrop" onClick={closeViewerModal}>
+          <div
+            className={`resource-viewer-modal-dialog ${viewerModal.type === 'image' ? 'is-image-modal' : 'is-pdf-modal'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header Bar */}
+            <div className="resource-viewer-modal-header">
+              <div className="viewer-header-info">
+                <div className={`viewer-header-icon-badge type-${viewerModal.type}`}>
+                  {viewerModal.type === 'pdf' && <BookOpen size={16} />}
+                  {viewerModal.type === 'image' && <ImageIcon size={16} />}
+                  {viewerModal.type === 'article' && <FileText size={16} />}
+                </div>
+                <div>
+                  <h3 className="viewer-header-title">{viewerModal.title || 'Resource Viewer'}</h3>
+                  <div className="viewer-header-meta">
+                    <span className="viewer-meta-pill">{getFormatLabel(viewerModal.type)}</span>
+                    {viewerModal.scopeLabel && <span className="viewer-meta-pill">{viewerModal.scopeLabel}</span>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="viewer-header-actions">
+                {viewerModal.url && (
+                  <a
+                    href={viewerModal.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="viewer-btn-action"
+                    title="Open in new window"
+                  >
+                    <ExternalLink size={15} />
+                    <span>Open in Tab</span>
+                  </a>
+                )}
+
+                <button
+                  type="button"
+                  className="viewer-btn-close"
+                  onClick={closeViewerModal}
+                  aria-label="Close viewer"
+                  title="Close viewer (ESC)"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body: PDF / Image / Article Viewer */}
+            <div className="resource-viewer-modal-body">
+              {viewerModal.type === 'pdf' && (
+                viewerModal.url ? (
+                  <div className="pdf-viewer-frame-container">
+                    <iframe
+                      src={viewerModal.url}
+                      title={viewerModal.title}
+                      className="pdf-viewer-iframe"
+                      frameBorder="0"
+                    />
+                  </div>
+                ) : (
+                  <div className="viewer-error-state">
+                    <AlertCircle size={32} className="viewer-error-icon" />
+                    <h4>PDF file cannot be loaded</h4>
+                    <p>No valid URL was found for this document resource.</p>
+                  </div>
+                )
+              )}
+
+              {viewerModal.type === 'image' && (
+                viewerModal.url ? (
+                  <div className="image-viewer-frame-container">
+                    <img
+                      src={viewerModal.url}
+                      alt={viewerModal.title}
+                      className="image-viewer-full"
+                    />
+                  </div>
+                ) : (
+                  <div className="viewer-error-state">
+                    <AlertCircle size={32} className="viewer-error-icon" />
+                    <h4>Image cannot be loaded</h4>
+                    <p>No valid URL was found for this image resource.</p>
+                  </div>
+                )
+              )}
+
+              {viewerModal.type === 'article' && (
+                <div className="article-viewer-content-container">
+                  <div
+                    className="article-markdown-rendered-view"
+                    dangerouslySetInnerHTML={{
+                      __html: renderMarkdownToHTML(viewerModal.content || '*No content available.*')
+                    }}
+                  />
                 </div>
               )}
             </div>

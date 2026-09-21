@@ -29,16 +29,12 @@ exports.getCloudinaryConfig = getCloudinaryConfig;
  * Upload a memory buffer directly to Cloudinary without touching local disk
  */
 exports.uploadBufferToCloudinary = async (fileBuffer, mimetype, originalname = 'file', folder = 'upskillr_uploads') => {
-  const base64Data = `data:${mimetype};base64,${fileBuffer.toString('base64')}`;
   const config = getCloudinaryConfig();
   if (!config.cloudName || !config.apiKey || !config.apiSecret) {
-    const mockId = `thumb_${Date.now()}_${originalname.replace(/[^a-zA-Z0-9]/g, '_')}`;
-    return {
-      public_id: mockId,
-      secure_url: base64Data,
-      isMock: true
-    };
+    throw new Error('Cloudinary credentials are not configured on the server. Please check CLOUDINARY_URL in .env.');
   }
+
+  const base64Data = `data:${mimetype};base64,${fileBuffer.toString('base64')}`;
 
   try {
     const timestamp = Math.round(new Date().getTime() / 1000);
@@ -55,21 +51,26 @@ exports.uploadBufferToCloudinary = async (fileBuffer, mimetype, originalname = '
     const uploadRes = await axios.post(
       `https://api.cloudinary.com/v1_1/${config.cloudName}/auto/upload`,
       params.toString(),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 60000
+      }
     );
+
+    if (!uploadRes.data || !uploadRes.data.secure_url) {
+      throw new Error('Cloudinary did not return a valid secure_url');
+    }
 
     return {
       public_id: uploadRes.data.public_id,
-      secure_url: uploadRes.data.secure_url
+      secure_url: uploadRes.data.secure_url,
+      format: uploadRes.data.format,
+      bytes: uploadRes.data.bytes
     };
   } catch (err) {
-    console.warn('Cloudinary upload warning:', err.response?.data?.error?.message || err.message);
-    const mockId = `thumb_${Date.now()}_${originalname.replace(/[^a-zA-Z0-9]/g, '_')}`;
-    return {
-      public_id: mockId,
-      secure_url: base64Data,
-      isFallback: true
-    };
+    const errMsg = err.response?.data?.error?.message || err.message;
+    console.error('Cloudinary upload failure:', errMsg);
+    throw new Error(`Cloudinary upload failed: ${errMsg}`);
   }
 };
 

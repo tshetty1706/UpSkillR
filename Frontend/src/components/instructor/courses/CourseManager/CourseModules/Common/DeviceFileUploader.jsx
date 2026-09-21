@@ -110,25 +110,48 @@ export const DeviceFileUploader = ({
       const token = localStorage.getItem('upskillr_token');
       const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
-      // 1. Obtain direct upload target / credentials
-      const credRes = await fetch(`${API_BASE}/media/upload-credentials`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders
-        },
-        body: JSON.stringify({ type: fileType === 'video' ? 'video' : (fileType === 'pdf' ? 'document' : 'image') })
-      });
-      const credData = await credRes.json();
+      if (uploadEndpoint) {
+        // Backend Multipart Endpoint Upload (zero local disk persistence on backend, Cloudinary direct upload)
+        setUploadProgress(30);
+        setUploadStatusMessage(`Uploading ${fileType.toUpperCase()} file to Cloudinary...`);
 
-      let finalUrl = localPreview;
-      let finalAssetId = '';
-      let finalPlaybackId = '';
-      let finalPublicId = '';
-      let finalDuration = clientVideoDuration || 0;
-      let finalStatus = 'ready';
+        const formData = new FormData();
+        formData.append('file', file);
+        if (extraData && typeof extraData === 'object') {
+          Object.keys(extraData).forEach(k => formData.append(k, extraData[k]));
+        }
 
-      if (fileType === 'video') {
+        const endpointHeaders = getAuthHeader ? getAuthHeader() : authHeaders;
+        // Don't set Content-Type header so browser sets multipart/form-data with boundary
+        const cleanHeaders = { ...endpointHeaders };
+        delete cleanHeaders['Content-Type'];
+
+        const uploadRes = await fetch(uploadEndpoint, {
+          method: 'POST',
+          headers: cleanHeaders,
+          body: formData
+        });
+
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok || !uploadData.success) {
+          throw new Error(uploadData.message || `Failed to upload ${fileType} to Cloudinary.`);
+        }
+
+        finalUrl = uploadData.fileUrl || uploadData.url || uploadData.secure_url;
+        finalPublicId = uploadData.publicId || uploadData.public_id || '';
+        setUploadProgress(100);
+      } else if (fileType === 'video') {
+        // 1. Obtain direct upload target / credentials
+        const credRes = await fetch(`${API_BASE}/media/upload-credentials`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders
+          },
+          body: JSON.stringify({ type: 'video' })
+        });
+        const credData = await credRes.json();
+
         if (credData.uploadUrl) {
           // Direct browser upload
           setUploadProgress(35);
@@ -169,7 +192,6 @@ export const DeviceFileUploader = ({
           }
 
           if (!isMuxReady) {
-            // Still transcoding in background
             finalAssetId = credData.uploadId;
             finalPlaybackId = '';
             finalStatus = 'processing';
@@ -185,8 +207,18 @@ export const DeviceFileUploader = ({
           finalStatus = 'ready';
         }
       } else {
-        // Direct browser upload
+        // Direct browser signed upload to Cloudinary
         setUploadStatusMessage('Uploading document from device...');
+        const credRes = await fetch(`${API_BASE}/media/upload-credentials`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders
+          },
+          body: JSON.stringify({ type: fileType === 'pdf' ? 'document' : 'image' })
+        });
+        const credData = await credRes.json();
+
         if (credData.uploadUrl && credData.apiKey && credData.signature) {
           const formData = new FormData();
           formData.append('file', file);
@@ -204,11 +236,10 @@ export const DeviceFileUploader = ({
             finalUrl = cloudData.secure_url;
             finalPublicId = cloudData.public_id;
           } else {
-            console.warn('Cloudinary direct upload issue:', cloudData?.error?.message || cloudRes.statusText);
-            finalPublicId = `cloud_${Date.now()}`;
+            throw new Error(cloudData?.error?.message || 'Failed to upload file to Cloudinary');
           }
         } else {
-          finalPublicId = `cloud_mock_${Date.now()}`;
+          throw new Error('Cloudinary direct upload credentials unavailable.');
         }
       }
 
