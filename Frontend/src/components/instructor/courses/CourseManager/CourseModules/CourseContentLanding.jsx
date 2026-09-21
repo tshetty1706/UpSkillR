@@ -23,8 +23,11 @@ export const CourseContentLanding = ({
 }) => {
   // Aggregate stats
   const totalLessons = modules.reduce((acc, m) => acc + (m.lessons?.length || 0), 0);
-  const totalItems = modules.reduce((acc, m) => {
-    return acc + (m.lessons || []).reduce((lAcc, l) => lAcc + (l.items?.length || 0), 0);
+  const totalQuizzes = modules.reduce((acc, m) => {
+    return acc + (m.lessons || []).reduce((lAcc, l) => {
+      const items = l.items || [];
+      return lAcc + items.filter(i => i.type?.toLowerCase() === 'quiz').length;
+    }, 0);
   }, 0);
 
   const publishedModules = modules.filter(m => m.state === 'published').length;
@@ -41,7 +44,6 @@ export const CourseContentLanding = ({
         <div className="landing-title-block">
           <div className="landing-title-row">
             <h2 className="landing-main-title">Course Content</h2>
-            <span className="landing-badge-curriculum">Curriculum Hub</span>
           </div>
           <p className="landing-subtitle">
             Design and organize your curriculum structure, supplementary materials, and module assessments.
@@ -60,13 +62,6 @@ export const CourseContentLanding = ({
           </button>
         </div>
       </div>
-
-      {/* ── Guidance Tip Banner ── */}
-      <InstructorTip
-        type="sparkle"
-        title="Curriculum Architecture Guidance"
-        message="Start by building your Modules & Lessons hierarchy. You can attach non-gating Notes & Resources at any scope, and configure module-gated Assessments once at least one module has been created."
-      />
 
       {/* ── 3 Main Navigation Cards Grid ── */}
       <div className="content-cards-grid">
@@ -99,15 +94,15 @@ export const CourseContentLanding = ({
             <div className="card-stats-row">
               <div className="stat-pill">
                 <Layers size={13} />
-                <span>{modules.length} Modules</span>
+                <span>{modules.length} {modules.length === 1 ? 'Module' : 'Modules'}</span>
               </div>
               <div className="stat-pill">
                 <Video size={13} />
-                <span>{totalLessons} Lessons</span>
+                <span>{totalLessons} {totalLessons === 1 ? 'Lesson' : 'Lessons'}</span>
               </div>
               <div className="stat-pill">
                 <HelpCircle size={13} />
-                <span>{totalItems} Items</span>
+                <span>{totalQuizzes} {totalQuizzes === 1 ? 'Quiz' : 'Quizzes'}</span>
               </div>
             </div>
 

@@ -95,9 +95,12 @@ export const CourseModules = ({ courseId, course, onCurriculumUpdated, onNavigat
       {contentSubView === 'modules' && (
         <ModuleLessonEditor
           courseId={courseId}
+          course={course}
           modules={modules}
+          notes={notes}
           onBack={() => setContentSubView('landing')}
           onCurriculumUpdated={handleCurriculumUpdated}
+          onEnterPreview={() => setContentSubView('preview')}
           apiBase={API_BASE}
           getAuthHeader={getAuthHeader}
           toast={toast}

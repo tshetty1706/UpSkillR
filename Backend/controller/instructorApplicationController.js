@@ -2,6 +2,7 @@ const InstructorApplication = require('../model/InstructorApplication');
 const Instructor = require('../model/Instructor');
 const path = require('path');
 const fs = require('fs');
+const { uploadBufferToCloudinary } = require('./mediaController');
 
 /**
  * Get current instructor application and status
@@ -164,7 +165,13 @@ exports.uploadPhoto = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please select an image file to upload.' });
     }
 
-    const photoUrl = `/uploads/photos/${req.file.filename}`;
+    const uploadResult = await uploadBufferToCloudinary(
+      req.file.buffer,
+      req.file.mimetype,
+      req.file.originalname,
+      'instructor_photos'
+    );
+    const photoUrl = uploadResult.secure_url;
 
     const instructor = await Instructor.findById(instructorId);
     if (instructor) {
@@ -246,9 +253,17 @@ exports.uploadResume = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please select a resume file (PDF/DOC/DOCX) to upload.' });
     }
 
-    const resumeUrl = `/uploads/resumes/${req.file.filename}`;
+    // Direct upload to Cloudinary (Zero Local Disk Writes)
+    const uploadResult = await uploadBufferToCloudinary(
+      req.file.buffer,
+      req.file.mimetype,
+      req.file.originalname,
+      'instructor_resumes'
+    );
+    const resumeUrl = uploadResult.secure_url;
     const resumeObj = {
       url: resumeUrl,
+      publicId: uploadResult.public_id,
       originalName: req.file.originalname,
       size: req.file.size,
       mimeType: req.file.mimetype
@@ -323,9 +338,17 @@ exports.uploadCertificate = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please select a certificate file (PDF/JPG/PNG/WEBP) to upload.' });
     }
 
-    const certificateUrl = `/uploads/certificates/${req.file.filename}`;
+    // Direct upload to Cloudinary (Zero Local Disk Writes)
+    const uploadResult = await uploadBufferToCloudinary(
+      req.file.buffer,
+      req.file.mimetype,
+      req.file.originalname,
+      'instructor_certificates'
+    );
+    const certificateUrl = uploadResult.secure_url;
     const certFileObj = {
       url: certificateUrl,
+      publicId: uploadResult.public_id,
       originalName: req.file.originalname,
       size: req.file.size,
       mimeType: req.file.mimetype

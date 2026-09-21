@@ -7,10 +7,8 @@ import { Step3Overview } from './Step3Overview/Step3Overview';
 import { Step4ReviewCreate } from './Step4ReviewCreate/Step4ReviewCreate';
 import { CourseOverviewPreviewModal } from './OverviewTemplate/CourseOverviewPreviewModal';
 import { useToast } from '../../../../context/ToastContext';
+import { API_BASE } from '../../../../config/api';
 import './CourseCreationFlow.css';
-
-const DEFAULT_FALLBACK_THUMBNAIL =
-  'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80';
 
 export const CourseCreationFlow = ({ user, onCancel, onCourseCreated, onNavigate }) => {
   const { toast } = useToast();
@@ -85,38 +83,53 @@ export const CourseCreationFlow = ({ user, onCancel, onCourseCreated, onNavigate
     onCancel();
   };
 
-  // Final Atomic Course Creation (Section 15.1 & 24)
+  // Final Course Creation submission logic
   const handleFinalSubmit = async () => {
+    if (!basicInfo.title || !basicInfo.title.trim()) {
+      toast.error('Please enter a course title in Step 1');
+      setCurrentStep(1);
+      return;
+    }
+    if (!basicInfo.category || !basicInfo.category.trim()) {
+      toast.error('Please select a course category in Step 1');
+      setCurrentStep(1);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const token = localStorage.getItem('upskillr_token');
       const formData = new FormData();
+      formData.append('title', basicInfo.title.trim());
+      formData.append('category', basicInfo.category.trim());
+      formData.append('skillLevel', basicInfo.skillLevel || 'Beginner');
+      formData.append('language', basicInfo.language || 'English');
+      formData.append('shortDescription', (basicInfo.shortDescription || '').trim());
+      formData.append('description', (basicInfo.shortDescription || '').trim());
+      formData.append('fullDescription', (overviewData.fullDescription || '').trim());
+      formData.append('certificate', overviewData.certificate ? 'true' : 'false');
 
-      formData.append('title', basicInfo.title);
-      formData.append('category', basicInfo.category);
-      formData.append('skillLevel', basicInfo.skillLevel);
-      formData.append('language', basicInfo.language);
-      formData.append('shortDescription', basicInfo.shortDescription);
-      formData.append('tags', JSON.stringify(basicInfo.tags || []));
-      formData.append('price', '0');
+      (overviewData.learningOutcomes || []).forEach(item => {
+        if (item && item.trim()) formData.append('whatYouWillLearn', item.trim());
+      });
+      (overviewData.skills || []).forEach(skill => {
+        if (skill && skill.trim()) formData.append('skills', skill.trim());
+      });
+      (overviewData.techStack || []).forEach(tech => {
+        if (tech && tech.trim()) formData.append('techStack', tech.trim());
+      });
+      (overviewData.prerequisites || []).forEach(pre => {
+        if (pre && pre.trim()) formData.append('prerequisites', pre.trim());
+      });
+      (basicInfo.tags || []).forEach(tag => {
+        if (tag && tag.trim()) formData.append('tags', tag.trim());
+      });
 
-      // Thumbnail
       if (thumbnailFile) {
         formData.append('thumbnail', thumbnailFile);
-      } else if (thumbnailPreview) {
-        formData.append('thumbnail', thumbnailPreview);
-      } else {
-        formData.append('thumbnail', DEFAULT_FALLBACK_THUMBNAIL);
       }
 
-      // Overview object
-      const cleanOverview = {
-        ...overviewData,
-        learningOutcomes: (overviewData.learningOutcomes || []).filter((o) => o && o.trim())
-      };
-      formData.append('overview', JSON.stringify(cleanOverview));
-
-      const res = await fetch('http://localhost:5000/api/courses', {
+      const res = await fetch(`${API_BASE}/courses`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`
@@ -125,18 +138,18 @@ export const CourseCreationFlow = ({ user, onCancel, onCourseCreated, onNavigate
       });
 
       const data = await res.json();
-      if (data.success) {
-        toast.success(data.message || 'Course created successfully!');
+      if (data.success && data.course) {
+        toast.success('Course created successfully as Draft!');
         setCreatedCourse(data.course);
         if (onCourseCreated) {
           onCourseCreated(data.course);
         }
       } else {
-        toast.error(data.message || 'Failed to create course. Please review the inputs.');
+        toast.error(data.message || 'Failed to create course');
       }
     } catch (err) {
-      console.error('Course Creation Error:', err);
-      toast.error('Network error during course creation. Please try again.');
+      console.error('Error creating course:', err);
+      toast.error('Network error creating course. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

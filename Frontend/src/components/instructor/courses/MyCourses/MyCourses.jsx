@@ -3,7 +3,7 @@ import {
   BookOpen,
   Plus,
   Search,
-  Video,
+  Layers,
   Users,
   Clock,
   Globe,
@@ -12,6 +12,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import './MyCourses.css';
+import { CourseThumbnail } from '../../../common/CourseThumbnail';
 
 export const MyCourses = ({ courses, onNavigate, onPublishToggle }) => {
   const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'published' | 'draft'
@@ -113,7 +114,7 @@ export const MyCourses = ({ courses, onNavigate, onPublishToggle }) => {
 
               {/* Thumbnail */}
               <div className="course-card-thumb-wrap">
-                <img
+                <CourseThumbnail
                   src={course.thumbnail}
                   alt={course.title}
                   className="course-card-thumb"
@@ -136,12 +137,12 @@ export const MyCourses = ({ courses, onNavigate, onPublishToggle }) => {
 
                 <div className="course-metrics-row">
                   <div className="metric-item">
-                    <Video size={14} />
-                    <span>{course.lessons?.length || 0} Lessons</span>
+                    <Layers size={14} />
+                    <span>{course.modules?.length || 0} {(course.modules?.length === 1) ? 'Module' : 'Modules'}</span>
                   </div>
                   <div className="metric-item">
                     <Users size={14} />
-                    <span>{course.learnersCount || 0} Learners</span>
+                    <span>{course.learnersCount || 0} {course.learnersCount === 1 ? 'Learner' : 'Learners'}</span>
                   </div>
                   <div className="metric-item">
                     <Clock size={14} />

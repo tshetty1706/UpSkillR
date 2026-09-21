@@ -20,23 +20,9 @@ const {
   verifyAssessmentBelongsToCourse
 } = require('../middleware/ownershipMiddleware');
 
-// ─── Multer Storage Configurations ───
-const resourcesDir = path.join(__dirname, '../uploads/resources');
-const thumbnailsDir = path.join(__dirname, '../uploads/thumbnails');
-
-if (!fs.existsSync(resourcesDir)) fs.mkdirSync(resourcesDir, { recursive: true });
-if (!fs.existsSync(thumbnailsDir)) fs.mkdirSync(thumbnailsDir, { recursive: true });
-
-const thumbnailStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, thumbnailsDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `thumb-${Date.now()}${ext}`);
-  }
-});
-
+// ─── Multer Storage Configurations (In-Memory Buffer, Zero Local Disk Storage) ───
 const thumbnailUpload = multer({
-  storage: thumbnailStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
     const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -48,46 +34,25 @@ const thumbnailUpload = multer({
   }
 });
 
-const resourceStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, resourcesDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const cleanBase = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9]/g, '_');
-    cb(null, `res-${Date.now()}-${cleanBase}${ext}`);
-  }
-});
-
 const resourceUpload = multer({
-  storage: resourceStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
   fileFilter: (req, file, cb) => {
     const allowedExts = [
       '.pdf', '.ppt', '.pptx', '.doc', '.docx', '.xls', '.xlsx', '.zip',
-      '.jpg', '.jpeg', '.png', '.webp', '.mp4', '.mov', '.avi'
+      '.jpg', '.jpeg', '.png', '.webp'
     ];
     const ext = path.extname(file.originalname).toLowerCase();
     if (allowedExts.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error('File format not supported. Allowed: PDF, PPT, DOC, XLS, ZIP, Images, Videos.'));
+      cb(new Error('File format not supported. Allowed: PDF, PPT, DOC, XLS, ZIP, Images.'));
     }
   }
 });
 
-const videosDir = path.join(__dirname, '../uploads/videos');
-if (!fs.existsSync(videosDir)) fs.mkdirSync(videosDir, { recursive: true });
-
-const videoStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, videosDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const cleanBase = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9]/g, '_');
-    cb(null, `vid-${Date.now()}-${cleanBase}${ext}`);
-  }
-});
-
 const videoUpload = multer({
-  storage: videoStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 500 * 1024 * 1024 }, // 500MB
   fileFilter: (req, file, cb) => {
     const allowedExts = ['.mp4', '.mov', '.webm', '.mkv', '.avi'];

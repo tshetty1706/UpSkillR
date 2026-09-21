@@ -17,25 +17,9 @@ const {
   submitApplication
 } = require('../controller/instructorApplicationController');
 
-// Multer Storage Setup
-const photosDir = path.join(__dirname, '../uploads/photos');
-const resumesDir = path.join(__dirname, '../uploads/resumes');
-const certificatesDir = path.join(__dirname, '../uploads/certificates');
-
-if (!fs.existsSync(photosDir)) fs.mkdirSync(photosDir, { recursive: true });
-if (!fs.existsSync(resumesDir)) fs.mkdirSync(resumesDir, { recursive: true });
-if (!fs.existsSync(certificatesDir)) fs.mkdirSync(certificatesDir, { recursive: true });
-
-const photoStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, photosDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `photo-${req.user.id}-${Date.now()}${ext}`);
-  }
-});
-
+// Multer Storage Setup (In-Memory Buffer, Zero Local Disk Storage)
 const photoUpload = multer({
-  storage: photoStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
     const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -47,16 +31,8 @@ const photoUpload = multer({
   }
 });
 
-const resumeStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, resumesDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `resume-${req.user.id}-${Date.now()}${ext}`);
-  }
-});
-
 const resumeUpload = multer({
-  storage: resumeStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
     const allowedExts = ['.pdf', '.doc', '.docx'];
@@ -69,16 +45,8 @@ const resumeUpload = multer({
   }
 });
 
-const certificateStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, certificatesDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `cert-${req.user.id}-${Date.now()}${ext}`);
-  }
-});
-
 const certificateUpload = multer({
-  storage: certificateStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
     const allowedExts = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];

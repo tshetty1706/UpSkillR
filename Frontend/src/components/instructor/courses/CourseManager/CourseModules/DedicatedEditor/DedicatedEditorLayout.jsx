@@ -16,7 +16,6 @@ export const DedicatedEditorLayout = ({
   pageTitle = 'Content Editor',
   breadcrumbSection = 'Content',
   guidanceTitle = 'Instructor Guidance',
-  guidanceMessage = '',
   guidanceType = 'tip',
   onBackToWorkspace,
   onTogglePreview,
@@ -87,16 +86,6 @@ export const DedicatedEditorLayout = ({
       {/* ── Main Focused Content Workspace ── */}
       <main className="dedicated-editor-main-container">
         {/* Editor Guidance Banner */}
-        {guidanceMessage && !previewMode && (
-          <div className="dedicated-guidance-wrapper">
-            <InstructorTip
-              type={guidanceType}
-              title={guidanceTitle}
-              message={guidanceMessage}
-            />
-          </div>
-        )}
-
         {/* Dedicated Page Body */}
         <div className="dedicated-editor-content-card">
           {children}

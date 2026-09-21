@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ArrowRight, Lightbulb, AlertCircle, BookOpen, Layers, Globe, Sparkles } from 'lucide-react';
 import { DynamicTagInput } from '../Common/DynamicTagInput';
 import './Step1BasicInfo.css';
@@ -9,7 +9,7 @@ export const Step1BasicInfo = ({
   onNext,
   onCancel
 }) => {
-  const [metaOptions, setMetaOptions] = useState({
+  const [metaOptions] = useState({
     categories: [
       'Web Development',
       'Data Science',
@@ -24,26 +24,6 @@ export const Step1BasicInfo = ({
   });
 
   const [errors, setErrors] = useState({});
-
-  useEffect(() => {
-    fetchMetaOptions();
-  }, []);
-
-  const fetchMetaOptions = async () => {
-    try {
-      const res = await fetch('http://localhost:5000/api/courses/meta/options');
-      const json = await res.json();
-      if (json.success) {
-        setMetaOptions({
-          categories: json.categories || metaOptions.categories,
-          skillLevels: json.skillLevels || metaOptions.skillLevels,
-          languages: json.languages || metaOptions.languages
-        });
-      }
-    } catch (e) {
-      // Fall back to predefined lists
-    }
-  };
 
   const validate = () => {
     const newErrors = {};

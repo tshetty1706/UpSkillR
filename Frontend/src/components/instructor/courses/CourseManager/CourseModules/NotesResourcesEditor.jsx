@@ -41,6 +41,7 @@ export const NotesResourcesEditor = ({
   const [markdownContent, setMarkdownContent] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
   const [mediaName, setMediaName] = useState('');
+  const [mediaPublicId, setMediaPublicId] = useState('');
   const [saving, setSaving] = useState(false);
 
   // List filter state
@@ -55,7 +56,7 @@ export const NotesResourcesEditor = ({
   const availableLessons = currentModule ? currentModule.lessons || [] : [];
 
   /* ─────────────────────────────────────────────────────────────
-     STATE TOGGLE (Draft <-> Published)
+     MUTATION HANDLERS (Live Backend Integration)
      ───────────────────────────────────────────────────────────── */
   const handleToggleNoteState = async (noteId) => {
     try {
@@ -65,79 +66,71 @@ export const NotesResourcesEditor = ({
       });
       const data = await res.json();
       if (data.success) {
-        toast.success(`Resource set to ${data.state}`);
-        onCurriculumUpdated();
+        toast.success(`Resource toggled to ${data.note?.state || 'new state'}`);
+        if (onCurriculumUpdated) onCurriculumUpdated();
       } else {
-        toast.error(data.message || 'Could not toggle resource state');
+        toast.error(data.message || 'Failed to toggle resource state');
       }
     } catch (err) {
-      toast.error('Network error toggling state');
+      console.error('Error toggling note state:', err);
+      toast.error('Network error toggling resource state');
     }
   };
 
-  /* ─────────────────────────────────────────────────────────────
-     SAVE NEW RESOURCE
-     ───────────────────────────────────────────────────────────── */
   const handleCreateResource = async (e) => {
     e.preventDefault();
     if (!title.trim()) {
       toast.error('Please enter a resource title');
       return;
     }
-
     if (activeTab === 'article' && !markdownContent.trim()) {
-      toast.error('Please write some content for the article');
+      toast.error('Please enter markdown content');
       return;
     }
-
     if ((activeTab === 'pdf' || activeTab === 'image') && !mediaUrl) {
-      toast.error(`Please upload a ${activeTab.toUpperCase()} file from your device first`);
-      return;
-    }
-
-    if (scope === 'module' && !selectedModuleId) {
-      toast.error('Please select a target module');
-      return;
-    }
-
-    if (scope === 'lesson' && (!selectedModuleId || !selectedLessonId)) {
-      toast.error('Please select both a target module and lesson');
+      toast.error(`Please upload a ${activeTab.toUpperCase()} file from your device`);
       return;
     }
 
     setSaving(true);
     try {
-      const body = {
-        scope,
-        moduleId: scope !== 'course' ? selectedModuleId : null,
-        lessonId: scope === 'lesson' ? selectedLessonId : null,
-        type: activeTab,
+      const attachableId = scope === 'course' ? courseId : scope === 'module' ? selectedModuleId : selectedLessonId;
+      if (!attachableId) {
+        toast.error('Please select the target module or lesson');
+        setSaving(false);
+        return;
+      }
+
+      const payload = {
         title: title.trim(),
-        content: activeTab === 'article' ? markdownContent : '',
-        mediaUrl: activeTab !== 'article' ? mediaUrl : ''
+        attachableType: scope,
+        attachableId,
+        type: activeTab === 'article' ? 'article_md' : activeTab,
+        bodyMarkdown: activeTab === 'article' ? markdownContent : '',
+        cloudinaryUrl: mediaUrl || '',
+        cloudinaryPublicId: mediaPublicId || ''
       };
 
       const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/notes`, {
         method: 'POST',
         headers: getAuthHeader(),
-        body: JSON.stringify(body)
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
-
       if (data.success) {
-        toast.success(`Resource "${title}" created successfully`);
-        // Reset form
+        toast.success('Resource attached successfully');
         setTitle('');
         setMarkdownContent('');
         setMediaUrl('');
         setMediaName('');
-        onCurriculumUpdated();
+        setMediaPublicId('');
+        if (onCurriculumUpdated) onCurriculumUpdated();
       } else {
-        toast.error(data.message || 'Failed to save resource');
+        toast.error(data.message || 'Failed to attach resource');
       }
     } catch (err) {
-      console.error('Save resource error:', err);
-      toast.error('Network error while saving resource');
+      console.error('Error attaching resource:', err);
+      toast.error('Network error creating resource');
     } finally {
       setSaving(false);
     }
@@ -145,21 +138,30 @@ export const NotesResourcesEditor = ({
 
   // Filtered notes
   const filteredNotes = notes.filter(n => {
-    if (filterType !== 'all' && n.type !== filterType) return false;
-    if (filterScope !== 'all' && n.scope !== filterScope) return false;
+    const noteType = n.type === 'article_md' ? 'article' : n.type;
+    const noteScope = n.attachableType || n.scope || 'course';
+    if (filterType !== 'all' && noteType !== filterType) return false;
+    if (filterScope !== 'all' && noteScope !== filterScope) return false;
     return true;
   });
 
   const getScopeLabel = (note) => {
-    if (note.scope === 'course') return 'Course Wide';
-    if (note.scope === 'module') {
-      const mod = modules.find(m => m._id === note.moduleId);
+    const scopeVal = note.attachableType || note.scope || 'course';
+    const modId = note.moduleId || (note.attachableType === 'module' ? note.attachableId : null);
+    const lesId = note.lessonId || (note.attachableType === 'lesson' ? note.attachableId : null);
+
+    if (scopeVal === 'course') return 'Course Wide';
+    if (scopeVal === 'module') {
+      const mod = modules.find(m => m._id === modId);
       return `Module: ${mod?.title || 'Unknown Module'}`;
     }
-    if (note.scope === 'lesson') {
-      const mod = modules.find(m => m._id === note.moduleId);
-      const les = mod?.lessons?.find(l => l._id === note.lessonId);
-      return `Lesson: ${les?.title || 'Unknown Lesson'}`;
+    if (scopeVal === 'lesson') {
+      let lessonTitle = 'Unknown Lesson';
+      modules.forEach(m => {
+        const found = (m.lessons || []).find(l => l._id === lesId);
+        if (found) lessonTitle = found.title;
+      });
+      return `Lesson: ${lessonTitle}`;
     }
     return 'Course';
   };
@@ -181,7 +183,7 @@ export const NotesResourcesEditor = ({
           <div className="subpage-heading-block">
             <h2 className="subpage-title">Notes & Supplementary Resources</h2>
             <p className="subpage-subtitle">
-              Publish rich Markdown articles, downloadable PDF reference sheets, and architectural diagrams.
+              Notes are supplementary — learners are never required to open or finish them.
             </p>
           </div>
         </div>
@@ -192,13 +194,6 @@ export const NotesResourcesEditor = ({
           </span>
         </div>
       </div>
-
-      {/* ── Non-gating Guidance Tip ── */}
-      <InstructorTip
-        type="info"
-        title="Supplementary Non-Gating Material"
-        message="Notes and resources are non-gating. Learners can access them at any time to supplement their learning without blocking module or lesson progression. Zero items are ever permanently erased; use draft state to unpublish."
-      />
 
       {/* ── Resource Creator Section ── */}
       <div className="resource-creator-card">
@@ -256,6 +251,9 @@ export const NotesResourcesEditor = ({
               <Layers size={15} />
               <span>Target Scope</span>
             </h4>
+            <p className="scope-box-caption" style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '4px 0 12px 0' }}>
+              Attach this at the Course, Module, or Lesson level — wherever it's most relevant.
+            </p>
             <div className="form-grid-3">
               <div className="form-field-group">
                 <label className="field-label">Scope Level</label>
@@ -333,8 +331,8 @@ export const NotesResourcesEditor = ({
                 activeTab === 'article'
                   ? 'e.g., Guide to REST API Architectural Constraints'
                   : activeTab === 'pdf'
-                  ? 'e.g., Complete Docker & Kubernetes Cheatsheet'
-                  : 'e.g., Microservices Architecture & Event Pipeline Diagram'
+                    ? 'e.g., Complete Docker & Kubernetes Cheatsheet'
+                    : 'e.g., Microservices Architecture & Event Pipeline Diagram'
               }
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -370,8 +368,9 @@ export const NotesResourcesEditor = ({
                 getAuthHeader={getAuthHeader}
                 currentUrl={mediaUrl}
                 currentName={mediaName}
-                onUploadSuccess={({ url, fileName }) => {
+                onUploadSuccess={({ url, publicId, fileName }) => {
                   setMediaUrl(url);
+                  setMediaPublicId(publicId || '');
                   setMediaName(fileName);
                   if (!title) {
                     setTitle(fileName.replace(/\.[^/.]+$/, ''));
@@ -396,8 +395,9 @@ export const NotesResourcesEditor = ({
                 getAuthHeader={getAuthHeader}
                 currentUrl={mediaUrl}
                 currentName={mediaName}
-                onUploadSuccess={({ url, fileName }) => {
+                onUploadSuccess={({ url, publicId, fileName }) => {
                   setMediaUrl(url);
+                  setMediaPublicId(publicId || '');
                   setMediaName(fileName);
                   if (!title) {
                     setTitle(fileName.replace(/\.[^/.]+$/, ''));
@@ -490,7 +490,7 @@ export const NotesResourcesEditor = ({
                 <div key={note._id} className={`resource-card item-type-${note.type} ${isDraft ? 'is-draft' : ''}`}>
                   <div className="card-top-header">
                     <div className="card-type-icon-box">
-                      {note.type === 'article' && <FileText size={20} />}
+                      {(note.type === 'article' || note.type === 'article_md') && <FileText size={20} />}
                       {note.type === 'pdf' && <BookOpen size={20} />}
                       {note.type === 'image' && <ImageIcon size={20} />}
                     </div>
@@ -512,18 +512,18 @@ export const NotesResourcesEditor = ({
                     <h4 className="resource-card-title">{note.title}</h4>
                     <div className="resource-meta-chips">
                       <span className="meta-chip chip-scope">{getScopeLabel(note)}</span>
-                      <span className="meta-chip chip-format">{note.type.toUpperCase()}</span>
+                      <span className="meta-chip chip-format">{(note.type === 'article_md' ? 'ARTICLE' : note.type).toUpperCase()}</span>
                     </div>
 
-                    {note.type === 'article' && note.content && (
+                    {(note.type === 'article' || note.type === 'article_md') && (note.bodyMarkdown || note.content) && (
                       <p className="article-preview-snip">
-                        {note.content.substring(0, 120)}...
+                        {(note.bodyMarkdown || note.content).substring(0, 120)}...
                       </p>
                     )}
 
-                    {note.type === 'image' && note.mediaUrl && (
+                    {note.type === 'image' && (note.cloudinaryUrl || note.mediaUrl) && (
                       <div className="resource-thumb-preview">
-                        <img src={note.mediaUrl} alt={note.title} />
+                        <img src={note.cloudinaryUrl || note.mediaUrl} alt={note.title} />
                       </div>
                     )}
                   </div>
@@ -564,11 +564,11 @@ export const NotesResourcesEditor = ({
             </div>
 
             <div className="preview-modal-body">
-              {viewingNote.type === 'article' && (
+              {(viewingNote.type === 'article' || viewingNote.type === 'article_md') && (
                 <div
                   className="article-modal-rendered md-rendered-content"
                   dangerouslySetInnerHTML={{
-                    __html: renderMarkdownToHTML(viewingNote.content)
+                    __html: renderMarkdownToHTML(viewingNote.bodyMarkdown || viewingNote.content || '')
                   }}
                 />
               )}
@@ -578,9 +578,9 @@ export const NotesResourcesEditor = ({
                   <BookOpen size={48} className="pdf-large-icon" />
                   <h4>{viewingNote.title}</h4>
                   <p>PDF Document is attached to this course.</p>
-                  {viewingNote.mediaUrl && (
+                  {(viewingNote.cloudinaryUrl || viewingNote.mediaUrl) && (
                     <a
-                      href={viewingNote.mediaUrl}
+                      href={viewingNote.cloudinaryUrl || viewingNote.mediaUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="btn-primary-action"
@@ -594,7 +594,7 @@ export const NotesResourcesEditor = ({
 
               {viewingNote.type === 'image' && (
                 <div className="image-modal-preview">
-                  <img src={viewingNote.mediaUrl} alt={viewingNote.title} />
+                  <img src={viewingNote.cloudinaryUrl || viewingNote.mediaUrl} alt={viewingNote.title} />
                 </div>
               )}
             </div>

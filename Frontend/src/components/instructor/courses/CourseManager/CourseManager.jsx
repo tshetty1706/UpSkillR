@@ -8,7 +8,6 @@ import {
   Lock,
   BarChart3,
   Edit3,
-  Eye,
   Save,
   X,
   Upload,
@@ -33,6 +32,7 @@ import { DynamicListInput } from '../courseCreation/Common/DynamicListInput';
 import { CourseOverviewTemplate } from '../courseCreation/OverviewTemplate/CourseOverviewTemplate';
 import { CourseAnnouncements } from './CourseAnnouncements/CourseAnnouncements';
 import { CourseModules } from './CourseModules/CourseModules';
+import { CourseThumbnail } from '../../../common/CourseThumbnail';
 import { API_BASE } from '../../../../config/api';
 
 const CATEGORY_OPTIONS = [
@@ -271,6 +271,7 @@ export const CourseManager = ({
         };
         setCourse(mergedCourse);
         setDetailsForm((prev) => ({ ...prev, thumbnail: mergedCourse.thumbnail }));
+        setDetailsThumbnailPreview(mergedCourse.thumbnail || '');
         setDetailsThumbnailFile(null);
         setIsEditingDetails(false);
         toast.success('Course details updated successfully!');
@@ -489,16 +490,6 @@ export const CourseManager = ({
                 Views: <strong>{course.overviewViews || 0}</strong>
               </span>
             </div>
-
-            <button
-              type="button"
-              className="btn-preview-learner header-preview-btn"
-              onClick={() => setShowOverviewPreview(true)}
-              title="Preview learner-facing course overview"
-            >
-              <Eye size={16} />
-              <span>Preview Overview</span>
-            </button>
           </div>
         </div>
       </header>
@@ -680,7 +671,7 @@ export const CourseManager = ({
                   <div className="workspace-info-card">
                     <h3 className="card-inner-heading">Course Thumbnail</h3>
                     <div className="details-thumb-box">
-                      <img
+                      <CourseThumbnail
                         src={course.thumbnail}
                         alt={course.title}
                         className="details-thumb-img"
@@ -853,7 +844,7 @@ export const CourseManager = ({
                   <div className="form-right-col">
                     <label className="form-label">Course Thumbnail</label>
                     <div className="edit-thumbnail-preview-box">
-                      <img
+                      <CourseThumbnail
                         src={detailsThumbnailPreview || course.thumbnail}
                         alt="Thumbnail Preview"
                         className="edit-thumbnail-img"

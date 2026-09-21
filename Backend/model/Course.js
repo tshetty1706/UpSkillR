@@ -1,15 +1,5 @@
 const mongoose = require('mongoose');
 
-const resourceSchema = new mongoose.Schema({
-  title: { type: String, required: true, trim: true },
-  description: { type: String, default: '' },
-  fileUrl: { type: String, required: true },
-  fileType: { type: String, default: 'PDF' },
-  fileSize: { type: String, default: '1.0 MB' },
-  originalName: { type: String, default: '' },
-  uploadedAt: { type: Date, default: Date.now }
-});
-
 const questionSchema = new mongoose.Schema({
   questionText: { type: String, required: true, trim: true },
   type: {
@@ -23,25 +13,6 @@ const questionSchema = new mongoose.Schema({
   marks: { type: Number, default: 1 },
   evaluationInstructions: { type: String, default: '' },
   order: { type: Number, default: 1 }
-});
-
-const assessmentSchema = new mongoose.Schema({
-  title: { type: String, required: true, trim: true },
-  description: { type: String, default: '' },
-  instructions: { type: String, default: '' },
-  type: { type: String, default: 'Quiz' },
-  totalMarks: { type: Number, default: 10 },
-  passingMarks: { type: Number, default: 5 },
-  timeLimit: { type: Number, default: 30 }, // in minutes
-  attemptsAllowed: { type: Number, default: 1 },
-  dueDate: { type: Date, default: null },
-  status: {
-    type: String,
-    enum: ['draft', 'published'],
-    default: 'draft'
-  },
-  questions: [questionSchema],
-  createdAt: { type: Date, default: Date.now }
 });
 
 const notesSchema = new mongoose.Schema({
@@ -59,6 +30,7 @@ const notesSchema = new mongoose.Schema({
   fileType: { type: String, default: 'md' },
   fileSize: { type: String, default: '' },
   state: { type: String, enum: ['draft', 'published'], default: 'draft' },
+  effective_visible: { type: Boolean, default: false },
   sortKey: { type: String, default: 'a0' },
   uploadedAt: { type: Date, default: Date.now }
 });
@@ -67,34 +39,24 @@ const contentItemSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   type: { type: String, required: true, lowercase: true, enum: ['video', 'quiz', 'Video', 'Quiz'] },
   state: { type: String, enum: ['draft', 'published'], default: 'draft' },
+  effective_visible: { type: Boolean, default: false },
   sortKey: { type: String, default: 'a0' },
   version: { type: Number, default: 1 },
+  role: { type: String, enum: ['lesson_check', 'practice'], default: 'lesson_check' },
   video: {
     muxAssetId: { type: String, default: '' },
     muxPlaybackId: { type: String, default: '' },
     duration: { type: Number, default: 0 },
     watchedThresholdPercent: { type: Number, default: 90 },
+    allowScrubAhead: { type: Boolean, default: true },
     status: { type: String, default: 'ready' }
-  },
-  videoDetails: {
-    muxAssetId: { type: String, default: '' },
-    muxPlaybackId: { type: String, default: '' },
-    duration: { type: String, default: '' },
-    durationSeconds: { type: Number, default: 0 },
-    watchedPctThreshold: { type: Number, default: 90 }
   },
   quiz: {
     instructions: { type: String, default: '' },
     passThresholdPercent: { type: Number, default: 70 },
     maxAttempts: { type: Number, default: 3 },
     cooldownHours: { type: Number, default: 6 },
-    questions: [questionSchema]
-  },
-  quizDetails: {
-    instructions: { type: String, default: '' },
-    passThreshold: { type: Number, default: 70 },
-    maxAttempts: { type: Number, default: 3 },
-    cooldownHours: { type: Number, default: 6 },
+    role: { type: String, enum: ['lesson_check', 'practice'], default: 'lesson_check' },
     questions: [questionSchema]
   },
   createdAt: { type: Date, default: Date.now },
@@ -106,14 +68,14 @@ const courseAssessmentSchema = new mongoose.Schema({
   description: { type: String, default: '' },
   instructions: { type: String, default: '' },
   state: { type: String, enum: ['draft', 'published'], default: 'draft' },
+  effective_visible: { type: Boolean, default: false },
   sortKey: { type: String, default: 'a0' },
   version: { type: Number, default: 1 },
-  requiredModuleIds: [{ type: mongoose.Schema.Types.ObjectId }],
-  requiresModules: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Module' }],
+  requiredModuleIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Module' }],
   passThresholdPercent: { type: Number, default: 70 },
-  passThreshold: { type: Number, default: 70 },
   maxAttempts: { type: Number, default: 3 },
   cooldownHours: { type: Number, default: 6 },
+  countsTowardCertificate: { type: Boolean, default: true },
   questions: [questionSchema],
   totalMarks: { type: Number, default: 10 },
   createdAt: { type: Date, default: Date.now },
@@ -124,23 +86,20 @@ const lessonSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   description: { type: String, default: '' },
   state: { type: String, enum: ['draft', 'published'], default: 'draft' },
+  effective_visible: { type: Boolean, default: false },
   sortKey: { type: String, default: 'a0' },
+  require_all_items: { type: Boolean, default: true },
   items: [contentItemSchema],
-  contentItems: [contentItemSchema],
   notes: [notesSchema],
-  // Legacy fields preserved for backward compatibility
-  videoUrl: { type: String, default: '' },
-  duration: { type: String, default: '10 min' },
-  order: { type: Number, default: 1 },
-  content: { type: String, default: '' },
-  resources: [resourceSchema],
-  assessments: [assessmentSchema]
+  order: { type: Number, default: 1 }
 });
 
 const moduleSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   description: { type: String, default: '' },
   state: { type: String, enum: ['draft', 'published'], default: 'draft' },
+  effective_visible: { type: Boolean, default: false },
+  release_at: { type: Date, default: null },
   sortKey: { type: String, default: 'a0' },
   lessons: [lessonSchema],
   notes: [notesSchema],
@@ -209,7 +168,7 @@ const courseSchema = new mongoose.Schema({
   },
   thumbnail: {
     type: String,
-    default: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80'
+    default: ''
   },
   price: {
     type: Number,
@@ -234,12 +193,17 @@ const courseSchema = new mongoose.Schema({
     enum: ['draft', 'published'],
     default: 'draft'
   },
+  effective_visible: {
+    type: Boolean,
+    default: false
+  },
+  thumbnail_public_id: {
+    type: String,
+    default: ''
+  },
   modules: [moduleSchema],
   courseAssessments: [courseAssessmentSchema],
   notes: [notesSchema],
-  lessons: [lessonSchema],
-  resources: [resourceSchema],
-  assessments: [assessmentSchema],
   skills: {
     type: [String],
     default: []

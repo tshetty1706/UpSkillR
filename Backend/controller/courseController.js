@@ -8,6 +8,7 @@ const { Instructor, Learner } = require('../model/User');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const fs = require('fs');
+const { uploadBufferToCloudinary } = require('./mediaController');
 
 // 2. Get All Courses owned by Instructor + Stats
 exports.getInstructorCourses = async (req, res) => {
@@ -32,6 +33,8 @@ exports.getInstructorCourses = async (req, res) => {
         const enrolCount = await Enrolment.countDocuments({ courseId: c._id });
         const cObj = c.toObject();
         cObj.learnersCount = enrolCount;
+        cObj.moduleCount = (cObj.modules || []).length;
+        cObj.modulesCount = (cObj.modules || []).length;
         return cObj;
       })
     );
@@ -64,6 +67,8 @@ exports.getCourseById = async (req, res) => {
     const enrolCount = await Enrolment.countDocuments({ courseId: course._id });
     const courseObj = course.toObject();
     courseObj.learnersCount = enrolCount;
+    courseObj.moduleCount = (courseObj.modules || []).length;
+    courseObj.modulesCount = (courseObj.modules || []).length;
 
     return res.status(200).json({ success: true, course: courseObj });
   } catch (error) {
@@ -91,6 +96,12 @@ exports.getPublicCourseById = async (req, res) => {
     const courseObj = course.toObject();
     courseObj.learnersCount = enrolCount;
 
+    // Filter modules to ONLY published modules for public/learner
+    const publishedModules = (courseObj.modules || []).filter(m => m.state === 'published' || m.status === 'published');
+    courseObj.modules = publishedModules;
+    courseObj.moduleCount = publishedModules.length;
+    courseObj.modulesCount = publishedModules.length;
+
     return res.status(200).json({ success: true, course: courseObj });
   } catch (error) {
     console.error('Get Public Course By ID Error:', error);
@@ -109,6 +120,8 @@ exports.updateCourse = async (req, res) => {
       category,
       skillLevel,
       thumbnail,
+      thumbnailPublicId,
+      thumbnail_public_id,
       price,
       skills,
       tags,
@@ -128,8 +141,8 @@ exports.updateCourse = async (req, res) => {
 
     if (lastUpdatedAt && course.updatedAt) {
       const clientTime = new Date(lastUpdatedAt).getTime();
-      const serverTime = new Date(course.updatedAt).getTime();
-      if (Math.abs(clientTime - serverTime) > 1000) {
+      const dbTime = new Date(course.updatedAt).getTime();
+      if (dbTime - clientTime > 2000) {
         return res.status(409).json({
           success: false,
           conflict: true,
@@ -144,7 +157,9 @@ exports.updateCourse = async (req, res) => {
     if (fullDescription !== undefined) course.fullDescription = fullDescription.trim();
     if (category) course.category = category.trim();
     if (skillLevel) course.skillLevel = skillLevel;
-    if (thumbnail) course.thumbnail = thumbnail;
+    if (thumbnail !== undefined) course.thumbnail = thumbnail;
+    if (thumbnailPublicId !== undefined) course.thumbnail_public_id = thumbnailPublicId;
+    if (thumbnail_public_id !== undefined) course.thumbnail_public_id = thumbnail_public_id;
     if (price !== undefined) course.price = Number(price);
     if (prerequisites !== undefined) course.prerequisites = prerequisites;
     if (certificate !== undefined) course.certificate = Boolean(certificate);
@@ -477,9 +492,17 @@ exports.uploadLessonResource = async (req, res) => {
       targetLesson = course.lessons[0]; // Fallback to first lesson
     }
 
-    const fileExt = req.file.filename.split('.').pop().toUpperCase();
+    const fileExt = (req.file.originalname || '').split('.').pop().toUpperCase() || 'FILE';
     const fileSizeMb = (req.file.size / (1024 * 1024)).toFixed(1) + ' MB';
-    const fileUrl = `http://localhost:5000/uploads/resources/${req.file.filename}`;
+
+    // Direct Cloudinary upload (Zero Local Disk Writes)
+    const uploadResult = await uploadBufferToCloudinary(
+      req.file.buffer,
+      req.file.mimetype,
+      req.file.originalname,
+      'upskillr_course_resources'
+    );
+    const fileUrl = uploadResult.secure_url;
 
     const newResource = {
       title: title ? title.trim() : req.file.originalname,
@@ -1089,6 +1112,13 @@ exports.getPublishedCourses = async (req, res) => {
           cObj.instructorAvatar = c.instructorId.avatar;
           cObj.instructorName = c.instructorId.fullName || c.instructorName;
         }
+
+        // Filter modules to ONLY published modules for public/learner exploration
+        const publishedModules = (cObj.modules || []).filter(m => m.state === 'published' || m.status === 'published');
+        cObj.modules = publishedModules;
+        cObj.moduleCount = publishedModules.length;
+        cObj.modulesCount = publishedModules.length;
+
         return cObj;
       })
     );
@@ -1157,7 +1187,17 @@ exports.enrolInCourse = async (req, res) => {
 exports.getLearnerEnrolments = async (req, res) => {
   try {
     const enrolments = await Enrolment.find({ learnerId: req.user.id }).populate('courseId');
-    return res.status(200).json({ success: true, enrolments });
+    const sanitisedEnrolments = enrolments.map(enrolment => {
+      const eObj = enrolment.toObject();
+      if (eObj.courseId && eObj.courseId.modules) {
+        const publishedModules = (eObj.courseId.modules || []).filter(m => m.state === 'published' || m.status === 'published');
+        eObj.courseId.modules = publishedModules;
+        eObj.courseId.moduleCount = publishedModules.length;
+        eObj.courseId.modulesCount = publishedModules.length;
+      }
+      return eObj;
+    });
+    return res.status(200).json({ success: true, enrolments: sanitisedEnrolments });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Server error.' });
   }
@@ -1271,151 +1311,108 @@ exports.getCourseMetaOptions = async (req, res) => {
 // ─── Atomic Course Creation ───
 exports.createCourse = async (req, res) => {
   try {
-    let body = req.body;
-    if (typeof body.overview === 'string') {
-      try {
-        body.overview = JSON.parse(body.overview);
-      } catch (e) {
-        body.overview = {};
-      }
-    }
-    if (typeof body.tags === 'string') {
-      try {
-        body.tags = JSON.parse(body.tags);
-      } catch (e) {
-        body.tags = body.tags.split(',').map((t) => t.trim()).filter(Boolean);
-      }
-    }
-
+    const instructorId = req.user.id;
     const {
       title,
       category,
       skillLevel = 'Beginner',
       language = 'English',
-      shortDescription,
+      shortDescription = '',
+      description = '',
+      fullDescription = '',
       tags = [],
       price = 0,
-      overview = {}
-    } = body;
+      prerequisites = [],
+      certificate = true,
+      whatYouWillLearn = [],
+      skills = [],
+      techStack = [],
+      thumbnail = '',
+      thumbnailPublicId = ''
+    } = req.body;
 
     if (!title || !title.trim()) {
       return res.status(400).json({ success: false, message: 'Course title is required.' });
     }
     if (!category || !category.trim()) {
-      return res.status(400).json({ success: false, message: 'Course category is required.' });
+      return res.status(400).json({ success: false, message: 'Category is required.' });
     }
 
-    const effectiveShortDescription = (shortDescription && shortDescription.trim()) || (body.description && body.description.trim()) || '';
-    if (!effectiveShortDescription) {
-      return res.status(400).json({ success: false, message: 'Short description is required.' });
+    let resolvedThumbnail = thumbnail || '';
+    let resolvedThumbnailPublicId = thumbnailPublicId || '';
+
+    // If file was uploaded via multipart in this request
+    if (req.file && req.file.buffer) {
+      const uploadRes = await uploadBufferToCloudinary(
+        req.file.buffer,
+        req.file.mimetype,
+        req.file.originalname,
+        'course_thumbnails'
+      );
+      resolvedThumbnail = uploadRes.secure_url;
+      resolvedThumbnailPublicId = uploadRes.public_id;
     }
 
-    const effectiveFullDescription = (overview.fullDescription && overview.fullDescription.trim()) || effectiveShortDescription;
-
-    let finalThumbnail = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80';
-    if (req.file) {
-      finalThumbnail = `http://localhost:5000/uploads/thumbnails/${req.file.filename}`;
-    } else if (body.thumbnail && typeof body.thumbnail === 'string' && body.thumbnail.trim()) {
-      finalThumbnail = body.thumbnail.trim();
-    }
-
-    const instructorId = req.user.id;
-    const instructorName = req.user.fullName || 'UpSkillr Instructor';
-
-    const escapedTitle = title.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const duplicate = await Course.findOne({
-      instructorId,
-      title: { $regex: new RegExp(`^${escapedTitle}$`, 'i') }
-    });
-
-    if (duplicate) {
-      return res.status(400).json({
-        success: false,
-        message: 'You already have a course with this exact title. Please choose a unique title.'
-      });
-    }
-
-    const parsedTags = Array.isArray(tags) ? tags : [];
-
-    const cleanArray = (val) => {
-      if (Array.isArray(val)) return val.map((v) => (typeof v === 'string' ? v.trim() : v)).filter(Boolean);
-      if (typeof val === 'string') return val.split('\n').map((v) => v.trim()).filter(Boolean);
-      return [];
-    };
-
-    const prerequisites = cleanArray(overview.prerequisites);
-    const learningOutcomes = cleanArray(overview.learningOutcomes);
-    const skills = cleanArray(overview.skills);
-    const techStack = cleanArray(overview.techStack);
-    const targetAudience = cleanArray(overview.targetAudience);
-    const benefits = cleanArray(overview.benefits);
-    const certificate = overview.certificate !== undefined ? Boolean(overview.certificate) : true;
-    const instructorMessage = (overview.instructorMessage || '').trim();
-    const optionalLinks = Array.isArray(overview.optionalLinks)
-      ? overview.optionalLinks.filter((l) => l && l.url && l.url.trim())
-      : [];
-    const faqs = Array.isArray(overview.faqs)
-      ? overview.faqs.filter((f) => f && f.question && f.question.trim() && f.answer && f.answer.trim())
-      : [];
-
-    const course = new Course({
+    const newCourse = new Course({
       title: title.trim(),
       category: category.trim(),
       skillLevel,
-      language: (language || 'English').trim(),
-      shortDescription: effectiveShortDescription,
-      description: effectiveShortDescription,
-      fullDescription: effectiveFullDescription,
-      tags: parsedTags,
-      thumbnail: finalThumbnail,
+      language: language.trim(),
+      shortDescription: (shortDescription || description || '').trim(),
+      description: (description || shortDescription || '').trim(),
+      fullDescription: (fullDescription || description || shortDescription || '').trim(),
+      tags: Array.isArray(tags) ? tags : [],
       price: Number(price) || 0,
+      prerequisites: Array.isArray(prerequisites) ? prerequisites : (prerequisites ? [prerequisites] : []),
+      certificate: Boolean(certificate),
+      whatYouWillLearn: Array.isArray(whatYouWillLearn) ? whatYouWillLearn : [],
+      skills: Array.isArray(skills) ? skills : [],
+      techStack: Array.isArray(techStack) ? techStack : [],
+      thumbnail: resolvedThumbnail,
+      thumbnail_public_id: resolvedThumbnailPublicId,
       instructorId,
-      instructorName,
+      instructorName: req.user.fullName || 'UpSkillr Instructor',
+      state: 'draft',
       status: 'draft',
+      effective_visible: false,
       modules: [],
       lessons: [],
+      courseAssessments: [],
+      notes: [],
       resources: [],
-      assessments: [],
-      prerequisites,
-      whatYouWillLearn: learningOutcomes,
-      skills,
-      techStack,
-      certificate
+      assessments: []
     });
 
-    await course.save();
+    await newCourse.save();
 
-    const courseOverview = new CourseOverview({
-      courseId: course._id,
-      fullDescription: effectiveFullDescription,
-      prerequisites,
-      learningOutcomes,
-      skills,
-      techStack,
-      targetAudience,
-      benefits,
-      certificate,
-      instructorMessage,
-      optionalLinks,
-      faqs
+    // Create companion CourseOverview
+    const newOverview = new CourseOverview({
+      courseId: newCourse._id,
+      fullDescription: newCourse.fullDescription,
+      prerequisites: Array.isArray(prerequisites) ? prerequisites : (prerequisites ? [prerequisites] : []),
+      learningOutcomes: newCourse.whatYouWillLearn,
+      skills: newCourse.skills,
+      techStack: newCourse.techStack,
+      certificate: newCourse.certificate,
+      targetAudience: [],
+      benefits: [],
+      instructorMessage: '',
+      optionalLinks: [],
+      faqs: []
     });
-
-    await courseOverview.save();
+    await newOverview.save();
 
     return res.status(201).json({
       success: true,
-      message: 'Course created successfully as Draft!',
-      course,
-      overview: courseOverview,
-      duplicateWarning: duplicate
-        ? `You already have a course with a similar title: "${duplicate.title}".`
-        : null
+      message: 'Course created successfully as draft!',
+      course: newCourse
     });
   } catch (error) {
     console.error('Create Course Error:', error);
-    return res.status(500).json({ success: false, message: 'Server error while creating course.' });
+    return res.status(500).json({ success: false, message: error.message || 'Server error creating course.' });
   }
 };
+
 
 // ─── Public Course Overview (with real views, real reviews, answered Q&A) ───
 exports.getPublicCourseOverview = async (req, res) => {
@@ -1504,9 +1501,15 @@ exports.getPublicCourseOverview = async (req, res) => {
       }
     } catch (viewErr) {}
 
+    const courseObj = course.toObject ? course.toObject() : { ...course };
+    const publishedModules = (courseObj.modules || []).filter(m => m.state === 'published' || m.status === 'published');
+    courseObj.modules = publishedModules;
+    courseObj.moduleCount = publishedModules.length;
+    courseObj.modulesCount = publishedModules.length;
+
     return res.status(200).json({
       success: true,
-      course,
+      course: courseObj,
       overview,
       instructor: instructorProfile,
       stats: {
@@ -1596,15 +1599,35 @@ exports.updateCourseThumbnail = async (req, res) => {
     }
 
     let thumbnailUrl = course.thumbnail;
-    if (req.file) {
-      thumbnailUrl = `http://localhost:5000/uploads/thumbnails/${req.file.filename}`;
+    let thumbnailPublicId = course.thumbnail_public_id || '';
+
+    if (req.file && req.file.buffer) {
+      const uploadRes = await uploadBufferToCloudinary(
+        req.file.buffer,
+        req.file.mimetype,
+        req.file.originalname,
+        'course_thumbnails'
+      );
+      thumbnailUrl = uploadRes.secure_url;
+      thumbnailPublicId = uploadRes.public_id;
     } else if (req.body.thumbnailUrl && req.body.thumbnailUrl.trim()) {
       thumbnailUrl = req.body.thumbnailUrl.trim();
+      thumbnailPublicId = req.body.thumbnailPublicId || '';
+    } else if (req.body.thumbnail && req.body.thumbnail.trim()) {
+      thumbnailUrl = req.body.thumbnail.trim();
+      thumbnailPublicId = req.body.thumbnailPublicId || '';
     }
 
     course.thumbnail = thumbnailUrl;
+    course.thumbnail_public_id = thumbnailPublicId;
     await course.save();
-    return res.status(200).json({ success: true, message: 'Thumbnail updated successfully!', thumbnail: thumbnailUrl, course });
+    return res.status(200).json({
+      success: true,
+      message: 'Thumbnail updated successfully!',
+      thumbnail: thumbnailUrl,
+      thumbnailPublicId,
+      course
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Server error updating thumbnail.' });
   }

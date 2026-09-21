@@ -14,6 +14,7 @@ import {
   BookOpen,
   ArrowRight
 } from 'lucide-react';
+import { CourseThumbnail } from '../../../../common/CourseThumbnail';
 import './Step4ReviewCreate.css';
 
 export const Step4ReviewCreate = ({
@@ -152,8 +153,8 @@ export const Step4ReviewCreate = ({
           </div>
 
           <div className="review-thumb-preview-box">
-            <img
-              src={thumbnailPreview || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80'}
+            <CourseThumbnail
+              src={thumbnailPreview}
               alt="Course Thumbnail"
               className="review-thumb-img"
             />

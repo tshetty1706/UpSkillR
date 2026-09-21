@@ -68,6 +68,26 @@ export const LearnerPreview = ({
     return false;
   };
 
+  // Check if a specific lesson is 100% completed in simulation
+  const isLessonComplete = (lesson) => {
+    const pubItems = (lesson.items || []).filter(i => i.state === 'published');
+    if (pubItems.length === 0) return true;
+    return pubItems.every(i => completedItems[i._id]);
+  };
+
+  // Check if a lesson is locked within its module (Lessons are permanently sequential)
+  const isLessonLocked = (module, lesIndex) => {
+    if (lesIndex === 0) return false;
+
+    const lessons = (module.lessons || []).filter(l => l.state === 'published');
+    for (let i = 0; i < lesIndex; i++) {
+      if (!isLessonComplete(lessons[i])) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   // Check if an assessment is unlocked
   const isAssessmentUnlocked = (assessment) => {
     const reqIds = assessment.requiredModuleIds || [];
@@ -240,12 +260,25 @@ export const LearnerPreview = ({
                         <div className="preview-lessons-list">
                           {lessons.map((lesson, lesIndex) => {
                             const items = (lesson.items || []).filter(i => i.state === 'published');
+                            const isLesLocked = isLessonLocked(module, lesIndex);
+                            const isLesDone = isLessonComplete(lesson);
 
                             return (
-                              <div key={lesson._id} className="preview-lesson-block">
-                                <div className="preview-lesson-header">
-                                  <span className="lesson-badge">Lesson {modIndex + 1}.{lesIndex + 1}</span>
-                                  <h5 className="lesson-name">{lesson.title}</h5>
+                              <div key={lesson._id} className={`preview-lesson-block ${isLesLocked ? 'lesson-is-locked' : ''}`}>
+                                <div className="preview-lesson-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span className="lesson-badge">Lesson {modIndex + 1}.{lesIndex + 1}</span>
+                                    <h5 className="lesson-name" style={{ margin: 0 }}>{lesson.title}</h5>
+                                  </div>
+                                  {isLesLocked ? (
+                                    <span className="locked-badge" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>
+                                      <Lock size={12} /> Locked (Complete Lesson {modIndex + 1}.{lesIndex})
+                                    </span>
+                                  ) : isLesDone ? (
+                                    <span className="completed-badge" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>
+                                      <CheckCircle2 size={12} /> Complete
+                                    </span>
+                                  ) : null}
                                 </div>
 
                                 <div className="preview-items-list">
@@ -255,7 +288,8 @@ export const LearnerPreview = ({
                                     return (
                                       <div
                                         key={item._id}
-                                        className={`preview-item-row ${isItemComplete ? 'item-done' : ''}`}
+                                        className={`preview-item-row ${isItemComplete ? 'item-done' : ''} ${isLesLocked ? 'item-disabled-locked' : ''}`}
+                                        style={isLesLocked ? { opacity: 0.6, pointerEvents: 'none' } : {}}
                                       >
                                         <div className="item-info-left">
                                           {item.type === 'video' ? (
@@ -274,7 +308,11 @@ export const LearnerPreview = ({
                                         </div>
 
                                         <div className="item-simulation-controls">
-                                          {isItemComplete ? (
+                                          {isLesLocked ? (
+                                            <span className="status-locked-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                              <Lock size={12} /> Lesson Locked
+                                            </span>
+                                          ) : isItemComplete ? (
                                             <span className="status-finished">
                                               <CheckCircle2 size={14} /> Completed
                                             </span>

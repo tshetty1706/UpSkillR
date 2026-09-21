@@ -9,10 +9,9 @@ import {
   Trash2,
   RefreshCw
 } from 'lucide-react';
+import { useTheme } from '../../../../../context/ThemeContext';
+import { getEffectiveThumbnail, isCustomThumbnail } from '../../../../../utils/thumbnailUtils';
 import './Step2Thumbnail.css';
-
-const DEFAULT_FALLBACK_THUMBNAIL =
-  'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80';
 
 export const Step2Thumbnail = ({
   thumbnailFile,
@@ -21,11 +20,12 @@ export const Step2Thumbnail = ({
   onNext,
   onBack
 }) => {
+  const { isDarkMode } = useTheme();
   const fileInputRef = useRef(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const hasThumbnail = Boolean(thumbnailPreview);
+  const hasCustom = isCustomThumbnail(thumbnailPreview);
 
   const handleFileSelect = (file) => {
     setErrorMsg('');
@@ -67,7 +67,7 @@ export const Step2Thumbnail = ({
 
   const handleSkip = () => {
     setErrorMsg('');
-    onThumbnailChange(null, DEFAULT_FALLBACK_THUMBNAIL);
+    onThumbnailChange(null, '');
   };
 
   return (
@@ -89,7 +89,7 @@ export const Step2Thumbnail = ({
           {/* Option A: Upload Card Column */}
           <div className="upload-column-wrapper">
             <div
-              className={`upload-card-box ${isDragOver ? 'drag-over' : ''} ${hasThumbnail && thumbnailFile ? 'has-image' : ''}`}
+              className={`upload-card-box ${isDragOver ? 'drag-over' : ''} ${hasCustom ? 'has-image' : ''}`}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -106,7 +106,7 @@ export const Step2Thumbnail = ({
                 }}
               />
 
-              {hasThumbnail && thumbnailFile ? (
+              {hasCustom ? (
                 <div className="thumbnail-preview-active">
                   <div className="preview-image-container">
                     <img src={thumbnailPreview} alt="Course Thumbnail Preview" className="preview-image" />
@@ -129,12 +129,14 @@ export const Step2Thumbnail = ({
                       </button>
                     </div>
                   </div>
-                  <div className="preview-file-info">
-                    <span className="preview-file-name">{thumbnailFile.name}</span>
-                    <span className="preview-file-size">
-                      {(thumbnailFile.size / (1024 * 1024)).toFixed(2)} MB
-                    </span>
-                  </div>
+                  {thumbnailFile && (
+                    <div className="preview-file-info">
+                      <span className="preview-file-name">{thumbnailFile.name}</span>
+                      <span className="preview-file-size">
+                        {(thumbnailFile.size / (1024 * 1024)).toFixed(2)} MB
+                      </span>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="upload-prompt-content">
@@ -169,19 +171,17 @@ export const Step2Thumbnail = ({
 
           {/* Option B: Skip Card */}
           <div
-            className={`skip-card-box ${hasThumbnail && thumbnailPreview === DEFAULT_FALLBACK_THUMBNAIL ? 'skip-selected' : ''}`}
+            className={`skip-card-box ${!hasCustom ? 'skip-selected' : ''}`}
           >
             <div className="skip-icon-circle">
               <ImageIcon size={32} />
             </div>
             <h3 className="skip-box-title">I don't have one yet</h3>
             <p className="skip-box-desc">
-              Skip this step for now, you can always add or change it later.
+              Skip this step for now. We'll use the default {isDarkMode ? 'dark' : 'light'} theme thumbnail until you upload one.
             </p>
             <button type="button" className="btn-skip-now" onClick={handleSkip}>
-              {hasThumbnail && thumbnailPreview === DEFAULT_FALLBACK_THUMBNAIL
-                ? 'Selected Default'
-                : 'Skip for Now'}
+              {!hasCustom ? 'Using Theme Default' : 'Use Default Instead'}
             </button>
           </div>
         </div>

@@ -23,6 +23,56 @@ const getCloudinaryConfig = () => {
   };
 };
 
+exports.getCloudinaryConfig = getCloudinaryConfig;
+
+/**
+ * Upload a memory buffer directly to Cloudinary without touching local disk
+ */
+exports.uploadBufferToCloudinary = async (fileBuffer, mimetype, originalname = 'file', folder = 'upskillr_uploads') => {
+  const base64Data = `data:${mimetype};base64,${fileBuffer.toString('base64')}`;
+  const config = getCloudinaryConfig();
+  if (!config.cloudName || !config.apiKey || !config.apiSecret) {
+    const mockId = `thumb_${Date.now()}_${originalname.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    return {
+      public_id: mockId,
+      secure_url: base64Data,
+      isMock: true
+    };
+  }
+
+  try {
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const paramsToSign = `folder=${folder}&timestamp=${timestamp}${config.apiSecret}`;
+    const signature = crypto.createHash('sha1').update(paramsToSign).digest('hex');
+
+    const params = new URLSearchParams();
+    params.append('file', base64Data);
+    params.append('api_key', config.apiKey);
+    params.append('timestamp', timestamp.toString());
+    params.append('signature', signature);
+    params.append('folder', folder);
+
+    const uploadRes = await axios.post(
+      `https://api.cloudinary.com/v1_1/${config.cloudName}/auto/upload`,
+      params.toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+
+    return {
+      public_id: uploadRes.data.public_id,
+      secure_url: uploadRes.data.secure_url
+    };
+  } catch (err) {
+    console.warn('Cloudinary upload warning:', err.response?.data?.error?.message || err.message);
+    const mockId = `thumb_${Date.now()}_${originalname.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    return {
+      public_id: mockId,
+      secure_url: base64Data,
+      isFallback: true
+    };
+  }
+};
+
 /**
  * POST /api/media/upload-credentials
  * Generate client-side direct upload signature/URL for Mux or Cloudinary
@@ -53,7 +103,7 @@ exports.getUploadCredentials = async (req, res) => {
           {
             new_asset_settings: {
               playback_policy: ['public'],
-              mp4_support: 'standard'
+              mp4_support: 'capped-1080p'
             },
             cors_origin: '*'
           },
@@ -119,6 +169,151 @@ exports.getUploadCredentials = async (req, res) => {
     }
   } catch (err) {
     console.error('getUploadCredentials error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * GET /api/media/mux-upload/:uploadId
+ * Check status of an upload and its underlying Mux asset
+ */
+exports.getMuxUploadStatus = async (req, res) => {
+  try {
+    const { uploadId } = req.params;
+    const tokenId = process.env.MUX_TOKEN_ID;
+    const tokenSecret = process.env.MUX_TOKEN_SECRET;
+
+    if (!tokenId || !tokenSecret) {
+      return res.json({
+        success: true,
+        status: 'ready',
+        isMock: true,
+        assetId: `mock_asset_${uploadId}`,
+        playbackId: `mock_playback_${uploadId}`,
+        duration: 0
+      });
+    }
+
+    const uploadRes = await axios.get(`https://api.mux.com/video/v1/uploads/${uploadId}`, {
+      auth: { username: tokenId, password: tokenSecret },
+      timeout: 8000
+    });
+
+    const uploadData = uploadRes.data?.data;
+    if (!uploadData) {
+      return res.status(404).json({ success: false, message: 'Upload not found on Mux.' });
+    }
+
+    if (uploadData.status === 'waiting') {
+      return res.json({ success: true, status: 'waiting', uploadId });
+    }
+
+    if (uploadData.status === 'errored' || uploadData.status === 'timed_out') {
+      return res.json({
+        success: false,
+        status: 'failed',
+        message: uploadData.error?.message || `Mux upload ${uploadData.status}`
+      });
+    }
+
+    // Asset created - fetch asset details
+    const assetId = uploadData.asset_id;
+    if (!assetId) {
+      return res.json({ success: true, status: 'processing', uploadId });
+    }
+
+    const assetRes = await axios.get(`https://api.mux.com/video/v1/assets/${assetId}`, {
+      auth: { username: tokenId, password: tokenSecret },
+      timeout: 8000
+    });
+
+    const asset = assetRes.data?.data;
+    if (!asset) {
+      return res.json({ success: true, status: 'processing', assetId });
+    }
+
+    if (asset.status === 'ready') {
+      const playbackId = asset.playback_ids?.[0]?.id || '';
+      const duration = Math.round(asset.duration || 0);
+
+      return res.json({
+        success: true,
+        status: 'ready',
+        assetId: asset.id,
+        playbackId,
+        duration,
+        videoUrl: playbackId ? `https://stream.mux.com/${playbackId}.m3u8` : '',
+        mp4Url: playbackId ? `https://stream.mux.com/${playbackId}/capped-1080p.mp4` : '',
+        thumbnailUrl: playbackId ? `https://image.mux.com/${playbackId}/thumbnail.jpg` : ''
+      });
+    }
+
+    if (asset.status === 'errored') {
+      return res.json({
+        success: false,
+        status: 'failed',
+        message: asset.errors?.messages?.[0] || 'Mux video processing error.'
+      });
+    }
+
+    // Still preparing
+    return res.json({
+      success: true,
+      status: 'processing',
+      assetId: asset.id
+    });
+  } catch (err) {
+    console.error('getMuxUploadStatus error:', err.response?.data || err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * GET /api/media/mux-asset/:assetId
+ * Query Mux asset directly for playback info and duration
+ */
+exports.getMuxAssetStatus = async (req, res) => {
+  try {
+    const { assetId } = req.params;
+    const tokenId = process.env.MUX_TOKEN_ID;
+    const tokenSecret = process.env.MUX_TOKEN_SECRET;
+
+    if (!tokenId || !tokenSecret || assetId.startsWith('mock_')) {
+      return res.json({
+        success: true,
+        status: 'ready',
+        isMock: true,
+        assetId,
+        playbackId: `mock_playback_${assetId}`,
+        duration: 0
+      });
+    }
+
+    const assetRes = await axios.get(`https://api.mux.com/video/v1/assets/${assetId}`, {
+      auth: { username: tokenId, password: tokenSecret },
+      timeout: 8000
+    });
+
+    const asset = assetRes.data?.data;
+    if (!asset) {
+      return res.status(404).json({ success: false, message: 'Asset not found on Mux.' });
+    }
+
+    const playbackId = asset.playback_ids?.[0]?.id || '';
+    const duration = Math.round(asset.duration || 0);
+
+    return res.json({
+      success: true,
+      status: asset.status,
+      assetId: asset.id,
+      playbackId,
+      duration,
+      videoUrl: playbackId ? `https://stream.mux.com/${playbackId}.m3u8` : '',
+      mp4Url: playbackId ? `https://stream.mux.com/${playbackId}/capped-1080p.mp4` : '',
+      thumbnailUrl: playbackId ? `https://image.mux.com/${playbackId}/thumbnail.jpg` : ''
+    });
+  } catch (err) {
+    console.error('getMuxAssetStatus error:', err.response?.data || err.message);
     res.status(500).json({ success: false, message: err.message });
   }
 };

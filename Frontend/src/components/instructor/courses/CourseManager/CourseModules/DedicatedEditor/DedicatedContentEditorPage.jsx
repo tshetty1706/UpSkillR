@@ -131,24 +131,18 @@ export const DedicatedContentEditorPage = ({
       breadcrumbSection: 'Module & Lesson',
       guidanceTitle: 'Module & Lesson Editor',
       guidanceType: 'sparkle',
-      guidanceMessage:
-        'Build your course structure with modules, lessons, video lectures (with watched thresholds), and quizzes. Changes are saved directly and can be toggled between draft and published.'
     },
     'content-resources': {
       pageTitle: 'Notes & Resources',
       breadcrumbSection: 'Notes & Resources',
       guidanceTitle: 'Notes & Supplementary Resources',
       guidanceType: 'info',
-      guidanceMessage:
-        'Attach Markdown articles, downloadable PDF reference sheets, or architectural diagrams at the course, module, or lesson level. Supplementary resources are non-gating and never block learner progression.'
     },
     'content-assessments': {
       pageTitle: 'Course Assessment',
       breadcrumbSection: 'Course Assessment',
       guidanceTitle: 'Milestone Assessment Editor',
       guidanceType: 'warning',
-      guidanceMessage:
-        'Create assessments and define which prerequisite modules learners must 100% complete before unlocking them. Configure passing thresholds, retake cooldowns, and multiple-choice questions.'
     }
   };
 
@@ -162,7 +156,6 @@ export const DedicatedContentEditorPage = ({
       breadcrumbSection={currentConfig.breadcrumbSection}
       guidanceTitle={currentConfig.guidanceTitle}
       guidanceType={currentConfig.guidanceType}
-      guidanceMessage={currentConfig.guidanceMessage}
       onBackToWorkspace={onBackToWorkspace}
       onTogglePreview={() => setPreviewMode(!previewMode)}
       previewMode={previewMode}

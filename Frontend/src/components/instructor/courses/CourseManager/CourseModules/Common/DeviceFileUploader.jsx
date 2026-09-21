@@ -11,6 +11,7 @@ import {
   X,
   Play
 } from 'lucide-react';
+import { API_BASE } from '../../../../../../config/api';
 
 export const DeviceFileUploader = ({
   fileType = 'video', // 'video' | 'pdf' | 'image'
@@ -33,6 +34,8 @@ export const DeviceFileUploader = ({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
+
+  const [uploadStatusMessage, setUploadStatusMessage] = useState('');
 
   const defaultAccept = {
     video: 'video/mp4,video/webm,video/ogg,video/quicktime',
@@ -78,98 +81,169 @@ export const DeviceFileUploader = ({
 
     setSelectedFile(file);
     setFileName(file.name);
+    setUploading(true);
+    setUploadProgress(15);
+    setUploadStatusMessage('Preparing secure upload session...');
 
-    // If uploadEndpoint provided, upload automatically via XMLHttpRequest for real progress
-    if (uploadEndpoint) {
-      await uploadFileToEndpoint(file);
-    } else {
-      // Local preview object URL
-      const objectUrl = URL.createObjectURL(file);
-      setPreviewUrl(objectUrl);
+    const localPreview = URL.createObjectURL(file);
+    setPreviewUrl(localPreview);
+
+    let clientVideoDuration = 0;
+    if (fileType === 'video') {
+      try {
+        clientVideoDuration = await new Promise((resolve) => {
+          const videoEl = document.createElement('video');
+          videoEl.preload = 'metadata';
+          videoEl.onloadedmetadata = () => {
+            URL.revokeObjectURL(videoEl.src);
+            resolve(Math.round(videoEl.duration || 0));
+          };
+          videoEl.onerror = () => resolve(0);
+          videoEl.src = URL.createObjectURL(file);
+        });
+      } catch (dErr) {
+        console.warn('Could not read video metadata:', dErr);
+      }
+    }
+
+    try {
+      const token = localStorage.getItem('upskillr_token');
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
+      // 1. Obtain direct upload target / credentials
+      const credRes = await fetch(`${API_BASE}/media/upload-credentials`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders
+        },
+        body: JSON.stringify({ type: fileType === 'video' ? 'video' : (fileType === 'pdf' ? 'document' : 'image') })
+      });
+      const credData = await credRes.json();
+
+      let finalUrl = localPreview;
+      let finalAssetId = '';
+      let finalPlaybackId = '';
+      let finalPublicId = '';
+      let finalDuration = clientVideoDuration || 0;
+      let finalStatus = 'ready';
+
+      if (fileType === 'video') {
+        if (credData.uploadUrl) {
+          // Direct browser upload
+          setUploadProgress(35);
+          setUploadStatusMessage('Uploading video from device...');
+          await fetch(credData.uploadUrl, {
+            method: 'PUT',
+            body: file
+          });
+          setUploadProgress(70);
+          setUploadStatusMessage('Upload complete. Processing video stream...');
+
+          // Poll for real assetId and playbackId
+          let pollAttempts = 0;
+          let isMuxReady = false;
+          while (pollAttempts < 10 && !isMuxReady) {
+            await new Promise(r => setTimeout(r, 2500));
+            pollAttempts++;
+            setUploadProgress(Math.min(95, 70 + pollAttempts * 2));
+            try {
+              const statusRes = await fetch(`${API_BASE}/media/mux-upload/${credData.uploadId}`, {
+                headers: authHeaders
+              });
+              const statusData = await statusRes.json();
+              if (statusData.status === 'ready' && statusData.playbackId) {
+                finalAssetId = statusData.assetId;
+                finalPlaybackId = statusData.playbackId;
+                finalDuration = statusData.duration || clientVideoDuration || 0;
+                finalUrl = statusData.videoUrl || `https://stream.mux.com/${finalPlaybackId}.m3u8`;
+                isMuxReady = true;
+                finalStatus = 'ready';
+                break;
+              } else if (statusData.status === 'failed') {
+                throw new Error(statusData.message || 'Video processing failed');
+              }
+            } catch (pErr) {
+              console.warn('Video polling check attempt:', pollAttempts, pErr);
+            }
+          }
+
+          if (!isMuxReady) {
+            // Still transcoding in background
+            finalAssetId = credData.uploadId;
+            finalPlaybackId = '';
+            finalStatus = 'processing';
+            finalDuration = clientVideoDuration || 0;
+            setUploadStatusMessage('Video uploaded! Finishing processing in background.');
+          }
+        } else {
+          // Dev mock fallback
+          finalAssetId = credData.assetId || `mock_asset_${Date.now()}`;
+          finalPlaybackId = credData.playbackId || `mock_playback_${Date.now()}`;
+          finalUrl = `https://stream.mux.com/${finalPlaybackId}.m3u8`;
+          finalDuration = clientVideoDuration || 0;
+          finalStatus = 'ready';
+        }
+      } else {
+        // Direct browser upload
+        setUploadStatusMessage('Uploading document from device...');
+        if (credData.uploadUrl && credData.apiKey && credData.signature) {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('api_key', credData.apiKey);
+          formData.append('timestamp', credData.timestamp);
+          formData.append('signature', credData.signature);
+          formData.append('folder', credData.folder);
+
+          const cloudRes = await fetch(credData.uploadUrl, {
+            method: 'POST',
+            body: formData
+          });
+          const cloudData = await cloudRes.json();
+          if (cloudRes.ok && cloudData.secure_url) {
+            finalUrl = cloudData.secure_url;
+            finalPublicId = cloudData.public_id;
+          } else {
+            console.warn('Cloudinary direct upload issue:', cloudData?.error?.message || cloudRes.statusText);
+            finalPublicId = `cloud_${Date.now()}`;
+          }
+        } else {
+          finalPublicId = `cloud_mock_${Date.now()}`;
+        }
+      }
+
+      setUploadProgress(100);
+      setUploading(false);
+      setUploadStatusMessage('');
+
       if (onUploadSuccess) {
         onUploadSuccess({
           file,
           fileName: file.name,
           fileSize: file.size,
-          url: objectUrl
+          url: finalUrl,
+          publicId: finalPublicId,
+          assetId: finalAssetId,
+          playbackId: finalPlaybackId,
+          duration: finalDuration,
+          status: finalStatus,
+          response: {
+            success: true,
+            url: finalUrl,
+            playbackId: finalPlaybackId,
+            assetId: finalAssetId,
+            publicId: finalPublicId,
+            duration: finalDuration,
+            status: finalStatus
+          }
         });
       }
+    } catch (uploadErr) {
+      console.error('Direct Media Upload Failure:', uploadErr);
+      setUploadError(uploadErr.message || 'Upload failed. Please try again.');
+      setUploading(false);
+      setUploadStatusMessage('');
     }
-  };
-
-  const uploadFileToEndpoint = (file) => {
-    return new Promise((resolve, reject) => {
-      setUploading(true);
-      setUploadProgress(0);
-
-      const xhr = new XMLHttpRequest();
-      const formData = new FormData();
-      formData.append('file', file);
-
-      xhr.open('POST', uploadEndpoint, true);
-
-      // Add auth headers
-      const headers = getAuthHeader();
-      Object.keys(headers).forEach(headerKey => {
-        if (headerKey.toLowerCase() !== 'content-type') {
-          xhr.setRequestHeader(headerKey, headers[headerKey]);
-        }
-      });
-
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percent = Math.round((event.loaded / event.total) * 100);
-          setUploadProgress(percent);
-        }
-      };
-
-      xhr.onload = () => {
-        setUploading(false);
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const response = JSON.parse(xhr.responseText);
-            if (response.success) {
-              const fileData = response.data || {};
-              const url = fileData.url || (fileType === 'video' ? fileData.muxPlaybackId : '');
-              setPreviewUrl(url);
-              setUploadProgress(100);
-              if (onUploadSuccess) {
-                onUploadSuccess({
-                  file,
-                  fileName: file.name,
-                  fileSize: file.size,
-                  url,
-                  response: fileData
-                });
-              }
-              resolve(response);
-            } else {
-              setUploadError(response.message || 'Upload failed');
-              reject(new Error(response.message || 'Upload failed'));
-            }
-          } catch (e) {
-            setUploadError('Invalid response from server');
-            reject(e);
-          }
-        } else {
-          try {
-            const errRes = JSON.parse(xhr.responseText);
-            setUploadError(errRes.message || `Upload failed with status ${xhr.status}`);
-          } catch (e) {
-            setUploadError(`Upload failed with status ${xhr.status}`);
-          }
-          reject(new Error(`Upload failed with status ${xhr.status}`));
-        }
-      };
-
-      xhr.onerror = () => {
-        setUploading(false);
-        setUploadError('Network error while uploading file');
-        reject(new Error('Network error'));
-      };
-
-      xhr.send(formData);
-    });
   };
 
   const handleDrop = (e) => {
@@ -267,7 +341,7 @@ export const DeviceFileUploader = ({
           <div className="progress-track">
             <div className="progress-bar-fill" style={{ width: `${uploadProgress}%` }} />
           </div>
-          <p className="progress-subtext">Uploading to course media server... Please do not close.</p>
+          <p className="progress-subtext">{uploadStatusMessage || 'Uploading to course media server... Please do not close.'}</p>
         </div>
       )}
 
@@ -298,7 +372,7 @@ export const DeviceFileUploader = ({
               ) : (
                 <div className="video-mux-badge">
                   <Play size={24} />
-                  <span>Playback Asset Ready</span>
+                  <span>Video stream ready</span>
                 </div>
               )}
             </div>

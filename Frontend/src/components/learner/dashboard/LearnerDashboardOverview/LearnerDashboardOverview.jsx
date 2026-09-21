@@ -17,6 +17,7 @@ import {
   ThumbsUp
 } from 'lucide-react';
 import { CourseRatingModal } from './CourseRatingModal';
+import { CourseThumbnail } from '../../../common/CourseThumbnail';
 
 // High-quality mock published courses for fallback/demo
 const MOCK_PUBLISHED_COURSES = [
@@ -324,8 +325,8 @@ export const LearnerDashboardOverview = ({
                       className={`enrolled-card ${isCompleted ? 'completed-card' : ''}`}
                     >
                       <div className="card-top-header">
-                        <img
-                          src={course.thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80'}
+                        <CourseThumbnail
+                          src={course.thumbnail}
                           alt={course.title}
                           className="enrolled-thumb"
                         />
@@ -513,7 +514,7 @@ export const LearnerDashboardOverview = ({
                   return (
                     <div key={course._id} className="enrolled-card catalog-card">
                       <div className="card-top-header">
-                        <img src={course.thumbnail} alt={course.title} className="enrolled-thumb" />
+                        <CourseThumbnail src={course.thumbnail} alt={course.title} className="enrolled-thumb" />
                         <span className="level-badge">{course.skillLevel || 'All Levels'}</span>
                       </div>
 
@@ -528,12 +529,17 @@ export const LearnerDashboardOverview = ({
                             <strong>{course.rating || '4.8'}</strong>
                           </span>
                           <span className="meta-item">
-                            <BookOpen size={15} />
-                            <span>{course.lessons?.length || 5} lessons</span>
+                            <Layers size={15} />
+                            {(() => {
+                              const publishedCount = (course.modules ? course.modules.filter(m => m.state === 'published' || m.status === 'published').length : (course.moduleCount ?? course.modulesCount ?? 0));
+                              return (
+                                <span>{publishedCount} {publishedCount === 1 ? 'module' : 'modules'}</span>
+                              );
+                            })()}
                           </span>
                           <span className="meta-item">
                             <ThumbsUp size={15} />
-                            <span>{course.learnersCount || 100}+ learners</span>
+                            <span>{course.learnersCount || 0} {(course.learnersCount === 1) ? 'learner' : 'learners'}</span>
                           </span>
                         </div>
 

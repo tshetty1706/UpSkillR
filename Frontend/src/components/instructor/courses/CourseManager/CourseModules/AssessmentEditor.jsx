@@ -37,61 +37,67 @@ export const AssessmentEditor = ({
   const [inspectingAssessment, setInspectingAssessment] = useState(null);
 
   /* ─────────────────────────────────────────────────────────────
-     STATE TOGGLE (Draft <-> Published)
+     MUTATION HANDLERS (Live Backend Integration)
      ───────────────────────────────────────────────────────────── */
-  const handleToggleAssessmentState = async (assId) => {
+  const handleToggleAssessmentState = async (assessmentId) => {
     try {
-      const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/assessments/${assId}/toggle-state`, {
+      const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/assessments/${assessmentId}/toggle-state`, {
         method: 'PATCH',
         headers: getAuthHeader()
       });
       const data = await res.json();
       if (data.success) {
-        toast.success(`Assessment set to ${data.state}`);
-        onCurriculumUpdated();
+        toast.success(`Assessment toggled to ${data.assessment?.state || 'new state'}`);
+        if (onCurriculumUpdated) onCurriculumUpdated();
       } else {
-        toast.error(data.message || 'Could not toggle assessment state');
+        toast.error(data.message || 'Failed to toggle assessment state');
       }
     } catch (err) {
-      toast.error('Network error toggling state');
+      console.error('Error toggling assessment state:', err);
+      toast.error('Network error toggling assessment state');
     }
   };
 
-  /* ─────────────────────────────────────────────────────────────
-     SAVE ASSESSMENT FORM
-     ───────────────────────────────────────────────────────────── */
   const handleSaveAssessment = async (e) => {
     e.preventDefault();
     if (!activeForm) return;
 
     const { isEdit, data } = activeForm;
-
-    if (!data.title?.trim()) {
-      toast.error('Assessment title is required');
+    if (!data.title || !data.title.trim()) {
+      toast.error('Please enter an assessment title');
       return;
     }
-
     if (!data.requiredModuleIds || data.requiredModuleIds.length === 0) {
-      toast.error('Please select at least one prerequisite module required to unlock this assessment');
+      toast.error('Please select at least one required module for this assessment');
       return;
     }
-
     if (!data.questions || data.questions.length === 0) {
       toast.error('Please add at least one question to the assessment');
       return;
     }
 
+    for (let i = 0; i < data.questions.length; i++) {
+      const q = data.questions[i];
+      if (!q.questionText || !q.questionText.trim()) {
+        toast.error(`Question ${i + 1} is missing question text`);
+        return;
+      }
+      if (!q.options || q.options.some(opt => !opt.trim())) {
+        toast.error(`Question ${i + 1} has empty options`);
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const url = isEdit
-        ? `${apiBase}/courses/${courseId}/curriculum/assessments/${data.id}`
+        ? `${apiBase}/courses/${courseId}/curriculum/assessments/${data._id || data.id}`
         : `${apiBase}/courses/${courseId}/curriculum/assessments`;
-
       const method = isEdit ? 'PATCH' : 'POST';
 
-      const body = {
+      const payload = {
         title: data.title.trim(),
-        description: data.description || '',
+        description: (data.description || '').trim(),
         requiredModuleIds: data.requiredModuleIds,
         passThresholdPercent: Number(data.passThresholdPercent) || 70,
         maxAttempts: Number(data.maxAttempts) || 3,
@@ -102,20 +108,19 @@ export const AssessmentEditor = ({
       const res = await fetch(url, {
         method,
         headers: getAuthHeader(),
-        body: JSON.stringify(body)
+        body: JSON.stringify(payload)
       });
       const resData = await res.json();
-
       if (resData.success) {
         toast.success(isEdit ? 'Assessment updated successfully' : 'Assessment created successfully');
         setActiveForm(null);
-        onCurriculumUpdated();
+        if (onCurriculumUpdated) onCurriculumUpdated();
       } else {
         toast.error(resData.message || 'Failed to save assessment');
       }
     } catch (err) {
       console.error('Error saving assessment:', err);
-      toast.error('Network error while saving assessment');
+      toast.error('Network error saving assessment');
     } finally {
       setSaving(false);
     }
@@ -264,8 +269,7 @@ export const AssessmentEditor = ({
           </div>
           <h3>Prerequisite: At Least 1 Module Required</h3>
           <p>
-            Assessments must be locked behind completed course modules. Because this course currently has 0 modules,
-            please create your modules first before setting up an assessment.
+            You can create an assessment once this course has at least one module.
           </p>
           <button
             type="button"
@@ -340,7 +344,7 @@ export const AssessmentEditor = ({
                   <h4>Prerequisite Required Modules (Learners must finish these to unlock)</h4>
                 </div>
                 <p className="picker-hint">
-                  Select which module(s) the learner must fully complete before this assessment opens:
+                  Choose exactly which modules must be finished before this unlocks.
                 </p>
 
                 <div className="modules-checkbox-list">
@@ -381,7 +385,7 @@ export const AssessmentEditor = ({
                       }))
                     }
                   />
-                  <span className="field-hint">Minimum score to earn pass credit</span>
+                  <span className="field-hint">Raising this later won't affect learners who already passed at the old score.</span>
                 </div>
 
                 <div className="form-field-group">
@@ -399,7 +403,7 @@ export const AssessmentEditor = ({
                       }))
                     }
                   />
-                  <span className="field-hint">Allowed attempts before lockout</span>
+                  <span className="field-hint">Defaults to 3 attempts with a 6-hour automatic cooldown. You can override this here.</span>
                 </div>
 
                 <div className="form-field-group">
@@ -416,7 +420,7 @@ export const AssessmentEditor = ({
                       }))
                     }
                   />
-                  <span className="field-hint">Cool-off period between failures</span>
+                  <span className="field-hint">Defaults to 3 attempts with a 6-hour automatic cooldown. You can override this here.</span>
                 </div>
               </div>
 
@@ -595,7 +599,7 @@ export const AssessmentEditor = ({
                           type="button"
                           className={`btn-state-badge state-${ass.state}`}
                           onClick={() => handleToggleAssessmentState(ass._id)}
-                          title={`Click to set to ${isDraft ? 'Published' : 'Draft'}`}
+                          title="There's no delete in this system — switch to Draft to hide something from learners."
                         >
                           {isDraft ? <EyeOff size={13} /> : <CheckCircle2 size={13} />}
                           <span>{isDraft ? 'Draft' : 'Published'}</span>

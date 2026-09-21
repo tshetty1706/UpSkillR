@@ -17,6 +17,7 @@ import {
   Send,
   HelpCircle
 } from 'lucide-react';
+import { CourseThumbnail } from '../../../../common/CourseThumbnail';
 import './CourseOverviewTemplate.css';
 
 const LinkedinIcon = ({ size = 16 }) => (
@@ -452,8 +453,8 @@ export const CourseOverviewTemplate = ({
         <aside className="overview-sticky-sidebar">
           <div className="overview-card-sticky">
             <div className="overview-card-thumb-wrap">
-              <img
-                src={course?.thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80'}
+              <CourseThumbnail
+                src={course?.thumbnail}
                 alt={course?.title || 'Course Thumbnail'}
                 className="overview-card-thumb-img"
               />

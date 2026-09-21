@@ -6,6 +6,7 @@ import {
 import './ExploreCourses.css';
 import { useToast } from '../../../context/ToastContext';
 import exploreCoursesSvg from '../../../assets/illustrations/explore_courses.svg?raw';
+import { CourseThumbnail } from '../../common/CourseThumbnail';
 
 export const ExploreCourses = () => {
   const { toast } = useToast();
@@ -155,39 +156,6 @@ export const ExploreCourses = () => {
     }
   };
 
-  const getCourseDuration = (lessons) => {
-    if (!lessons || lessons.length === 0) return '0m';
-    let totalMinutes = 0;
-    lessons.forEach((lesson) => {
-      const durationStr = lesson.duration || '';
-      const cleanStr = durationStr.toLowerCase().trim();
-
-      const hourMatch = cleanStr.match(/(\d+)\s*(h|hr|hour)/);
-      if (hourMatch) {
-        totalMinutes += parseInt(hourMatch[1], 10) * 60;
-      }
-
-      const minMatch = cleanStr.match(/(\d+)\s*(m|min|minute)/);
-      if (minMatch) {
-        totalMinutes += parseInt(minMatch[1], 10);
-      }
-
-      if (!hourMatch && !minMatch) {
-        const numMatch = cleanStr.match(/^(\d+)$/);
-        if (numMatch) {
-          totalMinutes += parseInt(numMatch[1], 10);
-        }
-      }
-    });
-
-    if (totalMinutes === 0) return '0m';
-    const hours = Math.floor(totalMinutes / 60);
-    const mins = totalMinutes % 60;
-    if (hours > 0) {
-      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-    }
-    return `${mins}m`;
-  };
 
   const formatLastUpdated = (dateString) => {
     if (!dateString) return '';
@@ -304,7 +272,7 @@ export const ExploreCourses = () => {
             {filteredCourses.map((course) => (
               <div key={course._id} className="explore-course-card">
                 <div className="course-card-thumb-wrap">
-                  <img src={course.thumbnail} alt={course.title} className="course-card-thumb" />
+                  <CourseThumbnail src={course.thumbnail} alt={course.title} className="course-card-thumb" />
                   <button type="button" className="course-bookmark-btn" aria-label="Bookmark course">
                     <Bookmark size={15} />
                   </button>
@@ -352,22 +320,27 @@ export const ExploreCourses = () => {
                     </div>
                   </div>
 
-                  {/* Metadata Row (Level / Duration / Lessons) */}
-                  <div className="course-metadata-row">
-                    <span className={`course-level-badge ${course.skillLevel?.toLowerCase().replace(' ', '-') || 'beginner'}`}>
-                      {course.skillLevel || 'Beginner'}
-                    </span>
-                    <span className="course-meta-divider">•</span>
-                    <div className="course-meta-item">
-                      <Clock size={12} />
-                      <span>{getCourseDuration(course.lessons)}</span>
-                    </div>
-                    <span className="course-meta-divider">•</span>
-                    <div className="course-meta-item">
-                      <Video size={12} />
-                      <span>{course.lessons?.length || 0} Lessons</span>
-                    </div>
-                  </div>
+                    {/* Metadata Row (Level / Modules / Enrolled Users) */}
+                    {(() => {
+                      const publishedModCount = (course.modules ? course.modules.filter(m => m.state === 'published' || m.status === 'published').length : (course.moduleCount ?? course.modulesCount ?? 0));
+                      return (
+                        <div className="course-metadata-row">
+                          <span className={`course-level-badge ${course.skillLevel?.toLowerCase().replace(' ', '-') || 'beginner'}`}>
+                            {course.skillLevel || 'Beginner'}
+                          </span>
+                          <span className="course-meta-divider">•</span>
+                          <div className="course-meta-item">
+                            <Layers size={12} />
+                            <span>{publishedModCount} {publishedModCount === 1 ? 'Module' : 'Modules'}</span>
+                          </div>
+                          <span className="course-meta-divider">•</span>
+                          <div className="course-meta-item">
+                            <Users size={12} />
+                            <span>{course.learnersCount || 0} {course.learnersCount === 1 ? 'Learner' : 'Learners'}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                 </div>
 
                 {/* Footer Row */}
@@ -423,11 +396,9 @@ export const ExploreCourses = () => {
                 </div>
               </div>
 
-              {selectedCourseView.thumbnail && (
-                <div className="modal-thumb-box">
-                  <img src={selectedCourseView.thumbnail} alt={selectedCourseView.title} />
-                </div>
-              )}
+              <div className="modal-thumb-box">
+                <CourseThumbnail src={selectedCourseView.thumbnail} alt={selectedCourseView.title} />
+              </div>
             </div>
 
             {/* Modal Navigation Tabs */}
@@ -446,7 +417,7 @@ export const ExploreCourses = () => {
                 onClick={() => setActiveModalTab('syllabus')}
               >
                 <BookOpen size={16} />
-                <span>Syllabus & Modules ({selectedCourseView.modules?.length || 0})</span>
+                <span>Syllabus & Modules ({(selectedCourseView.modules || []).filter(m => m.state === 'published' || m.status === 'published').length})</span>
               </button>
             </div>
 
@@ -585,31 +556,35 @@ export const ExploreCourses = () => {
                 </div>
               ) : (
                 <div className="syllabus-tab-content">
-                  {(!selectedCourseView.modules || selectedCourseView.modules.length === 0) ? (
-                    <p className="empty-syllabus-text">No modules or syllabus available for this course yet.</p>
-                  ) : (
-                    <div className="modules-accordion-list">
-                      {selectedCourseView.modules.map((mod, mIdx) => (
-                        <div key={mIdx} className="module-accordion-item">
-                          <div className="module-accordion-header">
-                            <span className="mod-num">Module {mIdx + 1}</span>
-                            <h4>{mod.title}</h4>
-                            <span className="mod-count">{mod.lessons?.length || 0} Lessons</span>
-                          </div>
+                  {(() => {
+                    const publishedMods = (selectedCourseView.modules || []).filter(m => m.state === 'published' || m.status === 'published');
+                    if (publishedMods.length === 0) {
+                      return <p className="empty-syllabus-text">No modules or syllabus available for this course yet.</p>;
+                    }
+                    return (
+                      <div className="modules-accordion-list">
+                        {publishedMods.map((mod, mIdx) => (
+                          <div key={mod._id || mIdx} className="module-accordion-item">
+                            <div className="module-accordion-header">
+                              <span className="mod-num">Module {mIdx + 1}</span>
+                              <h4>{mod.title}</h4>
+                              <span className="mod-count">{mod.lessons?.length || 0} Lessons</span>
+                            </div>
 
-                          <div className="module-accordion-body">
-                            {mod.lessons?.map((les, lIdx) => (
-                              <div key={lIdx} className="lesson-detail-row">
-                                <Video size={14} className="lesson-icon" />
-                                <span className="lesson-title">{les.title}</span>
-                                {les.duration && <span className="lesson-duration">{les.duration}</span>}
-                              </div>
-                            ))}
+                            <div className="module-accordion-body">
+                              {mod.lessons?.map((les, lIdx) => (
+                                <div key={les._id || lIdx} className="lesson-detail-row">
+                                  <Video size={14} className="lesson-icon" />
+                                  <span className="lesson-title">{les.title}</span>
+                                  {les.duration && <span className="lesson-duration">{les.duration}</span>}
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
