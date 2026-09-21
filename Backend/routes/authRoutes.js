@@ -6,20 +6,9 @@ const multer = require('multer');
 const authController = require('../controller/authController');
 const { protect } = require('../middleware/authMiddleware');
 
-// Multer Storage Setup for Profile Photos
-const photosDir = path.join(__dirname, '../uploads/photos');
-if (!fs.existsSync(photosDir)) fs.mkdirSync(photosDir, { recursive: true });
-
-const photoStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, photosDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `photo-${req.user.id}-${Date.now()}${ext}`);
-  }
-});
-
+// Multer Storage Setup for Profile Photos (In-Memory Buffer, Zero Local Disk Storage)
 const photoUpload = multer({
-  storage: photoStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
     const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];

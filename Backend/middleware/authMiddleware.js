@@ -39,6 +39,7 @@ const protect = (req, res, next) => {
     // Establish normalized authenticated user
     req.user = {
       id: decoded.id.toString(),
+      _id: decoded.id.toString(),
       email: decoded.email,
       role: decoded.role,
       fullName: decoded.fullName,

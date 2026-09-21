@@ -1,0 +1,189 @@
+.dynamic-list-input-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.dynamic-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.dynamic-list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: var(--input-bg, #ffffff);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-md, 12px);
+  padding: 0.45rem 0.75rem;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.dynamic-list-row:focus-within {
+  border-color: var(--brand-primary, #116830);
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(17, 104, 48, 0.2));
+}
+
+/* Dragging active states */
+.dynamic-list-row.is-dragging {
+  opacity: 0.45;
+  transform: scale(0.99);
+  background-color: var(--surface-muted, #ebf0ec);
+  border-style: dashed;
+}
+
+.dynamic-list-row.drag-over-target {
+  border-color: var(--brand-primary, #116830);
+  background-color: var(--brand-light, #e4efe7);
+  box-shadow: 0 0 0 2px var(--brand-primary, #116830);
+}
+
+.dynamic-list-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted, #56675d);
+  cursor: grab;
+  padding: 0.25rem 0.1rem;
+  transition: color 0.15s;
+}
+
+.dynamic-list-drag-handle:active {
+  cursor: grabbing;
+}
+
+.dynamic-list-drag-handle:hover {
+  color: var(--brand-primary, #116830);
+}
+
+/* Move Up / Move Down quick buttons */
+.dynamic-list-reorder-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.dynamic-list-move-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #56675d);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.1rem;
+  border-radius: 4px;
+  line-height: 1;
+  transition: all 0.15s;
+}
+
+.dynamic-list-move-btn:hover:not(:disabled) {
+  color: var(--brand-primary, #116830);
+  background-color: var(--surface-muted, #ebf0ec);
+}
+
+.dynamic-list-move-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+/* Item Index Number Badge */
+.dynamic-list-idx-badge {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--surface-muted, #ebf0ec);
+  color: var(--text-muted, #56675d);
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dynamic-list-text-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #0f1a13);
+  font-size: 0.92rem;
+  padding: 0.35rem 0;
+}
+
+.dynamic-list-text-input:focus {
+  outline: none;
+}
+
+.dynamic-list-delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #56675d);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem;
+  border-radius: var(--radius-sm, 8px);
+  transition: all 0.15s ease;
+}
+
+.dynamic-list-delete-btn:hover {
+  color: var(--color-error, #dc2626);
+  background-color: var(--color-error-bg, rgba(220, 38, 38, 0.1));
+}
+
+.dynamic-list-add-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--brand-primary, #116830);
+  background-color: var(--brand-light, #e4efe7);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 8px);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dynamic-list-add-btn:hover {
+  background-color: var(--brand-soft, #eef5f0);
+  border-color: var(--brand-primary, #116830);
+}
+
+/* Dark mode */
+.dark .dynamic-list-row {
+  background-color: var(--surface-elevated, #162420);
+  border-color: var(--border, #243831);
+}
+
+.dark .dynamic-list-idx-badge {
+  background-color: var(--surface, #101b18);
+  color: #8fa397;
+}
+
+.dark .dynamic-list-row.drag-over-target {
+  background-color: rgba(57, 217, 95, 0.15);
+  border-color: var(--brand-primary, #39d95f);
+}
+
+.dark .dynamic-list-move-btn:hover:not(:disabled) {
+  color: var(--brand-primary, #39d95f);
+  background-color: var(--surface, #101b18);
+}
+
+.dark .dynamic-list-add-btn {
+  background-color: rgba(57, 217, 95, 0.12);
+  color: var(--brand-primary, #39d95f);
+}
+
+.dark .dynamic-list-add-btn:hover {
+  background-color: rgba(57, 217, 95, 0.2);
+}

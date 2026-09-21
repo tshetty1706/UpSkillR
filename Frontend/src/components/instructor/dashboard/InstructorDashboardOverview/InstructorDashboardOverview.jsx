@@ -10,10 +10,11 @@ import {
   Clock,
   Sparkles,
   Award,
-  Video,
+  Layers,
   Users
 } from 'lucide-react';
 import './InstructorDashboardOverview.css';
+import { CourseThumbnail } from '../../../common/CourseThumbnail';
 
 export const InstructorDashboardOverview = ({ user, stats, courses, onNavigate }) => {
   const recentCourses = courses.slice(0, 4);
@@ -168,7 +169,7 @@ export const InstructorDashboardOverview = ({ user, stats, courses, onNavigate }
               <div className="dashboard-courses-list">
                 {recentCourses.map((course) => (
                   <div key={course._id} className="dashboard-course-row">
-                    <img
+                    <CourseThumbnail
                       src={course.thumbnail}
                       alt={course.title}
                       className="course-row-thumb"
@@ -182,8 +183,8 @@ export const InstructorDashboardOverview = ({ user, stats, courses, onNavigate }
                       </div>
                       <h3 className="course-row-title">{course.title}</h3>
                       <div className="course-row-details">
-                        <span><Video size={13} /> {course.lessons?.length || 0} Lessons</span>
-                        <span><Users size={13} /> {course.learnersCount || 0} Learners</span>
+                        <span><Layers size={13} /> {course.modules?.length || 0} {(course.modules?.length === 1) ? 'Module' : 'Modules'}</span>
+                        <span><Users size={13} /> {course.learnersCount || 0} {course.learnersCount === 1 ? 'Learner' : 'Learners'}</span>
                         <span><Clock size={13} /> {new Date(course.updatedAt).toLocaleDateString()}</span>
                       </div>
                     </div>

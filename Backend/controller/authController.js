@@ -1,5 +1,6 @@
 const { Learner, Instructor } = require('../model/User');
 const mongoose = require('mongoose');
+const { uploadBufferToCloudinary } = require('./mediaController');
 
 // Helper to find a user by email across both collections
 const findUserByEmail = async (email) => {
@@ -811,7 +812,15 @@ exports.uploadProfilePhoto = async (req, res) => {
 
     const userId = req.user.id;
     const role = req.user.role;
-    const photoUrl = `/uploads/photos/${req.file.filename}`;
+    
+    // Direct upload to Cloudinary (Zero Local Disk Writes)
+    const uploadResult = await uploadBufferToCloudinary(
+      req.file.buffer,
+      req.file.mimetype,
+      req.file.originalname,
+      'upskillr_profiles'
+    );
+    const photoUrl = uploadResult.secure_url;
 
     let updatedUser;
     if (role === 'learner') {

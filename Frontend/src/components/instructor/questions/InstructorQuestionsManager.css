@@ -1,0 +1,307 @@
+.inquiries-manager-root {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.inquiries-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.inquiries-title {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f1a13);
+}
+
+.inquiries-subtitle {
+  margin: 0.3rem 0 0 0;
+  font-size: 0.95rem;
+  color: var(--text-secondary, #35443b);
+  max-width: 650px;
+}
+
+.inquiries-filter-pills {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.filter-pill-btn {
+  padding: 0.45rem 1rem;
+  border-radius: 9999px;
+  background-color: var(--surface-muted, #ebf0ec);
+  border: 1px solid var(--border, #c6d3cb);
+  color: var(--text-secondary, #35443b);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-pill-btn.active {
+  background-color: var(--brand-primary, #116830);
+  border-color: var(--brand-primary, #116830);
+  color: #ffffff;
+}
+
+.inquiries-loading-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 3rem;
+  color: var(--text-muted, #56675d);
+}
+
+.inquiries-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 4rem 2rem;
+  background-color: var(--surface, #ffffff);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-lg, 16px);
+  color: var(--text-muted, #56675d);
+}
+
+.empty-inquiry-icon {
+  margin-bottom: 0.75rem;
+  color: var(--border, #c6d3cb);
+}
+
+.inquiries-empty-state h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--text-primary, #0f1a13);
+}
+
+.inquiries-empty-state p {
+  margin: 0.3rem 0 0 0;
+  font-size: 0.9rem;
+  max-width: 420px;
+}
+
+.inquiries-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.inquiry-card {
+  background-color: var(--surface, #ffffff);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-lg, 16px);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.inquiry-card-course-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--brand-primary, #116830);
+}
+
+.status-tag {
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+}
+
+.status-pending {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.status-answered {
+  background-color: var(--brand-light, #e4efe7);
+  color: var(--brand-primary, #116830);
+}
+
+.inquiry-question-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.inquiry-user-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text-muted, #56675d);
+}
+
+.user-name {
+  font-weight: 700;
+  color: var(--text-primary, #0f1a13);
+}
+
+.question-content {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 500;
+  color: var(--text-primary, #0f1a13);
+  line-height: 1.45;
+}
+
+.inquiry-existing-reply {
+  background-color: var(--surface-muted, #f8faf9);
+  border-left: 3px solid var(--brand-primary, #116830);
+  border-radius: 4px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.reply-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--brand-primary, #116830);
+}
+
+.reply-date {
+  font-weight: 400;
+  color: var(--text-muted, #56675d);
+}
+
+.reply-content {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--text-secondary, #35443b);
+  line-height: 1.45;
+}
+
+.btn-open-reply {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-sm, 8px);
+  background-color: transparent;
+  color: var(--brand-primary, #116830);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-open-reply:hover {
+  background-color: var(--brand-light, #e4efe7);
+}
+
+.inquiry-reply-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.inquiry-reply-textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: var(--input-bg, #ffffff);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-md, 12px);
+  color: var(--text-primary, #0f1a13);
+  font-size: 0.92rem;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.inquiry-reply-textarea:focus {
+  outline: none;
+  border-color: var(--brand-primary, #116830);
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(17, 104, 48, 0.2));
+}
+
+.reply-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.btn-cancel-reply {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-sm, 8px);
+  color: var(--text-secondary, #35443b);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-submit-reply {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.2rem;
+  background-color: var(--brand-primary, #116830);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm, 8px);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Dark Mode */
+.dark .inquiry-card,
+.dark .inquiries-empty-state {
+  background-color: var(--surface, #101b18);
+  border-color: var(--border, #243831);
+}
+
+.dark .filter-pill-btn {
+  background-color: var(--surface-elevated, #162420);
+  border-color: var(--border, #243831);
+  color: #d1d5db;
+}
+
+.dark .filter-pill-btn.active {
+  background-color: var(--brand-primary, #39d95f);
+  color: #090f13;
+}
+
+.dark .inquiry-card-course-badge,
+.dark .reply-header,
+.dark .btn-open-reply {
+  color: var(--brand-primary, #39d95f);
+}
+
+.dark .status-answered {
+  background-color: rgba(57, 217, 95, 0.15);
+  color: var(--brand-primary, #39d95f);
+}
+
+.dark .inquiry-existing-reply {
+  background-color: var(--surface-elevated, #162420);
+  border-color: var(--brand-primary, #39d95f);
+}
+
+.dark .btn-submit-reply {
+  background-color: var(--brand-primary, #39d95f);
+  color: #090f13;
+}

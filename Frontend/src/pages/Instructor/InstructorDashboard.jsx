@@ -3,16 +3,63 @@ import { InstructorLayout } from '../../components/instructor/common/InstructorL
 import { InstructorSidebar } from '../../components/instructor/common/InstructorSidebar/InstructorSidebar';
 import { InstructorDashboardOverview } from '../../components/instructor/dashboard/InstructorDashboardOverview/InstructorDashboardOverview';
 import { MyCourses } from '../../components/instructor/courses/MyCourses/MyCourses';
-import { CourseCreateWizard } from '../../components/instructor/courses/CourseCreateWizard/CourseCreateWizard';
 import { CourseManager } from '../../components/instructor/courses/CourseManager/CourseManager';
+import { CourseCreationFlow } from '../../components/instructor/courses/courseCreation/CourseCreationFlow';
+import { DedicatedContentEditorPage } from '../../components/instructor/courses/CourseManager/CourseModules/DedicatedEditor/DedicatedContentEditorPage';
+import { InstructorQuestionsManager } from '../../components/instructor/questions/InstructorQuestionsManager';
 import { InstructorProfile } from '../../components/instructor/profile/InstructorProfile/InstructorProfile';
 import { InstructorAnalytics } from '../../components/instructor/analytics/InstructorAnalytics/InstructorAnalytics';
+import { InstructorAssessmentsReview } from '../../components/instructor/assessments/InstructorAssessmentsReview';
 import { useToast } from '../../context/ToastContext';
+import { API_BASE } from '../../config/api';
 
 export const InstructorDashboard = ({ user, onLogout }) => {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [selectedCourseId, setSelectedCourseId] = useState(null);
+  const getInitialRoute = () => {
+    const path = window.location.pathname;
+
+    // Dedicated Content Editor standalone routes
+    const modulesMatch = path.match(/\/instructor\/courses\/([a-f0-9]{24})\/content\/modules/i);
+    if (modulesMatch) {
+      return { tab: 'content-modules', courseId: modulesMatch[1] };
+    }
+    const resourcesMatch = path.match(/\/instructor\/courses\/([a-f0-9]{24})\/content\/resources/i);
+    if (resourcesMatch) {
+      return { tab: 'content-resources', courseId: resourcesMatch[1] };
+    }
+    const assessmentsMatch = path.match(/\/instructor\/courses\/([a-f0-9]{24})\/content\/assessments/i);
+    if (assessmentsMatch) {
+      return { tab: 'content-assessments', courseId: assessmentsMatch[1] };
+    }
+
+    const workspaceMatch = path.match(/\/instructor\/courses\/([a-f0-9]{24})\/workspace/i);
+    if (workspaceMatch) {
+      return { tab: 'manage-course', courseId: workspaceMatch[1] };
+    }
+    if (path.startsWith('/instructor/courses/create')) {
+      return { tab: 'create-course', courseId: null };
+    }
+    if (path.startsWith('/instructor/courses')) {
+      return { tab: 'my-courses', courseId: null };
+    }
+    if (path.startsWith('/instructor/assessments')) {
+      return { tab: 'assessments', courseId: null };
+    }
+    if (path.startsWith('/instructor/analytics')) {
+      return { tab: 'analytics', courseId: null };
+    }
+    if (path.startsWith('/instructor/inquiries')) {
+      return { tab: 'inquiries', courseId: null };
+    }
+    if (path.startsWith('/instructor/profile')) {
+      return { tab: 'profile', courseId: null };
+    }
+    return { tab: 'dashboard', courseId: null };
+  };
+
+  const initialRoute = getInitialRoute();
+  const [activeTab, setActiveTab] = useState(initialRoute.tab);
+  const [selectedCourseId, setSelectedCourseId] = useState(initialRoute.courseId);
   const [courses, setCourses] = useState([]);
   const [stats, setStats] = useState({
     totalCourses: 0,
@@ -25,13 +72,22 @@ export const InstructorDashboard = ({ user, onLogout }) => {
 
   useEffect(() => {
     fetchInstructorData();
+
+    const syncRouteFromPath = () => {
+      const route = getInitialRoute();
+      setActiveTab(route.tab);
+      setSelectedCourseId(route.courseId);
+    };
+
+    window.addEventListener('popstate', syncRouteFromPath);
+    return () => window.removeEventListener('popstate', syncRouteFromPath);
   }, []);
 
   const fetchInstructorData = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('upskillr_token');
-      const response = await fetch('http://localhost:5000/api/courses/instructor/my-courses', {
+      const response = await fetch(`${API_BASE}/courses/instructor/my-courses`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
@@ -58,18 +114,37 @@ export const InstructorDashboard = ({ user, onLogout }) => {
     setActiveTab(tab);
     if (courseId) {
       setSelectedCourseId(courseId);
+    } else if (
+      tab !== 'manage-course' &&
+      tab !== 'content-modules' &&
+      tab !== 'content-resources' &&
+      tab !== 'content-assessments'
+    ) {
+      setSelectedCourseId(null);
     }
-  };
 
-  // Called by CourseCreateWizard when the course is saved or published
-  const handleCourseCreated = async (course) => {
-    await fetchInstructorData();
-    if (course?._id) {
-      // Navigate to CourseManager so the instructor can add resources/assessments
-      setSelectedCourseId(course._id);
-      setActiveTab('manage-course');
-    } else {
-      setActiveTab('my-courses');
+    if (tab === 'manage-course' && courseId) {
+      window.history.pushState({}, '', `/instructor/courses/${courseId}/workspace`);
+    } else if (tab === 'content-modules' && courseId) {
+      window.history.pushState({}, '', `/instructor/courses/${courseId}/content/modules`);
+    } else if (tab === 'content-resources' && courseId) {
+      window.history.pushState({}, '', `/instructor/courses/${courseId}/content/resources`);
+    } else if (tab === 'content-assessments' && courseId) {
+      window.history.pushState({}, '', `/instructor/courses/${courseId}/content/assessments`);
+    } else if (tab === 'my-courses') {
+      window.history.pushState({}, '', '/instructor/courses');
+    } else if (tab === 'create-course') {
+      window.history.pushState({}, '', '/instructor/courses/create');
+    } else if (tab === 'assessments') {
+      window.history.pushState({}, '', '/instructor/assessments');
+    } else if (tab === 'analytics') {
+      window.history.pushState({}, '', '/instructor/analytics');
+    } else if (tab === 'inquiries') {
+      window.history.pushState({}, '', '/instructor/inquiries');
+    } else if (tab === 'profile') {
+      window.history.pushState({}, '', '/instructor/profile');
+    } else if (tab === 'dashboard') {
+      window.history.pushState({}, '', '/instructor/dashboard');
     }
   };
 
@@ -110,7 +185,7 @@ export const InstructorDashboard = ({ user, onLogout }) => {
     try {
       const token = localStorage.getItem('upskillr_token');
       const targetStatus = currentStatus === 'published' ? 'draft' : 'published';
-      const response = await fetch(`http://localhost:5000/api/courses/${courseId}/publish`, {
+      const response = await fetch(`${API_BASE}/courses/${courseId}/publish`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -144,9 +219,6 @@ export const InstructorDashboard = ({ user, onLogout }) => {
         );
 
       case 'my-courses':
-      case 'lessons':
-      case 'resources':
-      case 'assessments':
         return (
           <MyCourses
             courses={courses}
@@ -155,24 +227,35 @@ export const InstructorDashboard = ({ user, onLogout }) => {
           />
         );
 
-      case 'create-course':
-        return (
-          <CourseCreateWizard
-            courses={courses}
-            onCourseCreated={handleCourseCreated}
-            onCancel={() => setActiveTab('my-courses')}
-          />
-        );
-
       case 'manage-course':
         return (
           <CourseManager
             courseId={selectedCourseId}
-            onBack={() => setActiveTab('my-courses')}
+            user={user}
+            onBack={() => handleNavigate('my-courses')}
             onUpdateCourse={handleUpdateCourse}
             onPublishToggle={handlePublishToggle}
+            onNavigate={handleNavigate}
           />
         );
+
+      case 'create-course':
+        return (
+          <CourseCreationFlow
+            user={user}
+            onCancel={() => setActiveTab('my-courses')}
+            onCourseCreated={() => {
+              fetchInstructorData();
+            }}
+            onNavigate={handleNavigate}
+          />
+        );
+
+      case 'assessments':
+        return <InstructorAssessmentsReview user={user} />;
+
+      case 'inquiries':
+        return <InstructorQuestionsManager />;
 
       case 'analytics':
       case 'learners':
@@ -193,12 +276,41 @@ export const InstructorDashboard = ({ user, onLogout }) => {
     }
   };
 
+  if (activeTab === 'create-course') {
+    return (
+      <CourseCreationFlow
+        user={user}
+        onCancel={() => setActiveTab('my-courses')}
+        onCourseCreated={() => {
+          fetchInstructorData();
+        }}
+        onNavigate={handleNavigate}
+      />
+    );
+  }
+
+  if (
+    activeTab === 'content-modules' ||
+    activeTab === 'content-resources' ||
+    activeTab === 'content-assessments'
+  ) {
+    return (
+      <DedicatedContentEditorPage
+        editorType={activeTab}
+        courseId={selectedCourseId}
+        user={user}
+        onBackToWorkspace={() => handleNavigate('manage-course', selectedCourseId)}
+        onNavigate={handleNavigate}
+      />
+    );
+  }
+
   return (
     <InstructorLayout
       sidebar={
         <InstructorSidebar
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          setActiveTab={(tab) => handleNavigate(tab)}
           user={user}
           onLogout={onLogout}
         />

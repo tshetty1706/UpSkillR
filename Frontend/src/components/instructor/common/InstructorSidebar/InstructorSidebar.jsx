@@ -3,8 +3,6 @@ import {
   LayoutDashboard,
   BookOpen,
   PlusCircle,
-  Video,
-  FileText,
   HelpCircle,
   BarChart3,
   Users,
@@ -15,7 +13,8 @@ import {
   BookMarked,
   Sun,
   Moon,
-  Home
+  Home,
+  MessageSquare
 } from 'lucide-react';
 import { useTheme } from '../../../../context/ThemeContext';
 import './InstructorSidebar.css';
@@ -38,9 +37,8 @@ export const InstructorSidebar = ({ activeTab, setActiveTab, user, onLogout }) =
     {
       title: 'TEACHING / CONTENT',
       items: [
-        { id: 'lessons', label: 'Lessons', icon: Video },
-        { id: 'resources', label: 'Resources', icon: FileText },
-        { id: 'assessments', label: 'Assessments', icon: HelpCircle }
+        { id: 'assessments', label: 'Assessments', icon: HelpCircle },
+        { id: 'inquiries', label: 'Course Inquiries', icon: MessageSquare }
       ]
     },
     {

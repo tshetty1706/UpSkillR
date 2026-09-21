@@ -182,7 +182,7 @@
   transition: width 0.3s ease;
 }
 
-.stepper-list {
+.app-stepper-sidebar .stepper-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -191,7 +191,7 @@
   margin: 0;
 }
 
-.stepper-item {
+.app-stepper-sidebar .stepper-item {
   display: flex;
   align-items: center;
   gap: 0.85rem;
@@ -202,28 +202,28 @@
   border: 1px solid transparent;
 }
 
-.stepper-item:hover {
+.app-stepper-sidebar .stepper-item:hover {
   background-color: var(--surface-muted);
 }
 
-.stepper-item.active {
+.app-stepper-sidebar .stepper-item.active {
   background-color: var(--brand-soft);
   border-color: var(--brand-light);
 }
 
-.stepper-item.completed .stepper-icon-box {
+.app-stepper-sidebar .stepper-item.completed .stepper-icon-box {
   background-color: var(--brand-primary);
   color: var(--btn-primary-text);
   border-color: var(--brand-primary);
 }
 
-.stepper-item.active .stepper-icon-box {
+.app-stepper-sidebar .stepper-item.active .stepper-icon-box {
   background-color: var(--brand-primary);
   color: var(--btn-primary-text);
   box-shadow: 0 0 0 3px var(--brand-emerald-glow);
 }
 
-.stepper-icon-box {
+.app-stepper-sidebar .stepper-icon-box {
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -239,13 +239,13 @@
   transition: all 0.2s ease;
 }
 
-.stepper-info {
+.app-stepper-sidebar .stepper-info {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
-.stepper-step-label {
+.app-stepper-sidebar .stepper-step-label {
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--text-muted);
@@ -253,7 +253,7 @@
   letter-spacing: 0.04em;
 }
 
-.stepper-step-name {
+.app-stepper-sidebar .stepper-step-name {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);

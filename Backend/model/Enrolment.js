@@ -30,6 +30,16 @@ const enrolmentSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  status: {
+    type: String,
+    enum: ['active', 'completed'],
+    default: 'active',
+    index: true
+  },
+  completedAt: {
+    type: Date,
+    default: null
+  },
   enrolledAt: {
     type: Date,
     default: Date.now
