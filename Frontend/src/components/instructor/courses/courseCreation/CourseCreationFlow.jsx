@@ -221,7 +221,7 @@ export const CourseCreationFlow = ({ user, onCancel, onCourseCreated, onNavigate
         {currentStep === 4 && (
           <Step4ReviewCreate
             basicInfo={basicInfo}
-            thumbnailPreview={thumbnailPreview || DEFAULT_FALLBACK_THUMBNAIL}
+            thumbnailPreview={thumbnailPreview || ''}
             overviewData={overviewData}
             onEditStep={(stepNum) => setCurrentStep(stepNum)}
             onOpenPreview={() => setIsPreviewOpen(true)}
@@ -245,7 +245,7 @@ export const CourseCreationFlow = ({ user, onCancel, onCourseCreated, onNavigate
         onClose={() => setIsPreviewOpen(false)}
         course={{
           ...basicInfo,
-          thumbnail: thumbnailPreview || DEFAULT_FALLBACK_THUMBNAIL
+          thumbnail: thumbnailPreview || ''
         }}
         overview={overviewData}
         user={user}

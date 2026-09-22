@@ -23,7 +23,8 @@ import {
   Trash2,
   Zap,
   Plus,
-  Bell
+  Bell,
+  Eye
 } from 'lucide-react';
 import './CourseManager.css';
 import { useToast } from '../../../../context/ToastContext';
