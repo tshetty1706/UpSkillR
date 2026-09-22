@@ -8,6 +8,7 @@ const courseController = require('../controller/courseController');
 const announcementController = require('../controller/announcementController');
 const courseContentController = require('../controller/courseContentController');
 const assessmentReviewController = require('../controller/assessmentReviewController');
+const analyticsController = require('../controller/analyticsController');
 const {
   protect,
   requireLearner,
@@ -87,6 +88,7 @@ router.post('/rate', protect, requireLearner, courseController.submitCourseRatin
 
 // ─── 3. Instructor Course Management (Collection Level) ───
 router.get('/instructor/my-courses', protect, requireSubmittedInstructor, courseController.getInstructorCourses);
+router.get('/instructor/analytics', protect, requireSubmittedInstructor, analyticsController.getInstructorAnalytics);
 router.get('/instructor/questions', protect, requireSubmittedInstructor, courseController.getInstructorQuestions);
 router.post('/', protect, requireSubmittedInstructor, thumbnailUpload.single('thumbnail'), courseController.createCourse);
 

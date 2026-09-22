@@ -204,19 +204,24 @@ export const NotesResourcesEditor = ({
   const handleTogglePublishState = async () => {
     if (selectedNoteId && !isCreatingNew) {
       try {
-        const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/notes/${selectedNoteId}/state`, {
+        const authHeaders = typeof getAuthHeader === 'function' ? getAuthHeader() : {};
+        const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/notes/${selectedNoteId}/toggle-state`, {
           method: 'PATCH',
-          headers: getAuthHeader()
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders
+          }
         });
-        const data = await res.json();
-        if (data.success) {
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success) {
           setResourceState(data.state);
           toast.success(`Resource is now ${data.state === 'published' ? 'Published' : 'in Draft'}`);
           if (onCurriculumUpdated) onCurriculumUpdated();
         } else {
-          toast.error(data.message || 'Failed to update resource state');
+          toast.error(data?.message || 'Failed to update resource state');
         }
       } catch (err) {
+        console.error('Error updating resource state:', err);
         toast.error('Network error updating resource state');
       }
     } else {
@@ -269,29 +274,35 @@ export const NotesResourcesEditor = ({
         state: resourceState
       };
 
+      const authHeaders = typeof getAuthHeader === 'function' ? getAuthHeader() : {};
+      const requestHeaders = {
+        'Content-Type': 'application/json',
+        ...authHeaders
+      };
+
       if (selectedNoteId && !isCreatingNew) {
         // UPDATE EXISTING RESOURCE
         const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/notes/${selectedNoteId}`, {
           method: 'PATCH',
-          headers: getAuthHeader(),
+          headers: requestHeaders,
           body: JSON.stringify(payload)
         });
-        const data = await res.json();
-        if (data.success) {
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success) {
           toast.success('Resource updated successfully');
           if (onCurriculumUpdated) onCurriculumUpdated();
         } else {
-          toast.error(data.message || 'Failed to update resource');
+          toast.error(data?.message || 'Failed to update resource');
         }
       } else {
         // CREATE NEW RESOURCE
         const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/notes`, {
           method: 'POST',
-          headers: getAuthHeader(),
+          headers: requestHeaders,
           body: JSON.stringify(payload)
         });
-        const data = await res.json();
-        if (data.success) {
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success) {
           toast.success('Resource attached successfully');
           if (data.note?._id) {
             setSelectedNoteId(data.note._id);
@@ -299,10 +310,11 @@ export const NotesResourcesEditor = ({
           }
           if (onCurriculumUpdated) onCurriculumUpdated();
         } else {
-          toast.error(data.message || 'Failed to attach resource');
+          toast.error(data?.message || 'Failed to attach resource');
         }
       }
     } catch (err) {
+      console.error('Error saving resource:', err);
       toast.error('Network error saving resource');
     } finally {
       setSaving(false);

@@ -224,15 +224,7 @@ export const InstructorDashboardOverview = ({ user, stats, courses, onNavigate }
             </div>
           </div>
 
-          <div className="section-card tip-box-card">
-            <div className="tip-header">
-              <Award size={20} className="accent-green" />
-              <h3>Instructor Success Tip</h3>
-            </div>
-            <p className="tip-body">
-              Courses with at least 5 lessons and an assessment see a 40% higher completion rate among UpSkillr learners.
-            </p>
-          </div>
+
         </div>
       </div>
     </div>

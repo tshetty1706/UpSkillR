@@ -173,8 +173,8 @@ export const CourseManager = ({
         }
       });
 
-      const overviewData = await overviewRes.json();
-      if (overviewData.success && overviewData.overview) {
+      const overviewData = await overviewRes.json().catch(() => null);
+      if (overviewData && overviewData.success && overviewData.overview) {
         const fetchedOverview = overviewData.overview;
         setOverview(fetchedOverview);
         setOverviewForm({
@@ -638,7 +638,7 @@ export const CourseManager = ({
                       <div className="data-row">
                         <span className="data-label">Tags & Keywords</span>
                         <div className="data-chips-wrap">
-                          {course.tags && course.tags.length > 0 ? (
+                          {Array.isArray(course.tags) && course.tags.length > 0 ? (
                             course.tags.map((tag, idx) => (
                               <span key={idx} className="workspace-tag-chip">
                                 {tag}
@@ -697,7 +697,7 @@ export const CourseManager = ({
                     </span>
                   </div>
 
-                  {(!course.modules || course.modules.length === 0) ? (
+                  {(!Array.isArray(course.modules) || course.modules.length === 0) ? (
                     <div className="empty-syllabus-banner">
                       <p className="empty-syllabus-main">No syllabus available yet</p>
                       <p className="empty-syllabus-sub">
@@ -713,7 +713,7 @@ export const CourseManager = ({
                             <span className={`state-badge-sm ${mod.state || 'draft'}`}>{mod.state || 'draft'}</span>
                           </div>
                           {mod.description && <p className="syllabus-mod-desc">{mod.description}</p>}
-                          {mod.lessons && mod.lessons.length > 0 && (
+                          {Array.isArray(mod.lessons) && mod.lessons.length > 0 && (
                             <ul className="syllabus-lesson-bullets">
                               {mod.lessons.map((less, lIdx) => (
                                 <li key={less._id || lIdx} className="syllabus-lesson-bullet">
@@ -1009,9 +1009,9 @@ export const CourseManager = ({
                 {/* What You'll Learn (Outcomes) */}
                 <div className="workspace-info-card">
                   <h3 className="card-inner-heading">
-                    What You'll Learn ({overview?.learningOutcomes?.length || 0})
+                    What You'll Learn ({Array.isArray(overview?.learningOutcomes) ? overview.learningOutcomes.length : 0})
                   </h3>
-                  {overview?.learningOutcomes && overview.learningOutcomes.length > 0 ? (
+                  {Array.isArray(overview?.learningOutcomes) && overview.learningOutcomes.length > 0 ? (
                     <div className="workspace-outcomes-grid">
                       {overview.learningOutcomes.map((outcome, idx) => (
                         <div key={idx} className="workspace-outcome-item">
@@ -1028,9 +1028,9 @@ export const CourseManager = ({
                 {/* Skills You'll Gain (Distinct Point Identity Badges) */}
                 <div className="workspace-info-card">
                   <h3 className="card-inner-heading">
-                    Skills You'll Gain ({overview?.skills?.length || 0})
+                    Skills You'll Gain ({Array.isArray(overview?.skills) ? overview.skills.length : 0})
                   </h3>
-                  {overview?.skills && overview.skills.length > 0 ? (
+                  {Array.isArray(overview?.skills) && overview.skills.length > 0 ? (
                     <div className="workspace-skills-grid">
                       {overview.skills.map((skill, idx) => (
                         <div key={idx} className="workspace-skill-badge-card">
@@ -1051,7 +1051,7 @@ export const CourseManager = ({
                   <div className="workspace-info-card">
                     <h3 className="card-inner-heading">Prerequisites</h3>
                     <div className="data-chips-wrap">
-                      {overview?.prerequisites && overview.prerequisites.length > 0 ? (
+                      {Array.isArray(overview?.prerequisites) && overview.prerequisites.length > 0 ? (
                         overview.prerequisites.map((p, idx) => (
                           <span key={idx} className="workspace-tag-chip">
                             {p}
@@ -1066,7 +1066,7 @@ export const CourseManager = ({
                   <div className="workspace-info-card">
                     <h3 className="card-inner-heading">Technologies & Tools</h3>
                     <div className="data-chips-wrap">
-                      {overview?.techStack && overview.techStack.length > 0 ? (
+                      {Array.isArray(overview?.techStack) && overview.techStack.length > 0 ? (
                         overview.techStack.map((tool, idx) => (
                           <span key={idx} className="workspace-tag-chip tech-color">
                             {tool}
@@ -1099,7 +1099,7 @@ export const CourseManager = ({
                 </div>
 
                 {/* FAQs */}
-                {overview?.faqs && overview.faqs.length > 0 && (
+                {Array.isArray(overview?.faqs) && overview.faqs.length > 0 && (
                   <div className="workspace-info-card">
                     <h3 className="card-inner-heading">Frequently Asked Questions ({overview.faqs.length})</h3>
                     <div className="workspace-faq-list">

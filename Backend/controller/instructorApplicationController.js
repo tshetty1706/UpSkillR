@@ -405,10 +405,10 @@ exports.submitApplication = async (req, res) => {
 
     // Check required fields per section
     const pInfo = application.personalInfo || {};
-    if (!pInfo.fullName?.trim() || !pInfo.email?.trim() || !pInfo.phone?.trim() || !pInfo.professionalTitle?.trim() || !pInfo.bio?.trim() || !pInfo.photoUrl?.trim()) {
+    if (!pInfo.fullName?.trim() || !pInfo.email?.trim() || !pInfo.phone?.trim() || !pInfo.professionalTitle?.trim() || !pInfo.bio?.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Please complete all required fields in Personal Information (including Bio and Profile Photo) before submitting.'
+        message: 'Please complete all required fields in Personal Information (including Bio) before submitting.'
       });
     }
 
