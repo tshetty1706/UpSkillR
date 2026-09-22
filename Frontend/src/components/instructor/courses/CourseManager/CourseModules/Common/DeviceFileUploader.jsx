@@ -24,7 +24,8 @@ export const DeviceFileUploader = ({
   getAuthHeader = () => ({}),
   disabled = false,
   label = 'Upload File from Device',
-  helpText = ''
+  helpText = '',
+  extraData = null
 }) => {
   const fileInputRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -105,6 +106,13 @@ export const DeviceFileUploader = ({
         console.warn('Could not read video metadata:', dErr);
       }
     }
+
+    let finalUrl = '';
+    let finalPublicId = '';
+    let finalAssetId = '';
+    let finalPlaybackId = '';
+    let finalDuration = 0;
+    let finalStatus = 'ready';
 
     try {
       const token = localStorage.getItem('upskillr_token');
@@ -274,6 +282,8 @@ export const DeviceFileUploader = ({
       setUploadError(uploadErr.message || 'Upload failed. Please try again.');
       setUploading(false);
       setUploadStatusMessage('');
+      setPreviewUrl(currentUrl || '');
+      setSelectedFile(null);
     }
   };
 

@@ -1343,14 +1343,19 @@ exports.createCourse = async (req, res) => {
 
     // If file was uploaded via multipart in this request
     if (req.file && req.file.buffer) {
-      const uploadRes = await uploadBufferToCloudinary(
-        req.file.buffer,
-        req.file.mimetype,
-        req.file.originalname,
-        'course_thumbnails'
-      );
-      resolvedThumbnail = uploadRes.secure_url;
-      resolvedThumbnailPublicId = uploadRes.public_id;
+      try {
+        const uploadRes = await uploadBufferToCloudinary(
+          req.file.buffer,
+          req.file.mimetype,
+          req.file.originalname,
+          'course_thumbnails'
+        );
+        resolvedThumbnail = uploadRes.secure_url;
+        resolvedThumbnailPublicId = uploadRes.public_id;
+      } catch (cloudErr) {
+        console.warn('Cloudinary upload warning during course creation (falling back to default thumbnail):', cloudErr.message);
+        // Fallback: keep resolvedThumbnail as empty string/default so course creation is never blocked
+      }
     }
 
     const newCourse = new Course({
@@ -1602,14 +1607,22 @@ exports.updateCourseThumbnail = async (req, res) => {
     let thumbnailPublicId = course.thumbnail_public_id || '';
 
     if (req.file && req.file.buffer) {
-      const uploadRes = await uploadBufferToCloudinary(
-        req.file.buffer,
-        req.file.mimetype,
-        req.file.originalname,
-        'course_thumbnails'
-      );
-      thumbnailUrl = uploadRes.secure_url;
-      thumbnailPublicId = uploadRes.public_id;
+      try {
+        const uploadRes = await uploadBufferToCloudinary(
+          req.file.buffer,
+          req.file.mimetype,
+          req.file.originalname,
+          'course_thumbnails'
+        );
+        thumbnailUrl = uploadRes.secure_url;
+        thumbnailPublicId = uploadRes.public_id;
+      } catch (cloudErr) {
+        console.warn('Cloudinary upload error in updateCourseThumbnail:', cloudErr.message);
+        return res.status(400).json({
+          success: false,
+          message: 'Thumbnail upload failed due to Cloudinary permission limits. You can still proceed with default course thumbnails.'
+        });
+      }
     } else if (req.body.thumbnailUrl && req.body.thumbnailUrl.trim()) {
       thumbnailUrl = req.body.thumbnailUrl.trim();
       thumbnailPublicId = req.body.thumbnailPublicId || '';

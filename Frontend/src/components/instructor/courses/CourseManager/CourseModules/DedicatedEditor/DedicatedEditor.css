@@ -71,7 +71,7 @@
   align-items: center;
   gap: 8px;
   padding: 0.45rem 0.95rem;
-  background-color: var(--surface-subtle, #f8faf9);
+  background-color: var(--surface-muted, #ebf0ec);
   border: 1px solid var(--border, #c6d3cb);
   border-radius: var(--radius-sm, 8px);
   color: var(--text-primary, #0f1a13);
@@ -83,10 +83,10 @@
 }
 
 .btn-back-to-workspace:hover {
-  background-color: var(--surface-muted, #edf2ef);
+  background-color: var(--surface-elevated, #ffffff);
   border-color: var(--brand-primary, #116830);
-  color: var(--brand-primary, #116830);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  color: var(--brand-accent-text, var(--brand-primary, #116830));
+  box-shadow: var(--shadow-sm, 0 1px 4px rgba(0, 0, 0, 0.05));
 }
 
 /* Breadcrumbs in App Bar */

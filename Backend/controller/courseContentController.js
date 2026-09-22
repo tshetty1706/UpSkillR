@@ -1147,18 +1147,26 @@ exports.uploadVideoFromDevice = async (req, res) => {
     }
 
     // If client uploaded a memory buffer
-    const uploadRes = await uploadBufferToCloudinary(
-      req.file.buffer,
-      req.file.mimetype,
-      req.file.originalname,
-      'upskillr_course_videos'
-    );
+    let uploadRes = null;
+    try {
+      uploadRes = await uploadBufferToCloudinary(
+        req.file.buffer,
+        req.file.mimetype,
+        req.file.originalname,
+        'upskillr_course_videos'
+      );
+    } catch (cloudErr) {
+      console.warn('Cloudinary video upload warning (falling back to inline Data URL):', cloudErr.message);
+    }
+
+    const finalUrl = uploadRes?.secure_url || `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    const publicId = uploadRes?.public_id || `local_vid_${Date.now()}`;
 
     res.json({
       success: true,
-      url: uploadRes.secure_url,
-      playbackId: uploadRes.public_id,
-      assetId: uploadRes.public_id,
+      url: finalUrl,
+      playbackId: publicId,
+      assetId: publicId,
       fileName: req.file.originalname,
       fileSize: req.file.size
     });
@@ -1173,28 +1181,35 @@ exports.uploadResourceFromDevice = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please select a file to upload.' });
     }
 
-    const uploadRes = await uploadBufferToCloudinary(
-      req.file.buffer,
-      req.file.mimetype,
-      req.file.originalname,
-      'upskillr_course_materials'
-    );
+    let uploadRes = null;
+    try {
+      uploadRes = await uploadBufferToCloudinary(
+        req.file.buffer,
+        req.file.mimetype,
+        req.file.originalname,
+        'upskillr_course_materials'
+      );
+    } catch (cloudErr) {
+      console.warn('Cloudinary resource upload warning (falling back to inline Data URL):', cloudErr.message);
+    }
 
     const fileSizeMb = (req.file.size / (1024 * 1024)).toFixed(1) + ' MB';
+    const finalUrl = uploadRes?.secure_url || `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    const publicId = uploadRes?.public_id || `local_res_${Date.now()}`;
 
     res.json({
       success: true,
-      url: uploadRes.secure_url,
-      fileUrl: uploadRes.secure_url,
-      secure_url: uploadRes.secure_url,
-      publicId: uploadRes.public_id,
+      url: finalUrl,
+      fileUrl: finalUrl,
+      secure_url: finalUrl,
+      publicId: publicId,
       fileName: req.file.originalname,
       fileSize: fileSizeMb,
-      format: uploadRes.format || ''
+      format: uploadRes?.format || req.file.mimetype.split('/')[1] || ''
     });
   } catch (err) {
     console.error('uploadResourceFromDevice error:', err.message);
-    res.status(500).json({ success: false, message: err.message || 'Failed to upload resource to Cloudinary.' });
+    res.status(500).json({ success: false, message: err.message || 'Failed to upload resource.' });
   }
 };
 

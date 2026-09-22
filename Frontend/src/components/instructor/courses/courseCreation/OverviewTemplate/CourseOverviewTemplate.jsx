@@ -61,14 +61,40 @@ export const CourseOverviewTemplate = ({
     }
   };
 
-  const learningOutcomes = overview?.learningOutcomes || [];
-  const prerequisites = overview?.prerequisites || [];
-  const skills = overview?.skills || [];
-  const techStack = overview?.techStack || [];
-  const targetAudience = overview?.targetAudience || [];
-  const benefits = overview?.benefits || [];
-  const faqs = overview?.faqs || [];
-  const optionalLinks = overview?.optionalLinks || [];
+  const learningOutcomes = Array.isArray(overview?.learningOutcomes)
+    ? overview.learningOutcomes
+    : typeof overview?.learningOutcomes === 'string' && overview.learningOutcomes.trim()
+    ? [overview.learningOutcomes]
+    : [];
+  const prerequisites = Array.isArray(overview?.prerequisites)
+    ? overview.prerequisites
+    : typeof overview?.prerequisites === 'string' && overview.prerequisites.trim()
+    ? [overview.prerequisites]
+    : [];
+  const skills = Array.isArray(overview?.skills)
+    ? overview.skills
+    : typeof overview?.skills === 'string' && overview.skills.trim()
+    ? [overview.skills]
+    : [];
+  const techStack = Array.isArray(overview?.techStack)
+    ? overview.techStack
+    : typeof overview?.techStack === 'string' && overview.techStack.trim()
+    ? [overview.techStack]
+    : [];
+  const targetAudience = Array.isArray(overview?.targetAudience)
+    ? overview.targetAudience
+    : typeof overview?.targetAudience === 'string' && overview.targetAudience.trim()
+    ? [overview.targetAudience]
+    : [];
+  const benefits = Array.isArray(overview?.benefits)
+    ? overview.benefits
+    : typeof overview?.benefits === 'string' && overview.benefits.trim()
+    ? [overview.benefits]
+    : [];
+  const faqs = Array.isArray(overview?.faqs) ? overview.faqs : [];
+  const optionalLinks = Array.isArray(overview?.optionalLinks) ? overview.optionalLinks : [];
+  const safeQuestions = Array.isArray(questions) ? questions : [];
+  const safeReviews = Array.isArray(reviews) ? reviews : [];
 
   const wordCount = overview?.fullDescription
     ? overview.fullDescription.trim().split(/\s+/).filter(Boolean).length
@@ -387,13 +413,13 @@ export const CourseOverviewTemplate = ({
 
             {/* Answered Questions List */}
             <div className="qa-questions-list">
-              {questions.length === 0 ? (
+              {safeQuestions.length === 0 ? (
                 <div className="empty-qa-box">
                   <HelpCircle size={24} />
                   <p>No inquiries asked yet. Be the first to ask a question!</p>
                 </div>
               ) : (
-                questions.map((q, idx) => (
+                safeQuestions.map((q, idx) => (
                   <div key={idx} className="qa-card-item">
                     <div className="qa-question-row">
                       <span className="qa-user-name">{q.userName || 'Learner'} asked:</span>
@@ -416,7 +442,7 @@ export const CourseOverviewTemplate = ({
           {/* Real Reviews Section */}
           <section className="overview-section reviews-section">
             <h2 className="section-heading">Learner Ratings & Feedback</h2>
-            {reviews.length === 0 ? (
+            {safeReviews.length === 0 ? (
               <div className="empty-reviews-box">
                 <Star size={26} className="empty-star-icon" />
                 <h3>No reviews yet</h3>
@@ -424,7 +450,7 @@ export const CourseOverviewTemplate = ({
               </div>
             ) : (
               <div className="real-reviews-grid">
-                {reviews.map((rev, idx) => (
+                {safeReviews.map((rev, idx) => (
                   <div key={idx} className="review-card-item">
                     <div className="review-rating-row">
                       <div className="review-stars">

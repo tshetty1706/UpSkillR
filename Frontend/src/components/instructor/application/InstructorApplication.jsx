@@ -202,15 +202,15 @@ const POPULAR_SKILLS = [
   'Kotlin'
 ];
 
-// Helper to compute missing required section validation errors for the Review page
-const getSectionValidationErrors = (formData) => {
-  const sectionErrors = {
-    personalInfo: false,
-    professionalInfo: false,
-    education: false,
-    teachingExperience: false,
-    coursesExpertise: false,
-    documents: false
+// Helper to compute missing required field names per section for the Review page
+const getSectionMissingDetails = (formData) => {
+  const missing = {
+    personalInfo: [],
+    professionalInfo: [],
+    education: [],
+    teachingExperience: [],
+    coursesExpertise: [],
+    documents: []
   };
 
   const pInfo = formData.personalInfo || {};
@@ -223,64 +223,59 @@ const getSectionValidationErrors = (formData) => {
   // 1. Personal Information
   const selectedCountry = findCountryByNameOrCode(pInfo.country, pInfo.countryCode);
   const phoneDigits = (pInfo.phone || '').replace(/\D/g, '');
-  if (
-    !pInfo.fullName?.trim() ||
-    !pInfo.email?.trim() ||
-    !pInfo.phone?.trim() ||
-    phoneDigits.length < selectedCountry.minLength ||
-    phoneDigits.length > selectedCountry.maxLength ||
-    !pInfo.professionalTitle?.trim() ||
-    (pInfo.professionalTitle === 'Other' && !pInfo.professionalTitleOther?.trim()) ||
-    !pInfo.bio?.trim() ||
-    !pInfo.photoUrl?.trim()
-  ) {
-    sectionErrors.personalInfo = true;
+
+  if (!pInfo.fullName?.trim()) missing.personalInfo.push('Full Name');
+  if (!pInfo.email?.trim()) missing.personalInfo.push('Email');
+  if (!pInfo.phone?.trim()) {
+    missing.personalInfo.push('Phone Number');
+  } else if (phoneDigits.length < selectedCountry.minLength || phoneDigits.length > selectedCountry.maxLength) {
+    missing.personalInfo.push(`Phone Number (${selectedCountry.maxLength} digits required for ${selectedCountry.name})`);
   }
+  if (!pInfo.professionalTitle?.trim() || (pInfo.professionalTitle === 'Other' && !pInfo.professionalTitleOther?.trim())) {
+    missing.personalInfo.push('Professional Title');
+  }
+  if (!pInfo.bio?.trim()) missing.personalInfo.push('Short Instructor Bio');
 
   // 2. Professional Information
-  if (
-    !profInfo.currentRole?.trim() ||
-    !profInfo.yearsOfExperience?.trim() ||
-    !profInfo.keySkills ||
-    profInfo.keySkills.length === 0
-  ) {
-    sectionErrors.professionalInfo = true;
-  }
+  if (!profInfo.currentRole?.trim()) missing.professionalInfo.push('Current Role');
+  if (!profInfo.yearsOfExperience?.trim()) missing.professionalInfo.push('Years of Experience');
+  if (!profInfo.keySkills || profInfo.keySkills.length === 0) missing.professionalInfo.push('Key Skills');
 
   // 3. Education
-  if (
-    !eduInfo.degree?.trim() ||
-    (eduInfo.degree === 'Other' && !eduInfo.degreeOther?.trim()) ||
-    (eduInfo.fieldOfStudy === 'Other' && !eduInfo.fieldOfStudyOther?.trim()) ||
-    !eduInfo.institution?.trim()
-  ) {
-    sectionErrors.education = true;
-  }
+  if (!eduInfo.degree?.trim() || (eduInfo.degree === 'Other' && !eduInfo.degreeOther?.trim())) missing.education.push('Highest Degree');
+  if (eduInfo.fieldOfStudy === 'Other' && !eduInfo.fieldOfStudyOther?.trim()) missing.education.push('Field of Study');
+  if (!eduInfo.institution?.trim()) missing.education.push('Institution');
 
   // 4. Teaching Experience
   const primaryStyles = teachInfo.primaryTeachingStyles || [];
-  if (
-    !teachInfo.priorExperience?.trim() ||
-    primaryStyles.length === 0 ||
-    (primaryStyles.includes('Other') && !teachInfo.primaryTeachingStyleOther?.trim())
-  ) {
-    sectionErrors.teachingExperience = true;
+  if (!teachInfo.priorExperience?.trim()) missing.teachingExperience.push('Prior Experience');
+  if (primaryStyles.length === 0 || (primaryStyles.includes('Other') && !teachInfo.primaryTeachingStyleOther?.trim())) {
+    missing.teachingExperience.push('Teaching Style');
   }
 
   // 5. Courses & Expertise
-  if (
-    !courseInfo.primaryCategory?.trim() ||
-    (courseInfo.primaryCategory === 'Other' && !courseInfo.primaryCategoryOther?.trim())
-  ) {
-    sectionErrors.coursesExpertise = true;
+  if (!courseInfo.primaryCategory?.trim() || (courseInfo.primaryCategory === 'Other' && !courseInfo.primaryCategoryOther?.trim())) {
+    missing.coursesExpertise.push('Primary Category');
   }
 
   // 6. Documents
   if (!docInfo.idDocumentRef?.trim() && !docInfo.resume?.url) {
-    sectionErrors.documents = true;
+    missing.documents.push('Resume or Identity Document');
   }
 
-  return sectionErrors;
+  return missing;
+};
+
+const getSectionValidationErrors = (formData) => {
+  const missing = getSectionMissingDetails(formData);
+  return {
+    personalInfo: missing.personalInfo.length > 0,
+    professionalInfo: missing.professionalInfo.length > 0,
+    education: missing.education.length > 0,
+    teachingExperience: missing.teachingExperience.length > 0,
+    coursesExpertise: missing.coursesExpertise.length > 0,
+    documents: missing.documents.length > 0
+  };
 };
 
 export const InstructorApplication = ({ user, onLogout }) => {
@@ -1087,6 +1082,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
     formData.personalInfo.countryCode
   );
 
+  const sectionMissingDetails = getSectionMissingDetails(formData);
   const sectionErrors = getSectionValidationErrors(formData);
   const hasReviewErrors = Object.values(sectionErrors).some(Boolean);
 
@@ -1217,7 +1213,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
                 </div>
 
                 <div className="photo-uploader-info">
-                  <span className="photo-title">Profile Photo <span className="required-star">*</span></span>
+                  <span className="photo-title">Profile Photo <span style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text-muted)' }}>(Optional)</span></span>
                   <span className="photo-desc">
                     {photoFullUrl
                       ? 'Custom profile photo uploaded. You can replace or remove it.'
@@ -2019,7 +2015,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
                           : 'Not provided'}
                       </span>
                     </div>
-                    <div className="review-field-item" style={{ gridColumn: '1 / -1' }}>
+                    <div className="review-field-item">
                       <span className="review-field-label">Professional Title</span>
                       <span className="review-field-val">
                         {formData.personalInfo.professionalTitle === 'Other'
@@ -2027,11 +2023,31 @@ export const InstructorApplication = ({ user, onLogout }) => {
                           : formData.personalInfo.professionalTitle || 'Not provided'}
                       </span>
                     </div>
+                    <div className="review-field-item">
+                      <span className="review-field-label">Profile Photo</span>
+                      <span className="review-field-val">
+                        {formData.personalInfo.photoUrl ? (
+                          <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>Uploaded</span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Optional / Default Avatar</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="review-field-item" style={{ gridColumn: '1 / -1' }}>
+                      <span className="review-field-label">Short Instructor Bio</span>
+                      <span className="review-field-val">
+                        {formData.personalInfo.bio?.trim() ? (
+                          formData.personalInfo.bio
+                        ) : (
+                          <span style={{ color: 'var(--color-error)', fontWeight: 600 }}>Not provided</span>
+                        )}
+                      </span>
+                    </div>
                   </div>
                   {sectionErrors.personalInfo && (
                     <div className="review-section-warning">
                       <AlertCircle size={15} />
-                      <span>Required information missing</span>
+                      <span>Required information missing: {sectionMissingDetails.personalInfo.join(', ')}</span>
                     </div>
                   )}
                 </div>
@@ -2068,7 +2084,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
                   {sectionErrors.professionalInfo && (
                     <div className="review-section-warning">
                       <AlertCircle size={15} />
-                      <span>Required information missing</span>
+                      <span>Required information missing: {sectionMissingDetails.professionalInfo.join(', ')}</span>
                     </div>
                   )}
                 </div>
@@ -2111,7 +2127,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
                   {sectionErrors.education && (
                     <div className="review-section-warning">
                       <AlertCircle size={15} />
-                      <span>Required information missing</span>
+                      <span>Required information missing: {sectionMissingDetails.education.join(', ')}</span>
                     </div>
                   )}
                 </div>
@@ -2147,7 +2163,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
                   {sectionErrors.teachingExperience && (
                     <div className="review-section-warning">
                       <AlertCircle size={15} />
-                      <span>Required information missing</span>
+                      <span>Required information missing: {sectionMissingDetails.teachingExperience.join(', ')}</span>
                     </div>
                   )}
                 </div>
@@ -2182,7 +2198,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
                   {sectionErrors.coursesExpertise && (
                     <div className="review-section-warning">
                       <AlertCircle size={15} />
-                      <span>Required information missing</span>
+                      <span>Required information missing: {sectionMissingDetails.coursesExpertise.join(', ')}</span>
                     </div>
                   )}
                 </div>
@@ -2213,7 +2229,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
                   {sectionErrors.documents && (
                     <div className="review-section-warning">
                       <AlertCircle size={15} />
-                      <span>Required information missing</span>
+                      <span>Required information missing: {sectionMissingDetails.documents.join(', ')}</span>
                     </div>
                   )}
                 </div>

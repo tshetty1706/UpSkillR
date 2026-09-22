@@ -8,7 +8,10 @@ import { Step4ReviewCreate } from './Step4ReviewCreate/Step4ReviewCreate';
 import { CourseOverviewPreviewModal } from './OverviewTemplate/CourseOverviewPreviewModal';
 import { useToast } from '../../../../context/ToastContext';
 import { API_BASE } from '../../../../config/api';
+import { lightThumbnail } from '../../../../utils/thumbnailUtils';
 import './CourseCreationFlow.css';
+
+const DEFAULT_FALLBACK_THUMBNAIL = lightThumbnail;
 
 export const CourseCreationFlow = ({ user, onCancel, onCourseCreated, onNavigate }) => {
   const { toast } = useToast();
