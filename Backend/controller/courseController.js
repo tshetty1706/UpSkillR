@@ -14,14 +14,24 @@ const { uploadBufferToCloudinary } = require('./mediaController');
 exports.getInstructorCourses = async (req, res) => {
   try {
     const instructorId = req.user.id;
-    const courses = await Course.find({ instructorId }).sort({ updatedAt: -1 });
+    let instructorQuery = { instructorId };
+    if (mongoose.Types.ObjectId.isValid(instructorId)) {
+      instructorQuery = {
+        $or: [
+          { instructorId },
+          { instructorId: new mongoose.Types.ObjectId(instructorId) }
+        ]
+      };
+    }
+
+    const courses = await Course.find(instructorQuery).sort({ updatedAt: -1 });
 
     const courseIds = courses.map((c) => c._id);
     const totalEnrolments = await Enrolment.countDocuments({ courseId: { $in: courseIds } });
 
     const totalCourses = courses.length;
-    const publishedCourses = courses.filter((c) => c.status === 'published').length;
-    const draftCourses = courses.filter((c) => c.status === 'draft').length;
+    const publishedCourses = courses.filter((c) => (c.status || c.state) === 'published').length;
+    const draftCourses = courses.filter((c) => (c.status || c.state || 'draft') === 'draft').length;
 
     const ratedCourses = courses.filter((c) => c.rating !== null && c.rating !== undefined);
     const averageRating = ratedCourses.length > 0
@@ -33,6 +43,7 @@ exports.getInstructorCourses = async (req, res) => {
         const enrolCount = await Enrolment.countDocuments({ courseId: c._id });
         const cObj = c.toObject();
         cObj.learnersCount = enrolCount;
+        cObj.status = cObj.status || cObj.state || 'draft';
         cObj.moduleCount = (cObj.modules || []).length;
         cObj.modulesCount = (cObj.modules || []).length;
         return cObj;
