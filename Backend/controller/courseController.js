@@ -1369,8 +1369,8 @@ exports.createCourse = async (req, res) => {
         resolvedThumbnail = uploadRes.secure_url;
         resolvedThumbnailPublicId = uploadRes.public_id;
       } catch (cloudErr) {
-        console.warn('Cloudinary upload warning during course creation (falling back to default thumbnail):', cloudErr.message);
-        // Fallback: keep resolvedThumbnail as empty string/default so course creation is never blocked
+        console.warn('Cloudinary upload warning during course creation (falling back to base64 Data URL):', cloudErr.message);
+        resolvedThumbnail = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
       }
     }
 
@@ -1633,11 +1633,8 @@ exports.updateCourseThumbnail = async (req, res) => {
         thumbnailUrl = uploadRes.secure_url;
         thumbnailPublicId = uploadRes.public_id;
       } catch (cloudErr) {
-        console.warn('Cloudinary upload error in updateCourseThumbnail:', cloudErr.message);
-        return res.status(400).json({
-          success: false,
-          message: 'Thumbnail upload failed due to Cloudinary permission limits. You can still proceed with default course thumbnails.'
-        });
+        console.warn('Cloudinary upload warning during updateCourseThumbnail (falling back to base64 Data URL):', cloudErr.message);
+        thumbnailUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
       }
     } else if (req.body.thumbnailUrl && req.body.thumbnailUrl.trim()) {
       thumbnailUrl = req.body.thumbnailUrl.trim();

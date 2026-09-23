@@ -130,6 +130,8 @@ export const CourseCreationFlow = ({ user, onCancel, onCourseCreated, onNavigate
 
       if (thumbnailFile) {
         formData.append('thumbnail', thumbnailFile);
+      } else if (thumbnailPreview && typeof thumbnailPreview === 'string' && thumbnailPreview.trim()) {
+        formData.append('thumbnail', thumbnailPreview.trim());
       }
 
       const res = await fetch(`${API_BASE}/courses`, {

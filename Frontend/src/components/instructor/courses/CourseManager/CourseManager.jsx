@@ -855,14 +855,35 @@ export const CourseManager = ({
                     <input
                       ref={detailsFileRef}
                       type="file"
-                      accept="image/jpeg,image/png,image/webp"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
                       style={{ display: 'none' }}
                       onChange={(e) => {
                         if (e.target.files && e.target.files[0]) {
                           const file = e.target.files[0];
-                          setDetailsThumbnailFile(file);
-                          setDetailsThumbnailPreview(URL.createObjectURL(file));
+                          const validTypes = ['image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp'];
+                          const ext = file.name ? file.name.split('.').pop().toLowerCase() : '';
+                          const validExts = ['jpg', 'jpeg', 'png', 'webp'];
+
+                          if (!validTypes.includes(file.type?.toLowerCase()) && !validExts.includes(ext)) {
+                            toast.error('Invalid format. Only JPG, JPEG, PNG, and WebP are allowed.');
+                            e.target.value = '';
+                            return;
+                          }
+                          if (file.size > 5 * 1024 * 1024) {
+                            toast.error('Image size exceeds 5MB limit. Please choose a smaller file.');
+                            e.target.value = '';
+                            return;
+                          }
+
+                          try {
+                            setDetailsThumbnailFile(file);
+                            setDetailsThumbnailPreview(URL.createObjectURL(file));
+                          } catch (err) {
+                            console.error('Failed to create thumbnail preview:', err);
+                            toast.error('Failed to process selected image.');
+                          }
                         }
+                        e.target.value = '';
                       }}
                     />
 
