@@ -14,7 +14,8 @@ import {
   Edit2,
   X,
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from 'lucide-react';
 import { MarkdownEditor, renderMarkdownToHTML } from './Common/MarkdownEditor';
 import { DeviceFileUploader } from './Common/DeviceFileUploader';
@@ -34,7 +35,7 @@ export const NotesResourcesEditor = ({
 }) => {
   // Selected note ID for editing (null means currently creating a new note)
   const [selectedNoteId, setSelectedNoteId] = useState(() => {
-    return notes.length > 0 ? notes[0]._id : null;
+    return notes.length > 0 ? String(notes[0]._id) : null;
   });
   const [isCreatingNew, setIsCreatingNew] = useState(() => notes.length === 0);
 
@@ -69,19 +70,23 @@ export const NotesResourcesEditor = ({
   // Synchronize selection when notes change or on initial load
   useEffect(() => {
     if (notes.length > 0) {
-      if (!selectedNoteId && !isCreatingNew) {
-        loadNoteIntoEditor(notes[0]);
-      } else if (selectedNoteId) {
-        const found = notes.find(n => n._id === selectedNoteId);
+      if (selectedNoteId) {
+        const found = notes.find(n => String(n._id) === String(selectedNoteId));
         if (found) {
-          // Keep form in sync if background update happens
-          setResourceState(found.state || 'draft');
+          if (!isCreatingNew) {
+            // Keep state synchronized
+            setResourceState(found.state || 'draft');
+          }
         } else if (!isCreatingNew) {
           loadNoteIntoEditor(notes[0]);
         }
+      } else if (!isCreatingNew) {
+        loadNoteIntoEditor(notes[0]);
       }
     } else {
-      handleSelectCreateNew('article');
+      if (!isCreatingNew) {
+        handleSelectCreateNew('article');
+      }
     }
   }, [notes]);
 
@@ -99,7 +104,8 @@ export const NotesResourcesEditor = ({
   // Load a note into the editor
   const loadNoteIntoEditor = (note) => {
     if (!note) return;
-    setSelectedNoteId(note._id);
+    const noteIdStr = String(note._id);
+    setSelectedNoteId(noteIdStr);
     setIsCreatingNew(false);
 
     const format = (note.type === 'article' || note.type === 'article_md') ? 'article' : (note.type || 'article');
@@ -111,8 +117,8 @@ export const NotesResourcesEditor = ({
 
     const modId = note.moduleId || (note.attachableType === 'module' ? note.attachableId : '') || '';
     const lesId = note.lessonId || (note.attachableType === 'lesson' ? note.attachableId : '') || '';
-    setSelectedModuleId(modId);
-    setSelectedLessonId(lesId);
+    setSelectedModuleId(modId ? String(modId) : '');
+    setSelectedLessonId(lesId ? String(lesId) : '');
 
     setMarkdownContent(note.markdownContent || note.content || note.bodyMarkdown || '');
     setMediaUrl(note.fileUrl || note.mediaUrl || note.cloudinaryUrl || '');
@@ -292,6 +298,9 @@ export const NotesResourcesEditor = ({
         const data = await res.json().catch(() => null);
         if (res.ok && data?.success) {
           toast.success('Resource updated successfully');
+          if (data.note) {
+            loadNoteIntoEditor(data.note);
+          }
           if (onCurriculumUpdated) onCurriculumUpdated();
         } else {
           toast.error(data?.message || 'Failed to update resource');
@@ -304,12 +313,12 @@ export const NotesResourcesEditor = ({
           body: JSON.stringify(payload)
         });
         const data = await res.json().catch(() => null);
-        if (res.ok && data?.success) {
+        if (res.ok && data?.success && data.note) {
           toast.success('Resource attached successfully');
-          if (data.note?._id) {
-            setSelectedNoteId(data.note._id);
-            setIsCreatingNew(false);
-          }
+          const newId = String(data.note._id);
+          setSelectedNoteId(newId);
+          setIsCreatingNew(false);
+          loadNoteIntoEditor(data.note);
           if (onCurriculumUpdated) onCurriculumUpdated();
         } else {
           toast.error(data?.message || 'Failed to attach resource');
@@ -320,6 +329,42 @@ export const NotesResourcesEditor = ({
       toast.error('Network error saving resource');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Delete Resource Handler
+  const handleDeleteResource = async (noteId, e) => {
+    if (e) e.stopPropagation();
+    if (!noteId) return;
+
+    if (!window.confirm('Are you sure you want to delete this attached resource?')) {
+      return;
+    }
+
+    try {
+      const authHeaders = typeof getAuthHeader === 'function' ? getAuthHeader() : {};
+      const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/notes/${noteId}`, {
+        method: 'DELETE',
+        headers: authHeaders
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        toast.success('Resource deleted successfully');
+        if (String(selectedNoteId) === String(noteId)) {
+          const remaining = notes.filter(n => String(n._id) !== String(noteId));
+          if (remaining.length > 0) {
+            loadNoteIntoEditor(remaining[0]);
+          } else {
+            handleSelectCreateNew('article');
+          }
+        }
+        if (onCurriculumUpdated) onCurriculumUpdated();
+      } else {
+        toast.error(data?.message || 'Failed to delete resource');
+      }
+    } catch (err) {
+      console.error('Error deleting resource:', err);
+      toast.error('Network error deleting resource');
     }
   };
 
@@ -382,7 +427,7 @@ export const NotesResourcesEditor = ({
                 </div>
               ) : (
                 filteredNotes.map((note) => {
-                  const isSelected = selectedNoteId === note._id && !isCreatingNew;
+                  const isSelected = String(selectedNoteId) === String(note._id) && !isCreatingNew;
                   const noteType = note.type === 'article_md' ? 'article' : (note.type || 'article');
                   const hasViewableUrl = !!(note.fileUrl || note.mediaUrl || note.cloudinaryUrl || note.content);
 
@@ -433,6 +478,15 @@ export const NotesResourcesEditor = ({
                         >
                           <Edit2 size={13} />
                           <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-item-delete"
+                          onClick={(e) => handleDeleteResource(note._id, e)}
+                          title="Delete Resource"
+                          aria-label="Delete Resource"
+                        >
+                          <Trash2 size={13} />
                         </button>
                       </div>
                     </div>
@@ -503,6 +557,19 @@ export const NotesResourcesEditor = ({
                   >
                     <Eye size={14} />
                     <span>View {activeTab === 'pdf' ? 'PDF' : 'Image'}</span>
+                  </button>
+                )}
+
+                {/* Delete Resource Button (when editing existing) */}
+                {selectedNoteId && !isCreatingNew && (
+                  <button
+                    type="button"
+                    className="btn-header-delete-action"
+                    onClick={(e) => handleDeleteResource(selectedNoteId, e)}
+                    title="Delete this attached resource"
+                  >
+                    <Trash2 size={14} />
+                    <span>Delete</span>
                   </button>
                 )}
 

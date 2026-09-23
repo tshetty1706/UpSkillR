@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   UploadCloud,
   File,
@@ -35,6 +35,15 @@ export const DeviceFileUploader = ({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // Synchronize internal state when parent currentUrl/currentName props change
+  useEffect(() => {
+    setPreviewUrl(currentUrl || '');
+    setFileName(currentName || '');
+    setSelectedFile(null);
+    setUploadError('');
+    setUploading(false);
+  }, [currentUrl, currentName]);
 
   const [uploadStatusMessage, setUploadStatusMessage] = useState('');
 

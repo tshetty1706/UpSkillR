@@ -8,19 +8,26 @@ import {
   AlertCircle,
   Loader2,
   Download,
-  FileText,
-  Globe
+  FileText
 } from 'lucide-react';
 
 /**
- * Helper to convert Base64 data URL to a clean Blob Object URL.
- * Modern browsers block raw data: URLs inside iframes/objects due to security sandboxing,
- * which causes the "It may have been moved, edited, or deleted" error in Chrome/Firefox.
+ * Global Blob URL cache so Blob URLs are NEVER prematurely revoked
+ * by React StrictMode double-mounting or component re-renders.
+ * Revoking too early is what causes Chrome's "It may have been moved, edited, or deleted" error.
  */
-const dataUrlToBlobUrl = (dataUrl) => {
+const blobUrlCache = new Map();
+
+const getPersistentBlobUrl = (dataUrl) => {
+  if (!dataUrl || !dataUrl.startsWith('data:')) return dataUrl;
+  
+  if (blobUrlCache.has(dataUrl)) {
+    return blobUrlCache.get(dataUrl);
+  }
+
   try {
     const parts = dataUrl.split(',');
-    if (parts.length < 2) return null;
+    if (parts.length < 2) return dataUrl;
     const mimeMatch = parts[0].match(/:(.*?);/);
     const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
     const bstr = atob(parts[1]);
@@ -30,10 +37,12 @@ const dataUrlToBlobUrl = (dataUrl) => {
       u8arr[n] = bstr.charCodeAt(n);
     }
     const blob = new Blob([u8arr], { type: mime });
-    return URL.createObjectURL(blob);
+    const blobUrl = URL.createObjectURL(blob);
+    blobUrlCache.set(dataUrl, blobUrl);
+    return blobUrl;
   } catch (err) {
     console.warn('Failed to convert data URL to Blob URL:', err);
-    return null;
+    return dataUrl;
   }
 };
 
@@ -43,16 +52,13 @@ export const PdfViewer = ({
   onClose
 }) => {
   const [zoomLevel, setZoomLevel] = useState(100);
-  const [resolvedUrl, setResolvedUrl] = useState('');
-  const [isBlobUrl, setIsBlobUrl] = useState(false);
+  const [resolvedUrl, setResolvedUrl] = useState(() => getPersistentBlobUrl(url));
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(!url);
-  const [useGoogleViewer, setUseGoogleViewer] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
 
-  // Synchronize and resolve URL on change or retry
+  // Synchronize URL on change without premature revocation
   useEffect(() => {
-    let createdBlobUrl = null;
     setIsLoading(true);
     setHasError(false);
 
@@ -62,31 +68,14 @@ export const PdfViewer = ({
       return;
     }
 
-    if (url.startsWith('data:')) {
-      const blobUrl = dataUrlToBlobUrl(url);
-      if (blobUrl) {
-        createdBlobUrl = blobUrl;
-        setResolvedUrl(blobUrl);
-        setIsBlobUrl(true);
-      } else {
-        setResolvedUrl(url);
-        setIsBlobUrl(false);
-      }
-    } else {
-      setResolvedUrl(url);
-      setIsBlobUrl(false);
-    }
+    const nextUrl = getPersistentBlobUrl(url);
+    setResolvedUrl(nextUrl);
 
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 800);
+    }, 600);
 
-    return () => {
-      clearTimeout(timer);
-      if (createdBlobUrl) {
-        URL.revokeObjectURL(createdBlobUrl);
-      }
-    };
+    return () => clearTimeout(timer);
   }, [url, retryKey]);
 
   const handleZoomIn = () => {
@@ -104,25 +93,8 @@ export const PdfViewer = ({
   const handleRetry = () => {
     setIsLoading(true);
     setHasError(false);
-    setUseGoogleViewer(false);
     setRetryKey(prev => prev + 1);
   };
-
-  const toggleGoogleViewer = () => {
-    setIsLoading(true);
-    setUseGoogleViewer(prev => !prev);
-  };
-
-  // Compute final iframe source
-  const getIframeSrc = () => {
-    if (!resolvedUrl) return '';
-    if (useGoogleViewer && !resolvedUrl.startsWith('blob:') && !resolvedUrl.startsWith('data:')) {
-      return `https://docs.google.com/viewer?url=${encodeURIComponent(resolvedUrl)}&embedded=true`;
-    }
-    return resolvedUrl;
-  };
-
-  const isRemoteHttpUrl = resolvedUrl && (resolvedUrl.startsWith('http://') || resolvedUrl.startsWith('https://'));
 
   return (
     <div className="pdf-viewer-wrapper">
@@ -180,19 +152,6 @@ export const PdfViewer = ({
             <span className="pdf-btn-label">Fit</span>
           </button>
 
-          {isRemoteHttpUrl && (
-            <button
-              type="button"
-              className={`pdf-tool-btn ${useGoogleViewer ? 'pdf-tool-btn-primary' : ''}`}
-              onClick={toggleGoogleViewer}
-              title={useGoogleViewer ? "Switch to Native Viewer" : "Switch to Google Docs Cloud Viewer"}
-              aria-label="Toggle Cloud Viewer"
-            >
-              <Globe size={15} />
-              <span className="pdf-btn-label">{useGoogleViewer ? 'Native View' : 'Cloud View'}</span>
-            </button>
-          )}
-
           <button
             type="button"
             className="pdf-tool-btn"
@@ -248,7 +207,7 @@ export const PdfViewer = ({
 
               {url && (
                 <a
-                  href={url}
+                  href={resolvedUrl || url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-viewer-open-external"
@@ -271,8 +230,8 @@ export const PdfViewer = ({
               }}
             >
               <iframe
-                key={`${resolvedUrl}-${useGoogleViewer}-${retryKey}`}
-                src={getIframeSrc()}
+                key={`${resolvedUrl}-${retryKey}`}
+                src={resolvedUrl}
                 title={title}
                 className="pdf-viewer-iframe"
                 frameBorder="0"

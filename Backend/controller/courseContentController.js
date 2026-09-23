@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const Course = require('../model/Course');
 const mongoose = require('mongoose');
 
@@ -75,8 +77,7 @@ const canPublishItem = (item) => {
 
 const canPublishAssessment = (assessment) => {
   const hasQuestions = Array.isArray(assessment.questions) && assessment.questions.length > 0;
-  const hasRequiredModules = Array.isArray(assessment.requiredModuleIds) && assessment.requiredModuleIds.length > 0;
-  return hasQuestions && hasRequiredModules;
+  return hasQuestions;
 };
 
 // Write-Time Visibility Recompute (Rule A.2.2 & A.2.3)
@@ -954,6 +955,27 @@ exports.toggleNoteState = async (req, res) => {
   }
 };
 
+exports.deleteNote = async (req, res) => {
+  try {
+    const { courseId, noteId } = req.params;
+    const course = await verifyCourse(courseId, req.user);
+
+    const note = course.notes.id(noteId);
+    if (!note) return res.status(404).json({ success: false, message: 'Resource note not found.' });
+
+    note.deleteOne();
+    recomputeEffectiveVisibility(course);
+    await course.save();
+
+    res.json({
+      success: true,
+      message: 'Resource note deleted successfully.'
+    });
+  } catch (err) {
+    res.status(err.status || 500).json({ success: false, message: err.message });
+  }
+};
+
 /**
  * ASSESSMENT MUTATIONS (COURSE-LEVEL, MODULE PREREQUISITES - RULE A.1.1 & A.4)
  */
@@ -964,6 +986,9 @@ exports.createAssessment = async (req, res) => {
       title,
       description = '',
       instructions = '',
+      assessmentType = 'graded',
+      timeLimit = 30,
+      durationMinutes = 30,
       requiredModuleIds = [],
       passThresholdPercent = 70,
       maxAttempts = 3,
@@ -978,14 +1003,6 @@ exports.createAssessment = async (req, res) => {
 
     const course = await verifyCourse(courseId, req.user);
 
-    // Rule A.1.1: Assessment can be created once course has >= 1 module
-    if (!course.modules || course.modules.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'You can create an assessment once this course has at least one module.'
-      });
-    }
-
     const assessments = course.courseAssessments || [];
     const lastAssessment = assessments[assessments.length - 1];
     const sortKey = generateSortKey(lastAssessment ? lastAssessment.sortKey : null, null);
@@ -995,6 +1012,9 @@ exports.createAssessment = async (req, res) => {
       title: title.trim(),
       description: description ? description.trim() : '',
       instructions: instructions ? instructions.trim() : '',
+      assessmentType: assessmentType || 'graded',
+      timeLimit: Number(timeLimit) || Number(durationMinutes) || 30,
+      durationMinutes: Number(durationMinutes) || Number(timeLimit) || 30,
       state: 'draft',
       effective_visible: false,
       sortKey,
@@ -1007,7 +1027,7 @@ exports.createAssessment = async (req, res) => {
       cooldownHours: Number(cooldownHours) || 6,
       countsTowardCertificate: countsTowardCertificate !== false,
       questions: Array.isArray(questions) ? questions : [],
-      totalMarks: Array.isArray(questions) ? questions.reduce((sum, q) => sum + (Number(q.marks) || 1), 0) : 10
+      totalMarks: Array.isArray(questions) ? questions.reduce((sum, q) => sum + (Number(q.marks) || Number(q.points) || 1), 0) : 10
     };
 
     course.courseAssessments.push(newAssessment);
@@ -1031,6 +1051,9 @@ exports.updateAssessment = async (req, res) => {
       title,
       description,
       instructions,
+      assessmentType,
+      timeLimit,
+      durationMinutes,
       requiredModuleIds,
       passThresholdPercent,
       maxAttempts,
@@ -1048,6 +1071,9 @@ exports.updateAssessment = async (req, res) => {
     if (title && title.trim()) assessment.title = title.trim();
     if (description !== undefined) assessment.description = description.trim();
     if (instructions !== undefined) assessment.instructions = instructions.trim();
+    if (assessmentType !== undefined) assessment.assessmentType = assessmentType;
+    if (timeLimit !== undefined) assessment.timeLimit = Number(timeLimit);
+    if (durationMinutes !== undefined) assessment.durationMinutes = Number(durationMinutes);
     if (requiredModuleIds !== undefined) {
       assessment.requiredModuleIds = Array.isArray(requiredModuleIds) ? requiredModuleIds : [];
       assessment.requiresModules = assessment.requiredModuleIds;
@@ -1066,7 +1092,7 @@ exports.updateAssessment = async (req, res) => {
         versionBumped = true;
       }
       assessment.questions = questions;
-      assessment.totalMarks = questions.reduce((sum, q) => sum + (Number(q.marks) || 1), 0);
+      assessment.totalMarks = questions.reduce((sum, q) => sum + (Number(q.marks) || Number(q.points) || 1), 0);
     }
 
     if (passThresholdPercent !== undefined) {
@@ -1101,17 +1127,11 @@ exports.toggleAssessmentState = async (req, res) => {
     }
 
     if (assessment.state === 'draft') {
-      // Auto-Draft Rule A.2.4 Check: >= 1 Question AND >= 1 required Module
+      // Must have >= 1 question to publish
       if (!assessment.questions || assessment.questions.length === 0) {
         return res.status(400).json({
           success: false,
           message: 'Cannot publish assessment: An assessment must have at least one question.'
-        });
-      }
-      if (!assessment.requiredModuleIds || assessment.requiredModuleIds.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'Cannot publish assessment: An assessment must have at least one required module specified.'
         });
       }
       assessment.state = 'published';
@@ -1128,6 +1148,29 @@ exports.toggleAssessmentState = async (req, res) => {
       state: assessment.state,
       effective_visible: assessment.effective_visible,
       assessment
+    });
+  } catch (err) {
+    res.status(err.status || 500).json({ success: false, message: err.message });
+  }
+};
+
+exports.deleteAssessment = async (req, res) => {
+  try {
+    const { courseId, assessmentId } = req.params;
+    const course = await verifyCourse(courseId, req.user);
+
+    const assessment = course.courseAssessments.id(assessmentId);
+    if (!assessment) {
+      return res.status(404).json({ success: false, message: 'Assessment not found.' });
+    }
+
+    course.courseAssessments.pull(assessmentId);
+    recomputeEffectiveVisibility(course);
+    await course.save();
+
+    res.json({
+      success: true,
+      message: 'Assessment deleted successfully.'
     });
   } catch (err) {
     res.status(err.status || 500).json({ success: false, message: err.message });
@@ -1156,11 +1199,28 @@ exports.uploadVideoFromDevice = async (req, res) => {
         'upskillr_course_videos'
       );
     } catch (cloudErr) {
-      console.warn('Cloudinary video upload warning (falling back to inline Data URL):', cloudErr.message);
+      console.warn('Cloudinary video upload warning (falling back to persistent local storage):', cloudErr.message);
     }
 
-    const finalUrl = uploadRes?.secure_url || `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-    const publicId = uploadRes?.public_id || `local_vid_${Date.now()}`;
+    let finalUrl = uploadRes?.secure_url;
+    let publicId = uploadRes?.public_id;
+
+    if (!finalUrl) {
+      const uploadsDir = path.join(__dirname, '..', 'uploads', 'videos');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const ext = path.extname(req.file.originalname) || '.mp4';
+      const safeBase = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filename = `vid_${Date.now()}_${safeBase.endsWith(ext) ? safeBase : safeBase + ext}`;
+      const filePath = path.join(uploadsDir, filename);
+      await fs.promises.writeFile(filePath, req.file.buffer);
+
+      const host = req.get('host') || 'localhost:5000';
+      const protocol = req.protocol || 'http';
+      finalUrl = `${protocol}://${host}/uploads/videos/${filename}`;
+      publicId = `local_vid_${Date.now()}`;
+    }
 
     res.json({
       success: true,
@@ -1171,7 +1231,8 @@ exports.uploadVideoFromDevice = async (req, res) => {
       fileSize: req.file.size
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('uploadVideoFromDevice error:', err.message);
+    res.status(500).json({ success: false, message: err.message || 'Failed to upload video.' });
   }
 };
 
@@ -1190,12 +1251,30 @@ exports.uploadResourceFromDevice = async (req, res) => {
         'upskillr_course_materials'
       );
     } catch (cloudErr) {
-      console.warn('Cloudinary resource upload warning (falling back to inline Data URL):', cloudErr.message);
+      console.warn('Cloudinary resource upload warning (falling back to persistent local storage):', cloudErr.message);
+    }
+
+    let finalUrl = uploadRes?.secure_url;
+    let publicId = uploadRes?.public_id;
+
+    if (!finalUrl) {
+      const uploadsDir = path.join(__dirname, '..', 'uploads', 'resources');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const ext = path.extname(req.file.originalname) || (req.file.mimetype.includes('pdf') ? '.pdf' : req.file.mimetype.includes('png') ? '.png' : req.file.mimetype.includes('jpg') || req.file.mimetype.includes('jpeg') ? '.jpg' : '');
+      const safeBase = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filename = `res_${Date.now()}_${safeBase.endsWith(ext) ? safeBase : safeBase + ext}`;
+      const filePath = path.join(uploadsDir, filename);
+      await fs.promises.writeFile(filePath, req.file.buffer);
+
+      const host = req.get('host') || 'localhost:5000';
+      const protocol = req.protocol || 'http';
+      finalUrl = `${protocol}://${host}/uploads/resources/${filename}`;
+      publicId = `local_res_${Date.now()}`;
     }
 
     const fileSizeMb = (req.file.size / (1024 * 1024)).toFixed(1) + ' MB';
-    const finalUrl = uploadRes?.secure_url || `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-    const publicId = uploadRes?.public_id || `local_res_${Date.now()}`;
 
     res.json({
       success: true,

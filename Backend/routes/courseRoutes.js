@@ -114,9 +114,11 @@ router.patch('/:courseId/curriculum/lessons/:lessonId/items/:itemId/toggle-state
 router.patch('/:courseId/curriculum/lessons/:lessonId/items/:itemId/reorder', protect, requireSubmittedInstructor, courseContentController.reorderContentItem);
 router.post('/:courseId/curriculum/notes', protect, requireSubmittedInstructor, courseContentController.attachNote);
 router.patch('/:courseId/curriculum/notes/:noteId', protect, requireSubmittedInstructor, courseContentController.updateNote);
+router.delete('/:courseId/curriculum/notes/:noteId', protect, requireSubmittedInstructor, courseContentController.deleteNote);
 router.patch('/:courseId/curriculum/notes/:noteId/toggle-state', protect, requireSubmittedInstructor, courseContentController.toggleNoteState);
 router.post('/:courseId/curriculum/assessments', protect, requireSubmittedInstructor, courseContentController.createAssessment);
 router.patch('/:courseId/curriculum/assessments/:assessmentId', protect, requireSubmittedInstructor, courseContentController.updateAssessment);
+router.delete('/:courseId/curriculum/assessments/:assessmentId', protect, requireSubmittedInstructor, courseContentController.deleteAssessment);
 router.patch('/:courseId/curriculum/assessments/:assessmentId/toggle-state', protect, requireSubmittedInstructor, courseContentController.toggleAssessmentState);
 router.post('/:courseId/curriculum/upload/video', protect, requireSubmittedInstructor, videoUpload.single('video'), courseContentController.uploadVideoFromDevice);
 router.post('/:courseId/curriculum/upload/resource', protect, requireSubmittedInstructor, resourceUpload.single('file'), courseContentController.uploadResourceFromDevice);
