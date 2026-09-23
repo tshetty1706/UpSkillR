@@ -69,7 +69,20 @@ export const InstructorDashboardOverview = ({ user, stats, courses, onNavigate }
       {/* 2. Key Metrics Grid */}
       <section className="dashboard-metrics-grid">
         {/* Total Courses */}
-        <div className="metric-card">
+        <div
+          className="metric-card"
+          role="button"
+          tabIndex={0}
+          aria-label="View all courses"
+          onClick={() => onNavigate('my-courses')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigate('my-courses');
+            }
+          }}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="metric-header">
             <span className="metric-title">Total Courses</span>
             <div className="metric-icon-box brand">
@@ -83,7 +96,20 @@ export const InstructorDashboardOverview = ({ user, stats, courses, onNavigate }
         </div>
 
         {/* Published Courses */}
-        <div className="metric-card">
+        <div
+          className="metric-card"
+          role="button"
+          tabIndex={0}
+          aria-label="View published courses"
+          onClick={() => onNavigate('my-courses')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigate('my-courses');
+            }
+          }}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="metric-header">
             <span className="metric-title">Published Courses</span>
             <div className="metric-icon-box success">
@@ -97,7 +123,20 @@ export const InstructorDashboardOverview = ({ user, stats, courses, onNavigate }
         </div>
 
         {/* Draft Courses */}
-        <div className="metric-card">
+        <div
+          className="metric-card"
+          role="button"
+          tabIndex={0}
+          aria-label="View draft courses"
+          onClick={() => onNavigate('my-courses')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigate('my-courses');
+            }
+          }}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="metric-header">
             <span className="metric-title">Draft Courses</span>
             <div className="metric-icon-box warning">
@@ -111,7 +150,20 @@ export const InstructorDashboardOverview = ({ user, stats, courses, onNavigate }
         </div>
 
         {/* Average Rating */}
-        <div className="metric-card">
+        <div
+          className="metric-card"
+          role="button"
+          tabIndex={0}
+          aria-label="View analytics and ratings"
+          onClick={() => onNavigate('analytics')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigate('analytics');
+            }
+          }}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="metric-header">
             <span className="metric-title">Average Rating</span>
             <div className="metric-icon-box warning">
@@ -168,7 +220,21 @@ export const InstructorDashboardOverview = ({ user, stats, courses, onNavigate }
             ) : (
               <div className="dashboard-courses-list">
                 {recentCourses.map((course) => (
-                  <div key={course._id} className="dashboard-course-row">
+                  <div
+                    key={course._id}
+                    className="dashboard-course-row"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open workspace for ${course.title}`}
+                    onClick={() => onNavigate('manage-course', course._id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onNavigate('manage-course', course._id);
+                      }
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <CourseThumbnail
                       src={course.thumbnail}
                       alt={course.title}
@@ -192,7 +258,10 @@ export const InstructorDashboardOverview = ({ user, stats, courses, onNavigate }
                       <button
                         type="button"
                         className="btn btn-outline btn-sm"
-                        onClick={() => onNavigate('manage-course', course._id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onNavigate('manage-course', course._id);
+                        }}
                       >
                         Manage Workspace
                       </button>

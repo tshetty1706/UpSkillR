@@ -1,4 +1,5 @@
 const { Learner, Instructor } = require('../model/User');
+const InstructorApplication = require('../model/InstructorApplication');
 const mongoose = require('mongoose');
 const { uploadBufferToCloudinary } = require('./mediaController');
 
@@ -837,7 +838,6 @@ exports.uploadProfilePhoto = async (req, res) => {
       ).select('-password');
 
       // Also update in InstructorApplication if it exists
-      const InstructorApplication = require('../model/InstructorApplication');
       const application = await InstructorApplication.findOne({ instructorId: userId });
       if (application) {
         application.personalInfo = {
@@ -854,7 +854,6 @@ exports.uploadProfilePhoto = async (req, res) => {
 
     const userObj = updatedUser.toObject();
     if (role === 'instructor') {
-      const InstructorApplication = require('../model/InstructorApplication');
       const application = await InstructorApplication.findOne({ instructorId: userId });
       if (application) {
         userObj.bio = application.personalInfo?.bio || '';
@@ -894,7 +893,6 @@ exports.removeProfilePhoto = async (req, res) => {
       ).select('-password');
 
       // Also remove from InstructorApplication photoUrl if it exists
-      const InstructorApplication = require('../model/InstructorApplication');
       const application = await InstructorApplication.findOne({ instructorId: userId });
       if (application) {
         application.personalInfo = {
@@ -911,7 +909,6 @@ exports.removeProfilePhoto = async (req, res) => {
 
     const userObj = updatedUser.toObject();
     if (role === 'instructor') {
-      const InstructorApplication = require('../model/InstructorApplication');
       const application = await InstructorApplication.findOne({ instructorId: userId });
       if (application) {
         userObj.bio = application.personalInfo?.bio || '';

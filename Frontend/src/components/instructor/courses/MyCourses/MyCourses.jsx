@@ -119,7 +119,21 @@ export const MyCourses = ({ courses, onNavigate, onPublishToggle }) => {
       ) : (
         <div className="courses-card-grid">
           {filteredCourses.map((course) => (
-            <div key={course._id} className="course-card">
+            <div
+              key={course._id}
+              className="course-card"
+              role="button"
+              tabIndex={0}
+              aria-label={`Open workspace for ${course.title}`}
+              onClick={() => onNavigate('manage-course', course._id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onNavigate('manage-course', course._id);
+                }
+              }}
+              style={{ cursor: 'pointer' }}
+            >
 
               {/* Thumbnail */}
               <div className="course-card-thumb-wrap">
@@ -165,7 +179,10 @@ export const MyCourses = ({ courses, onNavigate, onPublishToggle }) => {
                 <button
                   type="button"
                   className="btn btn-primary btn-sm btn-block"
-                  onClick={() => onNavigate('manage-course', course._id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onNavigate('manage-course', course._id);
+                  }}
                 >
                   <FileEdit size={15} />
                   <span>Workspace</span>
@@ -174,7 +191,10 @@ export const MyCourses = ({ courses, onNavigate, onPublishToggle }) => {
                 <button
                   type="button"
                   className={`btn btn-sm btn-block ${course.status === 'published' ? 'btn-outline' : 'btn-publish'}`}
-                  onClick={() => onPublishToggle(course._id, course.status)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPublishToggle(course._id, course.status);
+                  }}
                   title={course.status === 'published' ? 'Move back to Draft' : 'Publish Course Live'}
                 >
                   {course.status === 'published' ? (

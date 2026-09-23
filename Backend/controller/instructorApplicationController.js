@@ -1,7 +1,5 @@
 const InstructorApplication = require('../model/InstructorApplication');
 const Instructor = require('../model/Instructor');
-const path = require('path');
-const fs = require('fs');
 const { uploadBufferToCloudinary } = require('./mediaController');
 
 /**

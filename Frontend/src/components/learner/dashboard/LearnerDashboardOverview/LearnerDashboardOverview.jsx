@@ -416,7 +416,21 @@ export const LearnerDashboardOverview = ({
                               {lessons.map((ls, idx) => {
                                 const isDone = enrol.completedLessons?.includes(idx);
                                 return (
-                                  <div key={idx} className={`learner-lesson-item ${isDone ? 'done-item' : ''}`}>
+                                  <div
+                                    key={idx}
+                                    className={`learner-lesson-item ${isDone ? 'done-item' : ''}`}
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={`${ls.title}, ${isDone ? 'Completed' : 'Incomplete'}. Click to toggle completion.`}
+                                    onClick={() => onLessonComplete(course._id, idx)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        onLessonComplete(course._id, idx);
+                                      }
+                                    }}
+                                    style={{ cursor: 'pointer' }}
+                                  >
                                     <div className="lesson-info">
                                       <PlayCircle size={16} className="lesson-icon" />
                                       <span className="lesson-title-text">{ls.title}</span>
@@ -425,8 +439,12 @@ export const LearnerDashboardOverview = ({
                                     <button
                                       type="button"
                                       className={`btn-lesson-check ${isDone ? 'done' : ''}`}
-                                      onClick={() => onLessonComplete(course._id, idx)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onLessonComplete(course._id, idx);
+                                      }}
                                       title={isDone ? 'Mark as incomplete' : 'Mark lesson as complete'}
+                                      tabIndex={-1}
                                     >
                                       <CheckCircle2 size={16} />
                                       <span>{isDone ? 'Completed' : 'Mark Complete'}</span>

@@ -105,9 +105,30 @@ export const ExploreInstructors = () => {
               };
               
               return (
-                <div key={inst._id} className={`instructor-card ${accentClass}`}>
-                  {/* Decorative Bookmark */}
-                  <button className="instructor-bookmark-btn" aria-label="Bookmark instructor">
+                <div
+                  key={inst._id}
+                  className={`instructor-card ${accentClass}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`View courses by ${inst.fullName}`}
+                  onClick={() => handleViewCourses(inst.fullName)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleViewCourses(inst.fullName);
+                    }
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {/* Decorative / Action Bookmark */}
+                  <button
+                    type="button"
+                    className="instructor-bookmark-btn"
+                    aria-label={`Bookmark instructor ${inst.fullName}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                  >
                     <Bookmark size={18} className="bookmark-icon" />
                   </button>
                   
@@ -201,7 +222,10 @@ export const ExploreInstructors = () => {
                     <button
                       type="button"
                       className="btn btn-outline btn-block instructor-explore-courses-btn"
-                      onClick={() => handleViewCourses(inst.fullName)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewCourses(inst.fullName);
+                      }}
                     >
                       <span>Explore Courses</span>
                       <ArrowRight size={14} className="arrow-icon" />

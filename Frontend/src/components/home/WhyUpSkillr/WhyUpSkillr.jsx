@@ -4,8 +4,41 @@ import './WhyUpSkillr.css';
 import HomePageLearning from '../../../assets/illustrations/Home_Page_Learning.svg';
 
 export const WhyUpSkillr = () => {
+  const testimonials = [
+    {
+      quote: "UpSkillr helped me transition into a frontend developer. The courses are top-notch!",
+      name: "Riya Sharma",
+      role: "Frontend Developer",
+      initials: "RS"
+    },
+    {
+      quote: "The hands-on projects and instant feedback gave me the confidence to ace my engineering interviews.",
+      name: "Alex Chen",
+      role: "Full-Stack Engineer",
+      initials: "AC"
+    },
+    {
+      quote: "Best platform for practical development skills. Clear instructors, no fluff, straight to building.",
+      name: "Marcus Vance",
+      role: "Cloud Architect",
+      initials: "MV"
+    }
+  ];
+
+  const [currentIdx, setCurrentIdx] = React.useState(0);
+
+  const handlePrev = () => {
+    setCurrentIdx((prev) => (prev === 0 ? testimonials.length - 1 : prev - 1));
+  };
+
+  const handleNext = () => {
+    setCurrentIdx((prev) => (prev === testimonials.length - 1 ? 0 : prev + 1));
+  };
+
+  const currentTestimonial = testimonials[currentIdx];
+
   return (
-    <section className="why-section section" id="trust-section">
+    <section className="why-section section" id="why-upskillr">
       <div className="container why-container">
         {/* Left Column: Vector Illustration */}
         <div className="why-illustration-col">
@@ -59,25 +92,35 @@ export const WhyUpSkillr = () => {
 
           <div className="testimonial-card">
             <p className="testimonial-quote">
-              "UpSkillr helped me transition into a frontend developer. The courses are top-notch!"
+              "{currentTestimonial.quote}"
             </p>
 
             <div className="testimonial-footer">
               <div className="user-profile">
-                <div className="user-avatar-circle" aria-label="User avatar for Riya Sharma">
-                  <span className="avatar-initials">RS</span>
+                <div className="user-avatar-circle" aria-label={`User avatar for ${currentTestimonial.name}`}>
+                  <span className="avatar-initials">{currentTestimonial.initials}</span>
                 </div>
                 <div className="user-info">
-                  <h3 className="user-name">Riya Sharma</h3>
-                  <span className="user-role">Frontend Developer</span>
+                  <h3 className="user-name">{currentTestimonial.name}</h3>
+                  <span className="user-role">{currentTestimonial.role}</span>
                 </div>
               </div>
 
               <div className="testimonial-controls">
-                <button className="control-btn" aria-label="Previous Testimonial">
+                <button
+                  type="button"
+                  className="control-btn"
+                  onClick={handlePrev}
+                  aria-label="Previous Testimonial"
+                >
                   <ChevronLeft size={18} aria-hidden="true" />
                 </button>
-                <button className="control-btn" aria-label="Next Testimonial">
+                <button
+                  type="button"
+                  className="control-btn"
+                  onClick={handleNext}
+                  aria-label="Next Testimonial"
+                >
                   <ChevronRight size={18} aria-hidden="true" />
                 </button>
               </div>

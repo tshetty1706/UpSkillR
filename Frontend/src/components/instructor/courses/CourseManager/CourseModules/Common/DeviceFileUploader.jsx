@@ -118,7 +118,7 @@ export const DeviceFileUploader = ({
       const token = localStorage.getItem('upskillr_token');
       const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
-      if (uploadEndpoint) {
+      if (uploadEndpoint && fileType !== 'video') {
         // Backend Multipart Endpoint Upload (zero local disk persistence on backend, Cloudinary direct upload)
         setUploadProgress(30);
         setUploadStatusMessage(`Uploading ${fileType.toUpperCase()} file to Cloudinary...`);

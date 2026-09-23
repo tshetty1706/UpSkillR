@@ -182,10 +182,39 @@ a:focus-visible,
 button:focus-visible, 
 input:focus-visible, 
 select:focus-visible, 
-textarea:focus-visible {
+textarea:focus-visible,
+[role="button"]:focus-visible {
   outline: 2px solid var(--brand-primary);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
+}
+
+/* Global Interactive Element Cursors & Usability */
+button,
+[role="button"],
+select,
+summary,
+input[type="checkbox"],
+input[type="radio"],
+input[type="submit"],
+input[type="reset"],
+input[type="button"],
+label[for],
+.clickable-card {
+  cursor: pointer;
+}
+
+/* Disabled Controls Safety State */
+button:disabled,
+button[disabled],
+input:disabled,
+select:disabled,
+textarea:disabled,
+.btn:disabled,
+.btn[disabled] {
+  cursor: not-allowed !important;
+  opacity: 0.65;
+  pointer-events: none;
 }
 
 /* Color Scheme Theme Integration for Native Form Controls */

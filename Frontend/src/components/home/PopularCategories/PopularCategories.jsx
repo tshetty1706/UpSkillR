@@ -3,6 +3,11 @@ import { Code, Database, Palette, BarChart3, Megaphone, UserRound } from 'lucide
 import './PopularCategories.css';
 
 export const PopularCategories = () => {
+  const navigate = (path) => {
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
+  };
+
   const categories = [
     {
       id: 1,
@@ -42,6 +47,11 @@ export const PopularCategories = () => {
     }
   ];
 
+  const handleCategoryClick = (catName) => {
+    const categoryParam = catName === 'Development' ? 'Web Development' : catName;
+    navigate(`/explore?category=${encodeURIComponent(categoryParam)}`);
+  };
+
   return (
     <section className="categories-section section">
       <div className="container">
@@ -52,7 +62,20 @@ export const PopularCategories = () => {
 
         <div className="categories-grid">
           {categories.map((cat) => (
-            <div key={cat.id} className="category-card" tabIndex={0} role="button" aria-label={`${cat.name}, ${cat.courses}`}>
+            <div
+              key={cat.id}
+              className="category-card"
+              tabIndex={0}
+              role="button"
+              aria-label={`${cat.name}, ${cat.courses}. Click to explore courses.`}
+              onClick={() => handleCategoryClick(cat.name)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleCategoryClick(cat.name);
+                }
+              }}
+            >
               <div className="category-icon-wrapper">
                 {cat.icon}
               </div>

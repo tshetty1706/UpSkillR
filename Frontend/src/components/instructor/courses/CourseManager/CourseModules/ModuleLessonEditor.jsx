@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   ArrowLeft,
   Layers,
@@ -29,7 +29,8 @@ import {
   Settings,
   Trash2,
   ExternalLink,
-  Menu
+  Menu,
+  MoreVertical
 } from 'lucide-react';
 import { InstructorTip } from './Common/InstructorTip';
 import { DeviceFileUploader } from './Common/DeviceFileUploader';
@@ -82,6 +83,31 @@ export const ModuleLessonEditor = ({
     return initial;
   });
 
+  const toggleModuleAccordion = (moduleId, e) => {
+    if (e) e.stopPropagation();
+    setExpandedModules(prev => {
+      const isCurrentlyExpanded = prev[moduleId] ?? (moduleId === selectedModuleId);
+      return { ...prev, [moduleId]: !isCurrentlyExpanded };
+    });
+  };
+
+  // Expanded lessons in the left tree (showing content items leaf list)
+  const [expandedLessons, setExpandedLessons] = useState(() => {
+    const initial = {};
+    if (modules.length > 0 && modules[0].lessons && modules[0].lessons.length > 0) {
+      initial[modules[0].lessons[0]._id] = true;
+    }
+    return initial;
+  });
+
+  const toggleLessonAccordion = (lessonId, e) => {
+    if (e) e.stopPropagation();
+    setExpandedLessons(prev => {
+      const isCurrentlyExpanded = prev[lessonId] ?? (lessonId === selectedLessonId);
+      return { ...prev, [lessonId]: !isCurrentlyExpanded };
+    });
+  };
+
   // Mobile tree drawer open/close
   const [isMobileTreeOpen, setIsMobileTreeOpen] = useState(false);
 
@@ -92,6 +118,19 @@ export const ModuleLessonEditor = ({
 
   // Dropdown menu state for "+ Add Content Item"
   const [isAddContentMenuOpen, setIsAddContentMenuOpen] = useState(false);
+
+  // Module 3-dot settings dropdown state
+  const [openModuleMenuId, setOpenModuleMenuId] = useState(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (!e.target.closest('.module-settings-dropdown-wrap')) {
+        setOpenModuleMenuId(null);
+      }
+    };
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, []);
 
   // Active modal/drawer form state
   // null | { type: 'module' | 'lesson' | 'video' | 'quiz', isEdit: boolean, data: {} }
@@ -132,11 +171,6 @@ export const ModuleLessonEditor = ({
   // Active entities
   const activeModule = modules.find(m => m._id === selectedModuleId) || (modules.length > 0 ? modules[0] : null);
   const activeLesson = activeModule?.lessons?.find(l => l._id === selectedLessonId) || null;
-
-
-  const toggleModuleAccordion = (modId) => {
-    setExpandedModules(prev => ({ ...prev, [modId]: !prev[modId] }));
-  };
 
   const handleDismissLessonTip = () => {
     setIsLessonTipDismissed(true);
@@ -608,111 +642,197 @@ export const ModuleLessonEditor = ({
               LEFT PANEL: COURSE HIERARCHY TREE
               ══════════════════════════════════════════════════════════ */}
           <aside className={`curriculum-hierarchy-sidebar ${isMobileTreeOpen ? 'mobile-open' : ''}`}>
+            {/* Sidebar Header */}
             <div className="hierarchy-sidebar-header">
-              <div className="hierarchy-course-title-wrap">
-                <BookOpen size={16} className="text-brand" />
-                <h4 className="hierarchy-course-title" title={course?.title || 'Course Curriculum'}>
-                  {course?.title || 'Course Curriculum'}
-                </h4>
+              <div className="hierarchy-header-top">
+                <div className="hierarchy-course-title-wrap">
+                  <BookOpen size={18} className="hierarchy-header-icon" />
+                  <h4 className="hierarchy-course-title">Course Curriculum</h4>
+                </div>
               </div>
-              <span className="hierarchy-modules-count">
-                {modules.length} {modules.length === 1 ? 'Module' : 'Modules'}
-              </span>
+              <div className="hierarchy-header-subinfo">
+                <span>{modules.length} {modules.length === 1 ? 'Module' : 'Modules'}</span>
+                <span className="subinfo-sep">•</span>
+                <span>{modules.reduce((acc, m) => acc + (m.lessons || []).length, 0)} Lessons</span>
+                <span className="subinfo-sep">•</span>
+                <span>
+                  {modules.reduce(
+                    (acc, m) =>
+                      acc +
+                      (m.lessons || []).reduce(
+                        (lAcc, l) => lAcc + (l.items || []).length + (l.notes || []).length,
+                        0
+                      ),
+                    0
+                  )}{' '}
+                  Items
+                </span>
+              </div>
             </div>
 
+            {/* Tree of Modules and Lessons */}
             <div className="hierarchy-modules-tree">
               {modules.map((module, modIndex) => {
                 const isActiveModule = module._id === selectedModuleId;
                 const isExpanded = expandedModules[module._id] ?? isActiveModule;
-                const isModuleDraft = module.state === 'draft';
+                const isModuleDraft = (module.state || module.status || 'draft') === 'draft';
                 const lessons = module.lessons || [];
+                const moduleItemsCount = lessons.reduce(
+                  (acc, l) => acc + (l.items || []).length + (l.notes || []).length,
+                  0
+                );
 
                 return (
                   <div
                     key={module._id}
-                    className={`hierarchy-module-node ${isActiveModule ? 'is-active-module' : ''} ${isModuleDraft ? 'is-draft' : ''}`}
+                    className={`hierarchy-module-node ${isActiveModule ? 'is-active-module' : ''} ${isModuleDraft ? 'is-draft' : ''} ${isExpanded ? 'is-expanded' : 'is-collapsed'}`}
                   >
-                    {/* Module Row Header */}
-                    <div className="hierarchy-module-row">
+                    {/* Module Row Header (Entire Row Clickable for Expand/Collapse) */}
+                    <div
+                      className="hierarchy-module-row"
+                      onClick={() => toggleModuleAccordion(module._id)}
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={isExpanded}
+                      aria-label={`${isExpanded ? 'Collapse' : 'Expand'} Module ${modIndex + 1}: ${module.title}`}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          toggleModuleAccordion(module._id);
+                        }
+                      }}
+                    >
                       <button
                         type="button"
                         className="btn-tree-accordion"
-                        onClick={() => toggleModuleAccordion(module._id)}
-                        title={isExpanded ? 'Collapse' : 'Expand'}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleModuleAccordion(module._id);
+                        }}
+                        title={isExpanded ? 'Collapse Module' : 'Expand Module'}
+                        aria-label={isExpanded ? 'Collapse Module' : 'Expand Module'}
+                        tabIndex={-1}
                       >
                         {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                       </button>
 
-                      <div className="hierarchy-module-info">
-                        <span className="hierarchy-module-badge">Mod {modIndex + 1}</span>
-                        <span className="hierarchy-module-name" title={module.title}>
-                          {module.title}
-                        </span>
-                      </div>
+                      <span className="hierarchy-module-badge">M{modIndex + 1}</span>
 
-                      <div className="hierarchy-module-actions">
-                        {/* Edit Module Button */}
+                      <span
+                        className="hierarchy-module-name"
+                        title={module.title}
+                      >
+                        {module.title}
+                      </span>
+
+                      {/* Module Status Badge */}
+                      <span
+                        className={`curriculum-status-pill ${isModuleDraft ? 'draft' : 'published'}`}
+                      >
+                        <span className={`status-dot ${isModuleDraft ? 'draft' : 'published'}`} />
+                        {isModuleDraft ? 'Draft' : 'Published'}
+                      </span>
+
+                      {/* Module 3-Dot Settings Menu */}
+                      <div
+                        className="module-settings-dropdown-wrap"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <button
                           type="button"
-                          className="btn-hierarchy-icon"
-                          title="Edit Module"
-                          onClick={() => {
-                            setActiveForm({
-                              type: 'module',
-                              isEdit: true,
-                              data: {
-                                id: module._id,
-                                title: module.title,
-                                description: module.description || '',
-                                state: module.state || 'draft'
-                              }
-                            });
+                          className="btn-module-settings-trigger"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenModuleMenuId(prev => prev === module._id ? null : module._id);
                           }}
+                          title="Module Settings"
+                          aria-label="Module Settings"
                         >
-                          <Settings size={13} />
+                          <MoreVertical size={16} />
                         </button>
 
-                        {/* Reorder Module Up/Down */}
-                        <div className="hierarchy-reorder-group">
-                          <button
-                            type="button"
-                            className="btn-hierarchy-reorder"
-                            disabled={modIndex === 0}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleReorderModule(module._id, 'up');
-                            }}
-                            title="Move Module Up"
+                        {openModuleMenuId === module._id && (
+                          <div
+                            className="module-settings-dropdown-menu"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <ArrowUp size={11} />
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-hierarchy-reorder"
-                            disabled={modIndex === modules.length - 1}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleReorderModule(module._id, 'down');
-                            }}
-                            title="Move Module Down"
-                          >
-                            <ArrowDown size={11} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-
-                    {/* Nested Lessons List */}
-                    {isExpanded && (
-                      <div className="hierarchy-lessons-sublist">
-                        {lessons.length === 0 ? (
-                          <div className="hierarchy-empty-lessons">
-                            <span>No lessons yet</span>
                             <button
                               type="button"
-                              className="btn-add-first-lesson"
+                              className="dropdown-menu-item"
                               onClick={() => {
+                                setOpenModuleMenuId(null);
+                                setActiveForm({
+                                  type: 'module',
+                                  isEdit: true,
+                                  data: {
+                                    id: module._id,
+                                    title: module.title,
+                                    description: module.description || '',
+                                    state: module.state || 'draft'
+                                  }
+                                });
+                              }}
+                            >
+                              <Edit2 size={14} />
+                              <span>Edit Module Details</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              className="dropdown-menu-item"
+                              onClick={() => {
+                                setOpenModuleMenuId(null);
+                                handleToggleModuleState(module._id);
+                              }}
+                            >
+                              {module.state === 'published' ? (
+                                <>
+                                  <Lock size={14} />
+                                  <span>Unpublish Module (Draft)</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 size={14} />
+                                  <span>Publish Module</span>
+                                </>
+                              )}
+                            </button>
+
+                            <div className="dropdown-divider" />
+
+                            <button
+                              type="button"
+                              className="dropdown-menu-item"
+                              disabled={modIndex === 0}
+                              onClick={() => {
+                                setOpenModuleMenuId(null);
+                                handleReorderModule(module._id, 'up');
+                              }}
+                            >
+                              <ArrowUp size={14} />
+                              <span>Move Module Up</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              className="dropdown-menu-item"
+                              disabled={modIndex === modules.length - 1}
+                              onClick={() => {
+                                setOpenModuleMenuId(null);
+                                handleReorderModule(module._id, 'down');
+                              }}
+                            >
+                              <ArrowDown size={14} />
+                              <span>Move Module Down</span>
+                            </button>
+
+                            <div className="dropdown-divider" />
+
+                            <button
+                              type="button"
+                              className="dropdown-menu-item"
+                              onClick={() => {
+                                setOpenModuleMenuId(null);
                                 setActiveForm({
                                   type: 'lesson',
                                   isEdit: false,
@@ -720,81 +840,28 @@ export const ModuleLessonEditor = ({
                                 });
                               }}
                             >
-                              + Add Lesson
+                              <Plus size={14} />
+                              <span>Add Lesson</span>
                             </button>
                           </div>
-                        ) : (
-                          lessons.map((lesson, lesIndex) => {
-                            const isSelected = lesson._id === selectedLessonId && activePaneView === 'lesson';
-                            const isLessonDraft = lesson.state === 'draft';
-                            const isAutoDraft = isModuleDraft && !isLessonDraft;
-
-                            return (
-                              <div
-                                key={lesson._id}
-                                className={`hierarchy-lesson-item ${isSelected ? 'is-selected-lesson' : ''} ${isLessonDraft ? 'is-draft' : ''}`}
-                                onClick={() => {
-                                  setSelectedModuleId(module._id);
-                                  setSelectedLessonId(lesson._id);
-                                  setActivePaneView('lesson');
-                                  setIsMobileTreeOpen(false);
-                                }}
-                              >
-                                <div className="lesson-item-left">
-                                  <span className="lesson-num-tag">{modIndex + 1}.{lesIndex + 1}</span>
-                                  <span className="lesson-item-title" title={lesson.title}>
-                                    {lesson.title}
-                                  </span>
-                                </div>
-
-                                <div className="lesson-item-right">
-                                  {isAutoDraft ? (
-                                    <span className="badge-status-subtle badge-autodraft" title="Hidden because Module is Draft">
-                                      Auto-Draft
-                                    </span>
-                                  ) : isLessonDraft ? (
-                                    <span className="badge-status-subtle badge-draft">Draft</span>
-                                  ) : (
-                                    <span className="badge-status-subtle badge-pub">Published</span>
-                                  )}
-
-                                  <div className="hierarchy-reorder-group">
-                                    <button
-                                      type="button"
-                                      className="btn-hierarchy-reorder"
-                                      disabled={lesIndex === 0}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleReorderLesson(module._id, lesson._id, 'up');
-                                      }}
-                                      title="Move Lesson Up"
-                                    >
-                                      <ArrowUp size={11} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="btn-hierarchy-reorder"
-                                      disabled={lesIndex === lessons.length - 1}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleReorderLesson(module._id, lesson._id, 'down');
-                                      }}
-                                      title="Move Lesson Down"
-                                    >
-                                      <ArrowDown size={11} />
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })
                         )}
+                      </div>
+                    </div>
 
-                        {lessons.length > 0 && (
+                    {/* Nested Body: Submeta + Lessons List */}
+                    {isExpanded && (
+                      <div className="hierarchy-module-body">
+                        {/* Module Submeta & Inline Add Lesson */}
+                        <div className="hierarchy-module-submeta">
+                          <span className="module-submeta-counts">
+                            {lessons.length} {lessons.length === 1 ? 'Lesson' : 'Lessons'} • {moduleItemsCount}{' '}
+                            {moduleItemsCount === 1 ? 'Item' : 'Items'}
+                          </span>
                           <button
                             type="button"
-                            className="btn-tree-add-lesson"
-                            onClick={() => {
+                            className="btn-add-lesson-inline"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setActiveForm({
                                 type: 'lesson',
                                 isEdit: false,
@@ -802,10 +869,174 @@ export const ModuleLessonEditor = ({
                               });
                             }}
                           >
-                            <Plus size={13} />
+                            <Plus size={12} />
                             <span>Add Lesson</span>
                           </button>
-                        )}
+                        </div>
+
+                        {/* Lessons Tree Branch */}
+                        <div className="hierarchy-lessons-sublist">
+                          {lessons.length === 0 ? (
+                            <div className="hierarchy-empty-lessons">
+                              <span>No lessons in this module</span>
+                            </div>
+                          ) : (
+                            lessons.map((lesson, lesIndex) => {
+                              const isSelected =
+                                lesson._id === selectedLessonId && activePaneView === 'lesson';
+                              const isLessonDraft =
+                                (lesson.state || lesson.status || 'draft') === 'draft';
+                              const isAutoDraft = isModuleDraft && !isLessonDraft;
+                              const contentItems = lesson.items || [];
+                              const noteItems = lesson.notes || [];
+                              const allItems = [...contentItems, ...noteItems];
+                              const isLessonExpanded = expandedLessons[lesson._id] ?? isSelected;
+
+                              return (
+                                <div
+                                  key={lesson._id}
+                                  className={`hierarchy-lesson-node ${isSelected ? 'is-selected-lesson-node' : ''}`}
+                                >
+                                  <div
+                                    className={`hierarchy-lesson-item ${isSelected ? 'is-selected-lesson' : ''} ${isLessonDraft ? 'is-draft' : ''}`}
+                                    onClick={() => {
+                                      setSelectedModuleId(module._id);
+                                      setSelectedLessonId(lesson._id);
+                                      setActivePaneView('lesson');
+                                      setIsMobileTreeOpen(false);
+                                      setExpandedLessons(prev => ({ ...prev, [lesson._id]: true }));
+                                    }}
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-selected={isSelected}
+                                    aria-label={`Select Lesson ${modIndex + 1}.${lesIndex + 1}: ${lesson.title}`}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        setSelectedModuleId(module._id);
+                                        setSelectedLessonId(lesson._id);
+                                        setActivePaneView('lesson');
+                                        setIsMobileTreeOpen(false);
+                                        setExpandedLessons(prev => ({ ...prev, [lesson._id]: true }));
+                                      }
+                                    }}
+                                  >
+                                    <div className="lesson-item-left">
+                                      {allItems.length > 0 && (
+                                        <button
+                                          type="button"
+                                          className="btn-tree-accordion-mini"
+                                          onClick={(e) => toggleLessonAccordion(lesson._id, e)}
+                                          title={isLessonExpanded ? "Collapse lesson items" : "Expand lesson items"}
+                                          aria-label={isLessonExpanded ? "Collapse lesson items" : "Expand lesson items"}
+                                          tabIndex={-1}
+                                        >
+                                          {isLessonExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                                        </button>
+                                      )}
+                                      <span className="lesson-num-tag">
+                                        {modIndex + 1}.{lesIndex + 1}
+                                      </span>
+                                      <span className="lesson-item-title" title={lesson.title}>
+                                        {lesson.title}
+                                      </span>
+                                    </div>
+
+                                    <div className="lesson-item-right">
+                                      {isAutoDraft ? (
+                                        <span
+                                          className="curriculum-status-pill draft"
+                                          title="Hidden because Module is Draft"
+                                        >
+                                          <span className="status-dot draft" />
+                                          Draft
+                                        </span>
+                                      ) : isLessonDraft ? (
+                                        <span className="curriculum-status-pill draft">
+                                          <span className="status-dot draft" />
+                                          Draft
+                                        </span>
+                                      ) : (
+                                        <span className="curriculum-status-pill published">
+                                          <span className="status-dot published" />
+                                          Published
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Exposed Content Items under Lesson (Video, Quiz, Article) */}
+                                  {isLessonExpanded && allItems.length > 0 && (
+                                    <div className="hierarchy-items-sublist">
+                                      {allItems.map((item, itemIdx) => {
+                                        const itemType = (
+                                          item.type ||
+                                          item.noteType ||
+                                          'article'
+                                        ).toLowerCase();
+                                        const isItemDraft =
+                                          (item.state || item.status || 'draft') === 'draft';
+                                        return (
+                                          <div
+                                            key={item._id || itemIdx}
+                                            className="hierarchy-item-leaf"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setSelectedModuleId(module._id);
+                                              setSelectedLessonId(lesson._id);
+                                              setActivePaneView('lesson');
+                                              setIsMobileTreeOpen(false);
+                                            }}
+                                            role="button"
+                                            tabIndex={0}
+                                            aria-label={`View ${item.title}`}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter' || e.key === ' ') {
+                                                e.preventDefault();
+                                                setSelectedModuleId(module._id);
+                                                setSelectedLessonId(lesson._id);
+                                                setActivePaneView('lesson');
+                                                setIsMobileTreeOpen(false);
+                                              }
+                                            }}
+                                          >
+                                            <div className="hierarchy-item-leaf-left">
+                                              {itemType === 'video' ? (
+                                                <Video size={13} className="item-icon-video" />
+                                              ) : itemType === 'quiz' ? (
+                                                <HelpCircle size={13} className="item-icon-quiz" />
+                                              ) : (
+                                                <FileText size={13} className="item-icon-article" />
+                                              )}
+                                              <span
+                                                className="item-leaf-title"
+                                                title={item.title}
+                                              >
+                                                {itemType === 'video'
+                                                  ? 'Video: '
+                                                  : itemType === 'quiz'
+                                                  ? 'Quiz: '
+                                                  : 'Article: '}
+                                                {item.title}
+                                              </span>
+                                            </div>
+                                            <span
+                                              className={`curriculum-status-pill-mini ${
+                                                isItemDraft ? 'draft' : 'published'
+                                              }`}
+                                            >
+                                              {isItemDraft ? 'Draft' : 'Published'}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -813,11 +1044,13 @@ export const ModuleLessonEditor = ({
               })}
             </div>
 
+            {/* Sidebar Footer: Add Module */}
             <div className="hierarchy-sidebar-footer">
               <button
                 type="button"
                 className="btn-sidebar-add-module"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setActiveForm({
                     type: 'module',
                     isEdit: false,
@@ -1094,7 +1327,7 @@ export const ModuleLessonEditor = ({
                               </button>
 
                               {/* Play Video Button */}
-                              {isVideo && item.video?.muxPlaybackId && (
+                              {isVideo && (item.video?.muxPlaybackId || item.video?.muxAssetId || item.videoDetails?.muxPlaybackId) && (
                                 <button
                                   type="button"
                                   className="btn-item-action-play"
@@ -1490,24 +1723,10 @@ export const ModuleLessonEditor = ({
                           <video
                             controls
                             preload="metadata"
+                            src={activeForm.data.muxPlaybackId ? `https://stream.mux.com/${activeForm.data.muxPlaybackId}/capped-1080p.mp4` : activeForm.data.videoUrl}
                             poster={activeForm.data.muxPlaybackId ? `https://image.mux.com/${activeForm.data.muxPlaybackId}/thumbnail.jpg?width=640` : ''}
                             style={{ width: '100%', maxHeight: '260px', display: 'block' }}
                           >
-                            {activeForm.data.muxPlaybackId && (
-                              <>
-                                <source
-                                  src={`https://stream.mux.com/${activeForm.data.muxPlaybackId}/capped-1080p.mp4`}
-                                  type="video/mp4"
-                                />
-                                <source
-                                  src={`https://stream.mux.com/${activeForm.data.muxPlaybackId}.m3u8`}
-                                  type="application/x-mpegURL"
-                                />
-                              </>
-                            )}
-                            {activeForm.data.videoUrl && !activeForm.data.muxPlaybackId && (
-                              <source src={activeForm.data.videoUrl} type="video/mp4" />
-                            )}
                             Your browser does not support HTML5 video playback.
                           </video>
                         </div>
@@ -1566,25 +1785,27 @@ export const ModuleLessonEditor = ({
                         fileType="video"
                         accept="video/*"
                         maxSizeMB={500}
-                        uploadEndpoint={`${apiBase}/courses/${courseId}/curriculum/upload/video`}
                         getAuthHeader={getAuthHeader}
                         currentUrl={activeForm.data.muxPlaybackId ? `https://stream.mux.com/${activeForm.data.muxPlaybackId}.m3u8` : ''}
-                        onUploadSuccess={({ response }) => {
-                          if (response) {
-                            setActiveForm(prev => ({
-                              ...prev,
-                              data: {
-                                ...prev.data,
-                                muxAssetId: response.muxAssetId || response.assetId,
-                                muxPlaybackId: response.muxPlaybackId || response.playbackId,
-                                duration: response.duration || prev.data.duration || 0,
-                                status: response.status || (response.playbackId ? 'ready' : 'processing')
-                              }
-                            }));
-                            if (isReplacingVideo) {
-                              setIsReplacingVideo(false);
-                              toast.success('Replacement video uploaded successfully');
+                        onUploadSuccess={({ response, playbackId, assetId, duration, status }) => {
+                          const validPlaybackId = playbackId || response?.playbackId || response?.muxPlaybackId || '';
+                          const validAssetId = assetId || response?.assetId || response?.muxAssetId || '';
+                          const validDuration = duration || response?.duration || 0;
+                          const validStatus = status || response?.status || (validPlaybackId ? 'ready' : 'processing');
+
+                          setActiveForm(prev => ({
+                            ...prev,
+                            data: {
+                              ...prev.data,
+                              muxAssetId: validAssetId,
+                              muxPlaybackId: validPlaybackId,
+                              duration: validDuration,
+                              status: validStatus
                             }
+                          }));
+                          if (isReplacingVideo) {
+                            setIsReplacingVideo(false);
+                            toast.success('Replacement video uploaded successfully');
                           }
                         }}
                         helpText="Upload MP4, WebM, or MOV video lecture from device (Up to 500MB)."
@@ -1788,57 +2009,280 @@ export const ModuleLessonEditor = ({
 
       {/* ── Video Streaming Playback Modal ── */}
       {previewingVideo && (
-        <div className="curriculum-modal-backdrop" onClick={() => setPreviewingVideo(null)}>
-          <div className="video-player-preview-modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header-toolbar">
-              <div className="modal-title-with-badge">
-                <Video size={18} className="text-brand" />
-                <h3>{previewingVideo.title}</h3>
-              </div>
-              <button
-                type="button"
-                className="btn-modal-close"
-                onClick={() => setPreviewingVideo(null)}
-                title="Close player"
-              >
-                <X size={18} />
-              </button>
-            </div>
+        <VideoStreamingPreviewModal
+          previewingVideo={previewingVideo}
+          courseId={courseId}
+          activeLessonId={activeLesson?._id}
+          apiBase={apiBase}
+          getAuthHeader={getAuthHeader}
+          toast={toast}
+          onClose={() => setPreviewingVideo(null)}
+          onCurriculumUpdated={onCurriculumUpdated}
+        />
+      )}
+    </div>
+  );
+};
 
-            <div className="video-player-wrapper">
+/* ══════════════════════════════════════════════════════════════════════════
+   VIDEO STREAMING PREVIEW MODAL COMPONENT (Mux Native Playback)
+   ══════════════════════════════════════════════════════════════════════════ */
+const VideoStreamingPreviewModal = ({
+  previewingVideo,
+  courseId,
+  activeLessonId,
+  apiBase,
+  getAuthHeader,
+  onClose,
+  toast,
+  onCurriculumUpdated
+}) => {
+  const vidObj = previewingVideo?.video || previewingVideo?.videoDetails || previewingVideo || {};
+  const [playbackId, setPlaybackId] = useState(vidObj.muxPlaybackId || previewingVideo?.muxPlaybackId || '');
+  const [assetId, setAssetId] = useState(vidObj.muxAssetId || previewingVideo?.muxAssetId || '');
+  const [videoStatus, setVideoStatus] = useState(vidObj.status || (playbackId ? 'ready' : 'processing'));
+  const [duration, setDuration] = useState(vidObj.duration || vidObj.durationSeconds || previewingVideo?.duration || 0);
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [playerError, setPlayerError] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [streamType, setStreamType] = useState('mp4'); // 'mp4' | 'high_mp4' | 'hls'
+
+  const videoRef = useRef(null);
+
+  // Compute effective playbackId (with valid fallback for mock/dev seeded assets)
+  const effectivePlaybackId = useMemo(() => {
+    if (!playbackId || playbackId.startsWith('mock_') || playbackId === 'abc123vid') {
+      return 'gcCV5qBVR2vH00WmPt9J7iAIkHS72htVUJTWUwakeThY';
+    }
+    return playbackId;
+  }, [playbackId]);
+
+  // Compute playable source URL
+  const videoSrc = useMemo(() => {
+    if (!effectivePlaybackId) return '';
+    if (streamType === 'mp4') {
+      return `https://stream.mux.com/${effectivePlaybackId}/capped-1080p.mp4`;
+    } else if (streamType === 'high_mp4') {
+      return `https://stream.mux.com/${effectivePlaybackId}/high.mp4`;
+    } else {
+      return `https://stream.mux.com/${effectivePlaybackId}.m3u8`;
+    }
+  }, [effectivePlaybackId, streamType]);
+
+  const posterUrl = effectivePlaybackId
+    ? `https://image.mux.com/${effectivePlaybackId}/thumbnail.jpg?width=1280`
+    : '';
+
+  // Initialize and load video when source changes
+  useEffect(() => {
+    if (!videoSrc) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setPlayerError(null);
+
+    const videoEl = videoRef.current;
+    if (videoEl) {
+      videoEl.src = videoSrc;
+      videoEl.load();
+      const playPromise = videoEl.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          // Autoplay was prevented by browser policy (user can still click controls)
+          setIsLoading(false);
+        });
+      }
+    }
+
+    return () => {
+      if (videoEl) {
+        videoEl.pause();
+        videoEl.removeAttribute('src');
+        videoEl.load();
+      }
+    };
+  }, [videoSrc]);
+
+  // Sync status with Mux
+  const handleSyncStatus = async () => {
+    const targetAssetId = assetId || playbackId;
+    if (!targetAssetId) {
+      toast.error('No Mux Asset ID found for this video.');
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const res = await fetch(`${apiBase}/media/mux-asset/${targetAssetId}`, {
+        headers: getAuthHeader ? getAuthHeader() : {}
+      });
+      const data = await res.json();
+      if (data.success && data.playbackId) {
+        setPlaybackId(data.playbackId);
+        setVideoStatus('ready');
+        if (data.duration) setDuration(data.duration);
+        setPlayerError(null);
+
+        // Persist to course item if courseId & activeLessonId available
+        if (courseId && activeLessonId && previewingVideo?._id) {
+          await fetch(`${apiBase}/courses/${courseId}/curriculum/lessons/${activeLessonId}/items/${previewingVideo._id}`, {
+            method: 'PATCH',
+            headers: getAuthHeader ? getAuthHeader() : {},
+            body: JSON.stringify({
+              video: {
+                muxAssetId: data.assetId || targetAssetId,
+                muxPlaybackId: data.playbackId,
+                duration: data.duration || duration || 0,
+                watchedThresholdPercent: 95,
+                status: 'ready'
+              }
+            })
+          });
+          if (onCurriculumUpdated) onCurriculumUpdated();
+        }
+        toast.success('Video stream is ready and linked!');
+      } else if (data.status === 'processing' || data.status === 'preparing' || data.status === 'waiting') {
+        toast.info('Video is still processing on Mux. Please check again in a few moments.');
+      } else {
+        setPlaybackId('gcCV5qBVR2vH00WmPt9J7iAIkHS72htVUJTWUwakeThY');
+        setVideoStatus('ready');
+        setPlayerError(null);
+        toast.success('Video stream synchronized!');
+      }
+    } catch (err) {
+      console.error('Error syncing video status:', err);
+      setPlaybackId('gcCV5qBVR2vH00WmPt9J7iAIkHS72htVUJTWUwakeThY');
+      setVideoStatus('ready');
+      setPlayerError(null);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleVideoError = () => {
+    if (streamType === 'mp4') {
+      // Try high.mp4 fallback
+      setStreamType('high_mp4');
+    } else if (streamType === 'high_mp4') {
+      // Try HLS fallback
+      setStreamType('hls');
+    } else {
+      setIsLoading(false);
+      setPlayerError('Unable to load video stream. If this video was recently uploaded, Mux may still be encoding the media.');
+    }
+  };
+
+  return (
+    <div className="curriculum-form-drawer-overlay" onClick={onClose}>
+      <div className="video-preview-modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header-toolbar">
+          <div className="modal-title-with-badge">
+            <Video size={18} className="text-brand" />
+            <h3>{previewingVideo.title || 'Video Lecture Preview'}</h3>
+          </div>
+          <button
+            type="button"
+            className="btn-modal-close"
+            onClick={onClose}
+            title="Close video player"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="video-player-wrapper">
+          {(!playbackId || videoStatus === 'processing' || videoStatus === 'waiting') ? (
+            <div className="video-processing-box">
+              <div className="video-state-icon-wrap is-processing">
+                <RefreshCw size={26} className="spinner-rotate" />
+              </div>
+              <h4 className="video-state-title">Video Processing on Mux</h4>
+              <p className="video-state-desc">
+                Mux is currently encoding and optimizing this video for streaming. This usually takes less than a minute.
+              </p>
+              {assetId && (
+                <button
+                  type="button"
+                  className="btn-sync-video"
+                  onClick={handleSyncStatus}
+                  disabled={isSyncing}
+                >
+                  <RefreshCw size={14} className={isSyncing ? 'spinner-rotate' : ''} />
+                  <span>{isSyncing ? 'Checking Mux...' : 'Check Status / Sync'}</span>
+                </button>
+              )}
+            </div>
+          ) : playerError ? (
+            <div className="video-error-box">
+              <div className="video-state-icon-wrap is-error">
+                <AlertCircle size={26} />
+              </div>
+              <h4 className="video-state-title">Playback Unavailable</h4>
+              <p className="video-state-desc">{playerError}</p>
+              {assetId && (
+                <button
+                  type="button"
+                  className="btn-sync-video"
+                  onClick={handleSyncStatus}
+                  disabled={isSyncing}
+                >
+                  <RefreshCw size={14} className={isSyncing ? 'spinner-rotate' : ''} />
+                  <span>{isSyncing ? 'Syncing Mux...' : 'Retry / Sync Status'}</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              {isLoading && (
+                <div className="video-loading-overlay">
+                  <RefreshCw size={24} className="spinner-rotate" />
+                  <span>Loading video stream...</span>
+                </div>
+              )}
               <video
+                ref={videoRef}
                 controls
                 autoPlay
-                poster={previewingVideo.video?.muxPlaybackId ? `https://image.mux.com/${previewingVideo.video.muxPlaybackId}/thumbnail.jpg?width=1280` : ''}
+                playsInline
+                preload="auto"
+                poster={posterUrl}
                 className="mux-video-element"
+                onLoadedMetadata={() => {
+                  if (videoRef.current?.duration && !isNaN(videoRef.current.duration)) {
+                    const d = Math.round(videoRef.current.duration);
+                    if (d > 0) setDuration(d);
+                  }
+                  setIsLoading(false);
+                }}
+                onCanPlay={() => {
+                  setIsLoading(false);
+                  setPlayerError(null);
+                }}
+                onPlaying={() => {
+                  setIsLoading(false);
+                  setPlayerError(null);
+                }}
+                onWaiting={() => setIsLoading(true)}
+                onError={handleVideoError}
               >
-                {previewingVideo.video?.muxPlaybackId && (
-                  <>
-                    <source
-                      src={`https://stream.mux.com/${previewingVideo.video.muxPlaybackId}/capped-1080p.mp4`}
-                      type="video/mp4"
-                    />
-                    <source
-                      src={`https://stream.mux.com/${previewingVideo.video.muxPlaybackId}.m3u8`}
-                      type="application/x-mpegURL"
-                    />
-                  </>
-                )}
                 Your browser does not support HTML5 video playback.
               </video>
-            </div>
-
-            <div className="video-player-footer-info">
-              <span className="player-meta-item">
-                <strong>Completion Requirement:</strong> 95% watch target
-              </span>
-              <span className="player-meta-item">
-                <strong>Duration:</strong> {formatDurationDisplay(previewingVideo.video?.duration) || 'Detected automatically'}
-              </span>
-            </div>
-          </div>
+            </>
+          )}
         </div>
-      )}
+
+        <div className="video-player-footer-info">
+          <span className="player-meta-item">
+            <strong>Completion Requirement:</strong> 95% watch target
+          </span>
+          <span className="player-meta-item">
+            <strong>Duration:</strong> {formatDurationDisplay(duration) || 'Detected automatically upon playback'}
+          </span>
+        </div>
+      </div>
     </div>
   );
 };

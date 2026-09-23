@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   BookOpen, Search, Video, Users, CheckCircle2, Star, Sparkles, ArrowRight, Bookmark, Clock, User,
-  SlidersHorizontal, BarChart2, ChevronRight, X, Award, FileText, Layers, FileCode, HelpCircle
+  SlidersHorizontal, BarChart2, ChevronRight, ChevronDown, X, Award, FileText, Layers, FileCode, HelpCircle
 } from 'lucide-react';
 import './ExploreCourses.css';
 import { useToast } from '../../../context/ToastContext';
@@ -15,11 +15,26 @@ export const ExploreCourses = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [enrolledMap, setEnrolledMap] = useState({});
+  const [bookmarksMap, setBookmarksMap] = useState({});
   const [selectedCourseView, setSelectedCourseView] = useState(null);
   const [activeModalTab, setActiveModalTab] = useState('overview');
   const [overviewDetails, setOverviewDetails] = useState(null);
+  const [expandedSyllabusMods, setExpandedSyllabusMods] = useState({});
   const [newQuestionText, setNewQuestionText] = useState('');
   const [isSubmittingQ, setIsSubmittingQ] = useState(false);
+  const categoryScrollRef = useRef(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && selectedCourseView) {
+        setSelectedCourseView(null);
+      }
+    };
+    if (selectedCourseView) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedCourseView]);
 
   useEffect(() => {
     fetchPublishedCourses();
@@ -241,7 +256,7 @@ export const ExploreCourses = () => {
         </div>
 
         <div className="explore-toolbar-bottom">
-          <div className="category-chips-scroll">
+          <div className="category-chips-scroll" ref={categoryScrollRef}>
             {categories.map((cat) => (
               <button
                 key={cat}
@@ -253,7 +268,12 @@ export const ExploreCourses = () => {
               </button>
             ))}
           </div>
-          <button type="button" className="scroll-next-btn" aria-label="Next categories">
+          <button
+            type="button"
+            className="scroll-next-btn"
+            aria-label="Scroll categories to the right"
+            onClick={() => categoryScrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}
+          >
             <ChevronRight size={18} />
           </button>
         </div>
@@ -269,56 +289,84 @@ export const ExploreCourses = () => {
           </div>
         ) : (
           <div className="explore-courses-grid">
-            {filteredCourses.map((course) => (
-              <div key={course._id} className="explore-course-card">
-                <div className="course-card-thumb-wrap">
-                  <CourseThumbnail src={course.thumbnail} alt={course.title} className="course-card-thumb" />
-                  <button type="button" className="course-bookmark-btn" aria-label="Bookmark course">
-                    <Bookmark size={15} />
-                  </button>
-                </div>
-
-                <div className="course-card-body">
-                  <span className="course-category">{course.category}</span>
-                  <h3 className="course-card-title" title={course.title}>{course.title}</h3>
-                  <p className="course-card-description" title={course.description}>{course.description}</p>
-
-                  {/* Skills badges */}
-                  <div className="course-card-skills">
-                    {course.skills && course.skills.length > 0 ? (
-                      course.skills.map((skill, index) => (
-                        <span key={index} className="course-skill-badge">{skill}</span>
-                      ))
-                    ) : (
-                      <span className="course-skill-badge">{course.category}</span>
-                    )}
+            {filteredCourses.map((course) => {
+              const isBookmarked = !!bookmarksMap[course._id];
+              return (
+                <div
+                  key={course._id}
+                  className="explore-course-card"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`View details for ${course.title}`}
+                  onClick={() => handleOpenCourseModal(course)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleOpenCourseModal(course);
+                    }
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="course-card-thumb-wrap">
+                    <CourseThumbnail src={course.thumbnail} alt={course.title} className="course-card-thumb" />
+                    <button
+                      type="button"
+                      className={`course-bookmark-btn ${isBookmarked ? 'bookmarked' : ''}`}
+                      aria-label={isBookmarked ? "Remove bookmark" : "Bookmark course"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setBookmarksMap((prev) => {
+                          const nextState = !prev[course._id];
+                          toast.info(nextState ? `Bookmarked "${course.title}"` : `Removed bookmark for "${course.title}"`);
+                          return { ...prev, [course._id]: nextState };
+                        });
+                      }}
+                    >
+                      <Bookmark size={15} fill={isBookmarked ? "currentColor" : "none"} />
+                    </button>
                   </div>
 
-                  {/* Instructor & Rating Row */}
-                  <div className="course-instructor-rating-row">
-                    <div className="course-instructor-info">
-                      {course.instructorAvatar ? (
-                        <img src={getAvatarUrl(course.instructorAvatar)} className="course-instructor-avatar" alt={course.instructorName} />
+                  <div className="course-card-body">
+                    <span className="course-category">{course.category}</span>
+                    <h3 className="course-card-title" title={course.title}>{course.title}</h3>
+                    <p className="course-card-description" title={course.description}>{course.description}</p>
+
+                    {/* Skills badges */}
+                    <div className="course-card-skills">
+                      {course.skills && course.skills.length > 0 ? (
+                        course.skills.map((skill, index) => (
+                          <span key={index} className="course-skill-badge">{skill}</span>
+                        ))
                       ) : (
-                        <div className="course-instructor-avatar-placeholder">
-                          <User size={12} />
-                        </div>
+                        <span className="course-skill-badge">{course.category}</span>
                       )}
-                      <span className="course-instructor-name">{course.instructorName || 'Instructor'}</span>
                     </div>
 
-                    <div className="course-rating-info">
-                      {course.rating !== null && course.rating !== undefined ? (
-                        <>
-                          <Star size={13} className="course-rating-star" fill="currentColor" />
-                          <span>{course.rating.toFixed(1)}</span>
-                          <span className="course-rating-count">({course.reviewCount || 0} reviews)</span>
-                        </>
-                      ) : (
-                        <span className="course-rating-count">No ratings yet</span>
-                      )}
+                    {/* Instructor & Rating Row */}
+                    <div className="course-instructor-rating-row">
+                      <div className="course-instructor-info">
+                        {course.instructorAvatar ? (
+                          <img src={getAvatarUrl(course.instructorAvatar)} className="course-instructor-avatar" alt={course.instructorName} />
+                        ) : (
+                          <div className="course-instructor-avatar-placeholder">
+                            <User size={12} />
+                          </div>
+                        )}
+                        <span className="course-instructor-name">{course.instructorName || 'Instructor'}</span>
+                      </div>
+
+                      <div className="course-rating-info">
+                        {course.rating !== null && course.rating !== undefined ? (
+                          <>
+                            <Star size={13} className="course-rating-star" fill="currentColor" />
+                            <span>{course.rating.toFixed(1)}</span>
+                            <span className="course-rating-count">({course.reviewCount || 0} reviews)</span>
+                          </>
+                        ) : (
+                          <span className="course-rating-count">No ratings yet</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
                     {/* Metadata Row (Level / Modules / Enrolled Users) */}
                     {(() => {
@@ -341,23 +389,27 @@ export const ExploreCourses = () => {
                         </div>
                       );
                     })()}
-                </div>
+                  </div>
 
-                {/* Footer Row */}
-                <div className="course-card-footer-row">
-                  <span className="course-updated-date">
-                    {course.updatedAt ? `Last updated: ${formatLastUpdated(course.updatedAt)}` : ''}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-primary course-view-btn"
-                    onClick={() => handleOpenCourseModal(course)}
-                  >
-                    <span>View Course</span>
-                  </button>
+                  {/* Footer Row */}
+                  <div className="course-card-footer-row">
+                    <span className="course-updated-date">
+                      {course.updatedAt ? `Last updated: ${formatLastUpdated(course.updatedAt)}` : ''}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-primary course-view-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenCourseModal(course);
+                      }}
+                    >
+                      <span>View Course</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -563,25 +615,58 @@ export const ExploreCourses = () => {
                     }
                     return (
                       <div className="modules-accordion-list">
-                        {publishedMods.map((mod, mIdx) => (
-                          <div key={mod._id || mIdx} className="module-accordion-item">
-                            <div className="module-accordion-header">
-                              <span className="mod-num">Module {mIdx + 1}</span>
-                              <h4>{mod.title}</h4>
-                              <span className="mod-count">{mod.lessons?.length || 0} Lessons</span>
-                            </div>
+                        {publishedMods.map((mod, mIdx) => {
+                          const modKey = mod._id || `m_${mIdx}`;
+                          const isModOpen = expandedSyllabusMods[modKey] !== false; // open by default
 
-                            <div className="module-accordion-body">
-                              {mod.lessons?.map((les, lIdx) => (
-                                <div key={les._id || lIdx} className="lesson-detail-row">
-                                  <Video size={14} className="lesson-icon" />
-                                  <span className="lesson-title">{les.title}</span>
-                                  {les.duration && <span className="lesson-duration">{les.duration}</span>}
+                          return (
+                            <div key={modKey} className="module-accordion-item">
+                              <div
+                                className="module-accordion-header"
+                                role="button"
+                                tabIndex={0}
+                                aria-expanded={isModOpen}
+                                onClick={() => {
+                                  setExpandedSyllabusMods(prev => ({
+                                    ...prev,
+                                    [modKey]: !isModOpen
+                                  }));
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    setExpandedSyllabusMods(prev => ({
+                                      ...prev,
+                                      [modKey]: !isModOpen
+                                    }));
+                                  }
+                                }}
+                                style={{ cursor: 'pointer', userSelect: 'none' }}
+                              >
+                                <span className="mod-num">Module {mIdx + 1}</span>
+                                <h4>{mod.title}</h4>
+                                <span className="mod-count">{mod.lessons?.length || 0} Lessons</span>
+                                {isModOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                              </div>
+
+                              {isModOpen && (
+                                <div className="module-accordion-body">
+                                  {mod.lessons?.length === 0 ? (
+                                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>No lessons listed in this module.</p>
+                                  ) : (
+                                    mod.lessons?.map((les, lIdx) => (
+                                      <div key={les._id || lIdx} className="lesson-detail-row">
+                                        <Video size={14} className="lesson-icon" />
+                                        <span className="lesson-title">{les.title}</span>
+                                        {les.duration && <span className="lesson-duration">{les.duration}</span>}
+                                      </div>
+                                    ))
+                                  )}
                                 </div>
-                              ))}
+                              )}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     );
                   })()}

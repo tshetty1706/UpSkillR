@@ -32,14 +32,8 @@ const seed = async () => {
     }
     console.log('Using learner:', learner.fullName, learner._id);
 
-    // 3. Find or update course
+    // 3. Find or create course owned specifically by this instructor
     let course = await Course.findOne({ instructorId: instructor._id });
-    if (!course) {
-      course = await Course.findOne({});
-      if (course) {
-        course.instructorId = instructor._id;
-      }
-    }
 
     if (!course) {
       course = new Course({
@@ -88,9 +82,9 @@ const seed = async () => {
                 sortKey: 'a0',
                 version: 1,
                 video: {
-                  muxAssetId: 'mux_mock_asset_101',
-                  muxPlaybackId: 'mock_playback_101',
-                  duration: 420,
+                  muxAssetId: 'sl6RpKuJ00nXJJGpoCySRn6To2mSofLGdKYCfytiJYfE',
+                  muxPlaybackId: 'gcCV5qBVR2vH00WmPt9J7iAIkHS72htVUJTWUwakeThY',
+                  duration: 8,
                   watchedThresholdPercent: 90,
                   status: 'ready'
                 }
@@ -141,9 +135,9 @@ const seed = async () => {
                 sortKey: 'a0',
                 version: 1,
                 video: {
-                  muxAssetId: 'mux_mock_asset_102',
-                  muxPlaybackId: 'mock_playback_102',
-                  duration: 600,
+                  muxAssetId: 'BsD02PUhI55i700w4A5oARytJUsqmsJDE7WhoUfjVmmE8',
+                  muxPlaybackId: 'NfPhnWq01LLr5rtFcGLtIiWhFOjP00VcbGkxps01shfgPw',
+                  duration: 10,
                   watchedThresholdPercent: 90,
                   status: 'ready'
                 }
@@ -173,9 +167,9 @@ const seed = async () => {
                 sortKey: 'a0',
                 version: 1,
                 video: {
-                  muxAssetId: 'mux_mock_asset_201',
-                  muxPlaybackId: 'mock_playback_201',
-                  duration: 540,
+                  muxAssetId: 'sl6RpKuJ00nXJJGpoCySRn6To2mSofLGdKYCfytiJYfE',
+                  muxPlaybackId: 'gcCV5qBVR2vH00WmPt9J7iAIkHS72htVUJTWUwakeThY',
+                  duration: 8,
                   watchedThresholdPercent: 90,
                   status: 'ready'
                 }

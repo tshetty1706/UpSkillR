@@ -279,14 +279,18 @@ exports.getMuxAssetStatus = async (req, res) => {
     const tokenId = process.env.MUX_TOKEN_ID;
     const tokenSecret = process.env.MUX_TOKEN_SECRET;
 
-    if (!tokenId || !tokenSecret || assetId.startsWith('mock_')) {
+    if (!tokenId || !tokenSecret || assetId.startsWith('mock_') || assetId.startsWith('mux_mock_')) {
+      const fallbackPlaybackId = 'gcCV5qBVR2vH00WmPt9J7iAIkHS72htVUJTWUwakeThY';
       return res.json({
         success: true,
         status: 'ready',
         isMock: true,
         assetId,
-        playbackId: `mock_playback_${assetId}`,
-        duration: 0
+        playbackId: fallbackPlaybackId,
+        duration: 8,
+        videoUrl: `https://stream.mux.com/${fallbackPlaybackId}.m3u8`,
+        mp4Url: `https://stream.mux.com/${fallbackPlaybackId}/capped-1080p.mp4`,
+        thumbnailUrl: `https://image.mux.com/${fallbackPlaybackId}/thumbnail.jpg`
       });
     }
 
@@ -314,6 +318,9 @@ exports.getMuxAssetStatus = async (req, res) => {
       thumbnailUrl: playbackId ? `https://image.mux.com/${playbackId}/thumbnail.jpg` : ''
     });
   } catch (err) {
+    if (err.response?.status === 404) {
+      return res.status(404).json({ success: false, status: 'not_found', message: 'Asset not found on Mux.' });
+    }
     console.error('getMuxAssetStatus error:', err.response?.data || err.message);
     res.status(500).json({ success: false, message: err.message });
   }

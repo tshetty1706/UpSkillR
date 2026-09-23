@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { MarkdownEditor, renderMarkdownToHTML } from './Common/MarkdownEditor';
 import { DeviceFileUploader } from './Common/DeviceFileUploader';
+import { PdfViewer } from './Common/PdfViewer';
+import { ImageViewer } from './Common/ImageViewer';
 import './CourseModules.css';
 
 export const NotesResourcesEditor = ({
@@ -836,40 +838,19 @@ export const NotesResourcesEditor = ({
             {/* Modal Body: PDF / Image / Article Viewer */}
             <div className="resource-viewer-modal-body">
               {viewerModal.type === 'pdf' && (
-                viewerModal.url ? (
-                  <div className="pdf-viewer-frame-container">
-                    <iframe
-                      src={viewerModal.url}
-                      title={viewerModal.title}
-                      className="pdf-viewer-iframe"
-                      frameBorder="0"
-                    />
-                  </div>
-                ) : (
-                  <div className="viewer-error-state">
-                    <AlertCircle size={32} className="viewer-error-icon" />
-                    <h4>PDF file cannot be loaded</h4>
-                    <p>No valid URL was found for this document resource.</p>
-                  </div>
-                )
+                <PdfViewer
+                  url={viewerModal.url}
+                  title={viewerModal.title}
+                  onClose={closeViewerModal}
+                />
               )}
 
               {viewerModal.type === 'image' && (
-                viewerModal.url ? (
-                  <div className="image-viewer-frame-container">
-                    <img
-                      src={viewerModal.url}
-                      alt={viewerModal.title}
-                      className="image-viewer-full"
-                    />
-                  </div>
-                ) : (
-                  <div className="viewer-error-state">
-                    <AlertCircle size={32} className="viewer-error-icon" />
-                    <h4>Image cannot be loaded</h4>
-                    <p>No valid URL was found for this image resource.</p>
-                  </div>
-                )
+                <ImageViewer
+                  url={viewerModal.url}
+                  title={viewerModal.title}
+                  onClose={closeViewerModal}
+                />
               )}
 
               {viewerModal.type === 'article' && (

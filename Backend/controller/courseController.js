@@ -4,10 +4,9 @@ const CourseQuestion = require('../model/CourseQuestion');
 const CourseView = require('../model/CourseView');
 const Enrolment = require('../model/Enrolment');
 const AssessmentSubmission = require('../model/AssessmentSubmission');
+const Announcement = require('../model/Announcement');
 const { Instructor, Learner } = require('../model/User');
 const mongoose = require('mongoose');
-const crypto = require('crypto');
-const fs = require('fs');
 const { uploadBufferToCloudinary } = require('./mediaController');
 
 // 2. Get All Courses owned by Instructor + Stats
@@ -207,15 +206,19 @@ exports.updateCourse = async (req, res) => {
   }
 };
 
-// 5. Delete Course
+// 5. Delete Course (with full cascading deletion across all related collections)
 exports.deleteCourse = async (req, res) => {
   try {
     const courseId = req.course._id;
     await Course.findOneAndDelete({ _id: courseId, instructorId: req.user.id });
     await Enrolment.deleteMany({ courseId });
     await AssessmentSubmission.deleteMany({ courseId });
+    await CourseOverview.deleteMany({ courseId });
+    await CourseQuestion.deleteMany({ courseId });
+    await CourseView.deleteMany({ courseId });
+    await Announcement.deleteMany({ courseId });
 
-    return res.status(200).json({ success: true, message: 'Course deleted successfully.' });
+    return res.status(200).json({ success: true, message: 'Course and associated records deleted successfully.' });
   } catch (error) {
     console.error('Delete Course Error:', error);
     return res.status(500).json({ success: false, message: 'Server error while deleting course.' });
@@ -238,6 +241,8 @@ exports.publishCourse = async (req, res) => {
     }
 
     course.status = targetStatus;
+    course.state = targetStatus;
+    course.effective_visible = (targetStatus === 'published');
     await course.save();
 
     return res.status(200).json({
