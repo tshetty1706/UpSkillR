@@ -98,7 +98,7 @@ const runDbMigration = async () => {
         if ((!inst.keySkills || inst.keySkills.length === 0) && app.professionalInfo?.keySkills && app.professionalInfo.keySkills.length > 0) {
           updateData.keySkills = app.professionalInfo.keySkills;
         }
-        if (!inst.avatar && app.personalInfo?.photoUrl) {
+        if (inst.avatar === undefined && app.personalInfo?.photoUrl) {
           updateData.avatar = app.personalInfo.photoUrl;
         }
         if (Object.keys(updateData).length > 0) {

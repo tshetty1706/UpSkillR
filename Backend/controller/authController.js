@@ -1,7 +1,7 @@
 const { Learner, Instructor } = require('../model/User');
 const InstructorApplication = require('../model/InstructorApplication');
 const mongoose = require('mongoose');
-const { uploadBufferToCloudinary } = require('./mediaController');
+const { uploadBufferToCloudinary, deleteCloudinaryAsset } = require('./mediaController');
 
 // Helper to find a user by email across both collections
 const findUserByEmail = async (email) => {
@@ -878,6 +878,15 @@ exports.removeProfilePhoto = async (req, res) => {
     const userId = req.user.id;
     const role = req.user.role;
 
+    // Delete existing Cloudinary asset if present
+    const existingUser = role === 'instructor'
+      ? await Instructor.findById(userId)
+      : await Learner.findById(userId);
+
+    if (existingUser && existingUser.avatar) {
+      await deleteCloudinaryAsset(existingUser.avatar);
+    }
+
     let updatedUser;
     if (role === 'learner') {
       updatedUser = await Learner.findByIdAndUpdate(
@@ -896,7 +905,7 @@ exports.removeProfilePhoto = async (req, res) => {
       const application = await InstructorApplication.findOne({ instructorId: userId });
       if (application) {
         application.personalInfo = {
-          ...application.personalInfo.toObject(),
+          ...(application.personalInfo ? application.personalInfo.toObject() : {}),
           photoUrl: ''
         };
         await application.save();
@@ -908,6 +917,8 @@ exports.removeProfilePhoto = async (req, res) => {
     }
 
     const userObj = updatedUser.toObject();
+    userObj.avatar = '';
+
     if (role === 'instructor') {
       const application = await InstructorApplication.findOne({ instructorId: userId });
       if (application) {

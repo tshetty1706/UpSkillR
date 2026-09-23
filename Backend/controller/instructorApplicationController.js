@@ -1,6 +1,6 @@
 const InstructorApplication = require('../model/InstructorApplication');
 const Instructor = require('../model/Instructor');
-const { uploadBufferToCloudinary } = require('./mediaController');
+const { uploadBufferToCloudinary, deleteCloudinaryAsset } = require('./mediaController');
 
 /**
  * Get current instructor application and status
@@ -216,6 +216,9 @@ exports.removePhoto = async (req, res) => {
 
     const instructor = await Instructor.findById(instructorId);
     if (instructor) {
+      if (instructor.avatar) {
+        await deleteCloudinaryAsset(instructor.avatar);
+      }
       instructor.avatar = '';
       await instructor.save();
     }
@@ -223,7 +226,7 @@ exports.removePhoto = async (req, res) => {
     let application = await InstructorApplication.findOne({ instructorId });
     if (application) {
       application.personalInfo = {
-        ...application.personalInfo.toObject(),
+        ...(application.personalInfo ? application.personalInfo.toObject() : {}),
         photoUrl: ''
       };
       await application.save();

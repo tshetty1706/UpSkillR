@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import './Avatar.css';
 
+import { BACKEND_URL } from '../../../config/api';
+
 /**
  * Reusable Avatar component for UpSkillr.
  * Displays user's uploaded avatar image if present and valid; otherwise,
@@ -35,8 +37,7 @@ export const Avatar = ({ image, name, size = 'medium', className = '', style = {
     if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
       return url;
     }
-    const backendUrl = 'http://localhost:5000';
-    return `${backendUrl}${url}`;
+    return `${BACKEND_URL}${url}`;
   };
 
   const hasImage = image && !imageFailed;

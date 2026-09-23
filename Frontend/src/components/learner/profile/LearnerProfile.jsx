@@ -4,6 +4,8 @@ import './LearnerProfile.css';
 import { Avatar } from '../../common/Avatar/Avatar';
 import { useToast } from '../../../context/ToastContext';
 
+import { API_BASE } from '../../../config/api';
+
 export const LearnerProfile = ({ user }) => {
   const { toast } = useToast();
   const [profile, setProfile] = useState({
@@ -28,7 +30,7 @@ export const LearnerProfile = ({ user }) => {
 
     try {
       const token = localStorage.getItem('upskillr_token');
-      const response = await fetch('http://localhost:5000/api/auth/profile', {
+      const response = await fetch(`${API_BASE}/auth/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -69,7 +71,7 @@ export const LearnerProfile = ({ user }) => {
 
     try {
       const token = localStorage.getItem('upskillr_token');
-      const response = await fetch('http://localhost:5000/api/auth/profile/upload/photo', {
+      const response = await fetch(`${API_BASE}/auth/profile/upload/photo`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formDataPayload
@@ -78,13 +80,14 @@ export const LearnerProfile = ({ user }) => {
 
       if (data.success) {
         toast.success('Profile photo uploaded successfully!');
-        setProfile((prev) => ({ ...prev, avatar: data.user.avatar }));
+        const newAvatar = data.user?.avatar || data.photoUrl || '';
+        setProfile((prev) => ({ ...prev, avatar: newAvatar }));
 
         const storedUser = localStorage.getItem('upskillr_user');
         if (storedUser) {
           try {
             const parsed = JSON.parse(storedUser);
-            parsed.avatar = data.user.avatar;
+            parsed.avatar = newAvatar;
             localStorage.setItem('upskillr_user', JSON.stringify(parsed));
           } catch (err) {}
         }
@@ -95,13 +98,15 @@ export const LearnerProfile = ({ user }) => {
     } catch (err) {
       console.error('Error uploading photo:', err);
       toast.error('Error uploading profile photo.');
+    } finally {
+      e.target.value = '';
     }
   };
 
   const handlePhotoRemove = async () => {
     try {
       const token = localStorage.getItem('upskillr_token');
-      const response = await fetch('http://localhost:5000/api/auth/profile/upload/photo', {
+      const response = await fetch(`${API_BASE}/auth/profile/upload/photo`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -116,6 +121,8 @@ export const LearnerProfile = ({ user }) => {
           try {
             const parsed = JSON.parse(storedUser);
             parsed.avatar = '';
+            parsed.photoUrl = '';
+            parsed.profilePhoto = '';
             localStorage.setItem('upskillr_user', JSON.stringify(parsed));
           } catch (err) {}
         }
