@@ -13,6 +13,7 @@ import { ExploreInstructors } from './components/home/ExploreInstructors/Explore
 import { CourseOverviewPage } from './pages/CourseOverview/CourseOverviewPage';
 import { NotFound } from './components/common/NotFound/NotFound';
 import { InstructorApplication } from './components/instructor/application/InstructorApplication';
+import { InstructorExploreCourses } from './components/home/InstructorExploreCourses/InstructorExploreCourses';
 
 function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -157,6 +158,18 @@ function App() {
     }
 
     // 3. Public Routing
+    const instructorExploreMatch = currentPath.match(/^\/(?:explore-courses|explore)\/instructor\/([^/?#]+)/i);
+    if (instructorExploreMatch) {
+      const instructorId = instructorExploreMatch[1];
+      return (
+        <div className="app-main">
+          <Navbar />
+          <InstructorExploreCourses instructorId={instructorId} user={currentUser} />
+          <Footer />
+        </div>
+      );
+    }
+
     if (path === '/instructors') {
       return (
         <div className="app-main">

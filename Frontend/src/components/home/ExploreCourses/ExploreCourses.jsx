@@ -7,6 +7,7 @@ import './ExploreCourses.css';
 import { useToast } from '../../../context/ToastContext';
 import exploreCoursesSvg from '../../../assets/illustrations/explore_courses.svg?raw';
 import { CourseThumbnail } from '../../common/CourseThumbnail';
+import { Avatar } from '../../common/Avatar/Avatar';
 
 export const ExploreCourses = () => {
   const { toast } = useToast();
@@ -286,13 +287,11 @@ export const ExploreCourses = () => {
                     {/* Instructor & Rating Row */}
                     <div className="course-instructor-rating-row">
                       <div className="course-instructor-info">
-                        {course.instructorAvatar ? (
-                          <img src={getAvatarUrl(course.instructorAvatar)} className="course-instructor-avatar" alt={course.instructorName} />
-                        ) : (
-                          <div className="course-instructor-avatar-placeholder">
-                            <User size={12} />
-                          </div>
-                        )}
+                        <Avatar
+                          image={course.instructorAvatar}
+                          name={course.instructorName || 'Instructor'}
+                          size="small"
+                        />
                         <span className="course-instructor-name">{course.instructorName || 'Instructor'}</span>
                       </div>
 

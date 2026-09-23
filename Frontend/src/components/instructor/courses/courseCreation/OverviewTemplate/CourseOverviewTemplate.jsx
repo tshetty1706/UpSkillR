@@ -21,6 +21,7 @@ import {
   PlayCircle
 } from 'lucide-react';
 import { CourseThumbnail } from '../../../../common/CourseThumbnail';
+import { Avatar } from '../../../../common/Avatar/Avatar';
 import './CourseOverviewTemplate.css';
 
 const LinkedinIcon = ({ size = 16 }) => (
@@ -213,16 +214,14 @@ export const CourseOverviewTemplate = ({
             </div>
 
             <div className="overview-instructor-pill">
-              <div className="instructor-mini-avatar">
-                {instructor?.profilePhoto ? (
-                  <img src={instructor.profilePhoto} alt={instructor.name} />
-                ) : (
-                  <span>{(instructor?.name || course?.instructorName || 'U')[0]}</span>
-                )}
-              </div>
+              <Avatar
+                image={instructor?.profilePhoto || instructor?.avatar || course?.instructorAvatar}
+                name={instructor?.name || instructor?.fullName || course?.instructorName || 'UpSkillr Instructor'}
+                size="small"
+              />
               <div className="instructor-mini-info">
                 <span className="inst-label">Instructor</span>
-                <span className="inst-name">{instructor?.name || course?.instructorName || 'UpSkillr Instructor'}</span>
+                <span className="inst-name">{instructor?.name || instructor?.fullName || course?.instructorName || 'UpSkillr Instructor'}</span>
               </div>
             </div>
           </div>

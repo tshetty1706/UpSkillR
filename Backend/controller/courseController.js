@@ -1097,10 +1097,18 @@ exports.gradeSubmission = async (req, res) => {
 // ─── LEARNER COURSES & RATINGS ───
 exports.getPublishedCourses = async (req, res) => {
   try {
-    const { search, category, level } = req.query;
+    const { search, category, level, instructorId, instructor } = req.query;
     const filter = { status: 'published' };
 
-    if (category && category !== 'All') {
+    const targetInstructorId = instructorId || instructor;
+    if (targetInstructorId && mongoose.Types.ObjectId.isValid(targetInstructorId)) {
+      filter.$or = [
+        { instructorId: targetInstructorId },
+        { instructorId: new mongoose.Types.ObjectId(targetInstructorId) }
+      ];
+    }
+
+    if (category && category !== 'All' && category !== 'all') {
       filter.category = category;
     }
     if (level && level !== 'All' && level !== 'All Skill Levels') {
@@ -1108,11 +1116,22 @@ exports.getPublishedCourses = async (req, res) => {
     }
     if (search && search.trim()) {
       const searchRegex = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      filter.$or = [
+      const searchConditions = [
         { title: searchRegex },
         { description: searchRegex },
-        { instructorName: searchRegex }
+        { instructorName: searchRegex },
+        { tags: searchRegex },
+        { skills: searchRegex }
       ];
+      if (filter.$or) {
+        filter.$and = [
+          { $or: filter.$or },
+          { $or: searchConditions }
+        ];
+        delete filter.$or;
+      } else {
+        filter.$or = searchConditions;
+      }
     }
 
     const courses = await Course.find(filter)
@@ -1469,12 +1488,13 @@ exports.getPublicCourseOverview = async (req, res) => {
     let instructorProfile = null;
     try {
       const instructorUser = await Instructor.findById(course.instructorId).select(
-        'fullName profilePhoto bio headline email'
+        'fullName avatar profilePhoto bio headline email'
       );
       if (instructorUser) {
         instructorProfile = {
           name: instructorUser.fullName,
-          profilePhoto: instructorUser.profilePhoto || '',
+          profilePhoto: instructorUser.avatar || instructorUser.profilePhoto || '',
+          avatar: instructorUser.avatar || instructorUser.profilePhoto || '',
           bio: instructorUser.bio || '',
           headline: instructorUser.headline || 'UpSkillr Instructor',
           email: instructorUser.email
@@ -1748,7 +1768,7 @@ exports.askCourseQuestion = async (req, res) => {
       courseId: id,
       userId: req.user.id,
       userName: req.user.fullName || 'Learner',
-      userAvatar: req.user.profilePhoto || '',
+      userAvatar: req.user.avatar || req.user.profilePhoto || '',
       question: question.trim(),
       status: 'pending'
     });

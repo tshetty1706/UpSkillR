@@ -740,6 +740,100 @@ exports.getInstructors = async (req, res) => {
   }
 };
 
+// 10b. Get Public Instructor Details by ID (Profile + Application Data + Stats)
+exports.getPublicInstructorById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid instructor ID format.' });
+    }
+
+    const instructor = await Instructor.findById(id).select(
+      'fullName email avatar isVerified designation bio keySkills createdAt'
+    );
+
+    if (!instructor) {
+      return res.status(404).json({ success: false, message: 'Instructor not found.' });
+    }
+
+    // Fetch submitted companion application for full About details
+    const application = await InstructorApplication.findOne({
+      $or: [{ instructorId: id }, { instructorId: new mongoose.Types.ObjectId(id) }]
+    });
+
+    const Course = require('../model/Course');
+    const Enrolment = require('../model/Enrolment');
+
+    // Published courses belonging to this instructor
+    const instCourses = await Course.find({
+      instructorId: id,
+      status: 'published'
+    });
+
+    const courseIds = instCourses.map((c) => c._id);
+    const enrolmentsGrouped = await Enrolment.aggregate([
+      { $match: { courseId: { $in: courseIds } } },
+      { $group: { _id: '$courseId', count: { $sum: 1 } } }
+    ]);
+
+    let totalLearners = 0;
+    enrolmentsGrouped.forEach((e) => {
+      totalLearners += e.count;
+    });
+
+    let totalRatingsSum = 0;
+    let ratedCoursesCount = 0;
+    let totalReviews = 0;
+
+    instCourses.forEach((c) => {
+      if (c.rating !== null && c.rating !== undefined) {
+        totalRatingsSum += c.rating;
+        ratedCoursesCount += 1;
+      }
+      totalReviews += (c.reviewCount || 0);
+    });
+
+    const averageRating = ratedCoursesCount > 0
+      ? Math.round((totalRatingsSum / ratedCoursesCount) * 10) / 10
+      : null;
+
+    const keySkills = (instructor.keySkills && instructor.keySkills.length > 0)
+      ? instructor.keySkills
+      : (application?.professionalInfo?.keySkills || []);
+
+    const resultInstructor = {
+      _id: instructor._id,
+      fullName: instructor.fullName,
+      email: instructor.email,
+      avatar: instructor.avatar || application?.personalInfo?.photoUrl || '',
+      isVerified: instructor.isVerified || false,
+      designation: instructor.designation || application?.personalInfo?.professionalTitle || 'Expert Educator',
+      bio: instructor.bio || application?.personalInfo?.bio || 'Dedicated educator building engaging online courses on UpSkillr.',
+      keySkills,
+      expertise: keySkills,
+      // Submitted Application About Data
+      personalInfo: application?.personalInfo || {},
+      professionalInfo: application?.professionalInfo || {},
+      education: application?.education || {},
+      teachingExperience: application?.teachingExperience || {},
+      coursesExpertise: application?.coursesExpertise || {},
+      // Stats
+      coursesCount: instCourses.length,
+      learnersCount: totalLearners,
+      rating: averageRating,
+      ratingsCount: totalReviews
+    };
+
+    return res.status(200).json({
+      success: true,
+      instructor: resultInstructor
+    });
+  } catch (error) {
+    console.error('Get Public Instructor By ID Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error fetching instructor profile.' });
+  }
+};
+
 // 11. Update User Profile Settings (Name, Bio, Specialization)
 exports.updateProfile = async (req, res) => {
   try {
