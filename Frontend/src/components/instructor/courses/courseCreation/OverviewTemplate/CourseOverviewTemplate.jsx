@@ -15,9 +15,13 @@ import {
   Sparkles,
   Zap,
   Send,
-  HelpCircle
+  HelpCircle,
+  Layers,
+  Video,
+  PlayCircle
 } from 'lucide-react';
 import { CourseThumbnail } from '../../../../common/CourseThumbnail';
+import { Avatar } from '../../../../common/Avatar/Avatar';
 import './CourseOverviewTemplate.css';
 
 const LinkedinIcon = ({ size = 16 }) => (
@@ -42,12 +46,16 @@ export const CourseOverviewTemplate = ({
   reviews = [],
   questions = [],
   onAskQuestion = null,
+  onEnroll = null,
+  isEnrolled = false,
+  enrolling = false,
   isPreviewMode = false,
   user = null
 }) => {
   const [questionInput, setQuestionInput] = useState('');
   const [submittingQ, setSubmittingQ] = useState(false);
   const [activeFaq, setActiveFaq] = useState(null);
+  const [expandedModules, setExpandedModules] = useState({});
 
   const handleQuestionSubmit = async (e) => {
     e.preventDefault();
@@ -61,14 +69,40 @@ export const CourseOverviewTemplate = ({
     }
   };
 
-  const learningOutcomes = overview?.learningOutcomes || [];
-  const prerequisites = overview?.prerequisites || [];
-  const skills = overview?.skills || [];
-  const techStack = overview?.techStack || [];
-  const targetAudience = overview?.targetAudience || [];
-  const benefits = overview?.benefits || [];
-  const faqs = overview?.faqs || [];
-  const optionalLinks = overview?.optionalLinks || [];
+  const learningOutcomes = Array.isArray(overview?.learningOutcomes)
+    ? overview.learningOutcomes
+    : typeof overview?.learningOutcomes === 'string' && overview.learningOutcomes.trim()
+    ? [overview.learningOutcomes]
+    : [];
+  const prerequisites = Array.isArray(overview?.prerequisites)
+    ? overview.prerequisites
+    : typeof overview?.prerequisites === 'string' && overview.prerequisites.trim()
+    ? [overview.prerequisites]
+    : [];
+  const skills = Array.isArray(overview?.skills)
+    ? overview.skills
+    : typeof overview?.skills === 'string' && overview.skills.trim()
+    ? [overview.skills]
+    : [];
+  const techStack = Array.isArray(overview?.techStack)
+    ? overview.techStack
+    : typeof overview?.techStack === 'string' && overview.techStack.trim()
+    ? [overview.techStack]
+    : [];
+  const targetAudience = Array.isArray(overview?.targetAudience)
+    ? overview.targetAudience
+    : typeof overview?.targetAudience === 'string' && overview.targetAudience.trim()
+    ? [overview.targetAudience]
+    : [];
+  const benefits = Array.isArray(overview?.benefits)
+    ? overview.benefits
+    : typeof overview?.benefits === 'string' && overview.benefits.trim()
+    ? [overview.benefits]
+    : [];
+  const faqs = Array.isArray(overview?.faqs) ? overview.faqs : [];
+  const optionalLinks = Array.isArray(overview?.optionalLinks) ? overview.optionalLinks : [];
+  const safeQuestions = Array.isArray(questions) ? questions : [];
+  const safeReviews = Array.isArray(reviews) ? reviews : [];
 
   const wordCount = overview?.fullDescription
     ? overview.fullDescription.trim().split(/\s+/).filter(Boolean).length
@@ -180,16 +214,14 @@ export const CourseOverviewTemplate = ({
             </div>
 
             <div className="overview-instructor-pill">
-              <div className="instructor-mini-avatar">
-                {instructor?.profilePhoto ? (
-                  <img src={instructor.profilePhoto} alt={instructor.name} />
-                ) : (
-                  <span>{(instructor?.name || course?.instructorName || 'U')[0]}</span>
-                )}
-              </div>
+              <Avatar
+                image={instructor?.profilePhoto || instructor?.avatar || course?.instructorAvatar}
+                name={instructor?.name || instructor?.fullName || course?.instructorName || 'UpSkillr Instructor'}
+                size="small"
+              />
               <div className="instructor-mini-info">
                 <span className="inst-label">Instructor</span>
-                <span className="inst-name">{instructor?.name || course?.instructorName || 'UpSkillr Instructor'}</span>
+                <span className="inst-name">{instructor?.name || instructor?.fullName || course?.instructorName || 'UpSkillr Instructor'}</span>
               </div>
             </div>
           </div>
@@ -325,6 +357,68 @@ export const CourseOverviewTemplate = ({
             </section>
           )}
 
+          {/* Course Curriculum & Syllabus */}
+          {Array.isArray(course?.modules) && course.modules.length > 0 && (
+            <section className="overview-section syllabus-section">
+              <div className="section-title-row">
+                <Layers size={20} className="section-title-icon" />
+                <h2 className="section-heading">Course Curriculum & Syllabus</h2>
+              </div>
+              <p className="section-subnote">
+                {course.modules.length} {course.modules.length === 1 ? 'Module' : 'Modules'} •{' '}
+                {course.modules.reduce((acc, m) => acc + (m.lessons?.length || 0), 0)} Total Lessons
+              </p>
+              <div className="curriculum-accordion-list">
+                {course.modules.map((mod, mIdx) => {
+                  const modKey = mod._id || `m_${mIdx}`;
+                  const isModOpen = expandedModules[modKey] !== false; // open by default
+                  return (
+                    <div key={modKey} className={`curriculum-module-card ${isModOpen ? 'open' : ''}`}>
+                      <button
+                        type="button"
+                        className="curriculum-module-header"
+                        onClick={() =>
+                          setExpandedModules((prev) => ({
+                            ...prev,
+                            [modKey]: !isModOpen
+                          }))
+                        }
+                      >
+                        <div className="module-header-title-wrap">
+                          <span className="module-index-badge">Module {mIdx + 1}</span>
+                          <span className="module-title-text">{mod.title}</span>
+                        </div>
+                        <div className="module-header-meta">
+                          <span className="module-lesson-count">
+                            {mod.lessons?.length || 0} {mod.lessons?.length === 1 ? 'lesson' : 'lessons'}
+                          </span>
+                          {isModOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        </div>
+                      </button>
+                      {isModOpen && (
+                        <div className="curriculum-lessons-list">
+                          {!mod.lessons || mod.lessons.length === 0 ? (
+                            <div className="curriculum-empty-lesson">No lessons published in this module yet.</div>
+                          ) : (
+                            mod.lessons.map((les, lIdx) => (
+                              <div key={les._id || lIdx} className="curriculum-lesson-row">
+                                <div className="lesson-left">
+                                  <PlayCircle size={15} className="lesson-play-icon" />
+                                  <span className="lesson-row-title">{les.title}</span>
+                                </div>
+                                {les.duration && <span className="lesson-row-duration">{les.duration}</span>}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {/* FAQs */}
           {faqs.length > 0 && (
             <section className="overview-section">
@@ -387,13 +481,13 @@ export const CourseOverviewTemplate = ({
 
             {/* Answered Questions List */}
             <div className="qa-questions-list">
-              {questions.length === 0 ? (
+              {safeQuestions.length === 0 ? (
                 <div className="empty-qa-box">
                   <HelpCircle size={24} />
                   <p>No inquiries asked yet. Be the first to ask a question!</p>
                 </div>
               ) : (
-                questions.map((q, idx) => (
+                safeQuestions.map((q, idx) => (
                   <div key={idx} className="qa-card-item">
                     <div className="qa-question-row">
                       <span className="qa-user-name">{q.userName || 'Learner'} asked:</span>
@@ -416,7 +510,7 @@ export const CourseOverviewTemplate = ({
           {/* Real Reviews Section */}
           <section className="overview-section reviews-section">
             <h2 className="section-heading">Learner Ratings & Feedback</h2>
-            {reviews.length === 0 ? (
+            {safeReviews.length === 0 ? (
               <div className="empty-reviews-box">
                 <Star size={26} className="empty-star-icon" />
                 <h3>No reviews yet</h3>
@@ -424,7 +518,7 @@ export const CourseOverviewTemplate = ({
               </div>
             ) : (
               <div className="real-reviews-grid">
-                {reviews.map((rev, idx) => (
+                {safeReviews.map((rev, idx) => (
                   <div key={idx} className="review-card-item">
                     <div className="review-rating-row">
                       <div className="review-stars">
@@ -479,9 +573,19 @@ export const CourseOverviewTemplate = ({
                 <div className="preview-mode-banner">
                   <span>✦ Preview Mode (Live Form Data)</span>
                 </div>
+              ) : isEnrolled ? (
+                <button type="button" className="btn-enroll-primary btn-enrolled-active" disabled>
+                  <Check size={18} />
+                  <span>Already Enrolled</span>
+                </button>
               ) : (
-                <button type="button" className="btn-enroll-primary">
-                  Enroll Now
+                <button
+                  type="button"
+                  className="btn-enroll-primary"
+                  onClick={onEnroll}
+                  disabled={enrolling}
+                >
+                  {enrolling ? 'Enrolling...' : 'Enroll Now'}
                 </button>
               )}
 

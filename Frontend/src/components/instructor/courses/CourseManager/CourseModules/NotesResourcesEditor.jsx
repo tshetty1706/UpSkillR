@@ -14,10 +14,13 @@ import {
   Edit2,
   X,
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from 'lucide-react';
 import { MarkdownEditor, renderMarkdownToHTML } from './Common/MarkdownEditor';
 import { DeviceFileUploader } from './Common/DeviceFileUploader';
+import { PdfViewer } from './Common/PdfViewer';
+import { ImageViewer } from './Common/ImageViewer';
 import './CourseModules.css';
 
 export const NotesResourcesEditor = ({
@@ -32,7 +35,7 @@ export const NotesResourcesEditor = ({
 }) => {
   // Selected note ID for editing (null means currently creating a new note)
   const [selectedNoteId, setSelectedNoteId] = useState(() => {
-    return notes.length > 0 ? notes[0]._id : null;
+    return notes.length > 0 ? String(notes[0]._id) : null;
   });
   const [isCreatingNew, setIsCreatingNew] = useState(() => notes.length === 0);
 
@@ -67,19 +70,23 @@ export const NotesResourcesEditor = ({
   // Synchronize selection when notes change or on initial load
   useEffect(() => {
     if (notes.length > 0) {
-      if (!selectedNoteId && !isCreatingNew) {
-        loadNoteIntoEditor(notes[0]);
-      } else if (selectedNoteId) {
-        const found = notes.find(n => n._id === selectedNoteId);
+      if (selectedNoteId) {
+        const found = notes.find(n => String(n._id) === String(selectedNoteId));
         if (found) {
-          // Keep form in sync if background update happens
-          setResourceState(found.state || 'draft');
+          if (!isCreatingNew) {
+            // Keep state synchronized
+            setResourceState(found.state || 'draft');
+          }
         } else if (!isCreatingNew) {
           loadNoteIntoEditor(notes[0]);
         }
+      } else if (!isCreatingNew) {
+        loadNoteIntoEditor(notes[0]);
       }
     } else {
-      handleSelectCreateNew('article');
+      if (!isCreatingNew) {
+        handleSelectCreateNew('article');
+      }
     }
   }, [notes]);
 
@@ -97,7 +104,8 @@ export const NotesResourcesEditor = ({
   // Load a note into the editor
   const loadNoteIntoEditor = (note) => {
     if (!note) return;
-    setSelectedNoteId(note._id);
+    const noteIdStr = String(note._id);
+    setSelectedNoteId(noteIdStr);
     setIsCreatingNew(false);
 
     const format = (note.type === 'article' || note.type === 'article_md') ? 'article' : (note.type || 'article');
@@ -109,8 +117,8 @@ export const NotesResourcesEditor = ({
 
     const modId = note.moduleId || (note.attachableType === 'module' ? note.attachableId : '') || '';
     const lesId = note.lessonId || (note.attachableType === 'lesson' ? note.attachableId : '') || '';
-    setSelectedModuleId(modId);
-    setSelectedLessonId(lesId);
+    setSelectedModuleId(modId ? String(modId) : '');
+    setSelectedLessonId(lesId ? String(lesId) : '');
 
     setMarkdownContent(note.markdownContent || note.content || note.bodyMarkdown || '');
     setMediaUrl(note.fileUrl || note.mediaUrl || note.cloudinaryUrl || '');
@@ -204,19 +212,24 @@ export const NotesResourcesEditor = ({
   const handleTogglePublishState = async () => {
     if (selectedNoteId && !isCreatingNew) {
       try {
-        const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/notes/${selectedNoteId}/state`, {
+        const authHeaders = typeof getAuthHeader === 'function' ? getAuthHeader() : {};
+        const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/notes/${selectedNoteId}/toggle-state`, {
           method: 'PATCH',
-          headers: getAuthHeader()
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders
+          }
         });
-        const data = await res.json();
-        if (data.success) {
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success) {
           setResourceState(data.state);
           toast.success(`Resource is now ${data.state === 'published' ? 'Published' : 'in Draft'}`);
           if (onCurriculumUpdated) onCurriculumUpdated();
         } else {
-          toast.error(data.message || 'Failed to update resource state');
+          toast.error(data?.message || 'Failed to update resource state');
         }
       } catch (err) {
+        console.error('Error updating resource state:', err);
         toast.error('Network error updating resource state');
       }
     } else {
@@ -269,43 +282,89 @@ export const NotesResourcesEditor = ({
         state: resourceState
       };
 
+      const authHeaders = typeof getAuthHeader === 'function' ? getAuthHeader() : {};
+      const requestHeaders = {
+        'Content-Type': 'application/json',
+        ...authHeaders
+      };
+
       if (selectedNoteId && !isCreatingNew) {
         // UPDATE EXISTING RESOURCE
         const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/notes/${selectedNoteId}`, {
           method: 'PATCH',
-          headers: getAuthHeader(),
+          headers: requestHeaders,
           body: JSON.stringify(payload)
         });
-        const data = await res.json();
-        if (data.success) {
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success) {
           toast.success('Resource updated successfully');
+          if (data.note) {
+            loadNoteIntoEditor(data.note);
+          }
           if (onCurriculumUpdated) onCurriculumUpdated();
         } else {
-          toast.error(data.message || 'Failed to update resource');
+          toast.error(data?.message || 'Failed to update resource');
         }
       } else {
         // CREATE NEW RESOURCE
         const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/notes`, {
           method: 'POST',
-          headers: getAuthHeader(),
+          headers: requestHeaders,
           body: JSON.stringify(payload)
         });
-        const data = await res.json();
-        if (data.success) {
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success && data.note) {
           toast.success('Resource attached successfully');
-          if (data.note?._id) {
-            setSelectedNoteId(data.note._id);
-            setIsCreatingNew(false);
-          }
+          const newId = String(data.note._id);
+          setSelectedNoteId(newId);
+          setIsCreatingNew(false);
+          loadNoteIntoEditor(data.note);
           if (onCurriculumUpdated) onCurriculumUpdated();
         } else {
-          toast.error(data.message || 'Failed to attach resource');
+          toast.error(data?.message || 'Failed to attach resource');
         }
       }
     } catch (err) {
+      console.error('Error saving resource:', err);
       toast.error('Network error saving resource');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Delete Resource Handler
+  const handleDeleteResource = async (noteId, e) => {
+    if (e) e.stopPropagation();
+    if (!noteId) return;
+
+    if (!window.confirm('Are you sure you want to delete this attached resource?')) {
+      return;
+    }
+
+    try {
+      const authHeaders = typeof getAuthHeader === 'function' ? getAuthHeader() : {};
+      const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/notes/${noteId}`, {
+        method: 'DELETE',
+        headers: authHeaders
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        toast.success('Resource deleted successfully');
+        if (String(selectedNoteId) === String(noteId)) {
+          const remaining = notes.filter(n => String(n._id) !== String(noteId));
+          if (remaining.length > 0) {
+            loadNoteIntoEditor(remaining[0]);
+          } else {
+            handleSelectCreateNew('article');
+          }
+        }
+        if (onCurriculumUpdated) onCurriculumUpdated();
+      } else {
+        toast.error(data?.message || 'Failed to delete resource');
+      }
+    } catch (err) {
+      console.error('Error deleting resource:', err);
+      toast.error('Network error deleting resource');
     }
   };
 
@@ -368,7 +427,7 @@ export const NotesResourcesEditor = ({
                 </div>
               ) : (
                 filteredNotes.map((note) => {
-                  const isSelected = selectedNoteId === note._id && !isCreatingNew;
+                  const isSelected = String(selectedNoteId) === String(note._id) && !isCreatingNew;
                   const noteType = note.type === 'article_md' ? 'article' : (note.type || 'article');
                   const hasViewableUrl = !!(note.fileUrl || note.mediaUrl || note.cloudinaryUrl || note.content);
 
@@ -419,6 +478,15 @@ export const NotesResourcesEditor = ({
                         >
                           <Edit2 size={13} />
                           <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-item-delete"
+                          onClick={(e) => handleDeleteResource(note._id, e)}
+                          title="Delete Resource"
+                          aria-label="Delete Resource"
+                        >
+                          <Trash2 size={13} />
                         </button>
                       </div>
                     </div>
@@ -489,6 +557,19 @@ export const NotesResourcesEditor = ({
                   >
                     <Eye size={14} />
                     <span>View {activeTab === 'pdf' ? 'PDF' : 'Image'}</span>
+                  </button>
+                )}
+
+                {/* Delete Resource Button (when editing existing) */}
+                {selectedNoteId && !isCreatingNew && (
+                  <button
+                    type="button"
+                    className="btn-header-delete-action"
+                    onClick={(e) => handleDeleteResource(selectedNoteId, e)}
+                    title="Delete this attached resource"
+                  >
+                    <Trash2 size={14} />
+                    <span>Delete</span>
                   </button>
                 )}
 
@@ -824,40 +905,19 @@ export const NotesResourcesEditor = ({
             {/* Modal Body: PDF / Image / Article Viewer */}
             <div className="resource-viewer-modal-body">
               {viewerModal.type === 'pdf' && (
-                viewerModal.url ? (
-                  <div className="pdf-viewer-frame-container">
-                    <iframe
-                      src={viewerModal.url}
-                      title={viewerModal.title}
-                      className="pdf-viewer-iframe"
-                      frameBorder="0"
-                    />
-                  </div>
-                ) : (
-                  <div className="viewer-error-state">
-                    <AlertCircle size={32} className="viewer-error-icon" />
-                    <h4>PDF file cannot be loaded</h4>
-                    <p>No valid URL was found for this document resource.</p>
-                  </div>
-                )
+                <PdfViewer
+                  url={viewerModal.url}
+                  title={viewerModal.title}
+                  onClose={closeViewerModal}
+                />
               )}
 
               {viewerModal.type === 'image' && (
-                viewerModal.url ? (
-                  <div className="image-viewer-frame-container">
-                    <img
-                      src={viewerModal.url}
-                      alt={viewerModal.title}
-                      className="image-viewer-full"
-                    />
-                  </div>
-                ) : (
-                  <div className="viewer-error-state">
-                    <AlertCircle size={32} className="viewer-error-icon" />
-                    <h4>Image cannot be loaded</h4>
-                    <p>No valid URL was found for this image resource.</p>
-                  </div>
-                )
+                <ImageViewer
+                  url={viewerModal.url}
+                  title={viewerModal.title}
+                  onClose={closeViewerModal}
+                />
               )}
 
               {viewerModal.type === 'article' && (

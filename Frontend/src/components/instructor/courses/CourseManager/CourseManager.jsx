@@ -23,13 +23,13 @@ import {
   Trash2,
   Zap,
   Plus,
-  Bell
+  Bell,
+  Eye
 } from 'lucide-react';
 import './CourseManager.css';
 import { useToast } from '../../../../context/ToastContext';
 import { DynamicTagInput } from '../courseCreation/Common/DynamicTagInput';
 import { DynamicListInput } from '../courseCreation/Common/DynamicListInput';
-import { CourseOverviewTemplate } from '../courseCreation/OverviewTemplate/CourseOverviewTemplate';
 import { CourseAnnouncements } from './CourseAnnouncements/CourseAnnouncements';
 import { CourseModules } from './CourseModules/CourseModules';
 import { CourseThumbnail } from '../../../common/CourseThumbnail';
@@ -90,7 +90,6 @@ export const CourseManager = ({
   // Tab 3: Course Overview Edit & Preview State
   const [isEditingOverview, setIsEditingOverview] = useState(false);
   const [savingOverview, setSavingOverview] = useState(false);
-  const [showOverviewPreview, setShowOverviewPreview] = useState(false);
   const [overviewForm, setOverviewForm] = useState({
     fullDescription: '',
     prerequisites: [],
@@ -100,6 +99,15 @@ export const CourseManager = ({
     certificate: true,
     faqs: []
   });
+
+  const handlePreviewOverview = () => {
+    const targetCourseId = courseId || course?._id;
+    if (targetCourseId) {
+      const path = `/courses/${targetCourseId}`;
+      window.history.pushState({}, '', path);
+      window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
+    }
+  };
 
   // FAQ addition in edit overview
   const [newFaqQ, setNewFaqQ] = useState('');
@@ -173,8 +181,8 @@ export const CourseManager = ({
         }
       });
 
-      const overviewData = await overviewRes.json();
-      if (overviewData.success && overviewData.overview) {
+      const overviewData = await overviewRes.json().catch(() => null);
+      if (overviewData && overviewData.success && overviewData.overview) {
         const fetchedOverview = overviewData.overview;
         setOverview(fetchedOverview);
         setOverviewForm({
@@ -638,7 +646,7 @@ export const CourseManager = ({
                       <div className="data-row">
                         <span className="data-label">Tags & Keywords</span>
                         <div className="data-chips-wrap">
-                          {course.tags && course.tags.length > 0 ? (
+                          {Array.isArray(course.tags) && course.tags.length > 0 ? (
                             course.tags.map((tag, idx) => (
                               <span key={idx} className="workspace-tag-chip">
                                 {tag}
@@ -697,7 +705,7 @@ export const CourseManager = ({
                     </span>
                   </div>
 
-                  {(!course.modules || course.modules.length === 0) ? (
+                  {(!Array.isArray(course.modules) || course.modules.length === 0) ? (
                     <div className="empty-syllabus-banner">
                       <p className="empty-syllabus-main">No syllabus available yet</p>
                       <p className="empty-syllabus-sub">
@@ -713,7 +721,7 @@ export const CourseManager = ({
                             <span className={`state-badge-sm ${mod.state || 'draft'}`}>{mod.state || 'draft'}</span>
                           </div>
                           {mod.description && <p className="syllabus-mod-desc">{mod.description}</p>}
-                          {mod.lessons && mod.lessons.length > 0 && (
+                          {Array.isArray(mod.lessons) && mod.lessons.length > 0 && (
                             <ul className="syllabus-lesson-bullets">
                               {mod.lessons.map((less, lIdx) => (
                                 <li key={less._id || lIdx} className="syllabus-lesson-bullet">
@@ -854,14 +862,35 @@ export const CourseManager = ({
                     <input
                       ref={detailsFileRef}
                       type="file"
-                      accept="image/jpeg,image/png,image/webp"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
                       style={{ display: 'none' }}
                       onChange={(e) => {
                         if (e.target.files && e.target.files[0]) {
                           const file = e.target.files[0];
-                          setDetailsThumbnailFile(file);
-                          setDetailsThumbnailPreview(URL.createObjectURL(file));
+                          const validTypes = ['image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp'];
+                          const ext = file.name ? file.name.split('.').pop().toLowerCase() : '';
+                          const validExts = ['jpg', 'jpeg', 'png', 'webp'];
+
+                          if (!validTypes.includes(file.type?.toLowerCase()) && !validExts.includes(ext)) {
+                            toast.error('Invalid format. Only JPG, JPEG, PNG, and WebP are allowed.');
+                            e.target.value = '';
+                            return;
+                          }
+                          if (file.size > 5 * 1024 * 1024) {
+                            toast.error('Image size exceeds 5MB limit. Please choose a smaller file.');
+                            e.target.value = '';
+                            return;
+                          }
+
+                          try {
+                            setDetailsThumbnailFile(file);
+                            setDetailsThumbnailPreview(URL.createObjectURL(file));
+                          } catch (err) {
+                            console.error('Failed to create thumbnail preview:', err);
+                            toast.error('Failed to process selected image.');
+                          }
                         }
+                        e.target.value = '';
                       }}
                     />
 
@@ -945,8 +974,8 @@ export const CourseManager = ({
                 <button
                   type="button"
                   className="btn-preview-learner"
-                  onClick={() => setShowOverviewPreview(true)}
-                  title="Open live learner-facing overview preview"
+                  onClick={handlePreviewOverview}
+                  title="Open live learner-facing overview page"
                 >
                   <Eye size={16} />
                   <span>Preview Overview</span>
@@ -1009,9 +1038,9 @@ export const CourseManager = ({
                 {/* What You'll Learn (Outcomes) */}
                 <div className="workspace-info-card">
                   <h3 className="card-inner-heading">
-                    What You'll Learn ({overview?.learningOutcomes?.length || 0})
+                    What You'll Learn ({Array.isArray(overview?.learningOutcomes) ? overview.learningOutcomes.length : 0})
                   </h3>
-                  {overview?.learningOutcomes && overview.learningOutcomes.length > 0 ? (
+                  {Array.isArray(overview?.learningOutcomes) && overview.learningOutcomes.length > 0 ? (
                     <div className="workspace-outcomes-grid">
                       {overview.learningOutcomes.map((outcome, idx) => (
                         <div key={idx} className="workspace-outcome-item">
@@ -1028,9 +1057,9 @@ export const CourseManager = ({
                 {/* Skills You'll Gain (Distinct Point Identity Badges) */}
                 <div className="workspace-info-card">
                   <h3 className="card-inner-heading">
-                    Skills You'll Gain ({overview?.skills?.length || 0})
+                    Skills You'll Gain ({Array.isArray(overview?.skills) ? overview.skills.length : 0})
                   </h3>
-                  {overview?.skills && overview.skills.length > 0 ? (
+                  {Array.isArray(overview?.skills) && overview.skills.length > 0 ? (
                     <div className="workspace-skills-grid">
                       {overview.skills.map((skill, idx) => (
                         <div key={idx} className="workspace-skill-badge-card">
@@ -1051,7 +1080,7 @@ export const CourseManager = ({
                   <div className="workspace-info-card">
                     <h3 className="card-inner-heading">Prerequisites</h3>
                     <div className="data-chips-wrap">
-                      {overview?.prerequisites && overview.prerequisites.length > 0 ? (
+                      {Array.isArray(overview?.prerequisites) && overview.prerequisites.length > 0 ? (
                         overview.prerequisites.map((p, idx) => (
                           <span key={idx} className="workspace-tag-chip">
                             {p}
@@ -1066,7 +1095,7 @@ export const CourseManager = ({
                   <div className="workspace-info-card">
                     <h3 className="card-inner-heading">Technologies & Tools</h3>
                     <div className="data-chips-wrap">
-                      {overview?.techStack && overview.techStack.length > 0 ? (
+                      {Array.isArray(overview?.techStack) && overview.techStack.length > 0 ? (
                         overview.techStack.map((tool, idx) => (
                           <span key={idx} className="workspace-tag-chip tech-color">
                             {tool}
@@ -1099,7 +1128,7 @@ export const CourseManager = ({
                 </div>
 
                 {/* FAQs */}
-                {overview?.faqs && overview.faqs.length > 0 && (
+                {Array.isArray(overview?.faqs) && overview.faqs.length > 0 && (
                   <div className="workspace-info-card">
                     <h3 className="card-inner-heading">Frequently Asked Questions ({overview.faqs.length})</h3>
                     <div className="workspace-faq-list">
@@ -1515,55 +1544,6 @@ export const CourseManager = ({
           </section>
         )}
       </main>
-
-      {/* ═══ LIVE OVERVIEW PREVIEW MODAL ═══ */}
-      {showOverviewPreview && (
-        <div className="workspace-preview-modal-backdrop" onClick={() => setShowOverviewPreview(false)}>
-          <div
-            className="workspace-preview-modal-dialog"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-preview-header">
-              <div className="preview-header-left">
-                <Eye size={18} className="accent-green" />
-                <span className="preview-modal-title">
-                  Learner Overview Preview • <em>{course.title}</em>
-                </span>
-              </div>
-              <button
-                type="button"
-                className="btn-close-modal"
-                onClick={() => setShowOverviewPreview(false)}
-                title="Close Preview"
-              >
-                <X size={18} />
-                <span>Close</span>
-              </button>
-            </div>
-
-            <div className="modal-preview-body">
-              <CourseOverviewTemplate
-                course={course}
-                overview={currentPreviewOverview}
-                instructor={{
-                  name: user?.fullName || user?.name || course?.instructorName || 'UpSkillr Instructor',
-                  headline: user?.designation || user?.headline || 'Course Instructor',
-                  bio: user?.bio || '',
-                  profilePhoto: user?.avatar || user?.photoUrl || ''
-                }}
-                stats={{
-                  totalEnrolments: course?.learnersCount || 0,
-                  overviewViews: course?.overviewViews || 0,
-                  averageRating: course?.rating || null,
-                  reviewCount: course?.reviewCount || 0
-                }}
-                isPreviewMode={true}
-                user={user}
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

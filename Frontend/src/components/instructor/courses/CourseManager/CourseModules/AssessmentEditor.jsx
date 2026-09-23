@@ -1,22 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ArrowLeft,
-  Award,
-  Lock,
-  Unlock,
-  CheckCircle2,
-  EyeOff,
   Plus,
   Edit2,
+  Trash2,
+  Copy,
   HelpCircle,
   Clock,
+  CheckCircle2,
+  EyeOff,
+  Eye,
+  FileText,
+  Check,
+  AlertCircle,
   RefreshCw,
   X,
-  AlertCircle,
+  MoreVertical,
+  Search,
+  CheckSquare,
+  Square,
+  ChevronDown,
+  Award,
+  Sparkles,
   Layers,
-  Sparkles
+  ChevronRight,
+  Code2,
+  ListFilter
 } from 'lucide-react';
-import { InstructorTip } from './Common/InstructorTip';
 
 export const AssessmentEditor = ({
   courseId,
@@ -29,94 +39,214 @@ export const AssessmentEditor = ({
   getAuthHeader,
   toast
 }) => {
-  // Drawer / Form state: null | { isEdit: boolean, data: {} }
-  const [activeForm, setActiveForm] = useState(null);
+  // ── Selected Assessment State (Active in Right Pane) ──
+  const [selectedAssessmentId, setSelectedAssessmentId] = useState(() => {
+    return courseAssessments.length > 0 ? courseAssessments[0]._id : null;
+  });
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Inspector preview modal for viewing questions
-  const [inspectingAssessment, setInspectingAssessment] = useState(null);
+  // ── Assessment Form Fields ──
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [assessmentType, setAssessmentType] = useState('graded');
+  const [timeLimit, setTimeLimit] = useState(30);
+  const [timeUnit, setTimeUnit] = useState('minutes');
+  const [passThresholdPercent, setPassThresholdPercent] = useState(70);
+  const [maxAttempts, setMaxAttempts] = useState(3);
+  const [cooldownHours, setCooldownHours] = useState(6);
+  const [state, setState] = useState('draft');
+  const [questions, setQuestions] = useState([]);
 
-  /* ─────────────────────────────────────────────────────────────
-     MUTATION HANDLERS (Live Backend Integration)
-     ───────────────────────────────────────────────────────────── */
-  const handleToggleAssessmentState = async (assessmentId) => {
-    try {
-      const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/assessments/${assessmentId}/toggle-state`, {
-        method: 'PATCH',
-        headers: getAuthHeader()
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success(`Assessment toggled to ${data.assessment?.state || 'new state'}`);
-        if (onCurriculumUpdated) onCurriculumUpdated();
-      } else {
-        toast.error(data.message || 'Failed to toggle assessment state');
-      }
-    } catch (err) {
-      console.error('Error toggling assessment state:', err);
-      toast.error('Network error toggling assessment state');
+  // ── Selected Questions (for bulk operations) ──
+  const [selectedQuestionIndices, setSelectedQuestionIndices] = useState([]);
+
+  // ── Question Modal / Editor State ──
+  const [questionModal, setQuestionModal] = useState({
+    isOpen: false,
+    editIndex: null, // null for new, number for editing
+    data: {
+      questionText: '',
+      type: 'mcq', // 'mcq' | 'multiple_choice' | 'true_false' | 'short_answer' | 'coding'
+      options: ['', '', '', ''],
+      correctOptionIndex: 0,
+      correctOptionIndices: [0],
+      points: 1,
+      marks: 1,
+      explanation: ''
     }
+  });
+
+  // ── Add Question Type Dropdown ──
+  const [showAddTypeMenu, setShowAddTypeMenu] = useState(false);
+
+  // ── Status Toggle Dropdown in Header ──
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
+
+  // ── Learner Preview Modal ──
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewActiveQuestionIndex, setPreviewActiveQuestionIndex] = useState(0);
+  const [previewAnswers, setPreviewAnswers] = useState({});
+  const [previewShowExplanation, setPreviewShowExplanation] = useState(false);
+
+  // ── Sync form when selectedAssessmentId changes or courseAssessments change ──
+  useEffect(() => {
+    if (isCreatingNew) return;
+
+    if (!selectedAssessmentId && courseAssessments.length > 0) {
+      setSelectedAssessmentId(courseAssessments[0]._id);
+      return;
+    }
+
+    const currentAss = courseAssessments.find(a => String(a._id) === String(selectedAssessmentId));
+    if (currentAss) {
+      loadAssessmentIntoForm(currentAss);
+    } else if (courseAssessments.length > 0 && !isCreatingNew) {
+      setSelectedAssessmentId(courseAssessments[0]._id);
+      loadAssessmentIntoForm(courseAssessments[0]);
+    } else if (courseAssessments.length === 0) {
+      handleInitNewAssessment();
+    }
+  }, [selectedAssessmentId, courseAssessments, isCreatingNew]);
+
+  const loadAssessmentIntoForm = (ass) => {
+    setIsCreatingNew(false);
+    setTitle(ass.title || '');
+    setDescription(ass.description || ass.instructions || '');
+    setAssessmentType(ass.assessmentType || 'graded');
+    setTimeLimit(ass.timeLimit || ass.durationMinutes || 30);
+    setTimeUnit('minutes');
+    setPassThresholdPercent(ass.passThresholdPercent || ass.passThreshold || 70);
+    setMaxAttempts(ass.maxAttempts !== undefined ? ass.maxAttempts : 3);
+    setCooldownHours(ass.cooldownHours !== undefined ? ass.cooldownHours : 6);
+    setState(ass.state || 'draft');
+    setQuestions(Array.isArray(ass.questions) ? JSON.parse(JSON.stringify(ass.questions)) : []);
+    setSelectedQuestionIndices([]);
   };
 
-  const handleSaveAssessment = async (e) => {
-    e.preventDefault();
-    if (!activeForm) return;
+  const handleInitNewAssessment = () => {
+    setIsCreatingNew(true);
+    setSelectedAssessmentId(null);
+    setTitle('New Assessment');
+    setDescription('');
+    setAssessmentType('graded');
+    setTimeLimit(30);
+    setTimeUnit('minutes');
+    setPassThresholdPercent(70);
+    setMaxAttempts(3);
+    setCooldownHours(6);
+    setState('draft');
+    setQuestions([
+      {
+        questionText: '',
+        type: 'mcq',
+        options: ['Option A', 'Option B', 'Option C', 'Option D'],
+        correctOptionIndex: 0,
+        points: 1,
+        marks: 1,
+        explanation: ''
+      }
+    ]);
+    setSelectedQuestionIndices([]);
+  };
 
-    const { isEdit, data } = activeForm;
-    if (!data.title || !data.title.trim()) {
+  // ── Filter assessments for sidebar search ──
+  const filteredAssessments = useMemo(() => {
+    if (!searchQuery.trim()) return courseAssessments;
+    const q = searchQuery.toLowerCase();
+    return courseAssessments.filter(a => (a.title || '').toLowerCase().includes(q));
+  }, [courseAssessments, searchQuery]);
+
+  /* ─────────────────────────────────────────────────────────────
+     MUTATION HANDLERS (Save / Update / Toggle / Delete)
+     ───────────────────────────────────────────────────────────── */
+
+  const handleSaveAssessment = async (e) => {
+    if (e) e.preventDefault();
+
+    if (!title.trim()) {
       toast.error('Please enter an assessment title');
       return;
     }
-    if (!data.requiredModuleIds || data.requiredModuleIds.length === 0) {
-      toast.error('Please select at least one required module for this assessment');
-      return;
-    }
-    if (!data.questions || data.questions.length === 0) {
+    if (questions.length === 0) {
       toast.error('Please add at least one question to the assessment');
       return;
     }
 
-    for (let i = 0; i < data.questions.length; i++) {
-      const q = data.questions[i];
+    // Validate questions
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
       if (!q.questionText || !q.questionText.trim()) {
-        toast.error(`Question ${i + 1} is missing question text`);
+        toast.error(`Question ${i + 1} is missing question prompt`);
         return;
       }
-      if (!q.options || q.options.some(opt => !opt.trim())) {
-        toast.error(`Question ${i + 1} has empty options`);
-        return;
+      if (q.type === 'mcq' || q.type === 'multiple_choice' || !q.type) {
+        if (!q.options || q.options.some(opt => !opt || !opt.trim())) {
+          toast.error(`Question ${i + 1} has empty choices`);
+          return;
+        }
       }
     }
 
     setSaving(true);
     try {
-      const url = isEdit
-        ? `${apiBase}/courses/${courseId}/curriculum/assessments/${data._id || data.id}`
-        : `${apiBase}/courses/${courseId}/curriculum/assessments`;
-      const method = isEdit ? 'PATCH' : 'POST';
-
+      const calculatedDuration = timeUnit === 'hours' ? Number(timeLimit) * 60 : Number(timeLimit) || 30;
       const payload = {
-        title: data.title.trim(),
-        description: (data.description || '').trim(),
-        requiredModuleIds: data.requiredModuleIds,
-        passThresholdPercent: Number(data.passThresholdPercent) || 70,
-        maxAttempts: Number(data.maxAttempts) || 3,
-        cooldownHours: Number(data.cooldownHours) || 6,
-        questions: data.questions
+        title: title.trim(),
+        description: description.trim(),
+        instructions: description.trim(),
+        assessmentType,
+        timeLimit: calculatedDuration,
+        durationMinutes: calculatedDuration,
+        passThresholdPercent: Number(passThresholdPercent) || 70,
+        maxAttempts: Number(maxAttempts) || 3,
+        cooldownHours: Number(cooldownHours) || 6,
+        countsTowardCertificate: true,
+        questions: questions.map((q, idx) => ({
+          ...q,
+          marks: Number(q.marks) || Number(q.points) || 1,
+          points: Number(q.points) || Number(q.marks) || 1,
+          order: idx + 1
+        }))
       };
 
-      const res = await fetch(url, {
-        method,
-        headers: getAuthHeader(),
-        body: JSON.stringify(payload)
-      });
-      const resData = await res.json();
-      if (resData.success) {
-        toast.success(isEdit ? 'Assessment updated successfully' : 'Assessment created successfully');
-        setActiveForm(null);
-        if (onCurriculumUpdated) onCurriculumUpdated();
+      const authHeaders = typeof getAuthHeader === 'function' ? getAuthHeader() : {};
+      const requestHeaders = {
+        'Content-Type': 'application/json',
+        ...authHeaders
+      };
+
+      if (!isCreatingNew && selectedAssessmentId) {
+        // UPDATE EXISTING ASSESSMENT
+        const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/assessments/${selectedAssessmentId}`, {
+          method: 'PATCH',
+          headers: requestHeaders,
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success) {
+          toast.success('Assessment updated successfully');
+          if (onCurriculumUpdated) onCurriculumUpdated();
+        } else {
+          toast.error(data?.message || 'Failed to update assessment');
+        }
       } else {
-        toast.error(resData.message || 'Failed to save assessment');
+        // CREATE NEW ASSESSMENT
+        const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/assessments`, {
+          method: 'POST',
+          headers: requestHeaders,
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success && data.assessment) {
+          toast.success('Assessment created successfully');
+          setIsCreatingNew(false);
+          setSelectedAssessmentId(data.assessment._id);
+          if (onCurriculumUpdated) onCurriculumUpdated();
+        } else {
+          toast.error(data?.message || 'Failed to create assessment');
+        }
       }
     } catch (err) {
       console.error('Error saving assessment:', err);
@@ -126,623 +256,1186 @@ export const AssessmentEditor = ({
     }
   };
 
-  /* ─────────────────────────────────────────────────────────────
-     REQUIRED MODULE CHECKBOX HELPER
-     ───────────────────────────────────────────────────────────── */
-  const toggleRequiredModule = (modId) => {
-    setActiveForm(prev => {
-      const currentIds = prev.data.requiredModuleIds || [];
-      const updated = currentIds.includes(modId)
-        ? currentIds.filter(id => id !== modId)
-        : [...currentIds, modId];
-      return {
-        ...prev,
-        data: { ...prev.data, requiredModuleIds: updated }
-      };
-    });
+  const handleToggleState = async (newDesiredState = null) => {
+    if (isCreatingNew || !selectedAssessmentId) {
+      setState(prev => (prev === 'published' ? 'draft' : 'published'));
+      setShowStatusMenu(false);
+      return;
+    }
+
+    try {
+      const authHeaders = typeof getAuthHeader === 'function' ? getAuthHeader() : {};
+      const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/assessments/${selectedAssessmentId}/toggle-state`, {
+        method: 'PATCH',
+        headers: authHeaders
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        setState(data.state || data.assessment?.state);
+        toast.success(`Assessment is now ${data.state === 'published' ? 'Published' : 'in Draft'}`);
+        setShowStatusMenu(false);
+        if (onCurriculumUpdated) onCurriculumUpdated();
+      } else {
+        toast.error(data?.message || 'Failed to update assessment state');
+      }
+    } catch (err) {
+      console.error('Error toggling state:', err);
+      toast.error('Network error updating state');
+    }
   };
 
-  /* ─────────────────────────────────────────────────────────────
-     QUESTION BUILDER HELPERS
-     ───────────────────────────────────────────────────────────── */
-  const handleAddQuestion = () => {
-    setActiveForm(prev => {
-      const currentQuestions = prev.data.questions || [];
-      return {
-        ...prev,
-        data: {
-          ...prev.data,
-          questions: [
-            ...currentQuestions,
-            {
-              questionText: '',
-              options: ['', '', '', ''],
-              correctOptionIndex: 0,
-              explanation: '',
-              points: 1
-            }
-          ]
+  const handleDeleteAssessment = async (assessmentId, e) => {
+    if (e) e.stopPropagation();
+    if (!assessmentId) return;
+
+    if (!window.confirm('Are you sure you want to delete this assessment? All associated questions will be removed.')) {
+      return;
+    }
+
+    try {
+      const authHeaders = typeof getAuthHeader === 'function' ? getAuthHeader() : {};
+      const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/assessments/${assessmentId}`, {
+        method: 'DELETE',
+        headers: authHeaders
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        toast.success('Assessment deleted successfully');
+        if (selectedAssessmentId === assessmentId) {
+          const remaining = courseAssessments.filter(a => a._id !== assessmentId);
+          if (remaining.length > 0) {
+            setSelectedAssessmentId(remaining[0]._id);
+          } else {
+            handleInitNewAssessment();
+          }
         }
-      };
+        if (onCurriculumUpdated) onCurriculumUpdated();
+      } else {
+        toast.error(data?.message || 'Failed to delete assessment');
+      }
+    } catch (err) {
+      console.error('Error deleting assessment:', err);
+      toast.error('Network error deleting assessment');
+    }
+  };
+
+  /* ─────────────────────────────────────────────────────────────
+     QUESTION MANAGEMENT (Add / Edit / Delete / Duplicate / Bulk)
+     ───────────────────────────────────────────────────────────── */
+
+  const openAddQuestionModal = (type = 'mcq') => {
+    setShowAddTypeMenu(false);
+    let defaultOptions = ['Option A', 'Option B', 'Option C', 'Option D'];
+    if (type === 'true_false') defaultOptions = ['True', 'False'];
+    if (type === 'short_answer' || type === 'coding') defaultOptions = [];
+
+    setQuestionModal({
+      isOpen: true,
+      editIndex: null,
+      data: {
+        questionText: '',
+        type,
+        options: defaultOptions,
+        correctOptionIndex: 0,
+        correctOptionIndices: [0],
+        points: type === 'coding' ? 5 : type === 'short_answer' ? 3 : 2,
+        marks: type === 'coding' ? 5 : type === 'short_answer' ? 3 : 2,
+        explanation: ''
+      }
     });
   };
 
-  const handleUpdateQuestion = (qIndex, field, val) => {
-    setActiveForm(prev => {
-      const questions = [...(prev.data.questions || [])];
-      questions[qIndex] = { ...questions[qIndex], [field]: val };
-      return { ...prev, data: { ...prev.data, questions } };
+  const openEditQuestionModal = (index) => {
+    const q = questions[index];
+    if (!q) return;
+    setQuestionModal({
+      isOpen: true,
+      editIndex: index,
+      data: {
+        questionText: q.questionText || '',
+        type: q.type || 'mcq',
+        options: Array.isArray(q.options) ? [...q.options] : ['Choice A', 'Choice B'],
+        correctOptionIndex: q.correctOptionIndex !== undefined ? q.correctOptionIndex : (q.correctAnswerIndex || 0),
+        correctOptionIndices: Array.isArray(q.correctOptionIndices) ? [...q.correctOptionIndices] : [0],
+        points: q.points || q.marks || 1,
+        marks: q.marks || q.points || 1,
+        explanation: q.explanation || q.evaluationInstructions || ''
+      }
     });
   };
 
-  const handleUpdateOption = (qIndex, oIndex, val) => {
-    setActiveForm(prev => {
-      const questions = [...(prev.data.questions || [])];
-      const options = [...(questions[qIndex].options || [])];
-      options[oIndex] = val;
-      questions[qIndex] = { ...questions[qIndex], options };
-      return { ...prev, data: { ...prev.data, questions } };
-    });
+  const handleSaveQuestionFromModal = () => {
+    const { editIndex, data } = questionModal;
+    if (!data.questionText.trim()) {
+      toast.error('Please enter the question text');
+      return;
+    }
+
+    if (data.type === 'mcq' || data.type === 'multiple_choice' || data.type === 'true_false') {
+      if (!data.options || data.options.length < 2) {
+        toast.error('Please provide at least 2 options for this question type');
+        return;
+      }
+      if (data.options.some(opt => !opt.trim())) {
+        toast.error('All options must have text');
+        return;
+      }
+    }
+
+    const newQuestionObj = {
+      questionText: data.questionText.trim(),
+      type: data.type,
+      options: data.options.map(o => o.trim()),
+      correctOptionIndex: Number(data.correctOptionIndex) || 0,
+      correctAnswerIndex: Number(data.correctOptionIndex) || 0,
+      correctAnswer: data.options[data.correctOptionIndex] || '',
+      points: Number(data.points) || 1,
+      marks: Number(data.points) || 1,
+      explanation: data.explanation.trim(),
+      evaluationInstructions: data.explanation.trim(),
+      order: editIndex !== null ? editIndex + 1 : questions.length + 1
+    };
+
+    if (editIndex !== null) {
+      setQuestions(prev => {
+        const next = [...prev];
+        next[editIndex] = newQuestionObj;
+        return next;
+      });
+      toast.success('Question updated');
+    } else {
+      setQuestions(prev => [...prev, newQuestionObj]);
+      toast.success('Question added');
+    }
+
+    setQuestionModal(prev => ({ ...prev, isOpen: false }));
   };
 
-  const handleRemoveQuestion = (qIndex) => {
-    setActiveForm(prev => {
-      const questions = (prev.data.questions || []).filter((_, i) => i !== qIndex);
-      return { ...prev, data: { ...prev.data, questions } };
-    });
+  const handleDeleteQuestion = (index) => {
+    setQuestions(prev => prev.filter((_, i) => i !== index));
+    setSelectedQuestionIndices(prev => prev.filter(i => i !== index).map(i => (i > index ? i - 1 : i)));
+    toast.success('Question removed');
   };
 
-  const getModuleTitle = (modId) => {
-    const mod = modules.find(m => m._id === modId);
-    return mod ? mod.title : 'Module';
+  const handleDuplicateQuestion = (index) => {
+    const q = questions[index];
+    if (!q) return;
+    const duplicated = {
+      ...JSON.parse(JSON.stringify(q)),
+      questionText: `${q.questionText} (Copy)`,
+      order: questions.length + 1
+    };
+    setQuestions(prev => [...prev.slice(0, index + 1), duplicated, ...prev.slice(index + 1)]);
+    toast.success('Question duplicated');
+  };
+
+  const toggleSelectAllQuestions = () => {
+    if (selectedQuestionIndices.length === questions.length) {
+      setSelectedQuestionIndices([]);
+    } else {
+      setSelectedQuestionIndices(questions.map((_, i) => i));
+    }
+  };
+
+  const toggleSelectQuestion = (index) => {
+    setSelectedQuestionIndices(prev =>
+      prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
+    );
+  };
+
+  const handleBulkDeleteQuestions = () => {
+    if (selectedQuestionIndices.length === 0) return;
+    if (!window.confirm(`Delete ${selectedQuestionIndices.length} selected questions?`)) return;
+    setQuestions(prev => prev.filter((_, i) => !selectedQuestionIndices.includes(i)));
+    setSelectedQuestionIndices([]);
+    toast.success('Selected questions deleted');
+  };
+
+  // ── Helper: Format Question Type Badge ──
+  const getQuestionTypeBadge = (type) => {
+    switch (type) {
+      case 'multiple_choice':
+      case 'mcq':
+        return <span className="q-badge q-badge-purple">Multiple Choice</span>;
+      case 'true_false':
+        return <span className="q-badge q-badge-teal">True / False</span>;
+      case 'short_answer':
+        return <span className="q-badge q-badge-blue">Short Answer</span>;
+      case 'coding':
+        return <span className="q-badge q-badge-amber">Coding</span>;
+      default:
+        return <span className="q-badge q-badge-purple">Multiple Choice</span>;
+    }
+  };
+
+  // ── Open Learner Simulation Preview ──
+  const openPreview = () => {
+    setPreviewActiveQuestionIndex(0);
+    setPreviewAnswers({});
+    setPreviewShowExplanation(false);
+    setPreviewModalOpen(true);
   };
 
   return (
-    <div className="assessment-editor-subpage">
-      {/* ── Subpage Header ── */}
-      <div className="subpage-header-row">
-        <div className="subpage-title-group">
-          <button
-            type="button"
-            className="btn-back-nav"
-            onClick={onBack}
-            title="Return to Course Content hub"
-          >
-            <ArrowLeft size={18} />
-            <span>Back to Course Content</span>
-          </button>
-          <div className="subpage-heading-block">
-            <h2 className="subpage-title">Course Assessments</h2>
-            <p className="subpage-subtitle">
-              Create comprehensive assessments and define required module gates learners must complete to unlock them.
-            </p>
-          </div>
-        </div>
-
-        <div className="subpage-header-actions">
-          {modules.length > 0 && (
+    <div className="assessment-studio-container">
+      {/* ══════════════════════════════════════════════════════════
+          1. TWO-COLUMN STUDIO WORKSPACE
+          ══════════════════════════════════════════════════════════ */}
+      <div className="assessment-studio-layout">
+        {/* ── LEFT SIDEBAR: Assessment Navigation / List ── */}
+        <aside className="assessment-studio-sidebar">
+          {/* Top Back Nav & Sidebar Title */}
+          <div className="assessment-sidebar-header">
             <button
               type="button"
-              className="btn-primary-action"
-              onClick={() => {
-                setActiveForm({
-                  isEdit: false,
-                  data: {
-                    title: '',
-                    description: '',
-                    requiredModuleIds: modules.length > 0 ? [modules[0]._id] : [],
-                    passThresholdPercent: 70,
-                    maxAttempts: 3,
-                    cooldownHours: 6,
-                    questions: [
-                      {
-                        questionText: '',
-                        options: ['', '', '', ''],
-                        correctOptionIndex: 0,
-                        explanation: '',
-                        points: 1
-                      }
-                    ]
-                  }
-                });
-              }}
+              className="btn-studio-back"
+              onClick={onBack}
+              title="Return to Course Content hub"
+            >
+              <ArrowLeft size={16} />
+              <span>Back to Course Content</span>
+            </button>
+            <div className="sidebar-heading-row">
+              <div className="heading-text">
+                <h3 className="sidebar-main-title">Course Assessments</h3>
+                <p className="sidebar-main-caption">
+                  Create milestone assessments for your learners.
+                </p>
+              </div>
+            </div>
+
+            {/* Create Assessment Full Width Button */}
+            <button
+              type="button"
+              className="btn-create-assessment-brand"
+              onClick={handleInitNewAssessment}
             >
               <Plus size={16} />
               <span>Create Assessment</span>
             </button>
+          </div>
+
+          {/* Search Box (when multiple assessments exist) */}
+          {courseAssessments.length > 2 && (
+            <div className="assessment-sidebar-search">
+              <Search size={14} className="search-icon" />
+              <input
+                type="text"
+                placeholder="Search assessments..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button type="button" onClick={() => setSearchQuery('')} className="search-clear">
+                  <X size={12} />
+                </button>
+              )}
+            </div>
           )}
-        </div>
+
+          {/* Assessment Cards List */}
+          <div className="assessment-items-scrollable">
+            {courseAssessments.length === 0 ? (
+              <div className="sidebar-empty-state">
+                <div className="empty-circle-icon">
+                  <Award size={24} />
+                </div>
+                <h5>No Assessments Configured</h5>
+                <p>Click "Create Assessment" above to define your course's milestone assessments.</p>
+              </div>
+            ) : filteredAssessments.length === 0 ? (
+              <div className="sidebar-no-results">
+                <p>No assessments matching "{searchQuery}"</p>
+              </div>
+            ) : (
+              filteredAssessments.map((ass) => {
+                const isSelected = String(ass._id) === String(selectedAssessmentId) && !isCreatingNew;
+                const isPublished = ass.state === 'published';
+                const qCount = ass.questions?.length || 0;
+                const durationMins = ass.timeLimit || ass.durationMinutes || 30;
+
+                return (
+                  <div
+                    key={ass._id}
+                    className={`assessment-sidebar-card ${isSelected ? 'is-active' : ''}`}
+                    onClick={() => {
+                      setSelectedAssessmentId(ass._id);
+                      loadAssessmentIntoForm(ass);
+                    }}
+                  >
+                    <div className="card-icon-col">
+                      <div className={`card-doc-icon ${isPublished ? 'icon-published' : ''}`}>
+                        <FileText size={18} />
+                      </div>
+                    </div>
+
+                    <div className="card-info-col">
+                      <h4 className="card-assessment-title" title={ass.title}>
+                        {ass.title}
+                      </h4>
+                      <div className="card-meta-row">
+                        <span className="meta-text">{qCount} questions · {durationMins} min</span>
+                      </div>
+                    </div>
+
+                    <div className="card-status-col">
+                      <span className={`status-pill ${isPublished ? 'pill-published' : 'pill-draft'}`}>
+                        <span className="status-dot" />
+                        {isPublished ? 'Published' : 'Draft'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </aside>
+
+        {/* ── RIGHT MAIN CONTENT PANE: Assessment Editor ── */}
+        <main className="assessment-studio-main">
+          {/* Top Sticky Header */}
+          <header className="assessment-main-header">
+            <div className="header-title-box">
+              <div className="header-icon-badge">
+                <FileText size={20} />
+              </div>
+              <div className="header-headings">
+                <div className="title-row">
+                  <h2 className="editor-title">
+                    {isCreatingNew ? 'Create Assessment' : 'Edit Assessment'}
+                  </h2>
+                  <span className={`editor-status-indicator status-${state}`}>
+                    ● {state === 'published' ? 'PUBLISHED' : 'DRAFT'}
+                  </span>
+                </div>
+                <p className="editor-subtitle">
+                  Configure the details, questions, and settings for this assessment.
+                </p>
+              </div>
+            </div>
+
+            {/* Header Action Buttons */}
+            <div className="header-actions-group">
+              {/* Draft / Published Dropdown Toggle */}
+              <div className="status-dropdown-wrapper">
+                <button
+                  type="button"
+                  className={`btn-header-status-toggle ${state === 'published' ? 'state-published' : 'state-draft'}`}
+                  onClick={() => setShowStatusMenu(prev => !prev)}
+                >
+                  <span className="status-dot" />
+                  <span>{state === 'published' ? 'Published' : 'Draft'}</span>
+                  <ChevronDown size={14} />
+                </button>
+
+                {showStatusMenu && (
+                  <div className="status-dropdown-menu">
+                    <button
+                      type="button"
+                      className={`status-option ${state === 'published' ? 'selected' : ''}`}
+                      onClick={() => handleToggleState('published')}
+                    >
+                      <CheckCircle2 size={15} className="text-emerald" />
+                      <div>
+                        <strong>Published</strong>
+                        <p>Available to enrolled learners</p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      className={`status-option ${state === 'draft' ? 'selected' : ''}`}
+                      onClick={() => handleToggleState('draft')}
+                    >
+                      <EyeOff size={15} className="text-muted" />
+                      <div>
+                        <strong>Draft</strong>
+                        <p>Hidden from learners during editing</p>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Preview Button */}
+              <button
+                type="button"
+                className="btn-header-preview"
+                onClick={openPreview}
+                title="Preview this assessment as a learner"
+              >
+                <Eye size={15} />
+                <span>Preview</span>
+              </button>
+
+              {/* Delete Button (if existing assessment) */}
+              {!isCreatingNew && selectedAssessmentId && (
+                <button
+                  type="button"
+                  className="btn-header-delete"
+                  onClick={(e) => handleDeleteAssessment(selectedAssessmentId, e)}
+                  title="Delete this assessment"
+                >
+                  <Trash2 size={15} />
+                </button>
+              )}
+
+              {/* Save Changes / Create Button */}
+              <button
+                type="button"
+                className="btn-header-save-brand"
+                disabled={saving}
+                onClick={handleSaveAssessment}
+              >
+                {saving ? (
+                  <>
+                    <RefreshCw size={15} className="spinner-rotate" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check size={16} />
+                    <span>{isCreatingNew ? 'Create Assessment' : 'Save Changes'}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </header>
+
+          {/* Form Content Body */}
+          <div className="assessment-scrollable-body">
+            {/* ══════════════════════════════════════════════════════════
+                CARD 1: Basic Information
+                ══════════════════════════════════════════════════════════ */}
+            <section className="assessment-card-section">
+              <div className="section-card-header">
+                <div className="section-title-icon-badge">
+                  <FileText size={18} />
+                </div>
+                <h3 className="section-title-text">Basic Information</h3>
+              </div>
+
+              <div className="section-card-body">
+                {/* Row 1: Title & Description Grid */}
+                <div className="form-grid-2-equal">
+                  {/* Assessment Title */}
+                  <div className="form-field-unit">
+                    <div className="field-label-row">
+                      <label className="input-field-label">
+                        Assessment Title <span className="text-danger">*</span>
+                      </label>
+                      <span className="field-char-count">{title.length}/100</span>
+                    </div>
+                    <input
+                      type="text"
+                      className="studio-text-input"
+                      maxLength={100}
+                      required
+                      placeholder="e.g., Module 1 Assessment"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Description / Instructions */}
+                  <div className="form-field-unit">
+                    <div className="field-label-row">
+                      <label className="input-field-label">Description (Optional)</label>
+                      <span className="field-char-count">{description.length}/300</span>
+                    </div>
+                    <textarea
+                      className="studio-textarea"
+                      rows={2}
+                      maxLength={300}
+                      placeholder="Outline instructions, scope, or learning outcomes for this assessment..."
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Row 2: 3-Column Assessment Specs Grid */}
+                <div className="form-grid-3">
+                  {/* Time Limit */}
+                  <div className="form-field-unit">
+                    <label className="input-field-label">
+                      Time Limit <span className="text-danger">*</span>
+                    </label>
+                    <div className="time-limit-composite-input">
+                      <div className="input-with-icon-wrapper flex-1">
+                        <Clock size={15} className="input-left-icon" />
+                        <input
+                          type="number"
+                          min="1"
+                          max="300"
+                          className="studio-text-input with-left-icon"
+                          value={timeLimit}
+                          onChange={(e) => setTimeLimit(Math.max(1, parseInt(e.target.value) || 1))}
+                        />
+                      </div>
+                      <select
+                        className="studio-select-unit"
+                        value={timeUnit}
+                        onChange={(e) => setTimeUnit(e.target.value)}
+                      >
+                        <option value="minutes">minutes</option>
+                        <option value="hours">hours</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Total Questions (Dynamic Readonly) */}
+                  <div className="form-field-unit">
+                    <label className="input-field-label">Total Questions</label>
+                    <div className="input-with-icon-wrapper">
+                      <FileText size={15} className="input-left-icon" />
+                      <input
+                        type="text"
+                        readOnly
+                        className="studio-text-input with-left-icon is-readonly"
+                        value={questions.length}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Passing Score */}
+                  <div className="form-field-unit">
+                    <label className="input-field-label">
+                      Passing Score <span className="text-danger">*</span>
+                    </label>
+                    <div className="input-with-percent-wrapper">
+                      <span className="input-percent-prefix">%</span>
+                      <input
+                        type="number"
+                        min="10"
+                        max="100"
+                        className="studio-text-input with-percent"
+                        value={passThresholdPercent}
+                        onChange={(e) => setPassThresholdPercent(Math.min(100, Math.max(10, parseInt(e.target.value) || 10)))}
+                      />
+                      <span className="input-percent-suffix">%</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 3: Max Attempts & Retake Cooldown */}
+                <div className="form-grid-2-equal">
+                  <div className="form-field-unit">
+                    <label className="input-field-label">Max Attempts</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      className="studio-text-input"
+                      value={maxAttempts}
+                      onChange={(e) => setMaxAttempts(Math.max(1, parseInt(e.target.value) || 1))}
+                    />
+                    <span className="field-helper-caption">
+                      Number of assessment submission attempts granted to learners before locked.
+                    </span>
+                  </div>
+
+                  <div className="form-field-unit">
+                    <label className="input-field-label">Retake Cooldown (Hours)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="72"
+                      className="studio-text-input"
+                      value={cooldownHours}
+                      onChange={(e) => setCooldownHours(Math.max(0, parseInt(e.target.value) || 0))}
+                    />
+                    <span className="field-helper-caption">
+                      Cooldown buffer learners must wait before sitting for a retake attempt.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* ══════════════════════════════════════════════════════════
+                CARD 2: Questions Management Section
+                ══════════════════════════════════════════════════════════ */}
+            <section className="assessment-card-section">
+              <div className="section-card-header questions-section-header">
+                <div className="header-left-col">
+                  <div className="section-title-icon-badge">
+                    <HelpCircle size={18} />
+                  </div>
+                  <div>
+                    <h3 className="section-title-text">Questions</h3>
+                    <p className="section-subtitle-text">
+                      Add, edit, and manage the questions for this assessment.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Top Right Action Group */}
+                <div className="header-right-col">
+                  {selectedQuestionIndices.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn-bulk-delete"
+                      onClick={handleBulkDeleteQuestions}
+                    >
+                      <Trash2 size={14} />
+                      <span>Delete Selected ({selectedQuestionIndices.length})</span>
+                    </button>
+                  )}
+
+                  {/* Add Question Button with Dropdown Menu */}
+                  <div className="add-question-dropdown-wrapper">
+                    <button
+                      type="button"
+                      className="btn-add-question-brand"
+                      onClick={() => openAddQuestionModal('mcq')}
+                    >
+                      <Plus size={15} />
+                      <span>Add Question</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-add-question-caret"
+                      onClick={() => setShowAddTypeMenu(prev => !prev)}
+                      title="Choose question type"
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+
+                    {showAddTypeMenu && (
+                      <div className="add-question-menu">
+                        <button
+                          type="button"
+                          className="add-type-item"
+                          onClick={() => openAddQuestionModal('mcq')}
+                        >
+                          <span className="type-dot purple" />
+                          <span>Multiple Choice (Single Answer)</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="add-type-item"
+                          onClick={() => openAddQuestionModal('true_false')}
+                        >
+                          <span className="type-dot teal" />
+                          <span>True / False</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="add-type-item"
+                          onClick={() => openAddQuestionModal('short_answer')}
+                        >
+                          <span className="type-dot blue" />
+                          <span>Short Answer / Fill in Blank</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="add-type-item"
+                          onClick={() => openAddQuestionModal('coding')}
+                        >
+                          <span className="type-dot amber" />
+                          <span>Coding Exercise</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="section-card-body questions-table-container">
+                {questions.length === 0 ? (
+                  <div className="empty-questions-card">
+                    <div className="empty-questions-icon">
+                      <HelpCircle size={32} />
+                    </div>
+                    <h4>No Questions Added Yet</h4>
+                    <p>Click "+ Add Question" above to configure the first question for this assessment.</p>
+                    <button
+                      type="button"
+                      className="btn-add-first-question"
+                      onClick={() => openAddQuestionModal('mcq')}
+                    >
+                      <Plus size={15} />
+                      <span>Add First Question</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="questions-table-wrapper">
+                    <table className="questions-table">
+                      <thead>
+                        <tr>
+                          <th className="th-select">
+                            <button
+                              type="button"
+                              className="btn-table-checkbox"
+                              onClick={toggleSelectAllQuestions}
+                              title="Select all questions"
+                            >
+                              {selectedQuestionIndices.length === questions.length && questions.length > 0 ? (
+                                <CheckSquare size={16} className="text-emerald" />
+                              ) : (
+                                <Square size={16} className="text-muted" />
+                              )}
+                            </button>
+                          </th>
+                          <th className="th-num">#</th>
+                          <th className="th-prompt">Question</th>
+                          <th className="th-type">Type</th>
+                          <th className="th-points">Points</th>
+                          <th className="th-actions">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {questions.map((q, idx) => {
+                          const isSelected = selectedQuestionIndices.includes(idx);
+                          return (
+                            <tr key={idx} className={`question-row ${isSelected ? 'is-row-selected' : ''}`}>
+                              <td className="td-select">
+                                <button
+                                  type="button"
+                                  className="btn-table-checkbox"
+                                  onClick={() => toggleSelectQuestion(idx)}
+                                >
+                                  {isSelected ? (
+                                    <CheckSquare size={16} className="text-emerald" />
+                                  ) : (
+                                    <Square size={16} className="text-muted" />
+                                  )}
+                                </button>
+                              </td>
+                              <td className="td-num">{idx + 1}</td>
+                              <td className="td-prompt" onClick={() => openEditQuestionModal(idx)}>
+                                <div className="q-prompt-content">
+                                  <span className="q-prompt-text">{q.questionText || 'Untitled Question'}</span>
+                                  {q.options && q.options.length > 0 && (
+                                    <span className="q-options-summary">
+                                      {q.options.length} options · Correct: {String.fromCharCode(65 + (q.correctOptionIndex || 0))}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="td-type">
+                                {getQuestionTypeBadge(q.type)}
+                              </td>
+                              <td className="td-points">
+                                <span className="points-pill">{q.points || q.marks || 1}</span>
+                              </td>
+                              <td className="td-actions">
+                                <div className="actions-cluster">
+                                  <button
+                                    type="button"
+                                    className="btn-row-action"
+                                    onClick={() => openEditQuestionModal(idx)}
+                                    title="Edit Question"
+                                  >
+                                    <Edit2 size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn-row-action"
+                                    onClick={() => handleDuplicateQuestion(idx)}
+                                    title="Duplicate Question"
+                                  >
+                                    <Copy size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn-row-action btn-row-delete"
+                                    onClick={() => handleDeleteQuestion(idx)}
+                                    title="Delete Question"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+        </main>
       </div>
 
-      {/* ── Guidance Tip ── */}
-      <InstructorTip
-        type="warning"
-        title="Sequential Progression & Assessment Gating"
-        message="Assessments are gated milestones. When you link required modules, learners cannot sit for this assessment until they have 100% completed all lectures and quizzes in those prerequisite modules."
-      />
-
-      {/* ── Validation: If 0 modules exist in course ── */}
-      {modules.length === 0 ? (
-        <div className="empty-module-warning-card">
-          <div className="warning-icon-circle">
-            <Layers size={36} />
-          </div>
-          <h3>Prerequisite: At Least 1 Module Required</h3>
-          <p>
-            You can create an assessment once this course has at least one module.
-          </p>
-          <button
-            type="button"
-            className="btn-primary-action"
-            onClick={onNavigateToModules}
-          >
-            <Layers size={16} />
-            <span>Go to Module & Lessons Editor</span>
-          </button>
-        </div>
-      ) : null}
-
-      {/* ── Active Form Modal / Drawer ── */}
-      {activeForm && (
-        <div className="curriculum-form-drawer-overlay">
-          <div className="curriculum-form-card assessment-form-card">
-            <div className="form-card-header">
-              <div className="form-card-title-group">
-                <h3>{activeForm.isEdit ? 'Edit Assessment' : 'New Milestone Assessment'}</h3>
-                <span className="form-type-badge badge-amber">ASSESSMENT</span>
+      {/* ══════════════════════════════════════════════════════════
+          2. QUESTION CREATION / EDIT MODAL
+          ══════════════════════════════════════════════════════════ */}
+      {questionModal.isOpen && (
+        <div className="modal-backdrop-overlay" onClick={() => setQuestionModal(prev => ({ ...prev, isOpen: false }))}>
+          <div className="question-editor-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-card-header">
+              <div className="header-info">
+                <h3>{questionModal.editIndex !== null ? `Edit Question #${questionModal.editIndex + 1}` : 'Add New Question'}</h3>
+                <span className="header-badge">Assessment Question</span>
               </div>
               <button
                 type="button"
-                className="btn-close-form"
-                onClick={() => setActiveForm(null)}
+                className="btn-modal-close-icon"
+                onClick={() => setQuestionModal(prev => ({ ...prev, isOpen: false }))}
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveAssessment} className="curriculum-editor-form">
-              {/* Title & Description */}
-              <div className="form-field-group">
-                <label className="field-label">
-                  Assessment Title <span className="text-danger">*</span>
+            <div className="modal-card-body">
+              {/* Question Text */}
+              <div className="form-field-unit">
+                <label className="input-field-label">
+                  Question Prompt <span className="text-danger">*</span>
                 </label>
-                <input
-                  type="text"
-                  className="field-input"
-                  required
-                  placeholder="e.g., Mid-Term Architectural Competency Exam"
-                  value={activeForm.data.title || ''}
-                  onChange={(e) =>
-                    setActiveForm(prev => ({
-                      ...prev,
-                      data: { ...prev.data, title: e.target.value }
-                    }))
-                  }
-                />
-              </div>
-
-              <div className="form-field-group">
-                <label className="field-label">Instructions / Description for Candidates</label>
                 <textarea
-                  className="field-textarea"
+                  className="studio-textarea"
                   rows={3}
-                  placeholder="Outline the scope, grading criteria, and instructions for learners..."
-                  value={activeForm.data.description || ''}
+                  required
+                  placeholder="Enter the assessment question prompt or problem statement..."
+                  value={questionModal.data.questionText}
                   onChange={(e) =>
-                    setActiveForm(prev => ({
+                    setQuestionModal(prev => ({
                       ...prev,
-                      data: { ...prev.data, description: e.target.value }
+                      data: { ...prev.data, questionText: e.target.value }
                     }))
                   }
                 />
               </div>
 
-              {/* ── Module Unlock Prerequisites Checklist ── */}
-              <div className="required-modules-picker-box">
-                <div className="picker-header">
-                  <Lock size={16} className="text-amber" />
-                  <h4>Prerequisite Required Modules (Learners must finish these to unlock)</h4>
-                </div>
-                <p className="picker-hint">
-                  Choose exactly which modules must be finished before this unlocks.
-                </p>
+              {/* Type & Points Row */}
+              <div className="form-grid-2-equal">
+                <div className="form-field-unit">
+                  <label className="input-field-label">Question Type</label>
+                  <select
+                    className="studio-select-input"
+                    value={questionModal.data.type}
+                    onChange={(e) => {
+                      const newType = e.target.value;
+                      let newOpts = questionModal.data.options;
+                      if (newType === 'true_false') newOpts = ['True', 'False'];
+                      else if (newType === 'short_answer' || newType === 'coding') newOpts = [];
+                      else if (newOpts.length < 2) newOpts = ['Option A', 'Option B', 'Option C', 'Option D'];
 
-                <div className="modules-checkbox-list">
-                  {modules.map((m, idx) => {
-                    const isChecked = (activeForm.data.requiredModuleIds || []).includes(m._id);
-                    return (
-                      <label key={m._id} className={`module-checkbox-item ${isChecked ? 'checked' : ''}`}>
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => toggleRequiredModule(m._id)}
-                        />
-                        <div className="item-details">
-                          <span className="mod-label">Module {idx + 1}</span>
-                          <span className="mod-name">{m.title}</span>
-                          <span className="mod-lessons-count">({m.lessons?.length || 0} lessons)</span>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Thresholds & Cooldown Rules */}
-              <div className="form-grid-3">
-                <div className="form-field-group">
-                  <label className="field-label">Pass Threshold (%)</label>
-                  <input
-                    type="number"
-                    min="10"
-                    max="100"
-                    className="field-input"
-                    value={activeForm.data.passThresholdPercent || 70}
-                    onChange={(e) =>
-                      setActiveForm(prev => ({
+                      setQuestionModal(prev => ({
                         ...prev,
-                        data: { ...prev.data, passThresholdPercent: e.target.value }
-                      }))
-                    }
-                  />
-                  <span className="field-hint">Raising this later won't affect learners who already passed at the old score.</span>
+                        data: {
+                          ...prev.data,
+                          type: newType,
+                          options: newOpts,
+                          correctOptionIndex: 0
+                        }
+                      }));
+                    }}
+                  >
+                    <option value="mcq">Multiple Choice (Single Correct)</option>
+                    <option value="true_false">True / False</option>
+                    <option value="short_answer">Short Answer</option>
+                    <option value="coding">Coding Exercise</option>
+                  </select>
                 </div>
 
-                <div className="form-field-group">
-                  <label className="field-label">Max Attempts</label>
+                <div className="form-field-unit">
+                  <label className="input-field-label">Points / Weight</label>
                   <input
                     type="number"
                     min="1"
-                    max="10"
-                    className="field-input"
-                    value={activeForm.data.maxAttempts || 3}
+                    max="100"
+                    className="studio-text-input"
+                    value={questionModal.data.points}
                     onChange={(e) =>
-                      setActiveForm(prev => ({
+                      setQuestionModal(prev => ({
                         ...prev,
-                        data: { ...prev.data, maxAttempts: e.target.value }
+                        data: {
+                          ...prev.data,
+                          points: Math.max(1, parseInt(e.target.value) || 1),
+                          marks: Math.max(1, parseInt(e.target.value) || 1)
+                        }
                       }))
                     }
                   />
-                  <span className="field-hint">Defaults to 3 attempts with a 6-hour automatic cooldown. You can override this here.</span>
-                </div>
-
-                <div className="form-field-group">
-                  <label className="field-label">Retake Cooldown (Hours)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    className="field-input"
-                    value={activeForm.data.cooldownHours || 6}
-                    onChange={(e) =>
-                      setActiveForm(prev => ({
-                        ...prev,
-                        data: { ...prev.data, cooldownHours: e.target.value }
-                      }))
-                    }
-                  />
-                  <span className="field-hint">Defaults to 3 attempts with a 6-hour automatic cooldown. You can override this here.</span>
                 </div>
               </div>
 
-              {/* Questions Builder */}
-              <div className="assessment-questions-builder">
-                <div className="builder-header">
-                  <h4>Assessment Questions ({activeForm.data.questions?.length || 0})</h4>
-                  <button
-                    type="button"
-                    className="btn-add-question"
-                    onClick={handleAddQuestion}
-                  >
-                    <Plus size={14} />
-                    <span>Add Question</span>
-                  </button>
-                </div>
-
-                {(!activeForm.data.questions || activeForm.data.questions.length === 0) ? (
-                  <div className="empty-questions-notice">
-                    <HelpCircle size={28} />
-                    <p>No questions added yet. Click "Add Question" to configure your assessment questions.</p>
+              {/* Options Section (For MCQ and True/False) */}
+              {(questionModal.data.type === 'mcq' || questionModal.data.type === 'true_false') && (
+                <div className="modal-options-section">
+                  <div className="options-section-heading">
+                    <label className="input-field-label">
+                      Answer Choices <span className="text-danger">*</span>
+                    </label>
+                    <span className="options-hint">Select the radio button beside the correct answer</span>
                   </div>
-                ) : (
-                  <div className="questions-list">
-                    {activeForm.data.questions.map((q, qIndex) => (
-                      <div key={qIndex} className="question-card">
-                        <div className="question-card-header">
-                          <span className="question-number">Question {qIndex + 1}</span>
-                          <button
-                            type="button"
-                            className="btn-remove-question"
-                            onClick={() => handleRemoveQuestion(qIndex)}
-                            title="Remove question"
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
 
-                        <div className="form-field-group">
+                  <div className="options-inputs-list">
+                    {questionModal.data.options.map((opt, oIdx) => {
+                      const isCorrect = questionModal.data.correctOptionIndex === oIdx;
+                      return (
+                        <div key={oIdx} className={`option-input-row ${isCorrect ? 'is-correct-row' : ''}`}>
+                          <label className="option-radio-control" title="Mark as correct answer">
+                            <input
+                              type="radio"
+                              name="modal_correct_opt"
+                              checked={isCorrect}
+                              onChange={() =>
+                                setQuestionModal(prev => ({
+                                  ...prev,
+                                  data: { ...prev.data, correctOptionIndex: oIdx }
+                                }))
+                              }
+                            />
+                            <span className="opt-letter-tag">{String.fromCharCode(65 + oIdx)}</span>
+                          </label>
+
                           <input
                             type="text"
-                            className="field-input"
-                            placeholder="Enter the assessment question prompt..."
-                            required
-                            value={q.questionText || ''}
-                            onChange={(e) => handleUpdateQuestion(qIndex, 'questionText', e.target.value)}
+                            className="studio-text-input opt-text-field"
+                            placeholder={`Choice ${String.fromCharCode(65 + oIdx)}...`}
+                            value={opt}
+                            onChange={(e) => {
+                              const newOpts = [...questionModal.data.options];
+                              newOpts[oIdx] = e.target.value;
+                              setQuestionModal(prev => ({
+                                ...prev,
+                                data: { ...prev.data, options: newOpts }
+                              }));
+                            }}
                           />
-                        </div>
 
-                        <div className="options-grid">
-                          {(q.options || ['', '', '', '']).map((opt, oIndex) => (
-                            <div key={oIndex} className="option-row">
-                              <label className="option-radio-label">
-                                <input
-                                  type="radio"
-                                  name={`ass_correct_${qIndex}`}
-                                  checked={q.correctOptionIndex === oIndex}
-                                  onChange={() => handleUpdateQuestion(qIndex, 'correctOptionIndex', oIndex)}
-                                />
-                                <span className="option-letter">{String.fromCharCode(65 + oIndex)}</span>
-                              </label>
-                              <input
-                                type="text"
-                                className="field-input option-input"
-                                placeholder={`Choice ${String.fromCharCode(65 + oIndex)}...`}
-                                required
-                                value={opt}
-                                onChange={(e) => handleUpdateOption(qIndex, oIndex, e.target.value)}
-                              />
-                            </div>
-                          ))}
+                          {questionModal.data.type === 'mcq' && questionModal.data.options.length > 2 && (
+                            <button
+                              type="button"
+                              className="btn-remove-option"
+                              onClick={() => {
+                                const newOpts = questionModal.data.options.filter((_, i) => i !== oIdx);
+                                setQuestionModal(prev => ({
+                                  ...prev,
+                                  data: {
+                                    ...prev.data,
+                                    options: newOpts,
+                                    correctOptionIndex: Math.min(prev.data.correctOptionIndex, newOpts.length - 1)
+                                  }
+                                }));
+                              }}
+                              title="Delete this option"
+                            >
+                              <X size={14} />
+                            </button>
+                          )}
                         </div>
-
-                        <div className="form-field-group">
-                          <label className="field-label-sm">Explanation / Remediation Rationale</label>
-                          <input
-                            type="text"
-                            className="field-input"
-                            placeholder="Explain why this choice is correct for candidate review..."
-                            value={q.explanation || ''}
-                            onChange={(e) => handleUpdateQuestion(qIndex, 'explanation', e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
-                )}
-              </div>
 
-              {/* Form Action Footer */}
-              <div className="form-footer-actions">
-                <button
-                  type="button"
-                  className="btn-cancel"
-                  onClick={() => setActiveForm(null)}
-                  disabled={saving}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-save-primary"
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <>
-                      <RefreshCw size={14} className="spinner-rotate" />
-                      <span>Saving Assessment...</span>
-                    </>
-                  ) : (
-                    <span>Save Assessment</span>
+                  {questionModal.data.type === 'mcq' && questionModal.data.options.length < 6 && (
+                    <button
+                      type="button"
+                      className="btn-add-choice"
+                      onClick={() => {
+                        setQuestionModal(prev => ({
+                          ...prev,
+                          data: {
+                            ...prev.data,
+                            options: [...prev.data.options, `Choice ${String.fromCharCode(65 + prev.data.options.length)}`]
+                          }
+                        }));
+                      }}
+                    >
+                      <Plus size={13} />
+                      <span>Add Option Choice</span>
+                    </button>
                   )}
-                </button>
+                </div>
+              )}
+
+              {/* Short Answer / Coding Solution Hint */}
+              {(questionModal.data.type === 'short_answer' || questionModal.data.type === 'coding') && (
+                <div className="form-field-unit">
+                  <label className="input-field-label">Sample Solution / Expected Answer</label>
+                  <textarea
+                    className="studio-textarea font-mono"
+                    rows={3}
+                    placeholder="Enter the expected code snippet or keywords for grading..."
+                    value={questionModal.data.explanation}
+                    onChange={(e) =>
+                      setQuestionModal(prev => ({
+                        ...prev,
+                        data: { ...prev.data, explanation: e.target.value }
+                      }))
+                    }
+                  />
+                </div>
+              )}
+
+              {/* Explanation / Remediation */}
+              <div className="form-field-unit">
+                <label className="input-field-label">Explanation / Remediation Rationale</label>
+                <textarea
+                  className="studio-textarea"
+                  rows={2}
+                  placeholder="Explain why this choice is correct for candidate review..."
+                  value={questionModal.data.explanation}
+                  onChange={(e) =>
+                    setQuestionModal(prev => ({
+                      ...prev,
+                      data: { ...prev.data, explanation: e.target.value }
+                    }))
+                  }
+                />
               </div>
-            </form>
+            </div>
+
+            <div className="modal-card-footer">
+              <button
+                type="button"
+                className="btn-modal-cancel"
+                onClick={() => setQuestionModal(prev => ({ ...prev, isOpen: false }))}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-modal-save"
+                onClick={handleSaveQuestionFromModal}
+              >
+                <span>{questionModal.editIndex !== null ? 'Save Question Changes' : 'Add Question'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── Assessments List ── */}
-      {modules.length > 0 && (
-        <div className="assessments-repository-section">
-          {courseAssessments.length === 0 ? (
-            <div className="assessments-empty-card">
-              <Award size={40} />
-              <h3>No Assessments Configured</h3>
-              <p>
-                Define milestone assessments to evaluate learner competency once they finish prerequisite modules.
-              </p>
-              <button
-                type="button"
-                className="btn-primary-action"
-                onClick={() => {
-                  setActiveForm({
-                    isEdit: false,
-                    data: {
-                      title: '',
-                      description: '',
-                      requiredModuleIds: [modules[0]._id],
-                      passThresholdPercent: 70,
-                      maxAttempts: 3,
-                      cooldownHours: 6,
-                      questions: [
-                        {
-                          questionText: '',
-                          options: ['', '', '', ''],
-                          correctOptionIndex: 0,
-                          explanation: '',
-                          points: 1
-                        }
-                      ]
-                    }
-                  });
-                }}
-              >
-                <Plus size={16} />
-                <span>Create First Assessment</span>
-              </button>
-            </div>
-          ) : (
-            <div className="assessments-grid">
-              {courseAssessments.map((ass) => {
-                const isDraft = ass.state === 'draft';
-                const requiredMods = (ass.requiredModuleIds || []).map(id => getModuleTitle(id));
-
-                return (
-                  <div key={ass._id} className={`assessment-card-node ${isDraft ? 'is-draft' : ''}`}>
-                    <div className="assessment-card-header">
-                      <div className="header-left">
-                        <Award size={22} className="assessment-award-icon" />
-                        <h4 className="assessment-title">{ass.title}</h4>
-                      </div>
-
-                      <div className="header-actions">
-                        <button
-                          type="button"
-                          className={`btn-state-badge state-${ass.state}`}
-                          onClick={() => handleToggleAssessmentState(ass._id)}
-                          title="There's no delete in this system — switch to Draft to hide something from learners."
-                        >
-                          {isDraft ? <EyeOff size={13} /> : <CheckCircle2 size={13} />}
-                          <span>{isDraft ? 'Draft' : 'Published'}</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          className="btn-icon-action"
-                          title="Edit Assessment"
-                          onClick={() => {
-                            setActiveForm({
-                              isEdit: true,
-                              data: {
-                                id: ass._id,
-                                title: ass.title,
-                                description: ass.description,
-                                requiredModuleIds: ass.requiredModuleIds || [],
-                                passThresholdPercent: ass.passThresholdPercent || 70,
-                                maxAttempts: ass.maxAttempts || 3,
-                                cooldownHours: ass.cooldownHours || 6,
-                                questions: ass.questions || []
-                              }
-                            });
-                          }}
-                        >
-                          <Edit2 size={15} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {ass.description && (
-                      <p className="assessment-desc-text">{ass.description}</p>
-                    )}
-
-                    {/* Prerequisite Gate Notice */}
-                    <div className="assessment-prereq-box">
-                      <div className="prereq-label">
-                        <Lock size={13} />
-                        <span>Prerequisites:</span>
-                      </div>
-                      <div className="prereq-tags">
-                        {requiredMods.length > 0 ? (
-                          requiredMods.map((title, i) => (
-                            <span key={i} className="prereq-pill">{title}</span>
-                          ))
-                        ) : (
-                          <span className="prereq-pill empty">None specified</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Meta specs */}
-                    <div className="assessment-specs-row">
-                      <div className="spec-item">
-                        <span className="spec-label">Pass Score</span>
-                        <span className="spec-value">{ass.passThresholdPercent || 70}%</span>
-                      </div>
-                      <div className="spec-item">
-                        <span className="spec-label">Max Attempts</span>
-                        <span className="spec-value">{ass.maxAttempts || 3}</span>
-                      </div>
-                      <div className="spec-item">
-                        <span className="spec-label">Cooldown</span>
-                        <span className="spec-value">{ass.cooldownHours || 6}h</span>
-                      </div>
-                      <div className="spec-item">
-                        <span className="spec-label">Questions</span>
-                        <span className="spec-value">{ass.questions?.length || 0}</span>
-                      </div>
-                    </div>
-
-                    <div className="assessment-card-footer">
-                      <button
-                        type="button"
-                        className="btn-inspect-questions"
-                        onClick={() => setInspectingAssessment(ass)}
-                      >
-                        <HelpCircle size={14} />
-                        <span>Review Questions ({ass.questions?.length || 0})</span>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Inspect Questions Modal ── */}
-      {inspectingAssessment && (
-        <div className="resource-preview-modal-overlay" onClick={() => setInspectingAssessment(null)}>
-          <div className="resource-preview-modal-card" onClick={(e) => e.stopPropagation()}>
+      {/* ══════════════════════════════════════════════════════════
+          3. LEARNER SIMULATION PREVIEW MODAL
+          ══════════════════════════════════════════════════════════ */}
+      {previewModalOpen && (
+        <div className="modal-backdrop-overlay" onClick={() => setPreviewModalOpen(false)}>
+          <div className="assessment-preview-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="preview-modal-header">
-              <div className="preview-header-info">
-                <h3>{inspectingAssessment.title} — Questions</h3>
-                <span className="modal-scope-tag">
-                  {inspectingAssessment.questions?.length || 0} Questions Total
-                </span>
+              <div className="preview-header-meta">
+                <span className="preview-badge">LEARNER PREVIEW</span>
+                <h3 className="preview-title">{title || 'Assessment Preview'}</h3>
+                <div className="preview-submeta">
+                  <span>⏱ {timeLimit} {timeUnit}</span>
+                  <span>•</span>
+                  <span>🎯 Pass Threshold: {passThresholdPercent}%</span>
+                  <span>•</span>
+                  <span>📝 {questions.length} Questions</span>
+                </div>
               </div>
               <button
                 type="button"
-                className="btn-modal-close"
-                onClick={() => setInspectingAssessment(null)}
+                className="btn-modal-close-icon"
+                onClick={() => setPreviewModalOpen(false)}
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
             <div className="preview-modal-body">
-              <div className="inspect-questions-list">
-                {(inspectingAssessment.questions || []).map((q, idx) => (
-                  <div key={idx} className="inspect-question-item">
-                    <div className="item-top">
-                      <span className="q-idx">Q{idx + 1}.</span>
-                      <h4 className="q-text">{q.questionText}</h4>
-                    </div>
-
-                    <div className="inspect-options-list">
-                      {(q.options || []).map((opt, oIdx) => (
-                        <div
-                          key={oIdx}
-                          className={`inspect-option-row ${q.correctOptionIndex === oIdx ? 'correct-option' : ''}`}
+              {questions.length === 0 ? (
+                <div className="preview-empty-state">
+                  <AlertCircle size={32} />
+                  <p>No questions configured in this assessment yet.</p>
+                </div>
+              ) : (
+                <div className="preview-question-layout">
+                  {/* Left: Question Navigation Tabs */}
+                  <div className="preview-nav-sidebar">
+                    <span className="nav-title">Questions Navigator</span>
+                    <div className="nav-pills-grid">
+                      {questions.map((_, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          className={`nav-pill ${previewActiveQuestionIndex === i ? 'active' : ''} ${previewAnswers[i] !== undefined ? 'answered' : ''}`}
+                          onClick={() => {
+                            setPreviewActiveQuestionIndex(i);
+                            setPreviewShowExplanation(false);
+                          }}
                         >
-                          <span className="opt-letter">{String.fromCharCode(65 + oIdx)}</span>
-                          <span className="opt-text">{opt}</span>
-                          {q.correctOptionIndex === oIdx && (
-                            <span className="correct-badge">
-                              <CheckCircle2 size={13} /> Correct Answer
-                            </span>
-                          )}
-                        </div>
+                          {i + 1}
+                        </button>
                       ))}
                     </div>
-
-                    {q.explanation && (
-                      <div className="q-explanation-box">
-                        <strong>Explanation:</strong> {q.explanation}
-                      </div>
-                    )}
                   </div>
-                ))}
-              </div>
+
+                  {/* Right: Active Question Pane */}
+                  <div className="preview-question-pane">
+                    {(() => {
+                      const currentQ = questions[previewActiveQuestionIndex];
+                      if (!currentQ) return null;
+                      const selectedChoice = previewAnswers[previewActiveQuestionIndex];
+
+                      return (
+                        <div className="preview-question-box">
+                          <div className="preview-q-top">
+                            <span className="preview-q-index">
+                              Question {previewActiveQuestionIndex + 1} of {questions.length}
+                            </span>
+                            <span className="preview-q-points">
+                              {currentQ.points || currentQ.marks || 1} Points
+                            </span>
+                          </div>
+
+                          <h4 className="preview-q-prompt">{currentQ.questionText}</h4>
+
+                          {/* Options */}
+                          <div className="preview-options-list">
+                            {(currentQ.options || []).map((opt, oIdx) => {
+                              const isChosen = selectedChoice === oIdx;
+                              return (
+                                <button
+                                  key={oIdx}
+                                  type="button"
+                                  className={`preview-opt-btn ${isChosen ? 'is-selected' : ''}`}
+                                  onClick={() => {
+                                    setPreviewAnswers(prev => ({
+                                      ...prev,
+                                      [previewActiveQuestionIndex]: oIdx
+                                    }));
+                                  }}
+                                >
+                                  <span className="opt-letter-tag">
+                                    {String.fromCharCode(65 + oIdx)}
+                                  </span>
+                                  <span className="opt-text">{opt}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Explanation Toggle for Instructor */}
+                          <div className="preview-explanation-toggle">
+                            <button
+                              type="button"
+                              className="btn-toggle-expl"
+                              onClick={() => setPreviewShowExplanation(prev => !prev)}
+                            >
+                              <span>{previewShowExplanation ? 'Hide Correct Answer & Explanation' : 'Reveal Correct Answer & Explanation'}</span>
+                            </button>
+
+                            {previewShowExplanation && (
+                              <div className="preview-explanation-card">
+                                <strong>Correct Answer: Option {String.fromCharCode(65 + (currentQ.correctOptionIndex || 0))} ({currentQ.options?.[currentQ.correctOptionIndex || 0]})</strong>
+                                {currentQ.explanation && <p>{currentQ.explanation}</p>}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="preview-modal-footer">
+              <button
+                type="button"
+                className="btn-modal-close"
+                onClick={() => setPreviewModalOpen(false)}
+              >
+                Close Preview
+              </button>
             </div>
           </div>
         </div>

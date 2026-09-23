@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   UploadCloud,
   File,
@@ -24,7 +24,8 @@ export const DeviceFileUploader = ({
   getAuthHeader = () => ({}),
   disabled = false,
   label = 'Upload File from Device',
-  helpText = ''
+  helpText = '',
+  extraData = null
 }) => {
   const fileInputRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -34,6 +35,15 @@ export const DeviceFileUploader = ({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // Synchronize internal state when parent currentUrl/currentName props change
+  useEffect(() => {
+    setPreviewUrl(currentUrl || '');
+    setFileName(currentName || '');
+    setSelectedFile(null);
+    setUploadError('');
+    setUploading(false);
+  }, [currentUrl, currentName]);
 
   const [uploadStatusMessage, setUploadStatusMessage] = useState('');
 
@@ -106,11 +116,18 @@ export const DeviceFileUploader = ({
       }
     }
 
+    let finalUrl = '';
+    let finalPublicId = '';
+    let finalAssetId = '';
+    let finalPlaybackId = '';
+    let finalDuration = 0;
+    let finalStatus = 'ready';
+
     try {
       const token = localStorage.getItem('upskillr_token');
       const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
-      if (uploadEndpoint) {
+      if (uploadEndpoint && fileType !== 'video') {
         // Backend Multipart Endpoint Upload (zero local disk persistence on backend, Cloudinary direct upload)
         setUploadProgress(30);
         setUploadStatusMessage(`Uploading ${fileType.toUpperCase()} file to Cloudinary...`);
@@ -274,6 +291,8 @@ export const DeviceFileUploader = ({
       setUploadError(uploadErr.message || 'Upload failed. Please try again.');
       setUploading(false);
       setUploadStatusMessage('');
+      setPreviewUrl(currentUrl || '');
+      setSelectedFile(null);
     }
   };
 

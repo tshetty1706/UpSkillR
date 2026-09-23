@@ -11,6 +11,9 @@ export const isCustomThumbnail = (thumbnail) => {
   if (!trimmed) return false;
   // If it's the obsolete unsplash placeholder, treat as not a custom thumbnail
   if (trimmed.includes('photo-1516321318423-f06f85e504b3')) return false;
+  // If it's the default light or dark theme thumbnail, treat as not a custom thumbnail
+  if (trimmed.includes('light_thumbnail') || trimmed.includes('dark_thumbnail')) return false;
+  if (trimmed === lightThumbnail || trimmed === darkThumbnail) return false;
   return true;
 };
 

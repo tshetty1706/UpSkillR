@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const path = require('path');
-const fs = require('fs');
 const multer = require('multer');
 
 const courseController = require('../controller/courseController');
 const announcementController = require('../controller/announcementController');
 const courseContentController = require('../controller/courseContentController');
 const assessmentReviewController = require('../controller/assessmentReviewController');
+const analyticsController = require('../controller/analyticsController');
 const {
   protect,
   requireLearner,
@@ -87,6 +87,7 @@ router.post('/rate', protect, requireLearner, courseController.submitCourseRatin
 
 // ─── 3. Instructor Course Management (Collection Level) ───
 router.get('/instructor/my-courses', protect, requireSubmittedInstructor, courseController.getInstructorCourses);
+router.get('/instructor/analytics', protect, requireSubmittedInstructor, analyticsController.getInstructorAnalytics);
 router.get('/instructor/questions', protect, requireSubmittedInstructor, courseController.getInstructorQuestions);
 router.post('/', protect, requireSubmittedInstructor, thumbnailUpload.single('thumbnail'), courseController.createCourse);
 
@@ -113,9 +114,11 @@ router.patch('/:courseId/curriculum/lessons/:lessonId/items/:itemId/toggle-state
 router.patch('/:courseId/curriculum/lessons/:lessonId/items/:itemId/reorder', protect, requireSubmittedInstructor, courseContentController.reorderContentItem);
 router.post('/:courseId/curriculum/notes', protect, requireSubmittedInstructor, courseContentController.attachNote);
 router.patch('/:courseId/curriculum/notes/:noteId', protect, requireSubmittedInstructor, courseContentController.updateNote);
+router.delete('/:courseId/curriculum/notes/:noteId', protect, requireSubmittedInstructor, courseContentController.deleteNote);
 router.patch('/:courseId/curriculum/notes/:noteId/toggle-state', protect, requireSubmittedInstructor, courseContentController.toggleNoteState);
 router.post('/:courseId/curriculum/assessments', protect, requireSubmittedInstructor, courseContentController.createAssessment);
 router.patch('/:courseId/curriculum/assessments/:assessmentId', protect, requireSubmittedInstructor, courseContentController.updateAssessment);
+router.delete('/:courseId/curriculum/assessments/:assessmentId', protect, requireSubmittedInstructor, courseContentController.deleteAssessment);
 router.patch('/:courseId/curriculum/assessments/:assessmentId/toggle-state', protect, requireSubmittedInstructor, courseContentController.toggleAssessmentState);
 router.post('/:courseId/curriculum/upload/video', protect, requireSubmittedInstructor, videoUpload.single('video'), courseContentController.uploadVideoFromDevice);
 router.post('/:courseId/curriculum/upload/resource', protect, requireSubmittedInstructor, resourceUpload.single('file'), courseContentController.uploadResourceFromDevice);

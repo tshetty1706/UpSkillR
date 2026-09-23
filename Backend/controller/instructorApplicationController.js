@@ -1,8 +1,6 @@
 const InstructorApplication = require('../model/InstructorApplication');
 const Instructor = require('../model/Instructor');
-const path = require('path');
-const fs = require('fs');
-const { uploadBufferToCloudinary } = require('./mediaController');
+const { uploadBufferToCloudinary, deleteCloudinaryAsset } = require('./mediaController');
 
 /**
  * Get current instructor application and status
@@ -218,6 +216,9 @@ exports.removePhoto = async (req, res) => {
 
     const instructor = await Instructor.findById(instructorId);
     if (instructor) {
+      if (instructor.avatar) {
+        await deleteCloudinaryAsset(instructor.avatar);
+      }
       instructor.avatar = '';
       await instructor.save();
     }
@@ -225,7 +226,7 @@ exports.removePhoto = async (req, res) => {
     let application = await InstructorApplication.findOne({ instructorId });
     if (application) {
       application.personalInfo = {
-        ...application.personalInfo.toObject(),
+        ...(application.personalInfo ? application.personalInfo.toObject() : {}),
         photoUrl: ''
       };
       await application.save();
@@ -405,10 +406,10 @@ exports.submitApplication = async (req, res) => {
 
     // Check required fields per section
     const pInfo = application.personalInfo || {};
-    if (!pInfo.fullName?.trim() || !pInfo.email?.trim() || !pInfo.phone?.trim() || !pInfo.professionalTitle?.trim() || !pInfo.bio?.trim() || !pInfo.photoUrl?.trim()) {
+    if (!pInfo.fullName?.trim() || !pInfo.email?.trim() || !pInfo.phone?.trim() || !pInfo.professionalTitle?.trim() || !pInfo.bio?.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Please complete all required fields in Personal Information (including Bio and Profile Photo) before submitting.'
+        message: 'Please complete all required fields in Personal Information (including Bio) before submitting.'
       });
     }
 

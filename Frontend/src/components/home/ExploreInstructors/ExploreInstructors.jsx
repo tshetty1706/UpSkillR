@@ -28,8 +28,9 @@ export const ExploreInstructors = () => {
     }
   };
 
-  const handleViewCourses = (name) => {
-    const path = `/explore?instructor=${encodeURIComponent(name)}`;
+  const handleViewCourses = (instructorId) => {
+    if (!instructorId) return;
+    const path = `/explore-courses/instructor/${instructorId}`;
     window.history.pushState({}, '', path);
     window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
   };
@@ -105,9 +106,30 @@ export const ExploreInstructors = () => {
               };
               
               return (
-                <div key={inst._id} className={`instructor-card ${accentClass}`}>
-                  {/* Decorative Bookmark */}
-                  <button className="instructor-bookmark-btn" aria-label="Bookmark instructor">
+                <div
+                  key={inst._id}
+                  className={`instructor-card ${accentClass}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`View courses by ${inst.fullName}`}
+                  onClick={() => handleViewCourses(inst._id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleViewCourses(inst._id);
+                    }
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {/* Decorative / Action Bookmark */}
+                  <button
+                    type="button"
+                    className="instructor-bookmark-btn"
+                    aria-label={`Bookmark instructor ${inst.fullName}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                  >
                     <Bookmark size={18} className="bookmark-icon" />
                   </button>
                   
@@ -201,7 +223,10 @@ export const ExploreInstructors = () => {
                     <button
                       type="button"
                       className="btn btn-outline btn-block instructor-explore-courses-btn"
-                      onClick={() => handleViewCourses(inst.fullName)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewCourses(inst._id);
+                      }}
                     >
                       <span>Explore Courses</span>
                       <ArrowRight size={14} className="arrow-icon" />

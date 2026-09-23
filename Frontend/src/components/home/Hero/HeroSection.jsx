@@ -71,14 +71,25 @@ export const HeroSection = () => {
           {/* Hero CTA Buttons */}
           <div className="hero-buttons">
             <a 
-              href="/signup" 
+              href="/explore" 
               className="btn btn-primary hero-btn-primary" 
               aria-label="Explore Courses"
-              onClick={(e) => { e.preventDefault(); navigate('/signup'); }}
+              onClick={(e) => { e.preventDefault(); navigate('/explore'); }}
             >
               Explore Courses <ArrowRight size={18} aria-hidden="true" />
             </a>
-            <a href="#why-upskillr" className="btn btn-outline hero-btn-secondary" aria-label="How It Works">
+            <a 
+              href="#why-upskillr" 
+              className="btn btn-outline hero-btn-secondary" 
+              aria-label="How It Works"
+              onClick={(e) => {
+                const target = document.getElementById('why-upskillr') || document.querySelector('.why-upskillr-section');
+                if (target) {
+                  e.preventDefault();
+                  target.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+            >
               <PlayCircle size={18} className="play-icon" aria-hidden="true" /> How It Works
             </a>
           </div>

@@ -431,7 +431,7 @@ export const LearnerPreview = ({
               {publishedNotes.map((note) => (
                 <div key={note._id} className="preview-resource-pill">
                   <div className="pill-type-icon">
-                    {note.type === 'article' && <FileText size={15} />}
+                    {(note.type === 'article' || note.type === 'article_md') && <FileText size={15} />}
                     {note.type === 'pdf' && <BookOpen size={15} />}
                     {note.type === 'image' && <Sparkles size={15} />}
                   </div>

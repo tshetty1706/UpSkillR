@@ -1051,6 +1051,183 @@
   background-color: var(--brand-primary, #39d95f);
 }
 
+/* Curriculum & Syllabus Accordion */
+.curriculum-accordion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.curriculum-module-card {
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: 10px;
+  background-color: var(--surface, #ffffff);
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.curriculum-module-card:hover {
+  border-color: var(--brand-primary, #116830);
+}
+
+.curriculum-module-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text-primary, #0f1a13);
+  font-family: inherit;
+  font-size: 1rem;
+  gap: 1rem;
+}
+
+.module-header-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.module-index-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background-color: var(--brand-light, #e4efe7);
+  color: var(--brand-primary, #116830);
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.module-title-text {
+  font-weight: 700;
+  font-size: 0.98rem;
+  color: var(--text-primary, #0f1a13);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.module-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-muted, #56675d);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.curriculum-lessons-list {
+  border-top: 1px solid var(--border, #e5e7eb);
+  background-color: var(--surface-muted, #f9fafb);
+  padding: 0.5rem 0;
+}
+
+.curriculum-lesson-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary, #374151);
+  border-bottom: 1px solid var(--border, #f3f4f6);
+  transition: background-color 0.15s ease;
+}
+
+.curriculum-lesson-row:last-child {
+  border-bottom: none;
+}
+
+.curriculum-lesson-row:hover {
+  background-color: var(--surface, #ffffff);
+}
+
+.lesson-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.lesson-play-icon {
+  color: var(--brand-primary, #116830);
+  flex-shrink: 0;
+}
+
+.lesson-row-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lesson-row-duration {
+  font-size: 0.8rem;
+  color: var(--text-muted, #6b7280);
+  margin-left: 0.75rem;
+  flex-shrink: 0;
+}
+
+.curriculum-empty-lesson {
+  padding: 1rem 1.25rem;
+  font-size: 0.88rem;
+  color: var(--text-muted, #6b7280);
+  font-style: italic;
+}
+
+.btn-enrolled-active {
+  background-color: var(--surface-muted, #ebf0ec) !important;
+  color: var(--brand-primary, #116830) !important;
+  border: 1px solid var(--brand-primary, #116830) !important;
+  cursor: default !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* Dark mode adjustments for curriculum */
+.dark .curriculum-module-card {
+  background-color: var(--surface, #101b18);
+  border-color: var(--border, #243831);
+}
+
+.dark .module-index-badge {
+  background-color: rgba(57, 217, 95, 0.15);
+  color: var(--brand-primary, #39d95f);
+}
+
+.dark .module-title-text {
+  color: var(--text-primary, #f9fafb);
+}
+
+.dark .curriculum-lessons-list {
+  background-color: var(--surface-muted, #0d1512);
+  border-color: var(--border, #243831);
+}
+
+.dark .curriculum-lesson-row {
+  color: var(--text-secondary, #9ca3af);
+  border-color: var(--border, #1a2823);
+}
+
+.dark .curriculum-lesson-row:hover {
+  background-color: var(--surface, #101b18);
+}
+
+.dark .btn-enrolled-active {
+  background-color: rgba(57, 217, 95, 0.12) !important;
+  color: var(--brand-primary, #39d95f) !important;
+  border-color: var(--brand-primary, #39d95f) !important;
+}
+
 /* Tablet responsiveness */
 @media (max-width: 900px) {
   .overview-body-container {
@@ -1070,4 +1247,5 @@
     position: static;
   }
 }
+
 

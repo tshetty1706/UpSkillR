@@ -67,14 +67,27 @@ async function runSecurityAudit() {
     instructorId: instructorA._id,
     instructorName: instructorA.fullName,
     status: 'draft',
-    lessons: [
-      { title: 'Lesson A1', description: 'Intro A1', duration: '10 min', content: 'Content A1' }
+    state: 'draft',
+    modules: [
+      {
+        title: 'Module A1',
+        lessons: [
+          {
+            title: 'Lesson A1',
+            description: 'Intro A1',
+            items: [{ title: 'Video A1', type: 'video', state: 'published' }]
+          }
+        ],
+        notes: [
+          { title: 'Resource A1', content: 'Resource A1 Note', type: 'article' }
+        ]
+      }
     ],
-    resources: [
-      { title: 'Resource A1', fileUrl: 'https://example.com/resA1.pdf', fileType: 'PDF' }
+    notes: [
+      { title: 'Course Resource A1', content: 'Course Note A1', type: 'article' }
     ],
-    assessments: [
-      { title: 'Quiz A1', instructions: 'Quiz A1 instructions', passingScore: 80, questions: [] }
+    courseAssessments: [
+      { title: 'Quiz A1', instructions: 'Quiz A1 instructions', questions: [] }
     ]
   });
 
@@ -86,14 +99,27 @@ async function runSecurityAudit() {
     instructorId: instructorB._id,
     instructorName: instructorB.fullName,
     status: 'draft',
-    lessons: [
-      { title: 'Lesson B1', description: 'Intro B1', duration: '15 min', content: 'Content B1' }
+    state: 'draft',
+    modules: [
+      {
+        title: 'Module B1',
+        lessons: [
+          {
+            title: 'Lesson B1',
+            description: 'Intro B1',
+            items: [{ title: 'Video B1', type: 'video', state: 'published' }]
+          }
+        ],
+        notes: [
+          { title: 'Resource B1', content: 'Resource B1 Note', type: 'article' }
+        ]
+      }
     ],
-    resources: [
-      { title: 'Resource B1', fileUrl: 'https://example.com/resB1.pdf', fileType: 'PDF' }
+    notes: [
+      { title: 'Course Resource B1', content: 'Course Note B1', type: 'article' }
     ],
-    assessments: [
-      { title: 'Quiz B1', instructions: 'Quiz B1 instructions', passingScore: 75, questions: [] }
+    courseAssessments: [
+      { title: 'Quiz B1', instructions: 'Quiz B1 instructions', questions: [] }
     ]
   });
 
@@ -196,39 +222,40 @@ async function runSecurityAudit() {
     recordResult('CASE 6', "Instructor A → Instructor B's course", 403, status, status === 403);
   }
 
-  // ─── CASE 7: Instructor A → Instructor B's lesson using lessonId ───
-  const lessonBId = courseB.lessons[0]._id.toString();
+  // ─── CASE 7: Instructor A → Instructor B's curriculum endpoint ───
   try {
-    const res = await axios.get(`${API_BASE}/courses/${courseB._id}/lessons/${lessonBId}`, {
+    const res = await axios.get(`${API_BASE}/courses/${courseB._id}/curriculum`, {
       headers: { Authorization: `Bearer ${tokenInstA}` }
     });
-    recordResult('CASE 7', "Instructor A → Instructor B's lesson using lessonId", 403, res.status, false);
+    recordResult('CASE 7', "Instructor A → Instructor B's curriculum endpoint", 403, res.status, false);
   } catch (err) {
     const status = err.response?.status;
-    recordResult('CASE 7', "Instructor A → Instructor B's lesson using lessonId", 403, status, status === 403);
+    recordResult('CASE 7', "Instructor A → Instructor B's curriculum endpoint", 403, status, status === 403);
   }
 
-  // ─── CASE 8: Instructor A → Instructor B's resource using resourceId ───
-  const resourceBId = courseB.resources[0]._id.toString();
+  // ─── CASE 8: Instructor A → Instructor B's module toggle endpoint ───
+  const moduleBId = courseB.modules[0]._id.toString();
   try {
-    const res = await axios.get(`${API_BASE}/courses/${courseB._id}/resources/${resourceBId}`, {
-      headers: { Authorization: `Bearer ${tokenInstA}` }
-    });
-    recordResult('CASE 8', "Instructor A → Instructor B's resource using resourceId", 403, res.status, false);
+    const res = await axios.patch(
+      `${API_BASE}/courses/${courseB._id}/curriculum/modules/${moduleBId}/toggle-state`,
+      {},
+      { headers: { Authorization: `Bearer ${tokenInstA}` } }
+    );
+    recordResult('CASE 8', "Instructor A → Instructor B's module toggle endpoint", 403, res.status, false);
   } catch (err) {
     const status = err.response?.status;
-    recordResult('CASE 8', "Instructor A → Instructor B's resource using resourceId", 403, status, status === 403);
+    recordResult('CASE 8', "Instructor A → Instructor B's module toggle endpoint", 403, status, status === 403);
   }
 
-  // ─── CASE 9: Instructor A → Instructor B's course list endpoint ───
+  // ─── CASE 9: Instructor A → Instructor B's course overview endpoint ───
   try {
-    const res = await axios.get(`${API_BASE}/courses/${courseB._id}/lessons`, {
+    const res = await axios.get(`${API_BASE}/courses/${courseB._id}/overview`, {
       headers: { Authorization: `Bearer ${tokenInstA}` }
     });
-    recordResult('CASE 9', "Instructor A → Instructor B's course list endpoint", 403, res.status, false);
+    recordResult('CASE 9', "Instructor A → Instructor B's course overview endpoint", 403, res.status, false);
   } catch (err) {
     const status = err.response?.status;
-    recordResult('CASE 9', "Instructor A → Instructor B's course list endpoint", 403, status, status === 403);
+    recordResult('CASE 9', "Instructor A → Instructor B's course overview endpoint", 403, status, status === 403);
   }
 
   // ─── CASE 10: Instructor A changes courseId in URL to courseB ───
@@ -272,11 +299,14 @@ async function runSecurityAudit() {
   }
 
   // ─── CASE 12: Instructor A attempts nested resource access belonging to another course ───
-  // Instructor A tries to access Lesson B1 via Course A URL: /courses/:courseA/lessons/:lessonBId
+  // Instructor A tries to modify Module B1 via Course A URL: /courses/:courseA/curriculum/modules/:moduleBId/toggle-state
+  const moduleBIdCross = courseB.modules[0]._id.toString();
   try {
-    const res = await axios.get(`${API_BASE}/courses/${courseA._id}/lessons/${lessonBId}`, {
-      headers: { Authorization: `Bearer ${tokenInstA}` }
-    });
+    const res = await axios.patch(
+      `${API_BASE}/courses/${courseA._id}/curriculum/modules/${moduleBIdCross}/toggle-state`,
+      {},
+      { headers: { Authorization: `Bearer ${tokenInstA}` } }
+    );
     recordResult('CASE 12', 'Nested resource belonging to another course (Cross-course IDOR)', 404, res.status, false);
   } catch (err) {
     const status = err.response?.status;

@@ -8,7 +8,10 @@ import { Step4ReviewCreate } from './Step4ReviewCreate/Step4ReviewCreate';
 import { CourseOverviewPreviewModal } from './OverviewTemplate/CourseOverviewPreviewModal';
 import { useToast } from '../../../../context/ToastContext';
 import { API_BASE } from '../../../../config/api';
+import { lightThumbnail } from '../../../../utils/thumbnailUtils';
 import './CourseCreationFlow.css';
+
+const DEFAULT_FALLBACK_THUMBNAIL = lightThumbnail;
 
 export const CourseCreationFlow = ({ user, onCancel, onCourseCreated, onNavigate }) => {
   const { toast } = useToast();
@@ -127,6 +130,8 @@ export const CourseCreationFlow = ({ user, onCancel, onCourseCreated, onNavigate
 
       if (thumbnailFile) {
         formData.append('thumbnail', thumbnailFile);
+      } else if (thumbnailPreview && typeof thumbnailPreview === 'string' && thumbnailPreview.trim()) {
+        formData.append('thumbnail', thumbnailPreview.trim());
       }
 
       const res = await fetch(`${API_BASE}/courses`, {
@@ -221,7 +226,7 @@ export const CourseCreationFlow = ({ user, onCancel, onCourseCreated, onNavigate
         {currentStep === 4 && (
           <Step4ReviewCreate
             basicInfo={basicInfo}
-            thumbnailPreview={thumbnailPreview || DEFAULT_FALLBACK_THUMBNAIL}
+            thumbnailPreview={thumbnailPreview || ''}
             overviewData={overviewData}
             onEditStep={(stepNum) => setCurrentStep(stepNum)}
             onOpenPreview={() => setIsPreviewOpen(true)}
@@ -245,7 +250,7 @@ export const CourseCreationFlow = ({ user, onCancel, onCourseCreated, onNavigate
         onClose={() => setIsPreviewOpen(false)}
         course={{
           ...basicInfo,
-          thumbnail: thumbnailPreview || DEFAULT_FALLBACK_THUMBNAIL
+          thumbnail: thumbnailPreview || ''
         }}
         overview={overviewData}
         user={user}

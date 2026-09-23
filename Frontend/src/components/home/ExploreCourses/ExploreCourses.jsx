@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   BookOpen, Search, Video, Users, CheckCircle2, Star, Sparkles, ArrowRight, Bookmark, Clock, User,
-  SlidersHorizontal, BarChart2, ChevronRight, X, Award, FileText, Layers, FileCode, HelpCircle
+  SlidersHorizontal, BarChart2, ChevronRight, ChevronDown, X, Award, FileText, Layers, FileCode, HelpCircle
 } from 'lucide-react';
 import './ExploreCourses.css';
 import { useToast } from '../../../context/ToastContext';
 import exploreCoursesSvg from '../../../assets/illustrations/explore_courses.svg?raw';
 import { CourseThumbnail } from '../../common/CourseThumbnail';
+import { Avatar } from '../../common/Avatar/Avatar';
 
 export const ExploreCourses = () => {
   const { toast } = useToast();
@@ -15,11 +16,14 @@ export const ExploreCourses = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [enrolledMap, setEnrolledMap] = useState({});
-  const [selectedCourseView, setSelectedCourseView] = useState(null);
-  const [activeModalTab, setActiveModalTab] = useState('overview');
-  const [overviewDetails, setOverviewDetails] = useState(null);
-  const [newQuestionText, setNewQuestionText] = useState('');
-  const [isSubmittingQ, setIsSubmittingQ] = useState(false);
+  const [bookmarksMap, setBookmarksMap] = useState({});
+  const categoryScrollRef = useRef(null);
+
+  const handleNavigateToCourse = (courseId) => {
+    const path = `/courses/${courseId}`;
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
+  };
 
   useEffect(() => {
     fetchPublishedCourses();
@@ -109,53 +113,6 @@ export const ExploreCourses = () => {
     }
   };
 
-  const handleOpenCourseModal = async (course) => {
-    setSelectedCourseView(course);
-    setActiveModalTab('overview');
-    setOverviewDetails(null);
-    try {
-      const res = await fetch(`http://localhost:5000/api/courses/public/${course._id}/overview`);
-      const json = await res.json();
-      if (json.success) {
-        setOverviewDetails(json);
-      }
-    } catch (e) {
-      console.error('Error fetching course overview:', e);
-    }
-  };
-
-  const handleAskDoubt = async (e) => {
-    e.preventDefault();
-    if (!newQuestionText.trim() || !selectedCourseView) return;
-    const token = localStorage.getItem('upskillr_token');
-    if (!token) {
-      toast.warning('Please log in as a learner to ask a doubt.');
-      return;
-    }
-    setIsSubmittingQ(true);
-    try {
-      const res = await fetch(`http://localhost:5000/api/courses/${selectedCourseView._id}/questions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ question: newQuestionText.trim() })
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success('Your question has been sent to the instructor!');
-        setNewQuestionText('');
-      } else {
-        toast.error(data.message || 'Failed to submit question.');
-      }
-    } catch (err) {
-      toast.error('Network error. Please try again.');
-    } finally {
-      setIsSubmittingQ(false);
-    }
-  };
-
 
   const formatLastUpdated = (dateString) => {
     if (!dateString) return '';
@@ -241,7 +198,7 @@ export const ExploreCourses = () => {
         </div>
 
         <div className="explore-toolbar-bottom">
-          <div className="category-chips-scroll">
+          <div className="category-chips-scroll" ref={categoryScrollRef}>
             {categories.map((cat) => (
               <button
                 key={cat}
@@ -253,7 +210,12 @@ export const ExploreCourses = () => {
               </button>
             ))}
           </div>
-          <button type="button" className="scroll-next-btn" aria-label="Next categories">
+          <button
+            type="button"
+            className="scroll-next-btn"
+            aria-label="Scroll categories to the right"
+            onClick={() => categoryScrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}
+          >
             <ChevronRight size={18} />
           </button>
         </div>
@@ -269,56 +231,82 @@ export const ExploreCourses = () => {
           </div>
         ) : (
           <div className="explore-courses-grid">
-            {filteredCourses.map((course) => (
-              <div key={course._id} className="explore-course-card">
-                <div className="course-card-thumb-wrap">
-                  <CourseThumbnail src={course.thumbnail} alt={course.title} className="course-card-thumb" />
-                  <button type="button" className="course-bookmark-btn" aria-label="Bookmark course">
-                    <Bookmark size={15} />
-                  </button>
-                </div>
-
-                <div className="course-card-body">
-                  <span className="course-category">{course.category}</span>
-                  <h3 className="course-card-title" title={course.title}>{course.title}</h3>
-                  <p className="course-card-description" title={course.description}>{course.description}</p>
-
-                  {/* Skills badges */}
-                  <div className="course-card-skills">
-                    {course.skills && course.skills.length > 0 ? (
-                      course.skills.map((skill, index) => (
-                        <span key={index} className="course-skill-badge">{skill}</span>
-                      ))
-                    ) : (
-                      <span className="course-skill-badge">{course.category}</span>
-                    )}
+            {filteredCourses.map((course) => {
+              const isBookmarked = !!bookmarksMap[course._id];
+              return (
+                <div
+                  key={course._id}
+                  className="explore-course-card"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`View details for ${course.title}`}
+                  onClick={() => handleNavigateToCourse(course._id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleNavigateToCourse(course._id);
+                    }
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="course-card-thumb-wrap">
+                    <CourseThumbnail src={course.thumbnail} alt={course.title} className="course-card-thumb" />
+                    <button
+                      type="button"
+                      className={`course-bookmark-btn ${isBookmarked ? 'bookmarked' : ''}`}
+                      aria-label={isBookmarked ? "Remove bookmark" : "Bookmark course"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setBookmarksMap((prev) => {
+                          const nextState = !prev[course._id];
+                          toast.info(nextState ? `Bookmarked "${course.title}"` : `Removed bookmark for "${course.title}"`);
+                          return { ...prev, [course._id]: nextState };
+                        });
+                      }}
+                    >
+                      <Bookmark size={15} fill={isBookmarked ? "currentColor" : "none"} />
+                    </button>
                   </div>
 
-                  {/* Instructor & Rating Row */}
-                  <div className="course-instructor-rating-row">
-                    <div className="course-instructor-info">
-                      {course.instructorAvatar ? (
-                        <img src={getAvatarUrl(course.instructorAvatar)} className="course-instructor-avatar" alt={course.instructorName} />
+                  <div className="course-card-body">
+                    <span className="course-category">{course.category}</span>
+                    <h3 className="course-card-title" title={course.title}>{course.title}</h3>
+                    <p className="course-card-description" title={course.description}>{course.description}</p>
+
+                    {/* Skills badges */}
+                    <div className="course-card-skills">
+                      {course.skills && course.skills.length > 0 ? (
+                        course.skills.map((skill, index) => (
+                          <span key={index} className="course-skill-badge">{skill}</span>
+                        ))
                       ) : (
-                        <div className="course-instructor-avatar-placeholder">
-                          <User size={12} />
-                        </div>
+                        <span className="course-skill-badge">{course.category}</span>
                       )}
-                      <span className="course-instructor-name">{course.instructorName || 'Instructor'}</span>
                     </div>
 
-                    <div className="course-rating-info">
-                      {course.rating !== null && course.rating !== undefined ? (
-                        <>
-                          <Star size={13} className="course-rating-star" fill="currentColor" />
-                          <span>{course.rating.toFixed(1)}</span>
-                          <span className="course-rating-count">({course.reviewCount || 0} reviews)</span>
-                        </>
-                      ) : (
-                        <span className="course-rating-count">No ratings yet</span>
-                      )}
+                    {/* Instructor & Rating Row */}
+                    <div className="course-instructor-rating-row">
+                      <div className="course-instructor-info">
+                        <Avatar
+                          image={course.instructorAvatar}
+                          name={course.instructorName || 'Instructor'}
+                          size="small"
+                        />
+                        <span className="course-instructor-name">{course.instructorName || 'Instructor'}</span>
+                      </div>
+
+                      <div className="course-rating-info">
+                        {course.rating !== null && course.rating !== undefined ? (
+                          <>
+                            <Star size={13} className="course-rating-star" fill="currentColor" />
+                            <span>{course.rating.toFixed(1)}</span>
+                            <span className="course-rating-count">({course.reviewCount || 0} reviews)</span>
+                          </>
+                        ) : (
+                          <span className="course-rating-count">No ratings yet</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
                     {/* Metadata Row (Level / Modules / Enrolled Users) */}
                     {(() => {
@@ -341,274 +329,30 @@ export const ExploreCourses = () => {
                         </div>
                       );
                     })()}
-                </div>
+                  </div>
 
-                {/* Footer Row */}
-                <div className="course-card-footer-row">
-                  <span className="course-updated-date">
-                    {course.updatedAt ? `Last updated: ${formatLastUpdated(course.updatedAt)}` : ''}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-primary course-view-btn"
-                    onClick={() => handleOpenCourseModal(course)}
-                  >
-                    <span>View Course</span>
-                  </button>
+                  {/* Footer Row */}
+                  <div className="course-card-footer-row">
+                    <span className="course-updated-date">
+                      {course.updatedAt ? `Last updated: ${formatLastUpdated(course.updatedAt)}` : ''}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-primary course-view-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleNavigateToCourse(course._id);
+                      }}
+                    >
+                      <span>View Course</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
-
-      {/* GeeksforGeeks Style Course Details Modal */}
-      {selectedCourseView && (
-        <div className="course-view-modal-overlay" onClick={() => setSelectedCourseView(null)}>
-          <div className="course-view-modal-container" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              className="course-view-modal-close-btn"
-              onClick={() => setSelectedCourseView(null)}
-            >
-              <X size={20} />
-            </button>
-
-            {/* Modal Header / Banner */}
-            <div className="course-view-modal-header">
-              <div className="header-info-main">
-                <div className="badges-row">
-                  <span className="modal-category-badge">{selectedCourseView.category}</span>
-                  <span className="modal-level-badge">{selectedCourseView.skillLevel || 'Beginner'}</span>
-                </div>
-                <h2 className="modal-course-title">{selectedCourseView.title}</h2>
-                <p className="modal-course-subtitle">
-                  {selectedCourseView.shortDescription || selectedCourseView.description}
-                </p>
-
-                <div className="modal-instructor-meta">
-                  {selectedCourseView.instructorAvatar ? (
-                    <img src={selectedCourseView.instructorAvatar} alt="Instructor" className="instructor-avatar-img" />
-                  ) : (
-                    <div className="instructor-avatar-placeholder"><User size={16} /></div>
-                  )}
-                  <span>Created by <strong>{selectedCourseView.instructorName || 'Instructor'}</strong></span>
-                </div>
-              </div>
-
-              <div className="modal-thumb-box">
-                <CourseThumbnail src={selectedCourseView.thumbnail} alt={selectedCourseView.title} />
-              </div>
-            </div>
-
-            {/* Modal Navigation Tabs */}
-            <div className="course-view-modal-tabs">
-              <button
-                type="button"
-                className={`tab-btn ${activeModalTab === 'overview' ? 'active' : ''}`}
-                onClick={() => setActiveModalTab('overview')}
-              >
-                <FileText size={16} />
-                <span>Course Overview</span>
-              </button>
-              <button
-                type="button"
-                className={`tab-btn ${activeModalTab === 'syllabus' ? 'active' : ''}`}
-                onClick={() => setActiveModalTab('syllabus')}
-              >
-                <BookOpen size={16} />
-                <span>Syllabus & Modules ({(selectedCourseView.modules || []).filter(m => m.state === 'published' || m.status === 'published').length})</span>
-              </button>
-            </div>
-
-            {/* Modal Tab Body */}
-            <div className="course-view-modal-body">
-              {activeModalTab === 'overview' ? (
-                <div className="overview-tab-content">
-                  {/* Full Description */}
-                  <div className="content-section">
-                    <h3>Course Description</h3>
-                    <p style={{ whiteSpace: 'pre-line' }}>
-                      {selectedCourseView.fullDescription || selectedCourseView.description || 'No detailed description provided.'}
-                    </p>
-                  </div>
-
-                  {/* What You Will Learn */}
-                  {selectedCourseView.whatYouWillLearn?.length > 0 && (
-                    <div className="content-section">
-                      <h3>What You'll Learn</h3>
-                      <div className="learning-outcomes-grid">
-                        {selectedCourseView.whatYouWillLearn.map((item, idx) => (
-                          <div key={idx} className="learning-outcome-card">
-                            <CheckCircle2 size={18} className="green-check" />
-                            <span>{item}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Prerequisites */}
-                  {selectedCourseView.prerequisites && (
-                    <div className="content-section">
-                      <h3>Prerequisites</h3>
-                      <p>{selectedCourseView.prerequisites}</p>
-                    </div>
-                  )}
-
-                  {/* Tech Stack */}
-                  {selectedCourseView.techStack?.length > 0 && (
-                    <div className="content-section">
-                      <h3>Technologies Covered</h3>
-                      <div className="tech-chips-flex">
-                        {selectedCourseView.techStack.map((tech, idx) => (
-                          <span key={idx} className="tech-chip-badge">{tech}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Certificate */}
-                  <div className="content-section">
-                    <h3>Certificate</h3>
-                    <div className="certificate-badge-box">
-                      <Award size={20} className="award-icon" />
-                      <span>{selectedCourseView.certificate !== false ? 'Completion Certificate Included' : 'No Certificate Granted'}</span>
-                    </div>
-                  </div>
-
-                  {/* Pre-enrollment Q&A / Doubts */}
-                  <div className="content-section qa-content-box" style={{ marginTop: '1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
-                      <HelpCircle size={20} className="accent-green" />
-                      <h3 style={{ margin: 0 }}>Course Doubts & Inquiries</h3>
-                    </div>
-                    <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                      Have a question before enrolling? Ask the instructor directly.
-                    </p>
-
-                    <form onSubmit={handleAskDoubt} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                      <textarea
-                        rows={2}
-                        className="form-textarea"
-                        placeholder="Ask your question here..."
-                        value={newQuestionText}
-                        onChange={(e) => setNewQuestionText(e.target.value)}
-                      />
-                      <button
-                        type="submit"
-                        className="btn btn-primary"
-                        disabled={!newQuestionText.trim() || isSubmittingQ}
-                        style={{ alignSelf: 'flex-end', fontSize: '0.85rem', padding: '0.45rem 1rem' }}
-                      >
-                        {isSubmittingQ ? 'Submitting...' : 'Submit Question'}
-                      </button>
-                    </form>
-
-                    <div className="answered-qa-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                      {(overviewDetails?.questions || []).length === 0 ? (
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
-                          No inquiries asked yet. Be the first to ask!
-                        </p>
-                      ) : (
-                        (overviewDetails?.questions || []).map((q, idx) => (
-                          <div key={idx} style={{ background: 'var(--surface-muted)', padding: '0.85rem', borderRadius: '8px' }}>
-                            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>{q.userName} asked:</div>
-                            <p style={{ margin: '0.25rem 0 0.5rem 0', fontSize: '0.92rem' }}>{q.question}</p>
-                            {q.instructorReply && (
-                              <div style={{ background: 'var(--surface)', borderLeft: '3px solid var(--brand-primary)', padding: '0.5rem 0.75rem', borderRadius: '4px' }}>
-                                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--brand-primary)' }}>Instructor Answer:</div>
-                                <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.88rem' }}>{q.instructorReply}</p>
-                              </div>
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Real Reviews */}
-                  <div className="content-section" style={{ marginTop: '1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
-                      <Star size={20} className="star-icon-fill" style={{ fill: '#d97706', color: '#d97706' }} />
-                      <h3 style={{ margin: 0 }}>Learner Reviews & Ratings</h3>
-                    </div>
-                    {(overviewDetails?.reviews || []).length === 0 ? (
-                      <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
-                        No reviews yet. Real feedback will appear here as learners complete lessons.
-                      </p>
-                    ) : (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                        {(overviewDetails?.reviews || []).map((rev, rIdx) => (
-                          <div key={rIdx} style={{ background: 'var(--surface-muted)', padding: '0.85rem', borderRadius: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '0.35rem' }}>
-                              {[...Array(5)].map((_, s) => (
-                                <Star key={s} size={13} style={{ fill: s < rev.rating ? '#d97706' : 'none', color: '#d97706' }} />
-                              ))}
-                            </div>
-                            <p style={{ margin: 0, fontSize: '0.88rem', fontStyle: 'italic' }}>"{rev.feedback}"</p>
-                            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>— {rev.learnerName}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="syllabus-tab-content">
-                  {(() => {
-                    const publishedMods = (selectedCourseView.modules || []).filter(m => m.state === 'published' || m.status === 'published');
-                    if (publishedMods.length === 0) {
-                      return <p className="empty-syllabus-text">No modules or syllabus available for this course yet.</p>;
-                    }
-                    return (
-                      <div className="modules-accordion-list">
-                        {publishedMods.map((mod, mIdx) => (
-                          <div key={mod._id || mIdx} className="module-accordion-item">
-                            <div className="module-accordion-header">
-                              <span className="mod-num">Module {mIdx + 1}</span>
-                              <h4>{mod.title}</h4>
-                              <span className="mod-count">{mod.lessons?.length || 0} Lessons</span>
-                            </div>
-
-                            <div className="module-accordion-body">
-                              {mod.lessons?.map((les, lIdx) => (
-                                <div key={les._id || lIdx} className="lesson-detail-row">
-                                  <Video size={14} className="lesson-icon" />
-                                  <span className="lesson-title">{les.title}</span>
-                                  {les.duration && <span className="lesson-duration">{les.duration}</span>}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="course-view-modal-footer">
-              <button
-                type="button"
-                className="btn btn-outline"
-                onClick={() => setSelectedCourseView(null)}
-              >
-                <span>Close</span>
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => handleEnrol(selectedCourseView._id, selectedCourseView.title)}
-              >
-                <span>{enrolledMap[selectedCourseView._id] ? 'Already Enrolled' : 'Enrol Now'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

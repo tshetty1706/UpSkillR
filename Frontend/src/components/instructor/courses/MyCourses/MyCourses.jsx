@@ -19,13 +19,22 @@ export const MyCourses = ({ courses, onNavigate, onPublishToggle }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredCourses = courses.filter((course) => {
+    const courseStatus = (course.status || course.state || 'draft').toLowerCase();
     const matchesStatus =
-      filterStatus === 'all' ? true : course.status === filterStatus;
-    const matchesQuery =
-      course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.category.toLowerCase().includes(searchQuery.toLowerCase());
+      filterStatus === 'all' ? true : courseStatus === filterStatus.toLowerCase();
+    const title = (course.title || '').toLowerCase();
+    const category = (course.category || '').toLowerCase();
+    const query = (searchQuery || '').toLowerCase().trim();
+    const matchesQuery = !query || title.includes(query) || category.includes(query);
     return matchesStatus && matchesQuery;
   });
+
+  const publishedCount = courses.filter(
+    (c) => (c.status || c.state || '').toLowerCase() === 'published'
+  ).length;
+  const draftCount = courses.filter(
+    (c) => (c.status || c.state || 'draft').toLowerCase() === 'draft'
+  ).length;
 
   return (
     <div className="my-courses-page">
@@ -63,14 +72,14 @@ export const MyCourses = ({ courses, onNavigate, onPublishToggle }) => {
             className={`filter-tab ${filterStatus === 'published' ? 'active' : ''}`}
             onClick={() => setFilterStatus('published')}
           >
-            Published ({courses.filter((c) => c.status === 'published').length})
+            Published ({publishedCount})
           </button>
           <button
             type="button"
             className={`filter-tab ${filterStatus === 'draft' ? 'active' : ''}`}
             onClick={() => setFilterStatus('draft')}
           >
-            Drafts ({courses.filter((c) => c.status === 'draft').length})
+            Drafts ({draftCount})
           </button>
         </div>
 
@@ -110,7 +119,21 @@ export const MyCourses = ({ courses, onNavigate, onPublishToggle }) => {
       ) : (
         <div className="courses-card-grid">
           {filteredCourses.map((course) => (
-            <div key={course._id} className="course-card">
+            <div
+              key={course._id}
+              className="course-card"
+              role="button"
+              tabIndex={0}
+              aria-label={`Open workspace for ${course.title}`}
+              onClick={() => onNavigate('manage-course', course._id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onNavigate('manage-course', course._id);
+                }
+              }}
+              style={{ cursor: 'pointer' }}
+            >
 
               {/* Thumbnail */}
               <div className="course-card-thumb-wrap">
@@ -156,7 +179,10 @@ export const MyCourses = ({ courses, onNavigate, onPublishToggle }) => {
                 <button
                   type="button"
                   className="btn btn-primary btn-sm btn-block"
-                  onClick={() => onNavigate('manage-course', course._id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onNavigate('manage-course', course._id);
+                  }}
                 >
                   <FileEdit size={15} />
                   <span>Workspace</span>
@@ -165,7 +191,10 @@ export const MyCourses = ({ courses, onNavigate, onPublishToggle }) => {
                 <button
                   type="button"
                   className={`btn btn-sm btn-block ${course.status === 'published' ? 'btn-outline' : 'btn-publish'}`}
-                  onClick={() => onPublishToggle(course._id, course.status)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPublishToggle(course._id, course.status);
+                  }}
                   title={course.status === 'published' ? 'Move back to Draft' : 'Publish Course Live'}
                 >
                   {course.status === 'published' ? (

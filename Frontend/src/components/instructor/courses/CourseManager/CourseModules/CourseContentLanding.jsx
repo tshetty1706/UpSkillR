@@ -33,7 +33,7 @@ export const CourseContentLanding = ({
   const publishedModules = modules.filter(m => m.state === 'published').length;
   const draftModules = modules.length - publishedModules;
 
-  const articleCount = notes.filter(n => n.type === 'article').length;
+  const articleCount = notes.filter(n => n.type === 'article' || n.type === 'article_md').length;
   const pdfCount = notes.filter(n => n.type === 'pdf').length;
   const imageCount = notes.filter(n => n.type === 'image').length;
 

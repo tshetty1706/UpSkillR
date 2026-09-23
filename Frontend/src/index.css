@@ -182,10 +182,39 @@ a:focus-visible,
 button:focus-visible, 
 input:focus-visible, 
 select:focus-visible, 
-textarea:focus-visible {
+textarea:focus-visible,
+[role="button"]:focus-visible {
   outline: 2px solid var(--brand-primary);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
+}
+
+/* Global Interactive Element Cursors & Usability */
+button,
+[role="button"],
+select,
+summary,
+input[type="checkbox"],
+input[type="radio"],
+input[type="submit"],
+input[type="reset"],
+input[type="button"],
+label[for],
+.clickable-card {
+  cursor: pointer;
+}
+
+/* Disabled Controls Safety State */
+button:disabled,
+button[disabled],
+input:disabled,
+select:disabled,
+textarea:disabled,
+.btn:disabled,
+.btn[disabled] {
+  cursor: not-allowed !important;
+  opacity: 0.65;
+  pointer-events: none;
 }
 
 /* Color Scheme Theme Integration for Native Form Controls */
@@ -872,26 +901,34 @@ h1, h2, h3, h4, h5, h6 {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
 .input-left-icon {
   position: absolute;
   left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--text-muted);
   pointer-events: none;
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 2;
+  width: 18px;
+  height: 18px;
 }
 
 .form-input {
   width: 100%;
-  height: 38px;
-  padding: 0 34px 0 36px;
+  height: 42px;
+  padding-left: 44px !important;
+  padding-right: 44px !important;
+  box-sizing: border-box;
   background-color: var(--input-bg);
   border: 1px solid var(--input-border);
   border-radius: var(--radius-sm);
-  font-size: 0.84rem;
+  font-size: 0.88rem;
   color: var(--input-text);
   font-family: var(--font-family);
   outline: none;
@@ -900,6 +937,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .form-input::placeholder {
   color: var(--input-placeholder);
+  opacity: 0.85;
 }
 
 .form-input:focus {
@@ -909,7 +947,9 @@ h1, h2, h3, h4, h5, h6 {
 
 .password-toggle-btn {
   position: absolute;
-  right: 10px;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
   background: none;
   border: none;
   color: var(--text-muted);
@@ -919,6 +959,7 @@ h1, h2, h3, h4, h5, h6 {
   align-items: center;
   justify-content: center;
   transition: color 0.2s ease;
+  z-index: 2;
 }
 
 .password-toggle-btn:hover {
@@ -930,32 +971,36 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.78rem;
-  margin: 0.05rem 0 0.15rem 0;
+  font-size: 0.82rem;
+  margin: 0.5rem 0 0.5rem 0;
 }
 
 .remember-label {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   color: var(--text-secondary);
   cursor: pointer;
   user-select: none;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
+  line-height: 1;
 }
 
 .remember-checkbox {
   accent-color: var(--brand-primary);
-  width: 15px;
-  height: 15px;
-  border-radius: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
   cursor: pointer;
+  margin: 0;
+  flex-shrink: 0;
+  vertical-align: middle;
 }
 
 .forgot-link {
   color: var(--brand-accent-text);
   font-weight: 600;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   text-decoration: none;
   transition: color 0.2s ease;
 }
@@ -967,21 +1012,21 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Primary Submit Button */
 .submit-btn {
-  height: 38px;
+  height: 42px;
   width: 100%;
   background-color: var(--brand-primary);
   color: var(--btn-primary-text);
   border: none;
   border-radius: var(--radius-sm);
-  font-size: 0.88rem;
+  font-size: 0.92rem;
   font-weight: 700;
   font-family: var(--font-family);
   cursor: pointer;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-top: 0.15rem;
+  margin-top: 0.35rem;
   transition: all 0.2s ease;
   box-shadow: 0 3px 12px var(--brand-emerald-glow);
 }
@@ -1002,9 +1047,9 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: center;
   text-align: center;
-  margin: 0.55rem 0 0.45rem 0;
+  margin: 0.85rem 0 0.65rem 0;
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 500;
 }
 
@@ -1016,13 +1061,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .oauth-divider span {
-  padding: 0 8px;
+  padding: 0 10px;
 }
 
 .oauth-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 0.25rem;
 }
 
@@ -1030,13 +1075,13 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 36px;
+  gap: 8px;
+  height: 40px;
   background-color: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
-  font-size: 0.8rem;
+  font-size: 0.84rem;
   font-weight: 600;
   font-family: var(--font-family);
   cursor: pointer;

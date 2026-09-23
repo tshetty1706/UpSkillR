@@ -17,6 +17,18 @@ export const CourseRatingModal = ({ isOpen, onClose, course, initialRating, onSu
     }
   }, [isOpen, course?._id]);
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !course) return null;
 
   const quickTags = [

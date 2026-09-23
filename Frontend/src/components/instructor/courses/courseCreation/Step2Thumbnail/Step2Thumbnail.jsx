@@ -29,9 +29,14 @@ export const Step2Thumbnail = ({
 
   const handleFileSelect = (file) => {
     setErrorMsg('');
-    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!validTypes.includes(file.type)) {
-      setErrorMsg('Invalid format. Only JPG, PNG, and WebP are allowed.');
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp'];
+    const ext = file.name ? file.name.split('.').pop().toLowerCase() : '';
+    const validExts = ['jpg', 'jpeg', 'png', 'webp'];
+
+    if (!validTypes.includes(file.type?.toLowerCase()) && !validExts.includes(ext)) {
+      setErrorMsg('Invalid format. Only JPG, JPEG, PNG, and WebP are allowed.');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -39,8 +44,13 @@ export const Step2Thumbnail = ({
       return;
     }
 
-    const previewUrl = URL.createObjectURL(file);
-    onThumbnailChange(file, previewUrl);
+    try {
+      const previewUrl = URL.createObjectURL(file);
+      onThumbnailChange(file, previewUrl);
+    } catch (err) {
+      console.error('Failed to create object URL for thumbnail preview:', err);
+      setErrorMsg('Failed to process image file. Please try selecting a different image.');
+    }
   };
 
   const handleDrop = (e) => {
@@ -62,11 +72,13 @@ export const Step2Thumbnail = ({
 
   const handleRemove = () => {
     setErrorMsg('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
     onThumbnailChange(null, '');
   };
 
   const handleSkip = () => {
     setErrorMsg('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
     onThumbnailChange(null, '');
   };
 
@@ -97,12 +109,13 @@ export const Step2Thumbnail = ({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
                 style={{ display: 'none' }}
                 onChange={(e) => {
                   if (e.target.files && e.target.files[0]) {
                     handleFileSelect(e.target.files[0]);
                   }
+                  e.target.value = '';
                 }}
               />
 

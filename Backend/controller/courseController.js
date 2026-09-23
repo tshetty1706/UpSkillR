@@ -4,24 +4,33 @@ const CourseQuestion = require('../model/CourseQuestion');
 const CourseView = require('../model/CourseView');
 const Enrolment = require('../model/Enrolment');
 const AssessmentSubmission = require('../model/AssessmentSubmission');
+const Announcement = require('../model/Announcement');
 const { Instructor, Learner } = require('../model/User');
 const mongoose = require('mongoose');
-const crypto = require('crypto');
-const fs = require('fs');
 const { uploadBufferToCloudinary } = require('./mediaController');
 
 // 2. Get All Courses owned by Instructor + Stats
 exports.getInstructorCourses = async (req, res) => {
   try {
     const instructorId = req.user.id;
-    const courses = await Course.find({ instructorId }).sort({ updatedAt: -1 });
+    let instructorQuery = { instructorId };
+    if (mongoose.Types.ObjectId.isValid(instructorId)) {
+      instructorQuery = {
+        $or: [
+          { instructorId },
+          { instructorId: new mongoose.Types.ObjectId(instructorId) }
+        ]
+      };
+    }
+
+    const courses = await Course.find(instructorQuery).sort({ updatedAt: -1 });
 
     const courseIds = courses.map((c) => c._id);
     const totalEnrolments = await Enrolment.countDocuments({ courseId: { $in: courseIds } });
 
     const totalCourses = courses.length;
-    const publishedCourses = courses.filter((c) => c.status === 'published').length;
-    const draftCourses = courses.filter((c) => c.status === 'draft').length;
+    const publishedCourses = courses.filter((c) => (c.status || c.state) === 'published').length;
+    const draftCourses = courses.filter((c) => (c.status || c.state || 'draft') === 'draft').length;
 
     const ratedCourses = courses.filter((c) => c.rating !== null && c.rating !== undefined);
     const averageRating = ratedCourses.length > 0
@@ -33,6 +42,7 @@ exports.getInstructorCourses = async (req, res) => {
         const enrolCount = await Enrolment.countDocuments({ courseId: c._id });
         const cObj = c.toObject();
         cObj.learnersCount = enrolCount;
+        cObj.status = cObj.status || cObj.state || 'draft';
         cObj.moduleCount = (cObj.modules || []).length;
         cObj.modulesCount = (cObj.modules || []).length;
         return cObj;
@@ -196,15 +206,19 @@ exports.updateCourse = async (req, res) => {
   }
 };
 
-// 5. Delete Course
+// 5. Delete Course (with full cascading deletion across all related collections)
 exports.deleteCourse = async (req, res) => {
   try {
     const courseId = req.course._id;
     await Course.findOneAndDelete({ _id: courseId, instructorId: req.user.id });
     await Enrolment.deleteMany({ courseId });
     await AssessmentSubmission.deleteMany({ courseId });
+    await CourseOverview.deleteMany({ courseId });
+    await CourseQuestion.deleteMany({ courseId });
+    await CourseView.deleteMany({ courseId });
+    await Announcement.deleteMany({ courseId });
 
-    return res.status(200).json({ success: true, message: 'Course deleted successfully.' });
+    return res.status(200).json({ success: true, message: 'Course and associated records deleted successfully.' });
   } catch (error) {
     console.error('Delete Course Error:', error);
     return res.status(500).json({ success: false, message: 'Server error while deleting course.' });
@@ -227,6 +241,8 @@ exports.publishCourse = async (req, res) => {
     }
 
     course.status = targetStatus;
+    course.state = targetStatus;
+    course.effective_visible = (targetStatus === 'published');
     await course.save();
 
     return res.status(200).json({
@@ -1081,10 +1097,18 @@ exports.gradeSubmission = async (req, res) => {
 // ─── LEARNER COURSES & RATINGS ───
 exports.getPublishedCourses = async (req, res) => {
   try {
-    const { search, category, level } = req.query;
+    const { search, category, level, instructorId, instructor } = req.query;
     const filter = { status: 'published' };
 
-    if (category && category !== 'All') {
+    const targetInstructorId = instructorId || instructor;
+    if (targetInstructorId && mongoose.Types.ObjectId.isValid(targetInstructorId)) {
+      filter.$or = [
+        { instructorId: targetInstructorId },
+        { instructorId: new mongoose.Types.ObjectId(targetInstructorId) }
+      ];
+    }
+
+    if (category && category !== 'All' && category !== 'all') {
       filter.category = category;
     }
     if (level && level !== 'All' && level !== 'All Skill Levels') {
@@ -1092,11 +1116,22 @@ exports.getPublishedCourses = async (req, res) => {
     }
     if (search && search.trim()) {
       const searchRegex = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      filter.$or = [
+      const searchConditions = [
         { title: searchRegex },
         { description: searchRegex },
-        { instructorName: searchRegex }
+        { instructorName: searchRegex },
+        { tags: searchRegex },
+        { skills: searchRegex }
       ];
+      if (filter.$or) {
+        filter.$and = [
+          { $or: filter.$or },
+          { $or: searchConditions }
+        ];
+        delete filter.$or;
+      } else {
+        filter.$or = searchConditions;
+      }
     }
 
     const courses = await Course.find(filter)
@@ -1343,14 +1378,19 @@ exports.createCourse = async (req, res) => {
 
     // If file was uploaded via multipart in this request
     if (req.file && req.file.buffer) {
-      const uploadRes = await uploadBufferToCloudinary(
-        req.file.buffer,
-        req.file.mimetype,
-        req.file.originalname,
-        'course_thumbnails'
-      );
-      resolvedThumbnail = uploadRes.secure_url;
-      resolvedThumbnailPublicId = uploadRes.public_id;
+      try {
+        const uploadRes = await uploadBufferToCloudinary(
+          req.file.buffer,
+          req.file.mimetype,
+          req.file.originalname,
+          'course_thumbnails'
+        );
+        resolvedThumbnail = uploadRes.secure_url;
+        resolvedThumbnailPublicId = uploadRes.public_id;
+      } catch (cloudErr) {
+        console.warn('Cloudinary upload warning during course creation (falling back to base64 Data URL):', cloudErr.message);
+        resolvedThumbnail = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+      }
     }
 
     const newCourse = new Course({
@@ -1448,12 +1488,13 @@ exports.getPublicCourseOverview = async (req, res) => {
     let instructorProfile = null;
     try {
       const instructorUser = await Instructor.findById(course.instructorId).select(
-        'fullName profilePhoto bio headline email'
+        'fullName avatar profilePhoto bio headline email'
       );
       if (instructorUser) {
         instructorProfile = {
           name: instructorUser.fullName,
-          profilePhoto: instructorUser.profilePhoto || '',
+          profilePhoto: instructorUser.avatar || instructorUser.profilePhoto || '',
+          avatar: instructorUser.avatar || instructorUser.profilePhoto || '',
           bio: instructorUser.bio || '',
           headline: instructorUser.headline || 'UpSkillr Instructor',
           email: instructorUser.email
@@ -1602,14 +1643,19 @@ exports.updateCourseThumbnail = async (req, res) => {
     let thumbnailPublicId = course.thumbnail_public_id || '';
 
     if (req.file && req.file.buffer) {
-      const uploadRes = await uploadBufferToCloudinary(
-        req.file.buffer,
-        req.file.mimetype,
-        req.file.originalname,
-        'course_thumbnails'
-      );
-      thumbnailUrl = uploadRes.secure_url;
-      thumbnailPublicId = uploadRes.public_id;
+      try {
+        const uploadRes = await uploadBufferToCloudinary(
+          req.file.buffer,
+          req.file.mimetype,
+          req.file.originalname,
+          'course_thumbnails'
+        );
+        thumbnailUrl = uploadRes.secure_url;
+        thumbnailPublicId = uploadRes.public_id;
+      } catch (cloudErr) {
+        console.warn('Cloudinary upload warning during updateCourseThumbnail (falling back to base64 Data URL):', cloudErr.message);
+        thumbnailUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+      }
     } else if (req.body.thumbnailUrl && req.body.thumbnailUrl.trim()) {
       thumbnailUrl = req.body.thumbnailUrl.trim();
       thumbnailPublicId = req.body.thumbnailPublicId || '';
@@ -1722,7 +1768,7 @@ exports.askCourseQuestion = async (req, res) => {
       courseId: id,
       userId: req.user.id,
       userName: req.user.fullName || 'Learner',
-      userAvatar: req.user.profilePhoto || '',
+      userAvatar: req.user.avatar || req.user.profilePhoto || '',
       question: question.trim(),
       status: 'pending'
     });

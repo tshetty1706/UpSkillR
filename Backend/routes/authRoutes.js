@@ -1,7 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const path = require('path');
-const fs = require('fs');
 const multer = require('multer');
 const authController = require('../controller/authController');
 const { protect } = require('../middleware/authMiddleware');
@@ -42,7 +40,8 @@ router.put('/profile', protect, authController.updateProfile);
 router.post('/profile/upload/photo', protect, photoUpload.single('file'), authController.uploadProfilePhoto);
 router.delete('/profile/upload/photo', protect, authController.removeProfilePhoto);
 
-// Public list of instructors
+// Public list of instructors & specific instructor profile by ID
 router.get('/instructors', authController.getInstructors);
+router.get('/instructors/:id', authController.getPublicInstructorById);
 
 module.exports = router;

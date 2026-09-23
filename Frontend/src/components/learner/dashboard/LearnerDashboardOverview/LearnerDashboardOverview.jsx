@@ -183,6 +183,12 @@ export const LearnerDashboardOverview = ({
     setExpandedCourseId(prev => (prev === id ? null : id));
   };
 
+  const handleNavigateToCourse = (courseId) => {
+    const path = `/courses/${courseId}`;
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
+  };
+
   // Submit course rating (FR-09)
   const handleRatingSubmit = (courseId, ratingData) => {
     const updatedMap = {
@@ -416,7 +422,21 @@ export const LearnerDashboardOverview = ({
                               {lessons.map((ls, idx) => {
                                 const isDone = enrol.completedLessons?.includes(idx);
                                 return (
-                                  <div key={idx} className={`learner-lesson-item ${isDone ? 'done-item' : ''}`}>
+                                  <div
+                                    key={idx}
+                                    className={`learner-lesson-item ${isDone ? 'done-item' : ''}`}
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={`${ls.title}, ${isDone ? 'Completed' : 'Incomplete'}. Click to toggle completion.`}
+                                    onClick={() => onLessonComplete(course._id, idx)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        onLessonComplete(course._id, idx);
+                                      }
+                                    }}
+                                    style={{ cursor: 'pointer' }}
+                                  >
                                     <div className="lesson-info">
                                       <PlayCircle size={16} className="lesson-icon" />
                                       <span className="lesson-title-text">{ls.title}</span>
@@ -425,8 +445,12 @@ export const LearnerDashboardOverview = ({
                                     <button
                                       type="button"
                                       className={`btn-lesson-check ${isDone ? 'done' : ''}`}
-                                      onClick={() => onLessonComplete(course._id, idx)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onLessonComplete(course._id, idx);
+                                      }}
                                       title={isDone ? 'Mark as incomplete' : 'Mark lesson as complete'}
+                                      tabIndex={-1}
                                     >
                                       <CheckCircle2 size={16} />
                                       <span>{isDone ? 'Completed' : 'Mark Complete'}</span>
@@ -513,14 +537,26 @@ export const LearnerDashboardOverview = ({
 
                   return (
                     <div key={course._id} className="enrolled-card catalog-card">
-                      <div className="card-top-header">
+                      <div
+                        className="card-top-header"
+                        onClick={() => handleNavigateToCourse(course._id)}
+                        style={{ cursor: 'pointer' }}
+                        title={`View ${course.title} Overview`}
+                      >
                         <CourseThumbnail src={course.thumbnail} alt={course.title} className="enrolled-thumb" />
                         <span className="level-badge">{course.skillLevel || 'All Levels'}</span>
                       </div>
 
                       <div className="enrolled-body">
                         <span className="category-pill">{course.category}</span>
-                        <h3 className="course-card-title">{course.title}</h3>
+                        <h3
+                          className="course-card-title"
+                          onClick={() => handleNavigateToCourse(course._id)}
+                          style={{ cursor: 'pointer' }}
+                          title={`View ${course.title} Overview`}
+                        >
+                          {course.title}
+                        </h3>
                         <p className="course-desc-clamp">{course.description}</p>
 
                         <div className="course-meta-row">
