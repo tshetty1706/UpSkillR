@@ -30,7 +30,6 @@ import './CourseManager.css';
 import { useToast } from '../../../../context/ToastContext';
 import { DynamicTagInput } from '../courseCreation/Common/DynamicTagInput';
 import { DynamicListInput } from '../courseCreation/Common/DynamicListInput';
-import { CourseOverviewTemplate } from '../courseCreation/OverviewTemplate/CourseOverviewTemplate';
 import { CourseAnnouncements } from './CourseAnnouncements/CourseAnnouncements';
 import { CourseModules } from './CourseModules/CourseModules';
 import { CourseThumbnail } from '../../../common/CourseThumbnail';
@@ -91,7 +90,6 @@ export const CourseManager = ({
   // Tab 3: Course Overview Edit & Preview State
   const [isEditingOverview, setIsEditingOverview] = useState(false);
   const [savingOverview, setSavingOverview] = useState(false);
-  const [showOverviewPreview, setShowOverviewPreview] = useState(false);
   const [overviewForm, setOverviewForm] = useState({
     fullDescription: '',
     prerequisites: [],
@@ -101,6 +99,15 @@ export const CourseManager = ({
     certificate: true,
     faqs: []
   });
+
+  const handlePreviewOverview = () => {
+    const targetCourseId = courseId || course?._id;
+    if (targetCourseId) {
+      const path = `/courses/${targetCourseId}`;
+      window.history.pushState({}, '', path);
+      window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
+    }
+  };
 
   // FAQ addition in edit overview
   const [newFaqQ, setNewFaqQ] = useState('');
@@ -967,8 +974,8 @@ export const CourseManager = ({
                 <button
                   type="button"
                   className="btn-preview-learner"
-                  onClick={() => setShowOverviewPreview(true)}
-                  title="Open live learner-facing overview preview"
+                  onClick={handlePreviewOverview}
+                  title="Open live learner-facing overview page"
                 >
                   <Eye size={16} />
                   <span>Preview Overview</span>
@@ -1537,55 +1544,6 @@ export const CourseManager = ({
           </section>
         )}
       </main>
-
-      {/* ═══ LIVE OVERVIEW PREVIEW MODAL ═══ */}
-      {showOverviewPreview && (
-        <div className="workspace-preview-modal-backdrop" onClick={() => setShowOverviewPreview(false)}>
-          <div
-            className="workspace-preview-modal-dialog"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-preview-header">
-              <div className="preview-header-left">
-                <Eye size={18} className="accent-green" />
-                <span className="preview-modal-title">
-                  Learner Overview Preview • <em>{course.title}</em>
-                </span>
-              </div>
-              <button
-                type="button"
-                className="btn-close-modal"
-                onClick={() => setShowOverviewPreview(false)}
-                title="Close Preview"
-              >
-                <X size={18} />
-                <span>Close</span>
-              </button>
-            </div>
-
-            <div className="modal-preview-body">
-              <CourseOverviewTemplate
-                course={course}
-                overview={currentPreviewOverview}
-                instructor={{
-                  name: user?.fullName || user?.name || course?.instructorName || 'UpSkillr Instructor',
-                  headline: user?.designation || user?.headline || 'Course Instructor',
-                  bio: user?.bio || '',
-                  profilePhoto: user?.avatar || user?.photoUrl || ''
-                }}
-                stats={{
-                  totalEnrolments: course?.learnersCount || 0,
-                  overviewViews: course?.overviewViews || 0,
-                  averageRating: course?.rating || null,
-                  reviewCount: course?.reviewCount || 0
-                }}
-                isPreviewMode={true}
-                user={user}
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

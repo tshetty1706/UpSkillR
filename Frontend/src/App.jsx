@@ -9,7 +9,8 @@ import Login from './components/authentication/login';
 import { InstructorDashboard } from './pages/Instructor/InstructorDashboard';
 import { LearnerDashboard } from './pages/Learner/LearnerDashboard';
 import { ExploreCourses } from './components/home/ExploreCourses/ExploreCourses';
-import { ExploreInstructors } from './components/home/ExploreInstructors/ExploreInstructors'
+import { ExploreInstructors } from './components/home/ExploreInstructors/ExploreInstructors';
+import { CourseOverviewPage } from './pages/CourseOverview/CourseOverviewPage';
 import { NotFound } from './components/common/NotFound/NotFound';
 import { InstructorApplication } from './components/instructor/application/InstructorApplication';
 
@@ -165,6 +166,19 @@ function App() {
         </div>
       );
     }
+    // Course Overview Route: /courses/:courseId or /course/:courseId
+    const courseOverviewMatch = currentPath.match(/^\/(?:courses|course)\/([^/?#]+)/i);
+    if (courseOverviewMatch) {
+      const courseId = courseOverviewMatch[1];
+      return (
+        <div className="app-main">
+          <Navbar />
+          <CourseOverviewPage courseId={courseId} user={currentUser} />
+          <Footer />
+        </div>
+      );
+    }
+
     if (path === '/explore' || path === '/courses') {
       return (
         <div className="app-main">

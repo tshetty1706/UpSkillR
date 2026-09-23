@@ -15,7 +15,10 @@ import {
   Sparkles,
   Zap,
   Send,
-  HelpCircle
+  HelpCircle,
+  Layers,
+  Video,
+  PlayCircle
 } from 'lucide-react';
 import { CourseThumbnail } from '../../../../common/CourseThumbnail';
 import './CourseOverviewTemplate.css';
@@ -42,12 +45,16 @@ export const CourseOverviewTemplate = ({
   reviews = [],
   questions = [],
   onAskQuestion = null,
+  onEnroll = null,
+  isEnrolled = false,
+  enrolling = false,
   isPreviewMode = false,
   user = null
 }) => {
   const [questionInput, setQuestionInput] = useState('');
   const [submittingQ, setSubmittingQ] = useState(false);
   const [activeFaq, setActiveFaq] = useState(null);
+  const [expandedModules, setExpandedModules] = useState({});
 
   const handleQuestionSubmit = async (e) => {
     e.preventDefault();
@@ -351,6 +358,68 @@ export const CourseOverviewTemplate = ({
             </section>
           )}
 
+          {/* Course Curriculum & Syllabus */}
+          {Array.isArray(course?.modules) && course.modules.length > 0 && (
+            <section className="overview-section syllabus-section">
+              <div className="section-title-row">
+                <Layers size={20} className="section-title-icon" />
+                <h2 className="section-heading">Course Curriculum & Syllabus</h2>
+              </div>
+              <p className="section-subnote">
+                {course.modules.length} {course.modules.length === 1 ? 'Module' : 'Modules'} •{' '}
+                {course.modules.reduce((acc, m) => acc + (m.lessons?.length || 0), 0)} Total Lessons
+              </p>
+              <div className="curriculum-accordion-list">
+                {course.modules.map((mod, mIdx) => {
+                  const modKey = mod._id || `m_${mIdx}`;
+                  const isModOpen = expandedModules[modKey] !== false; // open by default
+                  return (
+                    <div key={modKey} className={`curriculum-module-card ${isModOpen ? 'open' : ''}`}>
+                      <button
+                        type="button"
+                        className="curriculum-module-header"
+                        onClick={() =>
+                          setExpandedModules((prev) => ({
+                            ...prev,
+                            [modKey]: !isModOpen
+                          }))
+                        }
+                      >
+                        <div className="module-header-title-wrap">
+                          <span className="module-index-badge">Module {mIdx + 1}</span>
+                          <span className="module-title-text">{mod.title}</span>
+                        </div>
+                        <div className="module-header-meta">
+                          <span className="module-lesson-count">
+                            {mod.lessons?.length || 0} {mod.lessons?.length === 1 ? 'lesson' : 'lessons'}
+                          </span>
+                          {isModOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        </div>
+                      </button>
+                      {isModOpen && (
+                        <div className="curriculum-lessons-list">
+                          {!mod.lessons || mod.lessons.length === 0 ? (
+                            <div className="curriculum-empty-lesson">No lessons published in this module yet.</div>
+                          ) : (
+                            mod.lessons.map((les, lIdx) => (
+                              <div key={les._id || lIdx} className="curriculum-lesson-row">
+                                <div className="lesson-left">
+                                  <PlayCircle size={15} className="lesson-play-icon" />
+                                  <span className="lesson-row-title">{les.title}</span>
+                                </div>
+                                {les.duration && <span className="lesson-row-duration">{les.duration}</span>}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {/* FAQs */}
           {faqs.length > 0 && (
             <section className="overview-section">
@@ -505,9 +574,19 @@ export const CourseOverviewTemplate = ({
                 <div className="preview-mode-banner">
                   <span>✦ Preview Mode (Live Form Data)</span>
                 </div>
+              ) : isEnrolled ? (
+                <button type="button" className="btn-enroll-primary btn-enrolled-active" disabled>
+                  <Check size={18} />
+                  <span>Already Enrolled</span>
+                </button>
               ) : (
-                <button type="button" className="btn-enroll-primary">
-                  Enroll Now
+                <button
+                  type="button"
+                  className="btn-enroll-primary"
+                  onClick={onEnroll}
+                  disabled={enrolling}
+                >
+                  {enrolling ? 'Enrolling...' : 'Enroll Now'}
                 </button>
               )}
 

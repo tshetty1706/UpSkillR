@@ -183,6 +183,12 @@ export const LearnerDashboardOverview = ({
     setExpandedCourseId(prev => (prev === id ? null : id));
   };
 
+  const handleNavigateToCourse = (courseId) => {
+    const path = `/courses/${courseId}`;
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
+  };
+
   // Submit course rating (FR-09)
   const handleRatingSubmit = (courseId, ratingData) => {
     const updatedMap = {
@@ -531,14 +537,26 @@ export const LearnerDashboardOverview = ({
 
                   return (
                     <div key={course._id} className="enrolled-card catalog-card">
-                      <div className="card-top-header">
+                      <div
+                        className="card-top-header"
+                        onClick={() => handleNavigateToCourse(course._id)}
+                        style={{ cursor: 'pointer' }}
+                        title={`View ${course.title} Overview`}
+                      >
                         <CourseThumbnail src={course.thumbnail} alt={course.title} className="enrolled-thumb" />
                         <span className="level-badge">{course.skillLevel || 'All Levels'}</span>
                       </div>
 
                       <div className="enrolled-body">
                         <span className="category-pill">{course.category}</span>
-                        <h3 className="course-card-title">{course.title}</h3>
+                        <h3
+                          className="course-card-title"
+                          onClick={() => handleNavigateToCourse(course._id)}
+                          style={{ cursor: 'pointer' }}
+                          title={`View ${course.title} Overview`}
+                        >
+                          {course.title}
+                        </h3>
                         <p className="course-desc-clamp">{course.description}</p>
 
                         <div className="course-meta-row">
