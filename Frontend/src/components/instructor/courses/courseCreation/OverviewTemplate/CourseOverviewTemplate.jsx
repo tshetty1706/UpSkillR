@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { CourseThumbnail } from '../../../../common/CourseThumbnail';
 import { Avatar } from '../../../../common/Avatar/Avatar';
+import { QuizPlayerModal } from '../../../../learner/quiz/QuizPlayerModal';
 import './CourseOverviewTemplate.css';
 
 const LinkedinIcon = ({ size = 16 }) => (
@@ -56,6 +57,7 @@ export const CourseOverviewTemplate = ({
   const [submittingQ, setSubmittingQ] = useState(false);
   const [activeFaq, setActiveFaq] = useState(null);
   const [expandedModules, setExpandedModules] = useState({});
+  const [activeQuizModal, setActiveQuizModal] = useState(null);
 
   const handleQuestionSubmit = async (e) => {
     e.preventDefault();
@@ -400,15 +402,82 @@ export const CourseOverviewTemplate = ({
                           {!mod.lessons || mod.lessons.length === 0 ? (
                             <div className="curriculum-empty-lesson">No lessons published in this module yet.</div>
                           ) : (
-                            mod.lessons.map((les, lIdx) => (
-                              <div key={les._id || lIdx} className="curriculum-lesson-row">
-                                <div className="lesson-left">
-                                  <PlayCircle size={15} className="lesson-play-icon" />
-                                  <span className="lesson-row-title">{les.title}</span>
+                            mod.lessons.map((les, lIdx) => {
+                              const items = les.items || les.contentItems || [];
+                              const hasQuiz = items.some(i => (i.type || '').toLowerCase() === 'quiz');
+                              const quizItem = items.find(i => (i.type || '').toLowerCase() === 'quiz');
+
+                              return (
+                                <div key={les._id || lIdx} className="curriculum-lesson-container">
+                                  <div
+                                    className="curriculum-lesson-row"
+                                    onClick={() => {
+                                      if (quizItem) {
+                                        setActiveQuizModal({ item: quizItem, module: mod, lesson: les });
+                                      }
+                                    }}
+                                    style={quizItem ? { cursor: 'pointer' } : {}}
+                                  >
+                                    <div className="lesson-left">
+                                      <PlayCircle size={15} className="lesson-play-icon" />
+                                      <span className="lesson-row-title">{les.title}</span>
+                                      {hasQuiz && (
+                                        <span className="lesson-has-quiz-tag">
+                                          <HelpCircle size={12} />
+                                          <span>1 Quiz</span>
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="lesson-right-meta">
+                                      {les.duration && <span className="lesson-row-duration">{les.duration}</span>}
+                                    </div>
+                                  </div>
+
+                                  {/* Exposed Content Items (e.g. Quizzes and Videos) */}
+                                  {items.length > 0 && (
+                                    <div className="curriculum-items-sublist">
+                                      {items.map((item, iIdx) => {
+                                        const isQuiz = (item.type || '').toLowerCase() === 'quiz';
+                                        return (
+                                          <div
+                                            key={item._id || iIdx}
+                                            className={`curriculum-item-subrow ${isQuiz ? 'quiz-item-row' : 'video-item-row'}`}
+                                          >
+                                            <div className="item-subrow-left">
+                                              {isQuiz ? (
+                                                <HelpCircle size={15} className="item-sub-icon quiz-color" />
+                                              ) : (
+                                                <Video size={15} className="item-sub-icon video-color" />
+                                              )}
+                                              <span className="item-sub-title">{item.title || (isQuiz ? 'Quiz' : 'Video Lecture')}</span>
+                                              <span className="item-sub-badge">
+                                                {isQuiz
+                                                  ? `Quiz • ${item.quiz?.questions?.length || 1} Question${(item.quiz?.questions?.length || 1) === 1 ? '' : 's'}`
+                                                  : 'Video Lecture'}
+                                              </span>
+                                            </div>
+
+                                            {isQuiz && (
+                                              <button
+                                                type="button"
+                                                className="btn-take-quiz-action"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setActiveQuizModal({ item, module: mod, lesson: les });
+                                                }}
+                                              >
+                                                <Award size={13} />
+                                                <span>{isEnrolled ? 'Open Quiz' : 'Preview Quiz'}</span>
+                                              </button>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
-                                {les.duration && <span className="lesson-row-duration">{les.duration}</span>}
-                              </div>
-                            ))
+                              );
+                            })
                           )}
                         </div>
                       )}
@@ -633,6 +702,18 @@ export const CourseOverviewTemplate = ({
           </div>
         </aside>
       </div>
+
+      {/* Quiz Player Modal */}
+      {activeQuizModal && (
+        <QuizPlayerModal
+          quizItem={activeQuizModal.item}
+          moduleTitle={activeQuizModal.module?.title}
+          lessonTitle={activeQuizModal.lesson?.title}
+          courseId={course?._id}
+          isEnrolled={isEnrolled}
+          onClose={() => setActiveQuizModal(null)}
+        />
+      )}
     </div>
   );
 };
