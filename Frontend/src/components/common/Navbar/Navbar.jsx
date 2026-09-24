@@ -83,7 +83,7 @@ export const Navbar = () => {
           <div className="logo-icon-wrapper">
             <BookOpen className="logo-icon" size={24} aria-hidden="true" />
           </div>
-          <span className="logo-text">UpSkillr</span>
+          <span className="logo-text">UpSkillR</span>
         </a>
 
         {/* CENTER: Desktop Navigation */}

@@ -7,6 +7,7 @@ import { LearnerProfile } from '../../components/learner/profile/LearnerProfile'
 import { LogoutModal } from '../../components/common/LogoutModal/LogoutModal';
 
 export const LearnerDashboard = ({ user }) => {
+  const { theme, toggleTheme, isDarkMode } = useTheme();
   const { toast } = useToast();
   const [enrolments, setEnrolments] = useState([]);
   const [publishedCourses, setPublishedCourses] = useState([]);
@@ -93,7 +94,7 @@ export const LearnerDashboard = ({ user }) => {
     }
 
     // Trigger floating toast notification banner (FR-06 requirement)
-    showNotification('🎉 Enrolled successfully! Start learning now.');
+    toast.success('🎉 Enrolled successfully! Start learning now.');
 
     try {
       if (token) {
@@ -207,7 +208,7 @@ export const LearnerDashboard = ({ user }) => {
             <div className="logo-icon-wrapper">
               <BookOpen className="logo-icon" size={24} />
             </div>
-            <span className="logo-text">UpSkillr</span>
+            <span className="logo-text">UpSkillR</span>
             <span className="badge-pill dashboard-badge">Student Space</span>
           </a>
 
@@ -220,16 +221,6 @@ export const LearnerDashboard = ({ user }) => {
             >
               <LayoutDashboard size={15} />
               <span>My Learning</span>
-            </button>
-
-            <button
-              className={`btn ${activeView === 'dashboard' && activeTab === 'browse' ? 'btn-primary' : 'btn-outline'}`}
-              onClick={() => { setActiveView('dashboard'); setActiveTab('browse'); }}
-              title="Browse Courses (FR-05)"
-              style={{ padding: '8px 16px', minHeight: '38px', fontSize: '13.5px' }}
-            >
-              <Compass size={15} />
-              <span>Browse Catalog</span>
             </button>
 
             <button

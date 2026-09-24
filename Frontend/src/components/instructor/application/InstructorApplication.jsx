@@ -302,6 +302,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
   const [showCertModal, setShowCertModal] = useState(false);
   const [editingCertIndex, setEditingCertIndex] = useState(null);
   const [certUploading, setCertUploading] = useState(false);
+  const [certModalError, setCertModalError] = useState('');
   const [certForm, setCertForm] = useState({
     name: '',
     issuingOrganization: '',
@@ -818,10 +819,9 @@ export const InstructorApplication = ({ user, onLogout }) => {
       return;
     }
 
-    const allowedExts = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
     const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-    if (!allowedExts.includes(ext)) {
-      toast.error('Please select a valid certificate file (PDF, JPG, PNG, or WEBP).');
+    if (ext !== '.pdf' && file.type !== 'application/pdf') {
+      toast.error('Please select a valid PDF certificate file (.pdf format only).');
       return;
     }
 
@@ -2400,11 +2400,11 @@ export const InstructorApplication = ({ user, onLogout }) => {
 
             {/* Native Certificate File Upload Field */}
             <div className="form-group-field" style={{ marginTop: '1rem' }}>
-              <label className="field-label">Certificate File</label>
+              <label className="field-label">Certificate File (.pdf format only)</label>
               <input
                 type="file"
                 ref={certFileInputRef}
-                accept="application/pdf,image/jpeg,image/png,image/webp"
+                accept=".pdf,application/pdf"
                 style={{ display: 'none' }}
                 onChange={handleCertFileUpload}
               />

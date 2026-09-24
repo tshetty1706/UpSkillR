@@ -48,12 +48,12 @@ const certificateUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
-    const allowedExts = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
+    const allowedExts = ['.pdf'];
     const ext = path.extname(file.originalname).toLowerCase();
     if (allowedExts.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid certificate file format. Only PDF, JPG, PNG, and WEBP files are allowed.'));
+      cb(new Error('Invalid certificate file format. Only PDF files (.pdf) are allowed.'));
     }
   }
 });

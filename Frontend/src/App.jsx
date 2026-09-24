@@ -30,7 +30,11 @@ function App() {
         localStorage.setItem('upskillr_token', token);
         localStorage.setItem('upskillr_user', JSON.stringify(user));
         setCurrentUser(user);
-        window.history.replaceState({}, document.title, window.location.pathname);
+        const targetPath = user.role === 'instructor'
+          ? (user.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
+          : '/learner';
+        window.history.replaceState({}, document.title, targetPath);
+        setCurrentPath(targetPath);
       } catch (e) {
         console.error('Failed to parse user data from OAuth callback URL');
       }
@@ -101,6 +105,12 @@ function App() {
     // 1. Auth Routing
     if (path === '/login' || path === '/signin') {
       if (currentUser) {
+        const targetPath = currentUser.role === 'instructor'
+          ? (currentUser.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
+          : '/learner';
+        if (currentPath !== targetPath) {
+          window.history.replaceState({}, '', targetPath);
+        }
         return currentUser.role === 'instructor' ? (
           <InstructorDashboard user={currentUser} onLogout={handleLogout} />
         ) : (
@@ -111,6 +121,12 @@ function App() {
     }
     if (path === '/signup' || path === '/register') {
       if (currentUser) {
+        const targetPath = currentUser.role === 'instructor'
+          ? (currentUser.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
+          : '/learner';
+        if (currentPath !== targetPath) {
+          window.history.replaceState({}, '', targetPath);
+        }
         return currentUser.role === 'instructor' ? (
           <InstructorDashboard user={currentUser} onLogout={handleLogout} />
         ) : (

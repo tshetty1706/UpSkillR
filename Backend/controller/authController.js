@@ -439,12 +439,16 @@ exports.googleOAuthCallback = async (req, res) => {
       }
     }
 
-    const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+    const googleParams = new URLSearchParams({
       client_id: process.env.GOOGLE_CLIENT_ID,
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
       code,
       grant_type: 'authorization_code',
       redirect_uri: GOOGLE_CALLBACK_URL
+    });
+
+    const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', googleParams.toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     });
 
     const { access_token } = tokenResponse.data;
@@ -498,10 +502,10 @@ exports.googleOAuthCallback = async (req, res) => {
       })
     );
 
-    return res.redirect(`${FRONTEND_URL}/?token=${token}&user=${userPayload}&provider=google`);
+    return res.redirect(`${FRONTEND_URL}/login?token=${token}&user=${userPayload}&provider=google`);
   } catch (error) {
     console.error('Google OAuth Callback Error:', error?.response?.data || error.message);
-    return res.redirect(`${FRONTEND_URL}/?error=google_oauth_failed`);
+    return res.redirect(`${FRONTEND_URL}/login?error=google_oauth_failed`);
   }
 };
 
@@ -539,20 +543,27 @@ exports.githubOAuthCallback = async (req, res) => {
       }
     }
 
+    const githubParams = new URLSearchParams({
+      client_id: process.env.GITHUB_CLIENT_ID,
+      client_secret: process.env.GITHUB_CLIENT_SECRET,
+      code,
+      redirect_uri: GITHUB_CALLBACK_URL
+    });
+
     const tokenResponse = await axios.post(
       'https://github.com/login/oauth/access_token',
+      githubParams.toString(),
       {
-        client_id: process.env.GITHUB_CLIENT_ID,
-        client_secret: process.env.GITHUB_CLIENT_SECRET,
-        code,
-        redirect_uri: GITHUB_CALLBACK_URL
-      },
-      { headers: { Accept: 'application/json' } }
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json'
+        }
+      }
     );
 
     const { access_token } = tokenResponse.data;
     if (!access_token) {
-      return res.redirect(`${FRONTEND_URL}/?error=github_token_failed`);
+      return res.redirect(`${FRONTEND_URL}/login?error=github_token_failed`);
     }
 
     const profileResponse = await axios.get('https://api.github.com/user', {
@@ -616,10 +627,10 @@ exports.githubOAuthCallback = async (req, res) => {
       })
     );
 
-    return res.redirect(`${FRONTEND_URL}/?token=${token}&user=${userPayload}&provider=github`);
+    return res.redirect(`${FRONTEND_URL}/login?token=${token}&user=${userPayload}&provider=github`);
   } catch (error) {
     console.error('GitHub OAuth Callback Error:', error?.response?.data || error.message);
-    return res.redirect(`${FRONTEND_URL}/?error=github_oauth_failed`);
+    return res.redirect(`${FRONTEND_URL}/login?error=github_oauth_failed`);
   }
 };
 
