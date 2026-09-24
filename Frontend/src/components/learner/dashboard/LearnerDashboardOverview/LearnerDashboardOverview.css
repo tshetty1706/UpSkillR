@@ -9,28 +9,49 @@
   margin-bottom: 1.5rem;
 }
 
-.learner-welcome-header h1 {
-  font-size: clamp(1.6rem, 2.2vw, 2.2rem);
-  font-weight: 800;
+.learner-welcome-header .welcome-title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
   flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-bottom: 0.35rem;
+}
+
+.learner-welcome-header h1,
+.learner-welcome-header h1.welcome-heading {
+  font-size: clamp(1.6rem, 2.2vw, 2.2rem);
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.25;
+  margin: 0;
 }
 
 .learner-welcome-header .username-sub-badge {
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--brand-primary);
-  background: rgba(16, 185, 129, 0.1);
-  padding: 4px 10px;
+  background: rgba(16, 185, 129, 0.12);
+  padding: 4px 12px;
   border-radius: var(--radius-pill);
-  border: 1px solid rgba(16, 185, 129, 0.25);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: middle;
+  transition: all var(--transition-fast);
+}
+
+.learner-welcome-header .username-sub-badge:hover {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.5);
 }
 
 .learner-welcome-header p {
   font-size: 0.95rem;
   color: var(--text-secondary);
+  margin: 0;
 }
 
 /* GAMIFICATION HERO BAR */

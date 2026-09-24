@@ -304,6 +304,7 @@ exports.verifyOtp = async (req, res) => {
             role: existingUser.role,
             isVerified: true,
             avatar: existingUser.avatar,
+            username: existingUser.username || '',
             applicationStatus: existingUser.applicationStatus || (existingUser.role === 'instructor' ? 'not_started' : undefined)
           }
         });
@@ -395,6 +396,7 @@ exports.manualLogin = async (req, res) => {
         role: user.role,
         isVerified: user.isVerified,
         avatar: user.avatar,
+        username: user.username || '',
         applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
       }
     });

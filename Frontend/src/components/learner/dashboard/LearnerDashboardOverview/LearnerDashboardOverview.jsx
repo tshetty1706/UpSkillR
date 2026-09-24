@@ -121,6 +121,14 @@ export const LearnerDashboardOverview = ({
   const [selectedLevel, setSelectedLevel] = useState('All');
 
   // Gamification & Check-in State
+  const [profileUser, setProfileUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('upskillr_user');
+      return stored ? JSON.parse(stored) : (user || {});
+    } catch {
+      return user || {};
+    }
+  });
   const [gamification, setGamification] = useState({
     points: 0,
     currentStreak: 0,
@@ -166,13 +174,18 @@ export const LearnerDashboardOverview = ({
       ]);
 
       const statsData = await statsRes.json();
-      if (statsData.success && statsData.stats) {
-        setGamification({
-          points: statsData.stats.totalPoints || 0,
-          currentStreak: statsData.stats.currentStreak || 0,
-          longestStreak: statsData.stats.longestStreak || 0,
-          checkedInToday: Boolean(statsData.stats.checkedInToday)
-        });
+      if (statsData.success) {
+        if (statsData.user) {
+          setProfileUser(prev => ({ ...prev, ...statsData.user }));
+        }
+        if (statsData.stats) {
+          setGamification({
+            points: statsData.stats.totalPoints || 0,
+            currentStreak: statsData.stats.currentStreak || 0,
+            longestStreak: statsData.stats.longestStreak || 0,
+            checkedInToday: Boolean(statsData.stats.checkedInToday)
+          });
+        }
       }
 
       const historyData = await historyRes.json();
@@ -185,17 +198,33 @@ export const LearnerDashboardOverview = ({
   };
 
   useEffect(() => {
+    if (user) {
+      setProfileUser(prev => ({ ...prev, ...user }));
+    }
+  }, [user]);
+
+  useEffect(() => {
     fetchGamificationData();
 
     const handlePointsRefresh = () => fetchGamificationData();
+    const handleUserRefresh = () => {
+      try {
+        const stored = localStorage.getItem('upskillr_user');
+        if (stored) {
+          setProfileUser(JSON.parse(stored));
+        }
+      } catch (e) {}
+      fetchGamificationData();
+    };
+
     window.addEventListener('upskillr_points_updated', handlePointsRefresh);
-    window.addEventListener('upskillr_user_updated', handlePointsRefresh);
+    window.addEventListener('upskillr_user_updated', handleUserRefresh);
 
     return () => {
       window.removeEventListener('upskillr_points_updated', handlePointsRefresh);
-      window.removeEventListener('upskillr_user_updated', handlePointsRefresh);
+      window.removeEventListener('upskillr_user_updated', handleUserRefresh);
     };
-  }, [user]);
+  }, []);
 
   // Daily Check-in Action
   const handleCheckIn = async () => {
@@ -304,7 +333,9 @@ export const LearnerDashboardOverview = ({
     }
   };
 
-  const userDisplayName = user?.username ? `@${user.username}` : user?.fullName || 'Learner';
+  const userFullName = profileUser?.fullName || user?.fullName || user?.name || 'Learner';
+  const rawUsername = profileUser?.username || user?.username || '';
+  const cleanUsername = rawUsername ? rawUsername.replace(/^@+/, '') : '';
 
   return (
     <main className="learner-main-workspace section">
@@ -313,10 +344,16 @@ export const LearnerDashboardOverview = ({
         {/* Welcome Header */}
         <div className="learner-welcome-header">
           <div className="welcome-text-content">
-            <h1>
-              Welcome, <span className="accent-green">{userDisplayName}</span> 👋
-              {user?.username && <span className="username-sub-badge">@{user.username}</span>}
-            </h1>
+            <div className="welcome-title-row">
+              <h1 className="welcome-heading">
+                Welcome, <span className="accent-green">{userFullName}</span> 👋
+              </h1>
+              {cleanUsername && (
+                <span className="username-sub-badge" title={`@${cleanUsername}`}>
+                  @{cleanUsername}
+                </span>
+              )}
+            </div>
             <p>Track your course progress, earn points, and build your continuous learning streak on UpSkillr.</p>
           </div>
 
