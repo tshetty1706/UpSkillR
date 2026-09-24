@@ -226,6 +226,216 @@
   margin-top: 2px;
 }
 
+/* ============================================================
+   DEVELOPER PROFILES STYLES
+   ============================================================ */
+
+.developer-profiles-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 0.5rem;
+}
+
+.developer-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.developer-section-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.developer-section-subtitle {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Connected Profiles Preview Badges (Section 7) */
+.connected-profiles-preview {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+
+.connected-profiles-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.connected-profiles-pills {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.social-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  border: 1px solid transparent;
+}
+
+.social-pill-btn .pill-ext-icon {
+  opacity: 0.6;
+}
+
+.social-pill-btn.github-pill {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.social-pill-btn.github-pill:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.social-pill-btn.linkedin-pill {
+  background: rgba(10, 102, 194, 0.12);
+  color: #0a66c2;
+  border-color: rgba(10, 102, 194, 0.3);
+}
+
+.social-pill-btn.linkedin-pill:hover {
+  background: rgba(10, 102, 194, 0.22);
+  border-color: rgba(10, 102, 194, 0.5);
+  transform: translateY(-1px);
+}
+
+.social-pill-btn.leetcode-pill {
+  background: rgba(255, 161, 22, 0.12);
+  color: #ffa116;
+  border-color: rgba(255, 161, 22, 0.3);
+}
+
+.social-pill-btn.leetcode-pill:hover {
+  background: rgba(255, 161, 22, 0.22);
+  border-color: rgba(255, 161, 22, 0.5);
+  transform: translateY(-1px);
+}
+
+/* Avatar Meta Social Row */
+.avatar-meta-social-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.avatar-social-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.avatar-social-btn:hover {
+  color: var(--brand-primary);
+  border-color: var(--brand-primary);
+}
+
+/* Social Form Field Header & Input */
+.social-form-group {
+  margin-bottom: 0.25rem;
+}
+
+.social-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.social-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  margin-bottom: 0;
+}
+
+.btn-remove-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-remove-link:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.6);
+}
+
+.social-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.social-input.input-valid {
+  border-color: rgba(16, 185, 129, 0.5) !important;
+}
+
+.social-input.input-error {
+  border-color: rgba(239, 68, 68, 0.6) !important;
+}
+
+.social-feedback {
+  font-size: 0.78rem;
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.social-feedback.valid {
+  color: #10b981;
+}
+
+.social-feedback.invalid {
+  color: #ef4444;
+}
+
 @media (max-width: 768px) {
   .learner-form-grid {
     grid-template-columns: 1fr;

@@ -48,6 +48,49 @@
   border-color: rgba(16, 185, 129, 0.5);
 }
 
+.learner-welcome-header .dashboard-developer-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+}
+
+.learner-welcome-header .dashboard-social-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+  text-decoration: none;
+}
+
+.learner-welcome-header .dashboard-social-link:hover {
+  transform: translateY(-1px);
+}
+
+.learner-welcome-header .dashboard-social-link.github:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.learner-welcome-header .dashboard-social-link.linkedin:hover {
+  color: #0a66c2;
+  border-color: rgba(10, 102, 194, 0.5);
+  background: rgba(10, 102, 194, 0.12);
+}
+
+.learner-welcome-header .dashboard-social-link.leetcode:hover {
+  color: #ffa116;
+  border-color: rgba(255, 161, 22, 0.5);
+  background: rgba(255, 161, 22, 0.12);
+}
+
 .learner-welcome-header p {
   font-size: 0.95rem;
   color: var(--text-secondary);

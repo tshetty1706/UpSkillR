@@ -62,6 +62,23 @@ const learnerSchema = new mongoose.Schema({
   learningInterests: [{
     type: String
   }],
+  socialLinks: {
+    github: {
+      type: String,
+      default: '',
+      trim: true
+    },
+    linkedin: {
+      type: String,
+      default: '',
+      trim: true
+    },
+    leetcode: {
+      type: String,
+      default: '',
+      trim: true
+    }
+  },
   points: {
     type: Number,
     default: 0

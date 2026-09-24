@@ -17,6 +17,7 @@ const courseController = require('../controller/courseController');
 // Profile & Stats Routes
 router.get('/me', learnerController.getLearnerProfileAndStats);
 router.patch('/me', learnerController.updateLearnerProfile);
+router.put('/me', learnerController.updateLearnerProfile);
 router.get('/me/check-username', learnerController.checkUsernameAvailability);
 router.patch('/me/username', learnerController.updateUsername);
 

@@ -57,6 +57,11 @@ exports.getLearnerProfileAndStats = async (req, res) => {
         bio: learner.bio || '',
         learningGoal: learner.learningGoal || '',
         learningInterests: learner.learningInterests || [],
+        socialLinks: {
+          github: learner.socialLinks?.github || '',
+          linkedin: learner.socialLinks?.linkedin || '',
+          leetcode: learner.socialLinks?.leetcode || ''
+        },
         points: learner.points || 0,
         currentStreak: learner.currentStreak || 0,
         longestStreak: learner.longestStreak || 0,
@@ -175,7 +180,7 @@ exports.updateUsername = async (req, res) => {
 exports.updateLearnerProfile = async (req, res) => {
   try {
     const learnerId = req.user.id;
-    const { fullName, bio, learningGoal, learningInterests, username } = req.body;
+    const { fullName, bio, learningGoal, learningInterests, username, socialLinks } = req.body;
 
     const learner = await Learner.findById(learnerId);
     if (!learner) {
@@ -215,6 +220,58 @@ exports.updateLearnerProfile = async (req, res) => {
       learner.learningInterests = learningInterests.map(i => i.trim()).filter(Boolean);
     }
 
+    // Process Social / Developer Profile Links
+    if (socialLinks !== undefined && socialLinks !== null) {
+      if (!learner.socialLinks) {
+        learner.socialLinks = { github: '', linkedin: '', leetcode: '' };
+      }
+
+      if (socialLinks.github !== undefined) {
+        const val = typeof socialLinks.github === 'string' ? socialLinks.github.trim() : '';
+        if (val) {
+          if (!/^https:\/\/(www\.)?github\.com\/[A-Za-z0-9_.-]+\/?$/.test(val)) {
+            return res.status(400).json({
+              success: false,
+              message: 'Please enter a valid GitHub profile URL.'
+            });
+          }
+          learner.socialLinks.github = val;
+        } else {
+          learner.socialLinks.github = '';
+        }
+      }
+
+      if (socialLinks.linkedin !== undefined) {
+        const val = typeof socialLinks.linkedin === 'string' ? socialLinks.linkedin.trim() : '';
+        if (val) {
+          if (!/^https:\/\/(www\.)?linkedin\.com\/in\/[A-Za-z0-9_.-]+\/?$/.test(val)) {
+            return res.status(400).json({
+              success: false,
+              message: 'Please enter a valid LinkedIn profile URL.'
+            });
+          }
+          learner.socialLinks.linkedin = val;
+        } else {
+          learner.socialLinks.linkedin = '';
+        }
+      }
+
+      if (socialLinks.leetcode !== undefined) {
+        const val = typeof socialLinks.leetcode === 'string' ? socialLinks.leetcode.trim() : '';
+        if (val) {
+          if (!/^https:\/\/(www\.)?leetcode\.com\/u\/[A-Za-z0-9_.-]+\/?$/.test(val)) {
+            return res.status(400).json({
+              success: false,
+              message: 'Please enter a valid LeetCode profile URL.'
+            });
+          }
+          learner.socialLinks.leetcode = val;
+        } else {
+          learner.socialLinks.leetcode = '';
+        }
+      }
+    }
+
     await learner.save();
 
     return res.status(200).json({
@@ -230,6 +287,11 @@ exports.updateLearnerProfile = async (req, res) => {
         bio: learner.bio || '',
         learningGoal: learner.learningGoal || '',
         learningInterests: learner.learningInterests || [],
+        socialLinks: {
+          github: learner.socialLinks?.github || '',
+          linkedin: learner.socialLinks?.linkedin || '',
+          leetcode: learner.socialLinks?.leetcode || ''
+        },
         points: learner.points || 0,
         currentStreak: learner.currentStreak || 0,
         longestStreak: learner.longestStreak || 0,
