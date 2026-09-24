@@ -7,7 +7,9 @@ const AssessmentSubmission = require('../model/AssessmentSubmission');
 const Announcement = require('../model/Announcement');
 const { Instructor, Learner } = require('../model/User');
 const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
 const { uploadBufferToCloudinary } = require('./mediaController');
+const JWT_SECRET = process.env.JWT_SECRET || 'upskillr_jwt_secret_key_2026_super_secure';
 
 // 2. Get All Courses owned by Instructor + Stats
 exports.getInstructorCourses = async (req, res) => {
@@ -116,6 +118,42 @@ exports.getPublicCourseById = async (req, res) => {
   } catch (error) {
     console.error('Get Public Course By ID Error:', error);
     return res.status(500).json({ success: false, message: 'Server error while fetching public course details.' });
+  }
+};
+
+// 3c. Universal Course By ID (Instructor full view if owner, else published view for learners & public)
+exports.getCourseUniversal = async (req, res) => {
+  try {
+    const courseId = req.params.courseId || req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(courseId)) {
+      return res.status(400).json({ success: false, message: 'Invalid course ID format.' });
+    }
+
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      if (token && token !== 'null' && token !== 'undefined') {
+        try {
+          const decoded = jwt.verify(token, JWT_SECRET);
+          if (decoded && (decoded.role === 'instructor' || decoded.role === 'admin')) {
+            const course = await Course.findById(courseId);
+            if (course && course.instructorId.toString() === decoded.id.toString()) {
+              req.user = decoded;
+              req.course = course;
+              return exports.getCourseById(req, res);
+            }
+          }
+        } catch (e) {
+          // Token invalid or expired - fallback to public
+        }
+      }
+    }
+
+    req.params.id = courseId;
+    return exports.getPublicCourseById(req, res);
+  } catch (error) {
+    console.error('getCourseUniversal error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while fetching course details.' });
   }
 };
 
@@ -1167,13 +1205,13 @@ exports.getPublishedCourses = async (req, res) => {
 
 exports.enrolInCourse = async (req, res) => {
   try {
-    const { courseId } = req.body;
+    const courseId = req.params.courseId || req.body.courseId;
     if (!courseId) {
       return res.status(400).json({ success: false, message: 'Course ID is required.' });
     }
 
     const course = await Course.findById(courseId);
-    if (!course || course.status !== 'published') {
+    if (!course || (course.status !== 'published' && course.state !== 'published')) {
       return res.status(404).json({ success: false, message: 'Course not available for enrolment.' });
     }
 
@@ -1203,7 +1241,8 @@ exports.enrolInCourse = async (req, res) => {
       courseId: course._id,
       courseTitle: course.title,
       completedLessons: [],
-      progressPercentage: 0
+      progressPercentage: 0,
+      status: 'active'
     });
 
     await enrolment.save();
@@ -1215,7 +1254,33 @@ exports.enrolInCourse = async (req, res) => {
     });
   } catch (error) {
     console.error('Enrol Error:', error);
-    return res.status(500).json({ success: false, message: 'Server error.' });
+    return res.status(500).json({ success: false, message: 'Server error enrolling in course.' });
+  }
+};
+
+exports.getCourseProgress = async (req, res) => {
+  try {
+    const courseId = req.params.courseId || req.params.id;
+    const enrolment = await Enrolment.findOne({ learnerId: req.user.id, courseId });
+    if (!enrolment) {
+      return res.status(404).json({ success: false, message: 'Enrolment record not found.' });
+    }
+    const course = await Course.findById(courseId);
+    const totalLessons = Math.max(
+      (course?.lessons?.length || 0) + (course?.modules || []).reduce((acc, m) => acc + (m.lessons?.length || 0), 0) || (course?.modules?.length || 0),
+      1
+    );
+    return res.status(200).json({
+      success: true,
+      enrolment,
+      totalModules: totalLessons,
+      completedModules: enrolment.completedLessons.length,
+      progressPercentage: enrolment.progressPercentage,
+      status: enrolment.status,
+      completedAt: enrolment.completedAt
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error fetching progress.' });
   }
 };
 
@@ -1240,9 +1305,14 @@ exports.getLearnerEnrolments = async (req, res) => {
 
 exports.updateLessonProgress = async (req, res) => {
   try {
-    const { courseId, lessonIndex } = req.body;
-    const enrolment = await Enrolment.findOne({ learnerId: req.user.id, courseId });
+    const courseId = req.params.courseId || req.body.courseId;
+    const lessonIndex = req.body.lessonIndex !== undefined ? req.body.lessonIndex : req.params.moduleId;
 
+    if (!courseId || lessonIndex === undefined) {
+      return res.status(400).json({ success: false, message: 'Course ID and lesson/module identifier are required.' });
+    }
+
+    const enrolment = await Enrolment.findOne({ learnerId: req.user.id, courseId });
     if (!enrolment) {
       return res.status(404).json({ success: false, message: 'Enrolment record not found.' });
     }
@@ -1252,26 +1322,122 @@ exports.updateLessonProgress = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Course not found.' });
     }
 
-    const idx = parseInt(lessonIndex, 10);
-    if (enrolment.completedLessons.includes(idx)) {
-      enrolment.completedLessons = enrolment.completedLessons.filter(i => i !== idx);
+    const totalLessons = Math.max(
+      (course.lessons?.length || 0) + (course.modules || []).reduce((acc, m) => acc + (m.lessons?.length || 0), 0) || (course.modules?.length || 0),
+      1
+    );
+
+    const idx = typeof lessonIndex === 'number' ? lessonIndex : parseInt(lessonIndex, 10);
+    const isNum = !isNaN(idx) && String(idx) === String(lessonIndex).trim();
+    const lessonKey = isNum ? idx : String(lessonIndex);
+
+    // 3. Verify module belongs to course
+    let moduleBelongs = false;
+    if (isNum && idx >= 0) {
+      if (idx < totalLessons) {
+        moduleBelongs = true;
+      }
     } else {
-      enrolment.completedLessons.push(idx);
+      const targetStr = String(lessonIndex);
+      const inModules = (course.modules || []).some(m =>
+        m._id?.toString() === targetStr ||
+        (m.lessons || []).some(l => l._id?.toString() === targetStr)
+      );
+      const inLessons = (course.lessons || []).some(l => l._id?.toString() === targetStr);
+      if (inModules || inLessons) {
+        moduleBelongs = true;
+      }
     }
 
-    const totalLessons = Math.max(course.lessons.length, 1);
-    enrolment.progressPercentage = Math.round((enrolment.completedLessons.length / totalLessons) * 100);
+    if (!moduleBelongs && totalLessons > 1) {
+      return res.status(400).json({ success: false, message: 'Module does not belong to this course.' });
+    }
+
+    // 4. Check if already completed
+    const isAlreadyCompleted = enrolment.completedLessons.some(i => String(i) === String(lessonKey));
+    let newlyCompleted = false;
+
+    // Idempotent check for /complete endpoint
+    const isCompleteEndpoint = req.originalUrl?.includes('/complete');
+
+    if (isAlreadyCompleted) {
+      if (isCompleteEndpoint) {
+        return res.status(200).json({
+          success: true,
+          message: 'Module is already completed.',
+          enrolment,
+          pointsAwarded: 0,
+          isCompleted: true
+        });
+      } else {
+        // Toggle off for toggle /progress endpoint
+        enrolment.completedLessons = enrolment.completedLessons.filter(i => String(i) !== String(lessonKey));
+      }
+    } else {
+      // 5. Save module completion
+      enrolment.completedLessons.push(lessonKey);
+      newlyCompleted = true;
+    }
+
+    // 8. Recalculate course progress
+    const newPercentage = Math.min(Math.round((enrolment.completedLessons.length / totalLessons) * 100), 100);
+    enrolment.progressPercentage = newPercentage;
     enrolment.lastAccessedAt = Date.now();
+
+    if (newPercentage === 100) {
+      enrolment.status = 'completed';
+      if (!enrolment.completedAt) enrolment.completedAt = Date.now();
+    } else {
+      enrolment.status = enrolment.completedLessons.length > 0 ? 'in_progress' : 'active';
+    }
 
     await enrolment.save();
 
+    let pointsAwarded = 0;
+    if (newlyCompleted) {
+      const PointTransaction = require('../model/PointTransaction');
+      const referenceId = `${courseId}_mod_${lessonKey}`;
+
+      const existingTx = await PointTransaction.findOne({
+        learnerId: req.user.id,
+        type: 'MODULE_COMPLETION',
+        referenceId
+      });
+
+      if (!existingTx) {
+        const learner = await Learner.findById(req.user.id);
+        if (learner) {
+          learner.points = (learner.points || 0) + 5;
+          await learner.save();
+          pointsAwarded = 5;
+
+          try {
+            await PointTransaction.create({
+              learnerId: req.user.id,
+              points: 5,
+              type: 'MODULE_COMPLETION',
+              referenceId,
+              description: `Completed module in ${course.title} (+5 points)`
+            });
+          } catch (txErr) {
+            console.error('PointTransaction creation error:', txErr);
+          }
+        }
+      }
+    }
+
     return res.status(200).json({
       success: true,
-      message: enrolment.completedLessons.includes(idx) ? 'Lesson marked as completed!' : 'Lesson marked as incomplete.',
-      enrolment
+      message: newlyCompleted
+        ? `Module completed! ${pointsAwarded > 0 ? '+5 points awarded 🎉' : ''}`
+        : 'Module marked as incomplete.',
+      enrolment,
+      pointsAwarded,
+      isCompleted: newlyCompleted
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Server error.' });
+    console.error('Update progress error:', error);
+    return res.status(500).json({ success: false, message: 'Server error updating lesson progress.' });
   }
 };
 

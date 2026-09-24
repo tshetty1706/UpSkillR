@@ -75,14 +75,18 @@ router.use((req, res, next) => {
 router.get('/meta/options', courseController.getCourseMetaOptions);
 
 // ─── 1. Public / Learner Course Browsing Routes ───
+router.get('/', courseController.getPublishedCourses);
 router.get('/published', courseController.getPublishedCourses);
 router.get('/public/:id', courseController.getPublicCourseById);
 router.get('/public/:id/overview', courseController.getPublicCourseOverview);
 
 // ─── 2. Learner-Only Protected Routes ───
 router.post('/enrol', protect, requireLearner, courseController.enrolInCourse);
+router.post('/:courseId/enroll', protect, requireLearner, courseController.enrolInCourse);
 router.get('/learner/my-enrolments', protect, requireLearner, courseController.getLearnerEnrolments);
+router.get('/:courseId/progress', protect, requireLearner, courseController.getCourseProgress);
 router.post('/progress', protect, requireLearner, courseController.updateLessonProgress);
+router.post('/:courseId/modules/:moduleId/complete', protect, requireLearner, courseController.updateLessonProgress);
 router.post('/rate', protect, requireLearner, courseController.submitCourseRating);
 
 // ─── 3. Instructor Course Management (Collection Level) ───
@@ -127,8 +131,8 @@ router.post('/:courseId/curriculum/upload/resource', protect, requireSubmittedIn
 router.get('/:id/questions', courseController.getCourseQuestions);
 router.post('/:id/questions', protect, requireLearner, courseController.askCourseQuestion);
 
-// ─── 4. Instructor Course-Scoped Protected Routes ───
-router.get('/:id', protect, requireSubmittedInstructor, verifyCourseOwnership, courseController.getCourseById);
+// ─── 4. Course Details & Instructor Scoped Routes ───
+router.get('/:id', courseController.getCourseUniversal);
 router.get('/:id/overview', protect, requireSubmittedInstructor, verifyCourseOwnership, courseController.getCourseOverview);
 router.put('/:id', protect, requireSubmittedInstructor, verifyCourseOwnership, courseController.updateCourse);
 router.put('/:id/basic-info', protect, requireSubmittedInstructor, verifyCourseOwnership, courseController.updateCourseBasicInfo);

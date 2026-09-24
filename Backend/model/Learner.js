@@ -41,6 +41,43 @@ const learnerSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  username: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+    lowercase: true
+  },
+  bio: {
+    type: String,
+    default: '',
+    trim: true,
+    maxLength: 300
+  },
+  learningGoal: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  learningInterests: [{
+    type: String
+  }],
+  points: {
+    type: Number,
+    default: 0
+  },
+  currentStreak: {
+    type: Number,
+    default: 0
+  },
+  longestStreak: {
+    type: Number,
+    default: 0
+  },
+  lastCheckInDate: {
+    type: Date,
+    default: null
+  },
   isVerified: {
     type: Boolean,
     default: false

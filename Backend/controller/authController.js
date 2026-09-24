@@ -858,9 +858,20 @@ exports.updateProfile = async (req, res) => {
 
     let updatedUser;
     if (role === 'learner') {
+      const learnerUpdate = { fullName: fullName.trim() };
+      if (req.body.bio !== undefined) learnerUpdate.bio = req.body.bio.trim().slice(0, 300);
+      if (req.body.learningGoal !== undefined) learnerUpdate.learningGoal = req.body.learningGoal.trim();
+      if (Array.isArray(req.body.learningInterests)) learnerUpdate.learningInterests = req.body.learningInterests;
+      if (req.body.username !== undefined && req.body.username.trim()) {
+        const cleanUser = req.body.username.replace(/^@/, '').trim().toLowerCase();
+        if (/^[a-zA-Z0-9_]{3,20}$/.test(cleanUser)) {
+          const existing = await Learner.findOne({ username: cleanUser, _id: { $ne: userId } });
+          if (!existing) learnerUpdate.username = cleanUser;
+        }
+      }
       updatedUser = await Learner.findByIdAndUpdate(
         userId,
-        { fullName: fullName.trim() },
+        learnerUpdate,
         { new: true }
       ).select('-password');
     } else if (role === 'instructor') {

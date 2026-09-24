@@ -7,7 +7,7 @@ const path = require('path');
 const authRoutes = require('./routes/authRoutes');
 const courseRoutes = require('./routes/courseRoutes');
 const instructorApplicationRoutes = require('./routes/instructorApplicationRoutes');
-
+const learnerRoutes = require('./routes/learnerRoutes');
 const mediaRoutes = require('./routes/mediaRoutes');
 
 const app = express();
@@ -27,6 +27,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
+app.use('/api/learners', learnerRoutes);
 app.use('/api/instructor/application', instructorApplicationRoutes);
 app.use('/api/media', mediaRoutes);
 

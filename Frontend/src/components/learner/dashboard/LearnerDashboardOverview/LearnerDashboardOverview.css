@@ -6,12 +6,26 @@
 }
 
 .learner-welcome-header {
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .learner-welcome-header h1 {
   font-size: clamp(1.6rem, 2.2vw, 2.2rem);
   font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.learner-welcome-header .username-sub-badge {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--brand-primary);
+  background: rgba(16, 185, 129, 0.1);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(16, 185, 129, 0.25);
 }
 
 .learner-welcome-header p {
@@ -19,6 +33,211 @@
   color: var(--text-secondary);
 }
 
+/* GAMIFICATION HERO BAR */
+.learner-gamification-bar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.gamification-stats-group {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.gamification-stat-chip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 1.15rem;
+}
+
+.gamification-emoji {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.gamification-text-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.gamification-number {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.gamification-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.gamification-action-box {
+  display: flex;
+  align-items: center;
+}
+
+.btn-checkin-action {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff !important;
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 10px 18px;
+  border-radius: var(--radius-pill);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+  transition: all 0.2s ease;
+}
+
+.btn-checkin-action:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.35);
+}
+
+.btn-checkin-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-checked-in {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981 !important;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 10px 18px;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: default;
+}
+
+/* POINT ACTIVITY & HISTORY SECTION */
+.point-history-wrapper {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  margin-top: 2rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.point-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.point-history-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.point-history-badge {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background-color: var(--background);
+  border: 1px solid var(--border);
+}
+
+.point-history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 10px;
+}
+
+.point-history-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background-color: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s;
+}
+
+.point-history-item:hover {
+  border-color: var(--brand-primary);
+}
+
+.point-pts-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 9999px;
+  background-color: rgba(16, 185, 129, 0.15);
+  color: var(--brand-primary);
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.point-pts-badge.checkin {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.point-item-meta {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.point-item-desc {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.point-item-date {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.empty-point-history {
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* ENROLLED COURSES GRID & CARDS */
 .enrolled-courses-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
@@ -33,6 +252,16 @@
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.enrolled-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.enrolled-card.completed-card {
+  border-color: rgba(16, 185, 129, 0.4);
 }
 
 .enrolled-thumb {
@@ -51,15 +280,21 @@
 .progress-bar-container {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   margin: 0.5rem 0;
 }
 
 .progress-label {
   display: flex;
   justify-content: space-between;
-  font-size: 0.8rem;
+  align-items: center;
+  font-size: 0.82rem;
   color: var(--text-secondary);
+}
+
+.progress-percentage-text {
+  font-weight: 700;
+  color: var(--brand-primary);
 }
 
 .progress-track {
@@ -75,6 +310,10 @@
   background-color: var(--brand-primary);
   border-radius: var(--radius-pill);
   transition: width 0.3s ease;
+}
+
+.progress-fill.completed {
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
 }
 
 .learner-lessons-list {
@@ -113,12 +352,14 @@
   font-family: var(--font-family);
   font-size: 0.75rem;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
 .btn-lesson-check.done {
-  background-color: var(--color-success-bg);
-  color: var(--color-success);
-  border-color: var(--color-success-bg);
+  background-color: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.3);
+  font-weight: 600;
 }
 
 .dashboard-topbar {
@@ -171,3 +412,23 @@
   padding-top: 40px;
 }
 
+@media (max-width: 860px) {
+  .learner-gamification-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .gamification-action-box {
+    width: 100%;
+  }
+
+  .btn-checkin-action, .btn-checked-in {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .gamification-stats-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

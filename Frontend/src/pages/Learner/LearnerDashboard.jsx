@@ -109,6 +109,7 @@ export const LearnerDashboard = ({ user }) => {
         const data = await response.json();
         if (data.success) {
           await fetchMyEnrolments();
+          window.dispatchEvent(new Event('upskillr_points_updated'));
         }
       }
     } catch (err) {
@@ -150,7 +151,7 @@ export const LearnerDashboard = ({ user }) => {
 
     try {
       if (token) {
-        await fetch('http://localhost:5000/api/courses/progress', {
+        const response = await fetch('http://localhost:5000/api/courses/progress', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -158,6 +159,13 @@ export const LearnerDashboard = ({ user }) => {
           },
           body: JSON.stringify({ courseId, lessonIndex })
         });
+        const resData = await response.json();
+        if (resData.success) {
+          if (resData.pointsAwarded > 0) {
+            toast.success(`⭐ +${resData.pointsAwarded} Points awarded!`);
+          }
+          window.dispatchEvent(new Event('upskillr_points_updated'));
+        }
       }
     } catch (err) {
       console.error('Error completing lesson on server', err);
