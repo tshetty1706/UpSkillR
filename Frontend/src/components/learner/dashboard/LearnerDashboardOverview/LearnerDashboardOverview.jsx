@@ -156,7 +156,6 @@ export const LearnerDashboardOverview = ({
     checkedInToday: false
   });
   const [pointHistory, setPointHistory] = useState([]);
-  const [checkingIn, setCheckingIn] = useState(false);
 
   // Trigger Backend API Query Filtering when search/category/level change
   useEffect(() => {
@@ -245,43 +244,6 @@ export const LearnerDashboardOverview = ({
       window.removeEventListener('upskillr_user_updated', handleUserRefresh);
     };
   }, []);
-
-  // Daily Check-in Action
-  const handleCheckIn = async () => {
-    if (gamification.checkedInToday) return;
-
-    setCheckingIn(true);
-    try {
-      const token = localStorage.getItem('upskillr_token');
-      const res = await fetch(`${API_BASE}/learners/me/check-in`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        }
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        toast.success(data.message || '🎉 Check-in successful! +1 point awarded.');
-        setGamification(prev => ({
-          ...prev,
-          points: data.points !== undefined ? data.points : prev.points + 1,
-          currentStreak: data.currentStreak !== undefined ? data.currentStreak : prev.currentStreak + 1,
-          longestStreak: data.longestStreak !== undefined ? data.longestStreak : prev.longestStreak,
-          checkedInToday: true
-        }));
-        fetchGamificationData();
-      } else {
-        toast.error(data.message || 'Could not complete daily check-in.');
-      }
-    } catch (err) {
-      console.error('Check-in error:', err);
-      toast.error('Network error during check-in.');
-    } finally {
-      setCheckingIn(false);
-    }
-  };
 
   const categories = ['All', 'Web Development', 'Data Science', 'Design', 'AI & Machine Learning', 'Business'];
 
@@ -465,25 +427,17 @@ export const LearnerDashboardOverview = ({
           </div>
 
           <div className="gamification-action-box">
-            <button
-              type="button"
-              className={gamification.checkedInToday ? 'btn-checked-in' : 'btn-checkin-action'}
-              onClick={handleCheckIn}
-              disabled={gamification.checkedInToday || checkingIn}
-              title={gamification.checkedInToday ? 'You have checked in for today!' : 'Check in today to earn +1 point and maintain your streak'}
+            <div
+              className="gamification-status-pill"
+              title="Daily login streak is automatically recorded on login (+1 point awarded daily)"
             >
-              {gamification.checkedInToday ? (
-                <>
-                  <CheckCircle2 size={16} />
-                  <span>Checked in today</span>
-                </>
-              ) : (
-                <>
-                  <span>🔥</span>
-                  <span>{checkingIn ? 'Checking in...' : 'Check in today (+1 pt)'}</span>
-                </>
-              )}
-            </button>
+              <span className="streak-pill-icon">🔥</span>
+              <span>
+                {gamification.currentStreak > 0
+                  ? `${gamification.currentStreak} Day Streak Active`
+                  : 'Daily Streak Active (+1 pt)'}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -689,7 +643,7 @@ export const LearnerDashboardOverview = ({
 
               {pointHistory.length === 0 ? (
                 <div className="empty-point-history">
-                  <p>No points logged yet. Complete course modules (+5 pts) or check in today (+1 pt) to start building your score!</p>
+                  <p>No points logged yet. Complete course modules (+5 pts) or log in daily (+1 pt) to start building your score!</p>
                 </div>
               ) : (
                 <div className="point-history-grid">

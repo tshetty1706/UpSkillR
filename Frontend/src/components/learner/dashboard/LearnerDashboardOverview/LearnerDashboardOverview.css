@@ -175,39 +175,12 @@
   align-items: center;
 }
 
-.btn-checkin-action {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: #ffffff !important;
-  font-weight: 700;
-  font-size: 0.9rem;
-  min-height: 44px;
-  padding: 10px 22px;
-  border-radius: var(--radius-pill);
-  border: none;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
-  transition: all 0.2s ease;
-}
-
-.btn-checkin-action:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.35);
-}
-
-.btn-checkin-action:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-checked-in {
+.gamification-status-pill {
   background: rgba(16, 185, 129, 0.12);
   color: #10b981 !important;
   border: 1px solid rgba(16, 185, 129, 0.35);
-  font-weight: 600;
-  font-size: 0.9rem;
+  font-weight: 700;
+  font-size: 0.88rem;
   min-height: 44px;
   padding: 10px 22px;
   border-radius: var(--radius-pill);
@@ -215,6 +188,13 @@
   align-items: center;
   gap: 8px;
   cursor: default;
+  user-select: none;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.12);
+  transition: all 0.2s ease;
+}
+
+.gamification-status-pill .streak-pill-icon {
+  font-size: 1.15rem;
 }
 
 /* POINT ACTIVITY & HISTORY SECTION */
@@ -504,7 +484,9 @@
     width: 100%;
   }
 
-  .btn-checkin-action, .btn-checked-in {
+  .gamification-status-pill,
+  .btn-checkin-action,
+  .btn-checked-in {
     width: 100%;
     justify-content: center;
   }

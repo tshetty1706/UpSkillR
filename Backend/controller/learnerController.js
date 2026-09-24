@@ -28,14 +28,58 @@ const isSameDay = (d1, d2 = new Date()) => {
   return getDateString(d1) === getDateString(d2);
 };
 
+// Helper to record daily login streak automatically (+1 point)
+const processDailyLoginStreak = async (learner) => {
+  if (!learner || learner.role !== 'learner') return learner;
+
+  // Check if already logged in / checked in today
+  if (isSameDay(learner.lastCheckInDate)) {
+    return learner;
+  }
+
+  // Calculate streak: consecutive calendar day -> +1, else reset to 1
+  const isConsecutive = isConsecutiveDay(learner.lastCheckInDate);
+  if (isConsecutive) {
+    learner.currentStreak = (learner.currentStreak || 0) + 1;
+  } else {
+    learner.currentStreak = 1;
+  }
+
+  learner.longestStreak = Math.max(learner.longestStreak || 0, learner.currentStreak);
+  learner.lastCheckInDate = new Date();
+  learner.points = (learner.points || 0) + 1;
+
+  await learner.save();
+
+  // Log point transaction (duplicate safe)
+  const todayStr = getDateString();
+  try {
+    await PointTransaction.create({
+      learnerId: learner._id,
+      points: 1,
+      type: 'DAILY_CHECKIN',
+      referenceId: `checkin_${todayStr}`,
+      description: 'Daily Login (+1 point)'
+    });
+  } catch (e) {
+    // Concurrency / duplicate safe
+  }
+
+  return learner;
+};
+exports.processDailyLoginStreak = processDailyLoginStreak;
+
 // 1. Get Learner Profile & Read-Only Learning Stats
 exports.getLearnerProfileAndStats = async (req, res) => {
   try {
     const learnerId = req.user.id;
-    const learner = await Learner.findById(learnerId).select('-password');
+    let learner = await Learner.findById(learnerId).select('-password');
     if (!learner) {
       return res.status(404).json({ success: false, message: 'Learner not found' });
     }
+
+    // Automatically award daily login streak +1 point if not already recorded today
+    await processDailyLoginStreak(learner);
 
     // Calculate enrollments and completions
     const enrolments = await Enrolment.find({ learnerId });
@@ -307,62 +351,27 @@ exports.updateLearnerProfile = async (req, res) => {
   }
 };
 
-// 5. Daily Check-in Logic
+// 5. Daily Check-in / Login Streak Logic
 exports.performDailyCheckin = async (req, res) => {
   try {
     const learnerId = req.user.id;
-    const learner = await Learner.findById(learnerId);
+    let learner = await Learner.findById(learnerId);
     if (!learner) {
       return res.status(404).json({ success: false, message: 'Learner not found' });
     }
 
-    // Check if already checked in today
-    if (isSameDay(learner.lastCheckInDate)) {
-      return res.status(200).json({
-        success: true,
-        message: 'Already checked in today!',
-        checkedInToday: true,
-        points: learner.points || 0,
-        currentStreak: learner.currentStreak || 0,
-        longestStreak: learner.longestStreak || 0
-      });
-    }
-
-    // Calculate streak
-    const isConsecutive = isConsecutiveDay(learner.lastCheckInDate);
-    if (isConsecutive) {
-      learner.currentStreak = (learner.currentStreak || 0) + 1;
-    } else {
-      learner.currentStreak = 1;
-    }
-
-    learner.longestStreak = Math.max(learner.longestStreak || 0, learner.currentStreak);
-    learner.lastCheckInDate = new Date();
-    learner.points = (learner.points || 0) + 1;
-
-    await learner.save();
-
-    // Log transaction (duplicate safe)
-    const todayStr = getDateString();
-    try {
-      await PointTransaction.create({
-        learnerId,
-        points: 1,
-        type: 'DAILY_CHECKIN',
-        referenceId: `checkin_${todayStr}`,
-        description: 'Daily Check-in (+1 point)'
-      });
-    } catch (e) {
-      // Ignore duplicate transaction error if concurrency happens
+    const alreadyDone = isSameDay(learner.lastCheckInDate);
+    if (!alreadyDone) {
+      await processDailyLoginStreak(learner);
     }
 
     return res.status(200).json({
       success: true,
-      message: '🎉 Check-in successful! +1 point awarded.',
+      message: alreadyDone ? 'Already recorded today!' : '🎉 Daily login streak +1 point awarded!',
       checkedInToday: true,
-      points: learner.points,
-      currentStreak: learner.currentStreak,
-      longestStreak: learner.longestStreak
+      points: learner.points || 0,
+      currentStreak: learner.currentStreak || 0,
+      longestStreak: learner.longestStreak || 0
     });
   } catch (error) {
     console.error('Daily check-in error:', error);

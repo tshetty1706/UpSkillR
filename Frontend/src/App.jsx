@@ -26,7 +26,12 @@ function App() {
     const userParam = urlParams.get('user');
     if (token && userParam) {
       try {
-        const user = JSON.parse(decodeURIComponent(userParam));
+        let user;
+        try {
+          user = JSON.parse(decodeURIComponent(userParam));
+        } catch (e1) {
+          user = JSON.parse(userParam);
+        }
         localStorage.setItem('upskillr_token', token);
         localStorage.setItem('upskillr_user', JSON.stringify(user));
         setCurrentUser(user);
@@ -36,7 +41,7 @@ function App() {
         window.history.replaceState({}, document.title, targetPath);
         setCurrentPath(targetPath);
       } catch (e) {
-        console.error('Failed to parse user data from OAuth callback URL');
+        console.error('Failed to parse user data from OAuth callback URL', e);
       }
     } else {
       const stored = localStorage.getItem('upskillr_user');

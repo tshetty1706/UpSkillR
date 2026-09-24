@@ -571,8 +571,8 @@ export const LearnerProfile = ({ user }) => {
             <div className="form-group">
               <label className="form-label">About Me (Bio)</label>
               <textarea
-                className="form-input"
-                rows="3"
+                className="form-textarea profile-bio-textarea"
+                rows="4"
                 maxLength={200}
                 value={profile.bio}
                 onChange={(e) => setProfile({ ...profile, bio: e.target.value })}

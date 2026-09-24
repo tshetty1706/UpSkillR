@@ -45,7 +45,12 @@ export default function Login() {
 
     if (token && userParam) {
       try {
-        const user = JSON.parse(decodeURIComponent(userParam));
+        let user;
+        try {
+          user = JSON.parse(decodeURIComponent(userParam));
+        } catch (e1) {
+          user = JSON.parse(userParam);
+        }
         localStorage.setItem('upskillr_token', token);
         localStorage.setItem('upskillr_user', JSON.stringify(user));
         const welcomeMsg = `Successfully signed in via ${providerParam ? providerParam.toUpperCase() : 'OAuth'}! Welcome back, ${user.fullName}.`;
@@ -62,7 +67,7 @@ export default function Login() {
           }
         }, 800);
       } catch (e) {
-        console.error('Failed to parse user data from OAuth callback');
+        console.error('Failed to parse user data from OAuth callback', e);
       }
     } else if (errorParam) {
       let oauthError = 'Authentication failed. Please try again.';
