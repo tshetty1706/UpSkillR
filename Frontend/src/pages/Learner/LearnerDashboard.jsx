@@ -5,6 +5,7 @@ import { useToast } from '../../context/ToastContext';
 import { LearnerDashboardOverview } from '../../components/learner/dashboard/LearnerDashboardOverview/LearnerDashboardOverview';
 import { LearnerProfile } from '../../components/learner/profile/LearnerProfile';
 import { LogoutModal } from '../../components/common/LogoutModal/LogoutModal';
+import '../../components/learner/dashboard/LearnerDashboardOverview/LearnerDashboardOverview.css';
 
 export const LearnerDashboard = ({ user }) => {
   const { theme, toggleTheme, isDarkMode } = useTheme();

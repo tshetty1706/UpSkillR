@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import './LearnerDashboardOverview.css';
 import {
   BookOpen,
   CheckCircle2,
