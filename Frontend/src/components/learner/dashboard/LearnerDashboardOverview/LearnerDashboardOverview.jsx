@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { CourseRatingModal } from './CourseRatingModal';
 import { CourseThumbnail } from '../../../common/CourseThumbnail';
+import { LearnerNotificationBanner } from '../LearnerNotificationBanner/LearnerNotificationBanner';
 import { useToast } from '../../../../context/ToastContext';
 import { API_BASE } from '../../../../config/api';
 
@@ -323,6 +324,13 @@ export const LearnerDashboardOverview = ({
     <main className="learner-main-workspace section">
       <div className="container main-container">
         
+        {/* Persistent Notification Banner for newly uploaded lessons/modules */}
+        <LearnerNotificationBanner
+          onGoToCourse={(courseId) => {
+            setActiveTab('enrolled');
+          }}
+        />
+
         {/* Welcome Header */}
         <div className="learner-welcome-header">
           <div className="welcome-text-content">

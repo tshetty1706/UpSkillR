@@ -3,6 +3,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { Search, Sun, Moon, Menu, X, BookOpen, LogOut, User, LayoutDashboard, GraduationCap } from 'lucide-react';
 import './Navbar.css';
 import { Avatar } from '../Avatar/Avatar';
+import { NotificationBell } from '../NotificationBell/NotificationBell';
 import { LogoutModal } from '../LogoutModal/LogoutModal';
 
 export const Navbar = () => {
@@ -133,6 +134,9 @@ export const Navbar = () => {
 
           {currentUser ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {currentUser.role === 'learner' && (
+                <NotificationBell onNavigateToCourse={() => navigate('/learner')} />
+              )}
               <div
                 className="navbar-avatar-wrapper"
                 onClick={() => navigate(currentUser.role === 'instructor' ? '/instructor' : '/learner')}

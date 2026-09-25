@@ -9,6 +9,7 @@ const { Instructor, Learner } = require('../model/User');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const { uploadBufferToCloudinary } = require('./mediaController');
+const { notifyStudentsOnNewContent } = require('./notificationController');
 const JWT_SECRET = process.env.JWT_SECRET || 'upskillr_jwt_secret_key_2026_super_secure';
 
 // 2. Get All Courses owned by Instructor + Stats
@@ -314,6 +315,14 @@ exports.addModule = async (req, res) => {
     course.modules.push(newModule);
     await course.save();
 
+    // Notify students of the new module upload
+    notifyStudentsOnNewContent({
+      courseId: course._id,
+      courseTitle: course.title,
+      type: 'NEW_MODULE',
+      moduleTitle: title.trim()
+    });
+
     return res.status(201).json({ success: true, message: 'Module created successfully!', course });
   } catch (error) {
     console.error('Add Module Error:', error);
@@ -419,6 +428,15 @@ exports.addLesson = async (req, res) => {
     }
 
     await course.save();
+
+    // Notify students of the new lesson upload
+    notifyStudentsOnNewContent({
+      courseId: course._id,
+      courseTitle: course.title,
+      type: 'NEW_LESSON',
+      lessonTitle: title.trim(),
+      moduleTitle: (moduleIndex !== undefined && moduleIndex !== null && course.modules[moduleIndex]) ? course.modules[moduleIndex].title : ''
+    });
 
     return res.status(200).json({
       success: true,

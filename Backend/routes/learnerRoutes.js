@@ -39,4 +39,10 @@ router.get('/me/activity', learnerController.getLearnerActivity);
 // Certificates (derived from completed enrolments)
 router.get('/me/certificates', learnerController.getLearnerCertificates);
 
+// Notifications (New modules / lessons uploaded)
+const notificationController = require('../controller/notificationController');
+router.get('/me/notifications', notificationController.getLearnerNotifications);
+router.patch('/me/notifications/read-all', notificationController.markAllNotificationsAsRead);
+router.patch('/me/notifications/:id/read', notificationController.markNotificationAsRead);
+
 module.exports = router;

@@ -4,6 +4,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { LearnerDashboardOverview } from '../../components/learner/dashboard/LearnerDashboardOverview/LearnerDashboardOverview';
 import { LearnerProfile } from '../../components/learner/profile/LearnerProfile';
+import { NotificationBell } from '../../components/common/NotificationBell/NotificationBell';
 import { LogoutModal } from '../../components/common/LogoutModal/LogoutModal';
 import '../../components/learner/dashboard/LearnerDashboardOverview/LearnerDashboardOverview.css';
 
@@ -247,6 +248,13 @@ export const LearnerDashboard = ({ user }) => {
               <User size={15} />
               <span>Profile</span>
             </button>
+
+            <NotificationBell
+              onNavigateToCourse={(courseId) => {
+                setActiveView('dashboard');
+                setActiveTab('enrolled');
+              }}
+            />
 
             <button
               className="icon-btn"
