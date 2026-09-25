@@ -63,7 +63,13 @@ export const Navbar = () => {
     setCurrentPath(path);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('http://localhost:5000/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (e) { }
     localStorage.removeItem('upskillr_token');
     localStorage.removeItem('upskillr_user');
     setCurrentUser(null);

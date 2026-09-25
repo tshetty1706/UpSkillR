@@ -25,7 +25,7 @@ export const Footer = () => {
               onClick={(e) => { e.preventDefault(); navigate('/'); }}
             >
               <BookOpen className="logo-icon" size={24} aria-hidden="true" />
-              <span className="logo-text">UpSkillr</span>
+              <span className="logo-text">UpSkillR</span>
             </a>
             <p className="footer-slogan">Empowering learners. Creating futures.</p>
             

@@ -17,7 +17,13 @@ export const LearnerDashboard = ({ user }) => {
   const [activeTab, setActiveTab] = useState('enrolled');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('http://localhost:5000/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (e) { }
     localStorage.removeItem('upskillr_token');
     localStorage.removeItem('upskillr_user');
     window.history.pushState({}, '', '/');

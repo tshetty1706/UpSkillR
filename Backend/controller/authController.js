@@ -465,7 +465,7 @@ exports.googleOAuthCallback = async (req, res) => {
   // If this code was already exchanged, do NOT exchange again (prevents invalid_grant)
   if (processedOAuthCodes.has(cleanCode)) {
     console.log('[Google OAuth] Authorization code has already been exchanged. Redirecting cleanly.');
-    return res.redirect(`${FRONTEND_URL}/learner`);
+    return res.redirect(`${FRONTEND_URL}/dashboard`);
   }
 
   // If this code is currently being exchanged in an in-flight request, await that existing exchange
@@ -502,10 +502,10 @@ exports.googleOAuthCallback = async (req, res) => {
     }
 
     // Temporary targeted debugging before token exchange (Phase 6 requirement)
-    console.log('OAuth callback reached');
-    console.log(`code present: ${Boolean(cleanCode)}`);
-    console.log(`configured redirect URI: ${GOOGLE_REDIRECT_URI}`);
-    console.log(`client ID present: ${Boolean(process.env.GOOGLE_CLIENT_ID)}`);
+    // console.log('OAuth callback reached');
+    // console.log(`code present: ${Boolean(cleanCode)}`);
+    // console.log(`configured redirect URI: ${GOOGLE_REDIRECT_URI}`);
+    // console.log(`client ID present: ${Boolean(process.env.GOOGLE_CLIENT_ID)}`);
 
     const googleParams = new URLSearchParams({
       client_id: process.env.GOOGLE_CLIENT_ID.trim(),
@@ -581,22 +581,17 @@ exports.googleOAuthCallback = async (req, res) => {
     }
 
     const token = generateToken(user);
-    const userPayload = encodeURIComponent(
-      JSON.stringify({
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-        isVerified: true,
-        avatar: user.avatar,
-        points: user.points || 0,
-        currentStreak: user.currentStreak || 0,
-        longestStreak: user.longestStreak || 0,
-        applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
-      })
-    );
 
-    const redirectUrl = `${FRONTEND_URL}/login?token=${token}&user=${userPayload}&provider=google`;
+    // Send ONLY a small, compact HttpOnly authentication cookie containing the JWT
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: false, // localhost development
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    const redirectUrl = `${FRONTEND_URL}/dashboard`;
 
     processedOAuthCodes.add(cleanCode);
     inflightOAuthExchanges.delete(cleanCode);
@@ -726,22 +721,16 @@ exports.githubOAuthCallback = async (req, res) => {
     }
 
     const token = generateToken(user);
-    const userPayload = encodeURIComponent(
-      JSON.stringify({
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-        isVerified: true,
-        avatar: user.avatar,
-        points: user.points || 0,
-        currentStreak: user.currentStreak || 0,
-        longestStreak: user.longestStreak || 0,
-        applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
-      })
-    );
 
-    return res.redirect(`${FRONTEND_URL}/login?token=${token}&user=${userPayload}&provider=github`);
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
+    return res.redirect(`${FRONTEND_URL}/dashboard`);
   } catch (error) {
     console.error('GitHub OAuth Callback Error:', error?.response?.data || error.message);
     return res.redirect(`${FRONTEND_URL}/login?error=github_oauth_failed`);
@@ -773,7 +762,11 @@ exports.getCurrentUser = async (req, res) => {
       }
     }
 
-    return res.status(200).json({ success: true, user: userObj });
+    return res.status(200).json({
+      success: true,
+      user: userObj,
+      token: req.token || generateToken(user)
+    });
   } catch (error) {
     console.error('getCurrentUser error:', error);
     return res.status(500).json({ success: false, message: 'Server error while fetching user profile.' });
@@ -1166,5 +1159,12 @@ exports.removeProfilePhoto = async (req, res) => {
     console.error('Remove Profile Photo Error:', error);
     return res.status(500).json({ success: false, message: 'Failed to remove photo.' });
   }
+};
+
+// 15. Logout (Clears auth cookies cleanly)
+exports.logout = (req, res) => {
+  res.clearCookie('token', { path: '/' });
+  res.clearCookie('upskillr_token', { path: '/' });
+  return res.status(200).json({ success: true, message: 'Logged out successfully.' });
 };
 
