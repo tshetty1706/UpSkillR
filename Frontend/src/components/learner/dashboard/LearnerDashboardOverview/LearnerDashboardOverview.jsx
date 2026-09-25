@@ -621,8 +621,20 @@ export const LearnerDashboardOverview = ({
                             style={{ flex: 1, padding: '8px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                             onClick={() => handleNavigateToCourse(course._id)}
                           >
-                            <span>{isCompleted ? 'Review Course' : 'Continue Learning →'}</span>
+                            <span>{isCompleted ? 'Go to Course' : 'Continue Learning →'}</span>
                           </button>
+                          {isCompleted && (
+                            <button
+                              type="button"
+                              className="btn btn-outline"
+                              style={{ padding: '8px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                              onClick={() => setRatingModalCourse(course)}
+                              title={ratingsMap[course._id] || enrol.rating ? 'Edit your review for this course' : 'Rate this course'}
+                            >
+                              <Star size={13} style={{ color: '#10b981', fill: ratingsMap[course._id] || enrol.rating ? '#10b981' : 'none' }} />
+                              <span>{ratingsMap[course._id] || enrol.rating ? 'Edit Review' : 'Rate Course'}</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -636,7 +648,7 @@ export const LearnerDashboardOverview = ({
               <div className="point-history-header">
                 <h3 className="point-history-title">
                   <Flame size={18} style={{ color: '#f59e0b' }} />
-                  <span>Recent Point Activity & Gamification History</span>
+                  <span>Recent Point Activity & History</span>
                 </h3>
                 <span className="point-history-badge">Immutable Audit Log</span>
               </div>
@@ -773,10 +785,14 @@ export const LearnerDashboardOverview = ({
         {/* Rating Modal */}
         {ratingModalCourse && (
           <CourseRatingModal
+            isOpen={Boolean(ratingModalCourse)}
             course={ratingModalCourse}
-            existingRating={ratingsMap[ratingModalCourse._id]}
+            initialRating={ratingsMap[ratingModalCourse._id]}
             onClose={() => setRatingModalCourse(null)}
-            onSubmit={(ratingData) => handleRatingSubmit(ratingModalCourse._id, ratingData)}
+            onSubmit={(courseId, ratingData) => {
+              handleRatingSubmit(courseId || ratingModalCourse._id, ratingData);
+              setRatingModalCourse(null);
+            }}
           />
         )}
       </div>

@@ -207,8 +207,9 @@ const ActivityHeatmap = ({ activityData, loading }) => {
     return <div className="heatmap-loading">Loading activity data...</div>;
   }
 
-  // Active day to display in the detailed card (hovered > selected > latest with activity > today)
-  const activeDay = hoveredDay || selectedDay || latestActiveDay || weeks[weeks.length - 1]?.[new Date().getDay()] || null;
+  // When there is no hovering over dates, show nothing.
+  // When hovered over boxes in activity (especially green boxes), show details at bottom.
+  const activeDay = hoveredDay;
 
   const formattedDate = activeDay
     ? new Date(activeDay.dateStr + 'T12:00:00').toLocaleDateString('en-US', {
@@ -230,7 +231,7 @@ const ActivityHeatmap = ({ activityData, loading }) => {
       </div>
 
       {/* Synchronized Scroll Container (Months + Grid scroll together) */}
-      <div className="heatmap-scroll-container" ref={scrollRef}>
+      <div className="heatmap-scroll-container" ref={scrollRef} onMouseLeave={() => setHoveredDay(null)}>
         <div className="heatmap-scroll-inner">
           {/* Month labels header row */}
           <div className="heatmap-month-header">
@@ -271,6 +272,7 @@ const ActivityHeatmap = ({ activityData, loading }) => {
             {/* Weeks columns */}
             <div
               className="heatmap-weeks-track"
+              onMouseLeave={() => setHoveredDay(null)}
               style={{
                 display: 'grid',
                 gridTemplateColumns: `repeat(${weeks.length}, 13px)`,
@@ -1390,6 +1392,27 @@ export const LearnerProfile = ({ user }) => {
                     {cert.instructorName && (
                       <div className="cert-instructor">Instructor: {cert.instructorName}</div>
                     )}
+                    {(() => {
+                      const existingReview = reviews.find(r => String(r.courseId?._id || r.courseId) === String(cert.courseId?._id || cert.courseId));
+                      return (
+                        <div style={{ marginTop: 'auto', paddingTop: '8px' }}>
+                          <button
+                            type="button"
+                            className="btn-edit-review"
+                            style={{ width: '100%', justifyContent: 'center' }}
+                            onClick={() => handleOpenEditReview(existingReview || {
+                              courseId: cert.courseId,
+                              courseTitle: cert.courseTitle,
+                              rating: 5,
+                              feedback: ''
+                            })}
+                          >
+                            <Edit2 size={12} />
+                            <span>{existingReview ? 'Edit Review' : 'Rate & Review Course'}</span>
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
@@ -1414,6 +1437,28 @@ export const LearnerProfile = ({ user }) => {
               <div className="section-empty-state">
                 <MessageSquare size={32} className="empty-icon" />
                 <p>No course reviews yet. Complete a course to share your feedback.</p>
+                {certificates.length > 0 && (
+                  <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '360px' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--brand-primary)', fontWeight: 600 }}>Completed courses ready to review:</span>
+                    {certificates.map(cert => (
+                      <button
+                        key={cert._id}
+                        type="button"
+                        className="btn-edit-review"
+                        style={{ justifyContent: 'center', width: '100%' }}
+                        onClick={() => handleOpenEditReview({
+                          courseId: cert.courseId,
+                          courseTitle: cert.courseTitle,
+                          rating: 5,
+                          feedback: ''
+                        })}
+                      >
+                        <Star size={13} />
+                        <span>Write Review: {cert.courseTitle}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="reviews-list">
@@ -1421,39 +1466,23 @@ export const LearnerProfile = ({ user }) => {
                   <div key={review._id} className="review-card">
                     <div className="review-card-header">
                       <div className="review-course-info">
-                        <FileText size={14} className="review-course-icon" />
+                        <FileText size={15} className="review-course-icon" />
                         <span className="review-course-title">{review.courseTitle}</span>
                         {review.category && (
                           <span className="review-course-category">{review.category}</span>
                         )}
                       </div>
-                      <div className="review-header-actions">
-                        <div className="review-date">
-                          {new Date(review.createdAt).toLocaleDateString('en-IN', {
-                            day: 'numeric', month: 'long', year: 'numeric'
-                          })}
-                          {review.updatedAt && review.updatedAt !== review.createdAt && (
-                            <span className="review-edited"> (edited)</span>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          className="btn-edit-review"
-                          onClick={() => handleOpenEditReview(review)}
-                          aria-label={`Edit review for ${review.courseTitle}`}
-                        >
-                          <Edit2 size={12} />
-                          <span>Edit Review</span>
-                        </button>
-                      </div>
                     </div>
+
                     <div className="review-rating-row">
-                      <StarRating rating={review.rating} size={15} />
-                      <span className="review-rating-text">{review.rating}/5</span>
+                      <StarRating rating={review.rating} size={16} />
+                      <span className="review-rating-text">{review.rating} / 5</span>
                     </div>
+
                     {review.feedback && (
                       <p className="review-feedback">"{review.feedback}"</p>
                     )}
+
                     {review.tags && review.tags.length > 0 && (
                       <div className="review-tags">
                         {review.tags.map(tag => (
@@ -1461,6 +1490,28 @@ export const LearnerProfile = ({ user }) => {
                         ))}
                       </div>
                     )}
+
+                    {/* Review Card Footer: Date & Edit Review Button UNDER the review */}
+                    <div className="review-card-footer">
+                      <div className="review-date">
+                        {new Date(review.createdAt).toLocaleDateString('en-US', {
+                          month: 'long', day: 'numeric', year: 'numeric'
+                        })}
+                        {review.updatedAt && review.updatedAt !== review.createdAt && (
+                          <span className="review-edited"> (edited)</span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        className="btn-edit-review"
+                        onClick={() => handleOpenEditReview(review)}
+                        aria-label={`Edit review for ${review.courseTitle}`}
+                      >
+                        <Edit2 size={13} />
+                        <span>Edit Review</span>
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

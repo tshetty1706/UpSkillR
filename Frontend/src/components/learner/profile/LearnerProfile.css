@@ -1256,44 +1256,6 @@
   border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
-.review-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.review-date {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.review-edited {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-.btn-edit-review {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
-  font-size: 0.78rem;
-  font-weight: 600;
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  color: var(--brand-primary);
-  cursor: pointer;
-  transition: all var(--transition-fast, 0.15s ease);
-}
-
-.btn-edit-review:hover {
-  background: rgba(16, 185, 129, 0.2);
-  border-color: var(--brand-primary);
-  transform: translateY(-1px);
-}
-
 .review-rating-row {
   display: flex;
   align-items: center;
@@ -1301,7 +1263,7 @@
 }
 
 .review-rating-text {
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   font-weight: 700;
   color: #10b981;
 }
@@ -1317,8 +1279,8 @@
 }
 
 .review-feedback {
-  font-size: 0.9rem;
-  line-height: 1.55;
+  font-size: 0.92rem;
+  line-height: 1.6;
   color: var(--text-secondary);
   margin: 0;
   font-style: italic;
@@ -1337,6 +1299,51 @@
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-muted);
   border: 1px solid var(--border-subtle);
+}
+
+/* Dedicated Review Card Footer: Placed right UNDER the review card content */
+.review-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.review-date {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.review-edited {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.btn-edit-review {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: var(--brand-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s ease);
+}
+
+.btn-edit-review:hover {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: var(--brand-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.25);
 }
 
 /* ============================================================
@@ -1607,4 +1614,3 @@
     grid-template-columns: 1fr;
   }
 }
-
