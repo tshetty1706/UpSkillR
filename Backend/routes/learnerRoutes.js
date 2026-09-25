@@ -30,4 +30,13 @@ router.get('/me/point-history', learnerController.getPointHistory);
 // Enrolled Courses Route
 router.get('/me/courses', courseController.getLearnerEnrolments);
 
+// FR-09: Learner's own reviews (for profile display)
+router.get('/me/reviews', learnerController.getLearnerReviews);
+
+// Learning Activity Heatmap (from PointTransaction data)
+router.get('/me/activity', learnerController.getLearnerActivity);
+
+// Certificates (derived from completed enrolments)
+router.get('/me/certificates', learnerController.getLearnerCertificates);
+
 module.exports = router;

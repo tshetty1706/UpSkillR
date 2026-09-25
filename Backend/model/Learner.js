@@ -77,8 +77,56 @@ const learnerSchema = new mongoose.Schema({
       type: String,
       default: '',
       trim: true
+    },
+    instagram: {
+      type: String,
+      default: '',
+      trim: true
+    },
+    facebook: {
+      type: String,
+      default: '',
+      trim: true
+    },
+    codeforces: {
+      type: String,
+      default: '',
+      trim: true
+    },
+    geeksforgeeks: {
+      type: String,
+      default: '',
+      trim: true
+    },
+    hackerrank: {
+      type: String,
+      default: '',
+      trim: true
     }
   },
+  education: [
+    {
+      institution: { type: String, required: true, trim: true },
+      degree: { type: String, required: true, trim: true },
+      fieldOfStudy: { type: String, default: '', trim: true },
+      startDate: { type: String, default: '', trim: true },
+      endDate: { type: String, default: '', trim: true },
+      current: { type: Boolean, default: false },
+      description: { type: String, default: '', trim: true }
+    }
+  ],
+  experience: [
+    {
+      role: { type: String, required: true, trim: true },
+      company: { type: String, required: true, trim: true },
+      employmentType: { type: String, default: '', trim: true },
+      startDate: { type: String, default: '', trim: true },
+      endDate: { type: String, default: '', trim: true },
+      current: { type: Boolean, default: false },
+      location: { type: String, default: '', trim: true },
+      description: { type: String, default: '', trim: true }
+    }
+  ],
   points: {
     type: Number,
     default: 0

@@ -8,6 +8,7 @@ const announcementController = require('../controller/announcementController');
 const courseContentController = require('../controller/courseContentController');
 const assessmentReviewController = require('../controller/assessmentReviewController');
 const analyticsController = require('../controller/analyticsController');
+const reviewController = require('../controller/reviewController');
 const {
   protect,
   requireLearner,
@@ -87,7 +88,14 @@ router.get('/learner/my-enrolments', protect, requireLearner, courseController.g
 router.get('/:courseId/progress', protect, requireLearner, courseController.getCourseProgress);
 router.post('/progress', protect, requireLearner, courseController.updateLessonProgress);
 router.post('/:courseId/modules/:moduleId/complete', protect, requireLearner, courseController.updateLessonProgress);
-router.post('/rate', protect, requireLearner, courseController.submitCourseRating);
+router.post('/rate', protect, requireLearner, reviewController.submitCourseReview);
+
+// ─── Course Reviews & Ratings (FR-09) ───
+router.get('/:courseId/reviews', reviewController.getCourseReviews);
+router.get('/:courseId/my-review', protect, requireLearner, reviewController.getMyCourseReview);
+router.post('/:courseId/review', protect, requireLearner, reviewController.submitCourseReview);
+router.patch('/:courseId/review', protect, requireLearner, reviewController.updateCourseReview);
+router.put('/:courseId/review', protect, requireLearner, reviewController.updateCourseReview);
 
 // ─── 3. Instructor Course Management (Collection Level) ───
 router.get('/instructor/my-courses', protect, requireSubmittedInstructor, courseController.getInstructorCourses);
