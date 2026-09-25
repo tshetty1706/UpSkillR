@@ -342,6 +342,12 @@ exports.verifyOtp = async (req, res) => {
         console.log(`[USER VERIFIED & SAVED TO MONGO DB] ${newUser.email}`);
 
         const token = generateToken(newUser);
+        res.cookie('token', token, {
+          httpOnly: true,
+          secure: false,
+          sameSite: 'lax',
+          path: '/'
+        });
 
         return res.status(201).json({
           success: true,
@@ -395,6 +401,12 @@ exports.manualLogin = async (req, res) => {
     }
 
     const token = generateToken(user);
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      path: '/'
+    });
     return res.status(200).json({
       success: true,
       message: 'Logged in successfully!',
@@ -582,13 +594,12 @@ exports.googleOAuthCallback = async (req, res) => {
 
     const token = generateToken(user);
 
-    // Send ONLY a small, compact HttpOnly authentication cookie containing the JWT
+    // Send ONLY a small, compact HttpOnly authentication session cookie containing the JWT (no maxAge or expires)
     res.cookie('token', token, {
       httpOnly: true,
       secure: false, // localhost development
       sameSite: 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      path: '/'
     });
 
     const redirectUrl = `${FRONTEND_URL}/dashboard`;
@@ -726,8 +737,7 @@ exports.githubOAuthCallback = async (req, res) => {
       httpOnly: true,
       secure: false,
       sameSite: 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000
+      path: '/'
     });
 
     return res.redirect(`${FRONTEND_URL}/dashboard`);

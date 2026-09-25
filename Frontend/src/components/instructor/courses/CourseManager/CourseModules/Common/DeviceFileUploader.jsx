@@ -124,7 +124,7 @@ export const DeviceFileUploader = ({
     let finalStatus = 'ready';
 
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
       if (uploadEndpoint && fileType !== 'video') {

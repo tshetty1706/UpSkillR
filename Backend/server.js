@@ -126,14 +126,14 @@ if (!MONGO_URL) {
       console.log('Successfully connected to MongoDB Atlas database (UpSkillr)!');
       await runDbMigration();
       app.listen(PORT, () => {
-        console.log(`UpSkillr Backend Server running on http://localhost:${PORT}`);
+        console.log(`UpSkillR Backend Server running on http://localhost:${PORT}`);
       });
     })
     .catch((err) => {
       console.error('MongoDB Atlas Connection Failure:', err.message);
       // Fallback: Start HTTP server even if DB connection retries
       app.listen(PORT, () => {
-        console.log(`UpSkillr Backend Server running on http://localhost:${PORT} (Database pending connection)`);
+        console.log(`UpSkillR Backend Server running on http://localhost:${PORT} (Database pending connection)`);
       });
     });
 }

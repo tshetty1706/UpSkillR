@@ -528,7 +528,7 @@ export const LearnerProfile = ({ user }) => {
   // ════════════════════════════════════════════════════════════════
   const fetchLearnerData = useCallback(async () => {
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       if (!token) return;
       const response = await fetch(`${API_BASE}/learners/me`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -571,7 +571,7 @@ export const LearnerProfile = ({ user }) => {
 
   const fetchReviews = useCallback(async () => {
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       if (!token) return;
       setReviewsLoading(true);
       const res = await fetch(`${API_BASE}/learners/me/reviews`, {
@@ -588,7 +588,7 @@ export const LearnerProfile = ({ user }) => {
 
   const fetchCertificates = useCallback(async () => {
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       if (!token) return;
       setCertsLoading(true);
       const res = await fetch(`${API_BASE}/learners/me/certificates`, {
@@ -605,7 +605,7 @@ export const LearnerProfile = ({ user }) => {
 
   const fetchActivity = useCallback(async () => {
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       if (!token) return;
       setActivityLoading(true);
       const res = await fetch(`${API_BASE}/learners/me/activity`, {
@@ -633,7 +633,7 @@ export const LearnerProfile = ({ user }) => {
   const persistEducation = async (updatedList) => {
     setEntrySaving(true);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const res = await fetch(`${API_BASE}/learners/me`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -693,7 +693,7 @@ export const LearnerProfile = ({ user }) => {
   const persistExperience = async (updatedList) => {
     setEntrySaving(true);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const res = await fetch(`${API_BASE}/learners/me`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -762,7 +762,7 @@ export const LearnerProfile = ({ user }) => {
     setUsernameStatus({ status: 'checking', message: 'Checking availability...' });
     checkUsernameTimerRef.current = setTimeout(async () => {
       try {
-        const token = localStorage.getItem('upskillr_token');
+        const token = sessionStorage.getItem('upskillr_token');
         const res = await fetch(`${API_BASE}/learners/me/check-username?username=${encodeURIComponent(rawVal)}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -787,7 +787,7 @@ export const LearnerProfile = ({ user }) => {
     const updatedLinks = { ...profile.socialLinks, [platform]: '' };
     setProfile(prev => ({ ...prev, socialLinks: updatedLinks }));
     setSocialValidation(prev => ({ ...prev, [platform]: { status: 'idle', message: '' } }));
-    const token = localStorage.getItem('upskillr_token');
+    const token = sessionStorage.getItem('upskillr_token');
     if (token) {
       try {
         const res = await fetch(`${API_BASE}/learners/me`, {
@@ -840,7 +840,7 @@ export const LearnerProfile = ({ user }) => {
 
     setSaving(true);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const response = await fetch(`${API_BASE}/learners/me`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -870,9 +870,10 @@ export const LearnerProfile = ({ user }) => {
 
   const updateLocalStorage = (userData) => {
     if (!userData) return;
-    const storedUser = localStorage.getItem('upskillr_user');
-    if (storedUser) {
-      try {
+    try {
+      localStorage.removeItem('upskillr_user');
+      const storedUser = sessionStorage.getItem('upskillr_user');
+      if (storedUser) {
         const parsed = JSON.parse(storedUser);
         Object.assign(parsed, {
           fullName: userData.fullName,
@@ -883,10 +884,10 @@ export const LearnerProfile = ({ user }) => {
           socialLinks: userData.socialLinks,
           avatar: userData.avatar
         });
-        localStorage.setItem('upskillr_user', JSON.stringify(parsed));
+        sessionStorage.setItem('upskillr_user', JSON.stringify(parsed));
         window.dispatchEvent(new Event('upskillr_user_updated'));
-      } catch {}
-    }
+      }
+    } catch {}
   };
 
   // ════════════════════════════════════════════════════════════════
@@ -912,7 +913,7 @@ export const LearnerProfile = ({ user }) => {
     }
     setEditSubmitting(true);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const courseId = editingReview.courseId?._id || editingReview.courseId;
       const res = await fetch(`${API_BASE}/courses/${courseId}/review`, {
         method: 'PATCH',
@@ -949,7 +950,7 @@ export const LearnerProfile = ({ user }) => {
     const formDataPayload = new FormData();
     formDataPayload.append('file', file);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const response = await fetch(`${API_BASE}/auth/profile/upload/photo`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -973,7 +974,7 @@ export const LearnerProfile = ({ user }) => {
 
   const handlePhotoRemove = async () => {
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const response = await fetch(`${API_BASE}/auth/profile/upload/photo`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }

@@ -41,13 +41,13 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const token = localStorage.getItem('upskillr_token');
-      if (!token) return;
+      const token = sessionStorage.getItem('upskillr_token');
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch(`${API_BASE}/learners/me/notifications`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers,
+        credentials: 'include'
       });
       const data = await res.json();
       if (data.success) {
@@ -99,8 +99,7 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
   const handleMarkAsRead = async (id, e) => {
     if (e) e.stopPropagation();
     try {
-      const token = localStorage.getItem('upskillr_token');
-      if (!token) return;
+      const token = sessionStorage.getItem('upskillr_token');
 
       // Optimistic update
       setNotifications((prev) =>
@@ -108,11 +107,12 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
 
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(`${API_BASE}/learners/me/notifications/${id}/read`, {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers,
+        credentials: 'include'
       });
       const data = await res.json();
       if (data.success) {
@@ -127,8 +127,7 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
   const handleMarkAllAsRead = async () => {
     if (unreadCount === 0) return;
     try {
-      const token = localStorage.getItem('upskillr_token');
-      if (!token) return;
+      const token = sessionStorage.getItem('upskillr_token');
 
       // Optimistic update
       setNotifications((prev) =>
@@ -136,11 +135,12 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
       );
       setUnreadCount(0);
 
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(`${API_BASE}/learners/me/notifications/read-all`, {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers,
+        credentials: 'include'
       });
       const data = await res.json();
       if (data.success) {

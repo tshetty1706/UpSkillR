@@ -20,13 +20,13 @@ export const LearnerNotificationBanner = ({ onGoToCourse }) => {
 
   const fetchUnread = useCallback(async () => {
     try {
-      const token = localStorage.getItem('upskillr_token');
-      if (!token) return;
+      const token = sessionStorage.getItem('upskillr_token');
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch(`${API_BASE}/learners/me/notifications`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers,
+        credentials: 'include'
       });
       const data = await res.json();
       if (data.success && Array.isArray(data.notifications)) {
@@ -56,17 +56,17 @@ export const LearnerNotificationBanner = ({ onGoToCourse }) => {
   const handleMarkAsRead = async (id, e) => {
     if (e) e.stopPropagation();
     try {
-      const token = localStorage.getItem('upskillr_token');
-      if (!token) return;
+      const token = sessionStorage.getItem('upskillr_token');
 
       // Optimistic update
       setUnreadNotifications((prev) => prev.filter((n) => n._id !== id));
 
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       await fetch(`${API_BASE}/learners/me/notifications/${id}/read`, {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers,
+        credentials: 'include'
       });
 
       // Synchronize with bell and other components
@@ -79,17 +79,17 @@ export const LearnerNotificationBanner = ({ onGoToCourse }) => {
   const handleMarkAllAsRead = async (e) => {
     if (e) e.stopPropagation();
     try {
-      const token = localStorage.getItem('upskillr_token');
-      if (!token) return;
+      const token = sessionStorage.getItem('upskillr_token');
 
       // Optimistic update
       setUnreadNotifications([]);
 
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       await fetch(`${API_BASE}/learners/me/notifications/read-all`, {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers,
+        credentials: 'include'
       });
 
       // Synchronize with bell and other components

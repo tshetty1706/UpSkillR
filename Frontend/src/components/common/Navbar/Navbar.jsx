@@ -21,7 +21,7 @@ export const Navbar = () => {
         setCurrentPath(window.location.pathname);
       }
 
-      const userStr = localStorage.getItem('upskillr_user');
+      const userStr = sessionStorage.getItem('upskillr_user');
       if (userStr) {
         try {
           setCurrentUser(JSON.parse(userStr));
@@ -71,6 +71,8 @@ export const Navbar = () => {
         credentials: 'include'
       });
     } catch (e) { }
+    sessionStorage.removeItem('upskillr_token');
+    sessionStorage.removeItem('upskillr_user');
     localStorage.removeItem('upskillr_token');
     localStorage.removeItem('upskillr_user');
     setCurrentUser(null);

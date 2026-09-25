@@ -18,7 +18,8 @@ import {
   HelpCircle,
   Layers,
   Video,
-  PlayCircle
+  PlayCircle,
+  CheckCircle2
 } from 'lucide-react';
 import { CourseThumbnail } from '../../../../common/CourseThumbnail';
 import { Avatar } from '../../../../common/Avatar/Avatar';
@@ -58,6 +59,26 @@ export const CourseOverviewTemplate = ({
   const [activeFaq, setActiveFaq] = useState(null);
   const [expandedModules, setExpandedModules] = useState({});
   const [activeQuizModal, setActiveQuizModal] = useState(null);
+  const [passedQuizzes, setPassedQuizzes] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem(`upskillr_passed_quizzes_${course?._id}`);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const handleQuizPassed = (quizItem, percent, moduleIndex) => {
+    const key = String(quizItem?._id || quizItem?.title || moduleIndex);
+    setPassedQuizzes(prev => {
+      const updated = new Set(prev);
+      updated.add(key);
+      try {
+        sessionStorage.setItem(`upskillr_passed_quizzes_${course?._id}`, JSON.stringify([...updated]));
+      } catch {}
+      return updated;
+    });
+  };
 
   const handleQuestionSubmit = async (e) => {
     e.preventDefault();
@@ -413,7 +434,15 @@ export const CourseOverviewTemplate = ({
                                     className="curriculum-lesson-row"
                                     onClick={() => {
                                       if (quizItem) {
-                                        setActiveQuizModal({ item: quizItem, module: mod, lesson: les });
+                                        const isPassed = passedQuizzes.has(String(quizItem._id || quizItem.title || mIdx));
+                                        setActiveQuizModal({
+                                          item: quizItem,
+                                          module: mod,
+                                          lesson: les,
+                                          moduleIndex: mIdx,
+                                          lessonIndex: lIdx,
+                                          isAlreadyPassed: isPassed
+                                        });
                                       }
                                     }}
                                     style={quizItem ? { cursor: 'pointer' } : {}}
@@ -460,14 +489,32 @@ export const CourseOverviewTemplate = ({
                                             {isQuiz && (
                                               <button
                                                 type="button"
-                                                className="btn-take-quiz-action"
+                                                className={`btn-take-quiz-action ${passedQuizzes.has(String(item._id || item.title || mIdx)) ? 'passed-quiz-badge' : ''}`}
+                                                style={passedQuizzes.has(String(item._id || item.title || mIdx)) ? { borderColor: 'rgba(16, 185, 129, 0.4)', background: 'rgba(16, 185, 129, 0.08)' } : {}}
                                                 onClick={(e) => {
                                                   e.stopPropagation();
-                                                  setActiveQuizModal({ item, module: mod, lesson: les });
+                                                  const isItemPassed = passedQuizzes.has(String(item._id || item.title || mIdx));
+                                                  setActiveQuizModal({
+                                                    item,
+                                                    module: mod,
+                                                    lesson: les,
+                                                    moduleIndex: mIdx,
+                                                    lessonIndex: lIdx,
+                                                    isAlreadyPassed: isItemPassed
+                                                  });
                                                 }}
                                               >
-                                                <Award size={13} />
-                                                <span>{isEnrolled ? 'Open Quiz' : 'Preview Quiz'}</span>
+                                                {passedQuizzes.has(String(item._id || item.title || mIdx)) ? (
+                                                  <>
+                                                    <CheckCircle2 size={13} style={{ color: '#10b981' }} />
+                                                    <span style={{ color: '#10b981', fontWeight: 600 }}>Passed ✓</span>
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <Award size={13} />
+                                                    <span>{isEnrolled ? 'Open Quiz' : 'Preview Quiz'}</span>
+                                                  </>
+                                                )}
                                               </button>
                                             )}
                                           </div>
@@ -709,9 +756,16 @@ export const CourseOverviewTemplate = ({
           quizItem={activeQuizModal.item}
           moduleTitle={activeQuizModal.module?.title}
           lessonTitle={activeQuizModal.lesson?.title}
+          moduleIndex={activeQuizModal.moduleIndex}
+          moduleId={activeQuizModal.module?._id}
+          lessonIndex={activeQuizModal.lessonIndex}
+          lessonId={activeQuizModal.lesson?._id}
           courseId={course?._id}
+          courseTitle={course?.title}
           isEnrolled={isEnrolled}
+          isAlreadyPassed={activeQuizModal.isAlreadyPassed}
           onClose={() => setActiveQuizModal(null)}
+          onQuizPassed={handleQuizPassed}
         />
       )}
     </div>

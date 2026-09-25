@@ -17,18 +17,23 @@ import { InstructorExploreCourses } from './components/home/InstructorExploreCou
 
 function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  // Session-only: do NOT initialize from persistent localStorage
   const [currentUser, setCurrentUser] = useState(() => {
-    const stored = localStorage.getItem('upskillr_user');
-    if (stored) {
-      try { return JSON.parse(stored); } catch (e) { return null; }
+    const sessionStored = sessionStorage.getItem('upskillr_user');
+    if (sessionStored) {
+      try { return JSON.parse(sessionStored); } catch (e) { return null; }
     }
     return null;
   });
   const [authChecking, setAuthChecking] = useState(true);
 
   useEffect(() => {
+    // Purge any lingering persistent auth in localStorage
+    localStorage.removeItem('upskillr_token');
+    localStorage.removeItem('upskillr_user');
+
     const checkAuthStatus = async () => {
-      // 1. Support legacy / direct URL params if present
+      // 1. Support legacy / direct URL params if present (session-only)
       const urlParams = new URLSearchParams(window.location.search);
       const token = urlParams.get('token');
       const userParam = urlParams.get('user');
@@ -41,8 +46,8 @@ function App() {
           } catch (e1) {
             user = JSON.parse(userParam);
           }
-          localStorage.setItem('upskillr_token', token);
-          localStorage.setItem('upskillr_user', JSON.stringify(user));
+          sessionStorage.setItem('upskillr_token', token);
+          sessionStorage.setItem('upskillr_user', JSON.stringify(user));
           setCurrentUser(user);
           const targetPath = user.role === 'instructor'
             ? (user.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
@@ -56,12 +61,12 @@ function App() {
         }
       }
 
-      // 2. Obtain authenticated user through the existing /me profile API
-      const storedToken = localStorage.getItem('upskillr_token');
+      // 2. Validate session via backend /api/auth/me (sends HttpOnly session cookie)
+      const sessionToken = sessionStorage.getItem('upskillr_token');
       try {
         const headers = {};
-        if (storedToken) {
-          headers['Authorization'] = `Bearer ${storedToken}`;
+        if (sessionToken) {
+          headers['Authorization'] = `Bearer ${sessionToken}`;
         }
         const res = await fetch('http://localhost:5000/api/auth/me', {
           headers,
@@ -70,9 +75,9 @@ function App() {
         const data = await res.json();
         if (data.success && data.user) {
           setCurrentUser(data.user);
-          localStorage.setItem('upskillr_user', JSON.stringify(data.user));
+          sessionStorage.setItem('upskillr_user', JSON.stringify(data.user));
           if (data.token) {
-            localStorage.setItem('upskillr_token', data.token);
+            sessionStorage.setItem('upskillr_token', data.token);
           }
           if (window.location.pathname === '/dashboard' || window.location.pathname === '/login') {
             const targetPath = data.user.role === 'instructor'
@@ -82,13 +87,16 @@ function App() {
             setCurrentPath(targetPath);
           }
         } else {
-          if (!storedToken) {
-            setCurrentUser(null);
-            localStorage.removeItem('upskillr_user');
-          }
+          // Unauthenticated in current session -> clear session state
+          setCurrentUser(null);
+          sessionStorage.removeItem('upskillr_user');
+          sessionStorage.removeItem('upskillr_token');
         }
       } catch (err) {
         // Backend not reachable or network error
+        setCurrentUser(null);
+        sessionStorage.removeItem('upskillr_user');
+        sessionStorage.removeItem('upskillr_token');
       } finally {
         setAuthChecking(false);
       }
@@ -107,7 +115,7 @@ function App() {
       } else {
         setCurrentPath(window.location.pathname);
       }
-      const stored = localStorage.getItem('upskillr_user');
+      const stored = sessionStorage.getItem('upskillr_user');
       if (stored) {
         try {
           setCurrentUser(JSON.parse(stored));
@@ -119,7 +127,7 @@ function App() {
 
     // Custom event listener for when the user profile or avatar is updated
     const handleUserUpdate = () => {
-      const stored = localStorage.getItem('upskillr_user');
+      const stored = sessionStorage.getItem('upskillr_user');
       if (stored) {
         try {
           setCurrentUser(JSON.parse(stored));
@@ -147,6 +155,8 @@ function App() {
         credentials: 'include'
       });
     } catch (e) { }
+    sessionStorage.removeItem('upskillr_token');
+    sessionStorage.removeItem('upskillr_user');
     localStorage.removeItem('upskillr_token');
     localStorage.removeItem('upskillr_user');
     setCurrentUser(null);

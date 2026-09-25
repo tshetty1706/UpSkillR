@@ -385,7 +385,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
   const fetchApplicationData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const response = await fetch(API_BASE_URL, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -486,7 +486,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
   const saveToServer = async (updatedData, stepToSave) => {
     setAutoSaveStatus('saving');
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const response = await fetch(API_BASE_URL, {
         method: 'PUT',
         headers: {
@@ -635,7 +635,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
     formDataPayload.append('file', file);
 
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const response = await fetch(`${API_BASE_URL}/upload/photo`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -653,12 +653,13 @@ export const InstructorApplication = ({ user, onLogout }) => {
         };
         setFormData(updated);
 
-        const storedUser = localStorage.getItem('upskillr_user');
+        localStorage.removeItem('upskillr_user');
+        const storedUser = sessionStorage.getItem('upskillr_user');
         if (storedUser) {
           try {
             const u = JSON.parse(storedUser);
             u.avatar = data.photoUrl;
-            localStorage.setItem('upskillr_user', JSON.stringify(u));
+            sessionStorage.setItem('upskillr_user', JSON.stringify(u));
             window.dispatchEvent(new Event('upskillr_user_updated'));
           } catch (err) {}
         }
@@ -683,7 +684,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
   const handleRemovePhoto = async () => {
     setAutoSaveStatus('saving');
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const response = await fetch(`${API_BASE_URL}/upload/photo`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
@@ -700,12 +701,13 @@ export const InstructorApplication = ({ user, onLogout }) => {
         };
         setFormData(updated);
 
-        const storedUser = localStorage.getItem('upskillr_user');
+        localStorage.removeItem('upskillr_user');
+        const storedUser = sessionStorage.getItem('upskillr_user');
         if (storedUser) {
           try {
             const u = JSON.parse(storedUser);
             u.avatar = '';
-            localStorage.setItem('upskillr_user', JSON.stringify(u));
+            sessionStorage.setItem('upskillr_user', JSON.stringify(u));
             window.dispatchEvent(new Event('upskillr_user_updated'));
           } catch (err) {}
         }
@@ -744,7 +746,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
     formDataPayload.append('file', file);
 
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const response = await fetch(`${API_BASE_URL}/upload/resume`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -781,7 +783,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
   const handleRemoveResume = async () => {
     setAutoSaveStatus('saving');
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const response = await fetch(`${API_BASE_URL}/upload/resume`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
@@ -831,7 +833,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
     formDataPayload.append('file', file);
 
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const response = await fetch(`${API_BASE_URL}/upload/certificate`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -1010,7 +1012,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
 
     setSubmitting(true);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
 
       // Save final data state first
       await fetch(API_BASE_URL, {
@@ -1034,7 +1036,8 @@ export const InstructorApplication = ({ user, onLogout }) => {
       const data = await response.json();
       if (data.success) {
         if (data.user) {
-          localStorage.setItem('upskillr_user', JSON.stringify(data.user));
+          localStorage.removeItem('upskillr_user');
+          sessionStorage.setItem('upskillr_user', JSON.stringify(data.user));
           window.dispatchEvent(new Event('upskillr_user_updated'));
         }
         toast.success('Application submitted successfully! Redirecting to Instructor Studio...');

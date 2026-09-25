@@ -42,7 +42,7 @@ export const InstructorAnalytics = ({ courses: initialCourses = [] }) => {
 
   const fetchInstructorCourses = async () => {
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const response = await fetch(`${API_BASE}/courses/instructor/my-courses`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -59,7 +59,7 @@ export const InstructorAnalytics = ({ courses: initialCourses = [] }) => {
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const query = courseId && courseId !== 'all' ? `?courseId=${courseId}` : '';
       const response = await fetch(`${API_BASE}/courses/instructor/analytics${query}`, {
         headers: { Authorization: `Bearer ${token}` }

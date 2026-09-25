@@ -86,7 +86,7 @@ export const InstructorDashboard = ({ user, onLogout }) => {
   const fetchInstructorData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const response = await fetch(`${API_BASE}/courses/instructor/my-courses`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -183,7 +183,7 @@ export const InstructorDashboard = ({ user, onLogout }) => {
   // Publish / Unpublish toggle
   const handlePublishToggle = async (courseId, currentStatus) => {
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const targetStatus = currentStatus === 'published' ? 'draft' : 'published';
       const response = await fetch(`${API_BASE}/courses/${courseId}/publish`, {
         method: 'POST',

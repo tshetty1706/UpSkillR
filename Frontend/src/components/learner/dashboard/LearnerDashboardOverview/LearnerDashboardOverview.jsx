@@ -144,7 +144,7 @@ export const LearnerDashboardOverview = ({
   // Gamification & Check-in State
   const [profileUser, setProfileUser] = useState(() => {
     try {
-      const stored = localStorage.getItem('upskillr_user');
+      const stored = sessionStorage.getItem('upskillr_user');
       return stored ? JSON.parse(stored) : (user || {});
     } catch {
       return user || {};
@@ -185,7 +185,7 @@ export const LearnerDashboardOverview = ({
   // Fetch gamification points, streak, and transaction history
   const fetchGamificationData = async () => {
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       if (!token) return;
 
       const [statsRes, historyRes] = await Promise.all([
@@ -229,7 +229,7 @@ export const LearnerDashboardOverview = ({
     const handlePointsRefresh = () => fetchGamificationData();
     const handleUserRefresh = () => {
       try {
-        const stored = localStorage.getItem('upskillr_user');
+        const stored = sessionStorage.getItem('upskillr_user');
         if (stored) {
           setProfileUser(JSON.parse(stored));
         }
@@ -521,8 +521,6 @@ export const LearnerDashboardOverview = ({
                   const course = typeof enrol.courseId === 'object' ? enrol.courseId : { _id: enrol.courseId, title: enrol.courseTitle || 'Enrolled Course' };
                   if (!course) return null;
 
-                  const isCompleted = enrol.progressPercentage === 100 || enrol.status === 'completed';
-                  
                   // Compute lessons / modules count
                   const lessons = (course.lessons && course.lessons.length > 0)
                     ? course.lessons
@@ -534,9 +532,27 @@ export const LearnerDashboardOverview = ({
                         { title: 'Module 3: Project Architecture & Code', duration: '35 min' }
                       ];
 
-                  const totalModules = lessons.length;
-                  const completedCount = (enrol.completedLessons || []).length;
-                  const progressPct = enrol.progressPercentage || 0;
+                  const totalModules = Math.max(lessons.length, 1);
+                  
+                  // Accurately compute completed modules matching the course's modules list
+                  const validDoneIndices = new Set();
+                  (enrol.completedLessons || []).forEach(k => {
+                    const num = Number(k);
+                    if (!isNaN(num) && num >= 0 && num < totalModules) {
+                      validDoneIndices.add(num);
+                    } else if (lessons.some(l => l._id && String(l._id) === String(k))) {
+                      const mIdx = lessons.findIndex(l => l._id && String(l._id) === String(k));
+                      if (mIdx !== -1) validDoneIndices.add(mIdx);
+                    }
+                  });
+                  const completedCount = Math.min(validDoneIndices.size, totalModules);
+                  
+                  // Accurately compute progress percentage directly from actual completion count & total modules
+                  const progressPct = totalModules > 0
+                    ? Math.min(Math.round((completedCount / totalModules) * 100), 100)
+                    : (enrol.progressPercentage || 0);
+
+                  const isCompleted = progressPct === 100 || enrol.status === 'completed' || completedCount >= totalModules;
 
                   const isExpanded = expandedCourseId === (course._id || enrol._id);
 
@@ -602,7 +618,7 @@ export const LearnerDashboardOverview = ({
                         {isExpanded && (
                           <div className="learner-lessons-list">
                             {lessons.map((lesson, idx) => {
-                              const isLessonDone = (enrol.completedLessons || []).includes(idx);
+                              const isLessonDone = validDoneIndices.has(idx) || (enrol.completedLessons || []).includes(idx);
                               return (
                                 <div key={idx} className="learner-lesson-item">
                                   <span style={{ color: isLessonDone ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: isLessonDone ? 'line-through' : 'none' }}>

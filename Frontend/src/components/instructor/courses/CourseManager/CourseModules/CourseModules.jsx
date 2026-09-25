@@ -22,7 +22,7 @@ export const CourseModules = ({ courseId, course, onCurriculumUpdated, onNavigat
 
   // Auth token helper
   const getAuthHeader = () => {
-    const token = localStorage.getItem('upskillr_token');
+    const token = sessionStorage.getItem('upskillr_token');
     return token
       ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
       : { 'Content-Type': 'application/json' };

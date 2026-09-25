@@ -25,7 +25,7 @@ export const DedicatedContentEditorPage = ({
   const [previewMode, setPreviewMode] = useState(false);
 
   const getAuthHeader = () => {
-    const token = localStorage.getItem('upskillr_token');
+    const token = sessionStorage.getItem('upskillr_token');
     return token
       ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
       : { 'Content-Type': 'application/json' };

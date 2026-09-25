@@ -16,8 +16,14 @@ export const QuizPlayerModal = ({
   quizItem,
   moduleTitle = '',
   lessonTitle = '',
+  moduleIndex = 0,
+  moduleId = '',
+  lessonIndex = 0,
+  lessonId = '',
   courseId = '',
+  courseTitle = '',
   isEnrolled = false,
+  isAlreadyPassed = false,
   onClose,
   onQuizPassed = null
 }) => {
@@ -89,26 +95,40 @@ export const QuizPlayerModal = ({
     if (passed) {
       toast.success(`🎉 Congratulations! You passed the quiz with ${percent}%!`);
 
-      // Notify parent / update progress if enrolled
-      if (onQuizPassed) {
-        onQuizPassed(quizItem, percent);
-      } else if (isEnrolled && courseId) {
-        // Record progress on server
+      // Record progress and points on server if enrolled
+      if (isEnrolled && courseId) {
         try {
-          const token = localStorage.getItem('upskillr_token');
-          if (token) {
-            await fetch(`http://localhost:5000/api/courses/${courseId}/modules/0/complete`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`
-              }
-            });
-            window.dispatchEvent(new Event('upskillr_points_updated'));
+          const token = sessionStorage.getItem('upskillr_token');
+          const headers = { 'Content-Type': 'application/json' };
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+
+          const targetModuleIndex = (moduleIndex !== undefined && moduleIndex !== null) ? moduleIndex : 0;
+          const res = await fetch(`http://localhost:5000/api/courses/${courseId}/modules/${targetModuleIndex}/complete`, {
+            method: 'POST',
+            headers,
+            credentials: 'include',
+            body: JSON.stringify({
+              lessonIndex: targetModuleIndex,
+              moduleId,
+              lessonId,
+              quizId: quizItem._id,
+              quizTitle: quizItem.title || 'Lesson Quiz',
+              scorePercentage: percent
+            })
+          });
+          const resData = await res.json();
+          if (resData.success && resData.pointsAwarded > 0) {
+            toast.success(`⭐ +${resData.pointsAwarded} Points awarded and added to your activity history!`);
           }
+          window.dispatchEvent(new Event('upskillr_points_updated'));
         } catch (e) {
           console.error('Error auto-completing quiz on backend:', e);
         }
+      }
+
+      // Notify parent / update progress if enrolled
+      if (onQuizPassed) {
+        onQuizPassed(quizItem, percent, moduleIndex, lessonIndex);
       }
     } else {
       toast.error(`You scored ${percent}%. Pass mark is ${passThreshold}%. Try again!`);
@@ -151,6 +171,14 @@ export const QuizPlayerModal = ({
 
         {/* Modal Body */}
         <div className="quiz-modal-body">
+          {/* Already Passed notification banner */}
+          {isAlreadyPassed && !submitted && (
+            <div className="quiz-instructions-banner" style={{ background: 'rgba(16, 185, 129, 0.08)', borderColor: 'rgba(16, 185, 129, 0.3)', color: '#10b981' }}>
+              <CheckCircle2 size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} />
+              <strong>Previously Mastered:</strong> You have already passed this quiz. You may review the questions below or retake to practice.
+            </div>
+          )}
+
           {/* Instructions banner if available */}
           {quiz.instructions && !submitted && (
             <div className="quiz-instructions-banner">

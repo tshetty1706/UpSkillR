@@ -27,7 +27,7 @@ export const InstructorQuestionsManager = () => {
   const fetchQuestions = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const res = await fetch('http://localhost:5000/api/courses/instructor/questions', {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -46,7 +46,7 @@ export const InstructorQuestionsManager = () => {
     if (!replyText.trim()) return;
     setSubmittingReply(true);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const res = await fetch(`http://localhost:5000/api/courses/${courseId}/questions/${questionId}/reply`, {
         method: 'POST',
         headers: {

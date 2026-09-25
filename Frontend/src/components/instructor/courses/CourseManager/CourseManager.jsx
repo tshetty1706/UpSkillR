@@ -125,7 +125,7 @@ export const CourseManager = ({
     setAccessDenied(false);
     setErrorMessage('');
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
 
       // 1. Fetch Course Core Details
@@ -236,7 +236,7 @@ export const CourseManager = ({
 
     setSavingDetails(true);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
 
       // 1. If new thumbnail file was picked, upload it first
       let updatedThumbnailUrl = detailsForm.thumbnail;
@@ -304,7 +304,7 @@ export const CourseManager = ({
 
     setSavingOverview(true);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const res = await fetch(`${API_BASE}/courses/${courseId}/overview`, {
         method: 'PUT',
         headers: {

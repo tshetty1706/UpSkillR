@@ -8,9 +8,28 @@ const Announcement = require('../model/Announcement');
 const { Instructor, Learner } = require('../model/User');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const path = require('path');
 const { uploadBufferToCloudinary } = require('./mediaController');
 const { notifyStudentsOnNewContent } = require('./notificationController');
 const JWT_SECRET = process.env.JWT_SECRET || 'upskillr_jwt_secret_key_2026_super_secure';
+
+// Fast In-Memory Cache for Course Catalog & Overview (TTL: 15s)
+const courseCache = {
+  published: null,
+  publishedExpiry: 0,
+  overviews: new Map(),
+  invalidateAll() {
+    this.published = null;
+    this.publishedExpiry = 0;
+    this.overviews.clear();
+  },
+  invalidateCourse(courseId) {
+    this.published = null;
+    this.publishedExpiry = 0;
+    if (courseId) this.overviews.delete(String(courseId));
+  }
+};
 
 // 2. Get All Courses owned by Instructor + Stats
 exports.getInstructorCourses = async (req, res) => {
@@ -1154,6 +1173,12 @@ exports.gradeSubmission = async (req, res) => {
 exports.getPublishedCourses = async (req, res) => {
   try {
     const { search, category, level, instructorId, instructor } = req.query;
+    const isDefaultCatalog = !search && (!category || category === 'All') && (!level || level === 'All') && !instructorId && !instructor;
+
+    if (isDefaultCatalog && courseCache.published && Date.now() < courseCache.publishedExpiry) {
+      return res.status(200).json({ success: true, courses: courseCache.published });
+    }
+
     const filter = { status: 'published' };
 
     const targetInstructorId = instructorId || instructor;
@@ -1190,29 +1215,42 @@ exports.getPublishedCourses = async (req, res) => {
       }
     }
 
+    // 1. Fetch courses using .lean() with field projection for fast JSON serialization
     const courses = await Course.find(filter)
+      .select('title category skillLevel language price shortDescription thumbnail instructorId instructorName rating reviewCount overviewViews modules.title modules.state modules.status createdAt')
       .populate('instructorId', 'fullName avatar')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
-    const courseList = await Promise.all(
-      courses.map(async (c) => {
-        const count = await Enrolment.countDocuments({ courseId: c._id });
-        const cObj = c.toObject();
-        cObj.learnersCount = count;
-        if (c.instructorId) {
-          cObj.instructorAvatar = c.instructorId.avatar;
-          cObj.instructorName = c.instructorId.fullName || c.instructorName;
-        }
+    // 2. Single aggregation to count all enrollments at once (avoids N+1 queries)
+    const enrolmentsGrouped = await Enrolment.aggregate([
+      { $group: { _id: '$courseId', count: { $sum: 1 } } }
+    ]);
+    const enrolmentsCountMap = {};
+    enrolmentsGrouped.forEach(item => {
+      if (item._id) enrolmentsCountMap[item._id.toString()] = item.count;
+    });
 
-        // Filter modules to ONLY published modules for public/learner exploration
-        const publishedModules = (cObj.modules || []).filter(m => m.state === 'published' || m.status === 'published');
-        cObj.modules = publishedModules;
-        cObj.moduleCount = publishedModules.length;
-        cObj.modulesCount = publishedModules.length;
+    const courseList = courses.map((c) => {
+      c.learnersCount = enrolmentsCountMap[c._id.toString()] || 0;
+      if (c.instructorId) {
+        c.instructorAvatar = c.instructorId.avatar;
+        c.instructorName = c.instructorId.fullName || c.instructorName;
+      }
 
-        return cObj;
-      })
-    );
+      // Filter modules to ONLY published modules for public/learner exploration
+      const publishedModules = (c.modules || []).filter(m => m.state === 'published' || m.status === 'published');
+      c.modules = publishedModules;
+      c.moduleCount = publishedModules.length;
+      c.modulesCount = publishedModules.length;
+
+      return c;
+    });
+
+    if (isDefaultCatalog) {
+      courseCache.published = courseList;
+      courseCache.publishedExpiry = Date.now() + 15000;
+    }
 
     return res.status(200).json({ success: true, courses: courseList });
   } catch (error) {
@@ -1304,14 +1342,41 @@ exports.getCourseProgress = async (req, res) => {
 
 exports.getLearnerEnrolments = async (req, res) => {
   try {
-    const enrolments = await Enrolment.find({ learnerId: req.user.id }).populate('courseId');
+    const enrolments = await Enrolment.find({ learnerId: req.user.id })
+      .populate('courseId', 'title category skillLevel language thumbnail price modules status state')
+      .lean();
     const sanitisedEnrolments = enrolments.map(enrolment => {
-      const eObj = enrolment.toObject();
-      if (eObj.courseId && eObj.courseId.modules) {
-        const publishedModules = (eObj.courseId.modules || []).filter(m => m.state === 'published' || m.status === 'published');
+      const eObj = enrolment;
+      if (eObj.courseId) {
+        let publishedModules = (eObj.courseId.modules || []).filter(m => m.state === 'published' || m.status === 'published');
+        if (publishedModules.length === 0 && eObj.courseId.modules && eObj.courseId.modules.length > 0) {
+          publishedModules = eObj.courseId.modules;
+        }
         eObj.courseId.modules = publishedModules;
         eObj.courseId.moduleCount = publishedModules.length;
         eObj.courseId.modulesCount = publishedModules.length;
+
+        const totalItems = (eObj.courseId.lessons && eObj.courseId.lessons.length > 0)
+          ? eObj.courseId.lessons.length
+          : publishedModules.length;
+
+        if (totalItems > 0) {
+          const validCompleted = new Set();
+          (eObj.completedLessons || []).forEach(k => {
+            const num = Number(k);
+            if (!isNaN(num) && num >= 0 && num < totalItems) {
+              validCompleted.add(num);
+            }
+          });
+          const completedCount = validCompleted.size;
+          const actualPercentage = Math.min(Math.round((completedCount / totalItems) * 100), 100);
+          eObj.progressPercentage = actualPercentage;
+          if (actualPercentage < 100) {
+            eObj.status = completedCount > 0 ? 'in_progress' : 'active';
+          } else {
+            eObj.status = 'completed';
+          }
+        }
       }
       return eObj;
     });
@@ -1341,7 +1406,11 @@ exports.updateLessonProgress = async (req, res) => {
     }
 
     const totalLessons = Math.max(
-      (course.lessons?.length || 0) + (course.modules || []).reduce((acc, m) => acc + (m.lessons?.length || 0), 0) || (course.modules?.length || 0),
+      (course.lessons && course.lessons.length > 0)
+        ? course.lessons.length
+        : (course.modules && course.modules.length > 0)
+        ? course.modules.length
+        : 1,
       1
     );
 
@@ -1352,14 +1421,15 @@ exports.updateLessonProgress = async (req, res) => {
     // 3. Verify module belongs to course
     let moduleBelongs = false;
     if (isNum && idx >= 0) {
-      if (idx < totalLessons) {
+      if (idx < totalLessons || (course.modules && idx < course.modules.length)) {
         moduleBelongs = true;
       }
     } else {
       const targetStr = String(lessonIndex);
       const inModules = (course.modules || []).some(m =>
         m._id?.toString() === targetStr ||
-        (m.lessons || []).some(l => l._id?.toString() === targetStr)
+        (m.lessons || []).some(l => l._id?.toString() === targetStr) ||
+        (m.lessons || []).some(l => (l.items || l.contentItems || []).some(i => i._id?.toString() === targetStr))
       );
       const inLessons = (course.lessons || []).some(l => l._id?.toString() === targetStr);
       if (inModules || inLessons) {
@@ -1397,6 +1467,16 @@ exports.updateLessonProgress = async (req, res) => {
       newlyCompleted = true;
     }
 
+    // Sanitize and deduplicate completedLessons so only valid distinct module indices remain
+    const uniqueValid = new Set();
+    (enrolment.completedLessons || []).forEach(i => {
+      const n = Number(i);
+      if (!isNaN(n) && n >= 0 && n < totalLessons) {
+        uniqueValid.add(n);
+      }
+    });
+    enrolment.completedLessons = Array.from(uniqueValid);
+
     // 8. Recalculate course progress
     const newPercentage = Math.min(Math.round((enrolment.completedLessons.length / totalLessons) * 100), 100);
     enrolment.progressPercentage = newPercentage;
@@ -1414,7 +1494,9 @@ exports.updateLessonProgress = async (req, res) => {
     let pointsAwarded = 0;
     if (newlyCompleted) {
       const PointTransaction = require('../model/PointTransaction');
-      const referenceId = `${courseId}_mod_${lessonKey}`;
+      const referenceId = req.body.quizId
+        ? `${courseId}_quiz_${req.body.quizId}`
+        : `${courseId}_mod_${lessonKey}`;
 
       const existingTx = await PointTransaction.findOne({
         learnerId: req.user.id,
@@ -1430,12 +1512,16 @@ exports.updateLessonProgress = async (req, res) => {
           pointsAwarded = 5;
 
           try {
+            const desc = req.body.quizTitle
+              ? `Passed quiz: "${req.body.quizTitle}" in ${course.title} (+5 points)`
+              : `Completed module in ${course.title} (+5 points)`;
+
             await PointTransaction.create({
               learnerId: req.user.id,
               points: 5,
               type: 'MODULE_COMPLETION',
               referenceId,
-              description: `Completed module in ${course.title} (+5 points)`
+              description: desc
             });
           } catch (txErr) {
             console.error('PointTransaction creation error:', txErr);
@@ -1443,6 +1529,8 @@ exports.updateLessonProgress = async (req, res) => {
         }
       }
     }
+
+    courseCache.invalidateCourse(courseId);
 
     return res.status(200).json({
       success: true,
@@ -1642,12 +1730,29 @@ exports.createCourse = async (req, res) => {
 exports.getPublicCourseOverview = async (req, res) => {
   try {
     const { id } = req.params;
-    const course = await Course.findById(id);
+
+    const cached = courseCache.overviews.get(String(id));
+    if (cached && Date.now() < cached.expiry) {
+      return res.status(200).json(cached.data);
+    }
+
+    const course = await Course.findById(id).lean();
     if (!course) {
       return res.status(404).json({ success: false, message: 'Course not found.' });
     }
 
-    let overview = await CourseOverview.findOne({ courseId: id });
+    // Parallel fetch for overview components
+    const [overviewDoc, instructorUser, enrolments, questions] = await Promise.all([
+      CourseOverview.findOne({ courseId: id }).lean(),
+      course.instructorId ? Instructor.findById(course.instructorId).select('fullName avatar profilePhoto bio headline email').lean() : null,
+      Enrolment.find({ courseId: id }, { rating: 1, feedback: 1, feedbackTags: 1, ratedAt: 1, learnerName: 1 }).lean(),
+      CourseQuestion.find({ courseId: id, status: 'answered' })
+        .sort({ replyTimestamp: -1 })
+        .select('userName userAvatar question status instructorReply replyTimestamp createdAt')
+        .lean()
+    ]);
+
+    let overview = overviewDoc;
     if (!overview) {
       overview = {
         courseId: course._id,
@@ -1670,29 +1775,22 @@ exports.getPublicCourseOverview = async (req, res) => {
     }
 
     let instructorProfile = null;
-    try {
-      const instructorUser = await Instructor.findById(course.instructorId).select(
-        'fullName avatar profilePhoto bio headline email'
-      );
-      if (instructorUser) {
-        instructorProfile = {
-          name: instructorUser.fullName,
-          profilePhoto: instructorUser.avatar || instructorUser.profilePhoto || '',
-          avatar: instructorUser.avatar || instructorUser.profilePhoto || '',
-          bio: instructorUser.bio || '',
-          headline: instructorUser.headline || 'UpSkillr Instructor',
-          email: instructorUser.email
-        };
-      }
-    } catch (e) {}
+    if (instructorUser) {
+      instructorProfile = {
+        name: instructorUser.fullName,
+        profilePhoto: instructorUser.avatar || instructorUser.profilePhoto || '',
+        avatar: instructorUser.avatar || instructorUser.profilePhoto || '',
+        bio: instructorUser.bio || '',
+        headline: instructorUser.headline || 'UpSkillr Instructor',
+        email: instructorUser.email
+      };
+    }
 
-    const enrolments = await Enrolment.find({ courseId: id });
     const totalEnrolments = enrolments.length;
-
     const ratedEnrolments = enrolments.filter((e) => e.rating !== null && e.rating !== undefined);
     const averageRating =
       ratedEnrolments.length > 0
-        ? ratedEnrolments.reduce((sum, e) => sum + e.rating, 0) / ratedEnrolments.length
+        ? Math.round((ratedEnrolments.reduce((sum, e) => sum + e.rating, 0) / ratedEnrolments.length) * 10) / 10
         : null;
 
     const reviews = ratedEnrolments
@@ -1705,50 +1803,52 @@ exports.getPublicCourseOverview = async (req, res) => {
         learnerName: e.learnerName || 'Learner'
       }));
 
-    const questions = await CourseQuestion.find({ courseId: id, status: 'answered' })
-      .sort({ replyTimestamp: -1 })
-      .select('userName userAvatar question status instructorReply replyTimestamp createdAt');
+    // Non-blocking view tracking in background
+    setImmediate(async () => {
+      try {
+        const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+        const userAgent = req.headers['user-agent'] || '';
+        const crypto = require('crypto');
+        const viewerHash = crypto
+          .createHash('sha256')
+          .update(`${clientIp}-${userAgent}-${req.user ? req.user.id : ''}`)
+          .digest('hex');
 
-    // 24h Deduplicated View Tracking
-    try {
-      const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-      const userAgent = req.headers['user-agent'] || '';
-      const viewerHash = crypto
-        .createHash('sha256')
-        .update(`${clientIp}-${userAgent}-${req.user ? req.user.id : ''}`)
-        .digest('hex');
+        const existingView = await CourseView.findOne({ courseId: id, viewerHash });
+        if (!existingView) {
+          await CourseView.create({ courseId: id, viewerHash });
+          await Course.findByIdAndUpdate(id, { $inc: { overviewViews: 1 } });
+        }
+      } catch (e) {}
+    });
 
-      const existingView = await CourseView.findOne({ courseId: id, viewerHash });
-      if (!existingView) {
-        await CourseView.create({ courseId: id, viewerHash });
-        await Course.findByIdAndUpdate(id, { $inc: { overviewViews: 1 } });
-        course.overviewViews = (course.overviewViews || 0) + 1;
-      }
-    } catch (viewErr) {}
-
-    const courseObj = course.toObject ? course.toObject() : { ...course };
+    const courseObj = { ...course };
     const publishedModules = (courseObj.modules || []).filter(m => m.state === 'published' || m.status === 'published');
     courseObj.modules = publishedModules;
     courseObj.moduleCount = publishedModules.length;
     courseObj.modulesCount = publishedModules.length;
 
-    return res.status(200).json({
+    const responsePayload = {
       success: true,
       course: courseObj,
       overview,
       instructor: instructorProfile,
       stats: {
         totalEnrolments,
-        averageRating: averageRating !== null ? Math.round(averageRating * 10) / 10 : null,
-        reviewCount: ratedEnrolments.length,
-        overviewViews: course.overviewViews || 0
+        overviewViews: course.overviewViews || 0,
+        averageRating,
+        reviewCount: ratedEnrolments.length
       },
       reviews,
       questions
-    });
+    };
+
+    courseCache.overviews.set(String(id), { data: responsePayload, expiry: Date.now() + 15000 });
+
+    return res.status(200).json(responsePayload);
   } catch (error) {
     console.error('Get Public Course Overview Error:', error);
-    return res.status(500).json({ success: false, message: 'Server error retrieving course overview.' });
+    return res.status(500).json({ success: false, message: 'Server error fetching course overview.' });
   }
 };
 
@@ -1837,8 +1937,14 @@ exports.updateCourseThumbnail = async (req, res) => {
         thumbnailUrl = uploadRes.secure_url;
         thumbnailPublicId = uploadRes.public_id;
       } catch (cloudErr) {
-        console.warn('Cloudinary upload warning during updateCourseThumbnail (falling back to base64 Data URL):', cloudErr.message);
-        thumbnailUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        console.warn('Cloudinary upload fallback to local static file:', cloudErr.message);
+        const outDir = path.join(__dirname, '../uploads/thumbnails');
+        if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+        let ext = (req.file.mimetype || '').split('/')[1] || 'png';
+        if (ext === 'jpeg') ext = 'jpg';
+        const filename = `thumb_${id}_${Date.now()}.${ext}`;
+        fs.writeFileSync(path.join(outDir, filename), req.file.buffer);
+        thumbnailUrl = `http://localhost:5000/uploads/thumbnails/${filename}`;
       }
     } else if (req.body.thumbnailUrl && req.body.thumbnailUrl.trim()) {
       thumbnailUrl = req.body.thumbnailUrl.trim();
@@ -1851,6 +1957,7 @@ exports.updateCourseThumbnail = async (req, res) => {
     course.thumbnail = thumbnailUrl;
     course.thumbnail_public_id = thumbnailPublicId;
     await course.save();
+    courseCache.invalidateCourse(id);
     return res.status(200).json({
       success: true,
       message: 'Thumbnail updated successfully!',

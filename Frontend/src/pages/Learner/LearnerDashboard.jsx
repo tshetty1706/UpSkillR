@@ -25,6 +25,8 @@ export const LearnerDashboard = ({ user }) => {
         credentials: 'include'
       });
     } catch (e) { }
+    sessionStorage.removeItem('upskillr_token');
+    sessionStorage.removeItem('upskillr_user');
     localStorage.removeItem('upskillr_token');
     localStorage.removeItem('upskillr_user');
     window.history.pushState({}, '', '/');
@@ -48,10 +50,12 @@ export const LearnerDashboard = ({ user }) => {
 
   const fetchMyEnrolments = async () => {
     try {
-      const token = localStorage.getItem('upskillr_token');
-      if (!token) return;
+      const token = sessionStorage.getItem('upskillr_token');
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const response = await fetch('http://localhost:5000/api/courses/learner/my-enrolments', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers,
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
@@ -84,7 +88,7 @@ export const LearnerDashboard = ({ user }) => {
 
   // FR-06 Single Action Enrolment Handler
   const handleEnrolCourse = async (courseId) => {
-    const token = localStorage.getItem('upskillr_token');
+    const token = sessionStorage.getItem('upskillr_token');
     const courseToEnrol = publishedCourses.find(c => c._id === courseId);
 
     // Optimistically update enrolments state for instant UI transition to "Enrolled — Go to Course"
@@ -105,20 +109,18 @@ export const LearnerDashboard = ({ user }) => {
     toast.success('🎉 Enrolled successfully! Start learning now.');
 
     try {
-      if (token) {
-        const response = await fetch('http://localhost:5000/api/courses/enrol', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({ courseId })
-        });
-        const data = await response.json();
-        if (data.success) {
-          await fetchMyEnrolments();
-          window.dispatchEvent(new Event('upskillr_points_updated'));
-        }
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const response = await fetch('http://localhost:5000/api/courses/enrol', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ courseId })
+      });
+      const data = await response.json();
+      if (data.success) {
+        await fetchMyEnrolments();
+        window.dispatchEvent(new Event('upskillr_points_updated'));
       }
     } catch (err) {
       console.error('Error enrolling in course', err);
@@ -127,7 +129,7 @@ export const LearnerDashboard = ({ user }) => {
 
   // FR-07 Lesson Completion Tracker Handler
   const handleLessonComplete = async (courseId, lessonIndex) => {
-    const token = localStorage.getItem('upskillr_token');
+    const token = sessionStorage.getItem('upskillr_token');
 
     // Optimistic update state locally first
     setEnrolments(prevEnrolments => {
@@ -140,8 +142,19 @@ export const LearnerDashboard = ({ user }) => {
             ? completed.filter(i => i !== lessonIndex)
             : [...completed, lessonIndex];
 
-          const totalLessons = enrol.courseId?.lessons?.length || 5;
-          const newPercentage = Math.round((updatedCompleted.length / Math.max(totalLessons, 1)) * 100);
+          const lessonsList = (enrol.courseId?.lessons && enrol.courseId.lessons.length > 0)
+            ? enrol.courseId.lessons
+            : (enrol.courseId?.modules && enrol.courseId.modules.length > 0)
+            ? enrol.courseId.modules
+            : [];
+          const totalLessons = Math.max(lessonsList.length, 1);
+          
+          const validCompleted = Array.from(new Set(
+            updatedCompleted
+              .map(i => Number(i))
+              .filter(n => !isNaN(n) && n >= 0 && n < totalLessons)
+          ));
+          const newPercentage = Math.min(Math.round((validCompleted.length / totalLessons) * 100), 100);
 
           if (newPercentage === 100 && enrol.progressPercentage !== 100) {
             toast.success(`🏆 Congratulations! You completed this course! Rate & Review is unlocked.`);
@@ -149,8 +162,9 @@ export const LearnerDashboard = ({ user }) => {
 
           return {
             ...enrol,
-            completedLessons: updatedCompleted,
-            progressPercentage: Math.min(newPercentage, 100)
+            completedLessons: validCompleted,
+            progressPercentage: Math.min(newPercentage, 100),
+            status: newPercentage === 100 ? 'completed' : (validCompleted.length > 0 ? 'in_progress' : 'active')
           };
         }
         return enrol;
@@ -158,22 +172,20 @@ export const LearnerDashboard = ({ user }) => {
     });
 
     try {
-      if (token) {
-        const response = await fetch('http://localhost:5000/api/courses/progress', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({ courseId, lessonIndex })
-        });
-        const resData = await response.json();
-        if (resData.success) {
-          if (resData.pointsAwarded > 0) {
-            toast.success(`⭐ +${resData.pointsAwarded} Points awarded!`);
-          }
-          window.dispatchEvent(new Event('upskillr_points_updated'));
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const response = await fetch('http://localhost:5000/api/courses/progress', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ courseId, lessonIndex })
+      });
+      const resData = await response.json();
+      if (resData.success) {
+        if (resData.pointsAwarded > 0) {
+          toast.success(`⭐ +${resData.pointsAwarded} Points awarded!`);
         }
+        window.dispatchEvent(new Event('upskillr_points_updated'));
       }
     } catch (err) {
       console.error('Error completing lesson on server', err);
@@ -182,29 +194,27 @@ export const LearnerDashboard = ({ user }) => {
 
   // FR-09 Course Rating & Review Handler
   const handleRatingSubmit = async (courseId, ratingData) => {
-    const token = localStorage.getItem('upskillr_token');
+    const token = sessionStorage.getItem('upskillr_token');
     toast.success('⭐ Rating and review submitted! Thank you.');
 
     try {
-      if (token) {
-        const response = await fetch('http://localhost:5000/api/courses/rate', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            courseId,
-            rating: ratingData.rating,
-            feedback: ratingData.feedback,
-            tags: ratingData.tags
-          })
-        });
-        const data = await response.json();
-        if (data.success) {
-          fetchMyEnrolments();
-          fetchPublishedCourses();
-        }
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const response = await fetch('http://localhost:5000/api/courses/rate', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          courseId,
+          rating: ratingData.rating,
+          feedback: ratingData.feedback,
+          tags: ratingData.tags
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        fetchMyEnrolments();
+        fetchPublishedCourses();
       }
     } catch (err) {
       console.error('Error submitting rating to server', err);

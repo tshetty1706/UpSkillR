@@ -63,7 +63,7 @@ export const ExploreCourses = () => {
 
   const fetchLearnerEnrolments = async () => {
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       if (!token) return;
       const response = await fetch('http://localhost:5000/api/courses/learner/my-enrolments', {
         headers: { Authorization: `Bearer ${token}` }
@@ -84,7 +84,7 @@ export const ExploreCourses = () => {
   };
 
   const handleEnrol = async (courseId, courseTitle) => {
-    const token = localStorage.getItem('upskillr_token');
+    const token = sessionStorage.getItem('upskillr_token');
     if (!token) {
       toast.warning('Please log in as a Learner to enrol in courses.');
       window.history.pushState({}, '', '/login');
