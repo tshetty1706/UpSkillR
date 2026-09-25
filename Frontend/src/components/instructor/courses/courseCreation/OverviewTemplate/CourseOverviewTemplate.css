@@ -1248,4 +1248,125 @@
   }
 }
 
+/* Curriculum Sub-Items (Quizzes & Videos under Lessons) */
+.curriculum-lesson-container {
+  border-bottom: 1px solid var(--border, #f3f4f6);
+}
+
+.curriculum-lesson-container:last-child {
+  border-bottom: none;
+}
+
+.lesson-has-quiz-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--brand-primary, #10b981);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill, 9999px);
+  margin-left: 8px;
+}
+
+.curriculum-items-sublist {
+  background-color: rgba(0, 0, 0, 0.15);
+  padding: 0.4rem 0.85rem 0.5rem 2.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.curriculum-item-subrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.85rem;
+  background-color: var(--surface, #101b18);
+  border: 1px solid var(--border, #1d3329);
+  border-radius: var(--radius-sm, 8px);
+  transition: all 0.15s ease;
+}
+
+.curriculum-item-subrow:hover {
+  border-color: var(--brand-primary, #10b981);
+}
+
+.item-subrow-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.item-sub-icon.quiz-color {
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+.item-sub-icon.video-color {
+  color: var(--brand-primary, #10b981);
+  flex-shrink: 0;
+}
+
+.item-sub-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary, #f5f7f6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-sub-badge {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-muted, #798a82);
+  background: var(--background, #090f13);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border, #1d3329);
+}
+
+.btn-take-quiz-action {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff !important;
+  border: none;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border-radius: var(--radius-pill, 9999px);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-take-quiz-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+
+.dark .curriculum-lesson-container {
+  border-color: var(--border, #1a2823);
+}
+
+.dark .curriculum-items-sublist {
+  background-color: rgba(0, 0, 0, 0.25);
+  border-top-color: var(--border, #1a2823);
+}
+
+.dark .curriculum-item-subrow {
+  background-color: var(--surface-elevated, #13221d);
+  border-color: var(--border, #1d3329);
+}
+
+
 

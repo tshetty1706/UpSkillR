@@ -101,7 +101,7 @@ export const CourseCreationFlow = ({ user, onCancel, onCourseCreated, onNavigate
 
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const formData = new FormData();
       formData.append('title', basicInfo.title.trim());
       formData.append('category', basicInfo.category.trim());

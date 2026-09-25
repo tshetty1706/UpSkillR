@@ -21,6 +21,8 @@ const photoUpload = multer({
 // Manual Authentication Routes
 router.post('/signup', authController.manualSignUp);
 router.post('/login', authController.manualLogin);
+router.post('/logout', authController.logout);
+router.get('/logout', authController.logout);
 
 // Email Verification (Resend OTP) Routes
 router.post('/send-otp', authController.sendOtp);

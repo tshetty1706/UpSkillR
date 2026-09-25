@@ -62,7 +62,7 @@ export const CourseAnnouncements = ({ courseId, course = null, user = null }) =>
   const fetchAnnouncements = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
 
       const res = await fetch(`${API_BASE}/courses/${courseId}/announcements`, {
@@ -125,7 +125,7 @@ export const CourseAnnouncements = ({ courseId, course = null, user = null }) =>
 
     setSubmitting(true);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const authHeader = token
         ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
         : { 'Content-Type': 'application/json' };
@@ -180,7 +180,7 @@ export const CourseAnnouncements = ({ courseId, course = null, user = null }) =>
 
   const handleTogglePublish = async (announcement) => {
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
 
       const res = await fetch(
@@ -214,7 +214,7 @@ export const CourseAnnouncements = ({ courseId, course = null, user = null }) =>
 
     setIsDeleting(true);
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
 
       const res = await fetch(

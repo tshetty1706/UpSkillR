@@ -24,7 +24,7 @@ const enrolmentSchema = new mongoose.Schema({
     required: true
   },
   completedLessons: [{
-    type: Number
+    type: mongoose.Schema.Types.Mixed
   }],
   progressPercentage: {
     type: Number,
@@ -32,7 +32,7 @@ const enrolmentSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['active', 'completed'],
+    enum: ['active', 'in_progress', 'completed', 'enrolled', 'ENROLLED', 'IN_PROGRESS', 'COMPLETED'],
     default: 'active',
     index: true
   },

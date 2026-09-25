@@ -45,9 +45,16 @@ export default function Login() {
 
     if (token && userParam) {
       try {
-        const user = JSON.parse(decodeURIComponent(userParam));
-        localStorage.setItem('upskillr_token', token);
-        localStorage.setItem('upskillr_user', JSON.stringify(user));
+        let user;
+        try {
+          user = JSON.parse(decodeURIComponent(userParam));
+        } catch (e1) {
+          user = JSON.parse(userParam);
+        }
+        sessionStorage.setItem('upskillr_token', token);
+        sessionStorage.setItem('upskillr_user', JSON.stringify(user));
+        localStorage.removeItem('upskillr_token');
+        localStorage.removeItem('upskillr_user');
         const welcomeMsg = `Successfully signed in via ${providerParam ? providerParam.toUpperCase() : 'OAuth'}! Welcome back, ${user.fullName}.`;
         toast.success(welcomeMsg);
         setTimeout(() => {
@@ -62,7 +69,7 @@ export default function Login() {
           }
         }, 800);
       } catch (e) {
-        console.error('Failed to parse user data from OAuth callback');
+        console.error('Failed to parse user data from OAuth callback', e);
       }
     } else if (errorParam) {
       let oauthError = 'Authentication failed. Please try again.';
@@ -100,6 +107,7 @@ export default function Login() {
     try {
       const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: formData.email,
@@ -113,11 +121,13 @@ export default function Login() {
         throw new Error(data.message || 'Login failed. Please check your credentials.');
       }
 
-      // Save token and user details to localStorage
+      // Save token and user details to sessionStorage for active session only
       if (data.token) {
-        localStorage.setItem('upskillr_token', data.token);
-        localStorage.setItem('upskillr_user', JSON.stringify(data.user));
+        sessionStorage.setItem('upskillr_token', data.token);
+        sessionStorage.setItem('upskillr_user', JSON.stringify(data.user));
       }
+      localStorage.removeItem('upskillr_token');
+      localStorage.removeItem('upskillr_user');
 
       const isInstructor = data.user?.role === 'instructor';
       const successMsg = `Welcome back, ${data.user.fullName}! Opening ${isInstructor ? 'Instructor Studio' : 'Learner Dashboard'}...`;

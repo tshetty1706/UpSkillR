@@ -64,8 +64,10 @@ export default function SignUp() {
     if (token && userParam) {
       try {
         const user = JSON.parse(decodeURIComponent(userParam));
-        localStorage.setItem('upskillr_token', token);
-        localStorage.setItem('upskillr_user', JSON.stringify(user));
+        sessionStorage.setItem('upskillr_token', token);
+        sessionStorage.setItem('upskillr_user', JSON.stringify(user));
+        localStorage.removeItem('upskillr_token');
+        localStorage.removeItem('upskillr_user');
         const successMsg = `Successfully signed in via ${providerParam ? providerParam.toUpperCase() : 'OAuth'}! Welcome, ${user.fullName}.`;
         toast.success(successMsg);
         setTimeout(() => {
@@ -166,6 +168,7 @@ export default function SignUp() {
     try {
       const response = await fetch(`${API_BASE_URL}/verify-otp`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: unverifiedEmail,
@@ -180,9 +183,11 @@ export default function SignUp() {
       }
 
       if (data.token) {
-        localStorage.setItem('upskillr_token', data.token);
-        localStorage.setItem('upskillr_user', JSON.stringify(data.user));
+        sessionStorage.setItem('upskillr_token', data.token);
+        sessionStorage.setItem('upskillr_user', JSON.stringify(data.user));
       }
+      localStorage.removeItem('upskillr_token');
+      localStorage.removeItem('upskillr_user');
 
       const isInstructor = data.user?.role === 'instructor';
       const welcomeMsg = isInstructor

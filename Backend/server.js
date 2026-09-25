@@ -7,7 +7,7 @@ const path = require('path');
 const authRoutes = require('./routes/authRoutes');
 const courseRoutes = require('./routes/courseRoutes');
 const instructorApplicationRoutes = require('./routes/instructorApplicationRoutes');
-
+const learnerRoutes = require('./routes/learnerRoutes');
 const mediaRoutes = require('./routes/mediaRoutes');
 
 const app = express();
@@ -27,6 +27,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
+app.use('/api/learners', learnerRoutes);
 app.use('/api/instructor/application', instructorApplicationRoutes);
 app.use('/api/media', mediaRoutes);
 
@@ -125,14 +126,14 @@ if (!MONGO_URL) {
       console.log('Successfully connected to MongoDB Atlas database (UpSkillr)!');
       await runDbMigration();
       app.listen(PORT, () => {
-        console.log(`UpSkillr Backend Server running on http://localhost:${PORT}`);
+        console.log(`UpSkillR Backend Server running on http://localhost:${PORT}`);
       });
     })
     .catch((err) => {
       console.error('MongoDB Atlas Connection Failure:', err.message);
       // Fallback: Start HTTP server even if DB connection retries
       app.listen(PORT, () => {
-        console.log(`UpSkillr Backend Server running on http://localhost:${PORT} (Database pending connection)`);
+        console.log(`UpSkillR Backend Server running on http://localhost:${PORT} (Database pending connection)`);
       });
     });
 }

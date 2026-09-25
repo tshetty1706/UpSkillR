@@ -40,7 +40,7 @@ export const CourseOverviewPage = ({ courseId, user = null }) => {
   };
 
   const checkEnrollmentStatus = async () => {
-    const token = localStorage.getItem('upskillr_token');
+    const token = sessionStorage.getItem('upskillr_token');
     if (!token) return;
     try {
       const res = await fetch('http://localhost:5000/api/courses/learner/my-enrolments', {
@@ -74,7 +74,7 @@ export const CourseOverviewPage = ({ courseId, user = null }) => {
   };
 
   const handleEnroll = async () => {
-    const token = localStorage.getItem('upskillr_token');
+    const token = sessionStorage.getItem('upskillr_token');
     if (!token) {
       toast.warning('Please log in as a Learner to enroll in this course.');
       window.history.pushState({}, '', '/login');
@@ -107,7 +107,7 @@ export const CourseOverviewPage = ({ courseId, user = null }) => {
   };
 
   const handleAskQuestion = async (questionText) => {
-    const token = localStorage.getItem('upskillr_token');
+    const token = sessionStorage.getItem('upskillr_token');
     if (!token) {
       toast.warning('Please log in as a learner to ask a doubt.');
       return;

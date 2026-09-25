@@ -2,6 +2,7 @@ const { Learner, Instructor } = require('../model/User');
 const InstructorApplication = require('../model/InstructorApplication');
 const mongoose = require('mongoose');
 const { uploadBufferToCloudinary, deleteCloudinaryAsset } = require('./mediaController');
+const { processDailyLoginStreak } = require('./learnerController');
 
 // Helper to find a user by email across both collections
 const findUserByEmail = async (email) => {
@@ -36,7 +37,8 @@ const nodemailer = require('nodemailer');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'upskillr_jwt_secret_key_2026_super_secure';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
-const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback';
+const GOOGLE_REDIRECT_URI = (process.env.GOOGLE_REDIRECT_URI || process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback').trim();
+const GOOGLE_CALLBACK_URL = GOOGLE_REDIRECT_URI;
 const GITHUB_CALLBACK_URL = process.env.GITHUB_CALLBACK_URL || 'http://localhost:5000/api/auth/github/callback';
 
 // Temporary In-Memory Store for Pending Registrations
@@ -304,6 +306,7 @@ exports.verifyOtp = async (req, res) => {
             role: existingUser.role,
             isVerified: true,
             avatar: existingUser.avatar,
+            username: existingUser.username || '',
             applicationStatus: existingUser.applicationStatus || (existingUser.role === 'instructor' ? 'not_started' : undefined)
           }
         });
@@ -339,6 +342,12 @@ exports.verifyOtp = async (req, res) => {
         console.log(`[USER VERIFIED & SAVED TO MONGO DB] ${newUser.email}`);
 
         const token = generateToken(newUser);
+        res.cookie('token', token, {
+          httpOnly: true,
+          secure: false,
+          sameSite: 'lax',
+          path: '/'
+        });
 
         return res.status(201).json({
           success: true,
@@ -383,7 +392,21 @@ exports.manualLogin = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid email or password.' });
     }
 
+    if (user.role === 'learner') {
+      try {
+        await processDailyLoginStreak(user);
+      } catch (streakErr) {
+        console.warn('Auto streak update error on manual login:', streakErr.message);
+      }
+    }
+
     const token = generateToken(user);
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      path: '/'
+    });
     return res.status(200).json({
       success: true,
       message: 'Logged in successfully!',
@@ -395,6 +418,10 @@ exports.manualLogin = async (req, res) => {
         role: user.role,
         isVerified: user.isVerified,
         avatar: user.avatar,
+        username: user.username || '',
+        points: user.points || 0,
+        currentStreak: user.currentStreak || 0,
+        longestStreak: user.longestStreak || 0,
         applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
       }
     });
@@ -404,52 +431,112 @@ exports.manualLogin = async (req, res) => {
   }
 };
 
+// In-memory sets to prevent duplicate authorization code exchanges (TTL: 2 minutes)
+const processedOAuthCodes = new Set();
+const inflightOAuthExchanges = new Map();
+
 // 5. Google OAuth Redirect
 exports.googleOAuthRedirect = (req, res) => {
-  const googleClientId = process.env.GOOGLE_CLIENT_ID;
+  const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
   if (!googleClientId) {
     return res.status(500).send('Google Client ID is missing in backend .env file.');
   }
 
   const role = req.query.role || 'learner';
-  const redirectUri = encodeURIComponent(GOOGLE_CALLBACK_URL);
-  const scope = encodeURIComponent('openid profile email');
-  const state = encodeURIComponent(JSON.stringify({ role }));
+  const state = JSON.stringify({ role });
 
-  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&state=${state}&access_type=offline&prompt=consent`;
+  const authParams = new URLSearchParams({
+    client_id: googleClientId,
+    redirect_uri: GOOGLE_REDIRECT_URI,
+    response_type: 'code',
+    scope: 'openid email profile',
+    state: state,
+    access_type: 'offline',
+    prompt: 'consent'
+  });
 
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${authParams.toString()}`;
   return res.redirect(authUrl);
 };
 
 // 6. Google OAuth Callback
 exports.googleOAuthCallback = async (req, res) => {
-  try {
-    const { code, state } = req.query;
-    if (!code) {
-      return res.status(400).send('OAuth authorization code missing.');
-    }
+  const { code, state, error: oauthError } = req.query;
 
+  if (oauthError) {
+    console.warn('Google OAuth returned error in callback query:', oauthError);
+    return res.redirect(`${FRONTEND_URL}/login?error=google_oauth_failed`);
+  }
+
+  if (!code) {
+    return res.redirect(`${FRONTEND_URL}/login?error=google_oauth_failed`);
+  }
+
+  const cleanCode = String(code).trim();
+
+  // If this code was already exchanged, do NOT exchange again (prevents invalid_grant)
+  if (processedOAuthCodes.has(cleanCode)) {
+    console.log('[Google OAuth] Authorization code has already been exchanged. Redirecting cleanly.');
+    return res.redirect(`${FRONTEND_URL}/dashboard`);
+  }
+
+  // If this code is currently being exchanged in an in-flight request, await that existing exchange
+  if (inflightOAuthExchanges.has(cleanCode)) {
+    console.log('[Google OAuth] Token exchange already in flight for this code. Awaiting resolution.');
+    try {
+      const redirectUrl = await inflightOAuthExchanges.get(cleanCode);
+      return res.redirect(redirectUrl);
+    } catch (err) {
+      return res.redirect(`${FRONTEND_URL}/login?error=google_oauth_failed`);
+    }
+  }
+
+  // Register in-flight promise for this code
+  let resolveExchange, rejectExchange;
+  const exchangePromise = new Promise((resolve, reject) => {
+    resolveExchange = resolve;
+    rejectExchange = reject;
+  });
+  inflightOAuthExchanges.set(cleanCode, exchangePromise);
+
+  try {
     let role = 'learner';
     if (state) {
       try {
         const parsedState = JSON.parse(decodeURIComponent(state));
         if (parsedState.role) role = parsedState.role;
       } catch (e) {
-        console.warn('Could not parse state parameter');
+        try {
+          const parsedState = JSON.parse(state);
+          if (parsedState.role) role = parsedState.role;
+        } catch (e2) {}
       }
     }
 
+    // Temporary targeted debugging before token exchange (Phase 6 requirement)
+    // console.log('OAuth callback reached');
+    // console.log(`code present: ${Boolean(cleanCode)}`);
+    // console.log(`configured redirect URI: ${GOOGLE_REDIRECT_URI}`);
+    // console.log(`client ID present: ${Boolean(process.env.GOOGLE_CLIENT_ID)}`);
+
     const googleParams = new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      code,
+      client_id: process.env.GOOGLE_CLIENT_ID.trim(),
+      client_secret: process.env.GOOGLE_CLIENT_SECRET.trim(),
+      code: cleanCode,
       grant_type: 'authorization_code',
-      redirect_uri: GOOGLE_CALLBACK_URL
+      redirect_uri: GOOGLE_REDIRECT_URI
     });
 
-    const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', googleParams.toString(), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-    });
+    let tokenResponse;
+    try {
+      tokenResponse = await axios.post('https://oauth2.googleapis.com/token', googleParams.toString(), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
+      console.log('Google token exchange: SUCCESS');
+    } catch (tokenErr) {
+      console.log('Google token exchange: FAILED');
+      throw tokenErr;
+    }
 
     const { access_token } = tokenResponse.data;
 
@@ -457,53 +544,75 @@ exports.googleOAuthCallback = async (req, res) => {
       headers: { Authorization: `Bearer ${access_token}` }
     });
 
-    const { id: googleId, email, name, picture } = profileResponse.data;
+    // Safely support both Google UserInfo format (id) and OpenID format (sub)
+    const googleId = profileResponse.data?.id || profileResponse.data?.sub || null;
+    const email = profileResponse.data?.email;
+    const name = profileResponse.data?.name;
+    const picture = profileResponse.data?.picture;
 
     if (!email) {
-      return res.status(400).send('Could not retrieve email from Google account.');
+      throw new Error('Could not retrieve email from Google account.');
     }
 
     const normalizedEmail = email.toLowerCase().trim();
     const userRole = role === 'instructor' ? 'instructor' : 'learner';
 
-    let user = await findUserByOAuth({
-      $or: [{ googleId }, { email: normalizedEmail }]
-    });
+    // Strictly construct query conditions so null/undefined googleId NEVER matches documents where googleId is null
+    const queryConditions = [{ email: normalizedEmail }];
+    if (googleId) {
+      queryConditions.push({ googleId });
+    }
+
+    let user = await findUserByOAuth({ $or: queryConditions });
 
     if (user) {
-      user.googleId = googleId;
+      if (googleId) user.googleId = googleId;
       user.isVerified = true;
       if (picture && !user.avatar) user.avatar = picture;
       await user.save();
     } else {
-      const Model = getModelByRole(role);
+      const Model = getModelByRole(userRole);
       user = new Model({
         fullName: name || 'Google User',
         email: normalizedEmail,
         role: userRole,
         authProvider: 'google',
-        googleId,
+        googleId: googleId || undefined,
         isVerified: true,
         avatar: picture || ''
       });
       await user.save();
     }
 
-    const token = generateToken(user);
-    const userPayload = encodeURIComponent(
-      JSON.stringify({
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-        isVerified: true,
-        avatar: user.avatar,
-        applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
-      })
-    );
+    if (user.role === 'learner') {
+      try {
+        await processDailyLoginStreak(user);
+      } catch (streakErr) {
+        console.warn('Auto streak update error on Google OAuth:', streakErr.message);
+      }
+    }
 
-    return res.redirect(`${FRONTEND_URL}/login?token=${token}&user=${userPayload}&provider=google`);
+    const token = generateToken(user);
+
+    // Send ONLY a small, compact HttpOnly authentication session cookie containing the JWT (no maxAge or expires)
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: false, // localhost development
+      sameSite: 'lax',
+      path: '/'
+    });
+
+    const redirectUrl = `${FRONTEND_URL}/dashboard`;
+
+    processedOAuthCodes.add(cleanCode);
+    inflightOAuthExchanges.delete(cleanCode);
+    setTimeout(() => processedOAuthCodes.delete(cleanCode), 120000);
+
+    resolveExchange(redirectUrl);
+    return res.redirect(redirectUrl);
   } catch (error) {
+    inflightOAuthExchanges.delete(cleanCode);
+    rejectExchange(error);
     console.error('Google OAuth Callback Error:', error?.response?.data || error.message);
     return res.redirect(`${FRONTEND_URL}/login?error=google_oauth_failed`);
   }
@@ -614,20 +723,24 @@ exports.githubOAuthCallback = async (req, res) => {
       await user.save();
     }
 
-    const token = generateToken(user);
-    const userPayload = encodeURIComponent(
-      JSON.stringify({
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-        isVerified: true,
-        avatar: user.avatar,
-        applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
-      })
-    );
+    if (user.role === 'learner') {
+      try {
+        await processDailyLoginStreak(user);
+      } catch (streakErr) {
+        console.warn('Auto streak update error on GitHub OAuth:', streakErr.message);
+      }
+    }
 
-    return res.redirect(`${FRONTEND_URL}/login?token=${token}&user=${userPayload}&provider=github`);
+    const token = generateToken(user);
+
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      path: '/'
+    });
+
+    return res.redirect(`${FRONTEND_URL}/dashboard`);
   } catch (error) {
     console.error('GitHub OAuth Callback Error:', error?.response?.data || error.message);
     return res.redirect(`${FRONTEND_URL}/login?error=github_oauth_failed`);
@@ -659,7 +772,11 @@ exports.getCurrentUser = async (req, res) => {
       }
     }
 
-    return res.status(200).json({ success: true, user: userObj });
+    return res.status(200).json({
+      success: true,
+      user: userObj,
+      token: req.token || generateToken(user)
+    });
   } catch (error) {
     console.error('getCurrentUser error:', error);
     return res.status(500).json({ success: false, message: 'Server error while fetching user profile.' });
@@ -858,9 +975,20 @@ exports.updateProfile = async (req, res) => {
 
     let updatedUser;
     if (role === 'learner') {
+      const learnerUpdate = { fullName: fullName.trim() };
+      if (req.body.bio !== undefined) learnerUpdate.bio = req.body.bio.trim().slice(0, 300);
+      if (req.body.learningGoal !== undefined) learnerUpdate.learningGoal = req.body.learningGoal.trim();
+      if (Array.isArray(req.body.learningInterests)) learnerUpdate.learningInterests = req.body.learningInterests;
+      if (req.body.username !== undefined && req.body.username.trim()) {
+        const cleanUser = req.body.username.replace(/^@/, '').trim().toLowerCase();
+        if (/^[a-zA-Z0-9_]{3,20}$/.test(cleanUser)) {
+          const existing = await Learner.findOne({ username: cleanUser, _id: { $ne: userId } });
+          if (!existing) learnerUpdate.username = cleanUser;
+        }
+      }
       updatedUser = await Learner.findByIdAndUpdate(
         userId,
-        { fullName: fullName.trim() },
+        learnerUpdate,
         { new: true }
       ).select('-password');
     } else if (role === 'instructor') {
@@ -1041,5 +1169,12 @@ exports.removeProfilePhoto = async (req, res) => {
     console.error('Remove Profile Photo Error:', error);
     return res.status(500).json({ success: false, message: 'Failed to remove photo.' });
   }
+};
+
+// 15. Logout (Clears auth cookies cleanly)
+exports.logout = (req, res) => {
+  res.clearCookie('token', { path: '/' });
+  res.clearCookie('upskillr_token', { path: '/' });
+  return res.status(200).json({ success: true, message: 'Logged out successfully.' });
 };
 

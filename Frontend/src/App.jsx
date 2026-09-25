@@ -17,35 +17,92 @@ import { InstructorExploreCourses } from './components/home/InstructorExploreCou
 
 function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
-  const [currentUser, setCurrentUser] = useState(null);
+  // Session-only: do NOT initialize from persistent localStorage
+  const [currentUser, setCurrentUser] = useState(() => {
+    const sessionStored = sessionStorage.getItem('upskillr_user');
+    if (sessionStored) {
+      try { return JSON.parse(sessionStored); } catch (e) { return null; }
+    }
+    return null;
+  });
+  const [authChecking, setAuthChecking] = useState(true);
 
   useEffect(() => {
-    // Parse OAuth redirect query parameters if present
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
-    const userParam = urlParams.get('user');
-    if (token && userParam) {
-      try {
-        const user = JSON.parse(decodeURIComponent(userParam));
-        localStorage.setItem('upskillr_token', token);
-        localStorage.setItem('upskillr_user', JSON.stringify(user));
-        setCurrentUser(user);
-        const targetPath = user.role === 'instructor'
-          ? (user.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
-          : '/learner';
-        window.history.replaceState({}, document.title, targetPath);
-        setCurrentPath(targetPath);
-      } catch (e) {
-        console.error('Failed to parse user data from OAuth callback URL');
-      }
-    } else {
-      const stored = localStorage.getItem('upskillr_user');
-      if (stored) {
+    // Purge any lingering persistent auth in localStorage
+    localStorage.removeItem('upskillr_token');
+    localStorage.removeItem('upskillr_user');
+
+    const checkAuthStatus = async () => {
+      // 1. Support legacy / direct URL params if present (session-only)
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      const userParam = urlParams.get('user');
+
+      if (token && userParam) {
         try {
-          setCurrentUser(JSON.parse(stored));
-        } catch (e) { }
+          let user;
+          try {
+            user = JSON.parse(decodeURIComponent(userParam));
+          } catch (e1) {
+            user = JSON.parse(userParam);
+          }
+          sessionStorage.setItem('upskillr_token', token);
+          sessionStorage.setItem('upskillr_user', JSON.stringify(user));
+          setCurrentUser(user);
+          const targetPath = user.role === 'instructor'
+            ? (user.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
+            : '/learner';
+          window.history.replaceState({}, document.title, targetPath);
+          setCurrentPath(targetPath);
+          setAuthChecking(false);
+          return;
+        } catch (e) {
+          console.error('Failed to parse user data from OAuth callback URL', e);
+        }
       }
-    }
+
+      // 2. Validate session via backend /api/auth/me (sends HttpOnly session cookie)
+      const sessionToken = sessionStorage.getItem('upskillr_token');
+      try {
+        const headers = {};
+        if (sessionToken) {
+          headers['Authorization'] = `Bearer ${sessionToken}`;
+        }
+        const res = await fetch('http://localhost:5000/api/auth/me', {
+          headers,
+          credentials: 'include'
+        });
+        const data = await res.json();
+        if (data.success && data.user) {
+          setCurrentUser(data.user);
+          sessionStorage.setItem('upskillr_user', JSON.stringify(data.user));
+          if (data.token) {
+            sessionStorage.setItem('upskillr_token', data.token);
+          }
+          if (window.location.pathname === '/dashboard' || window.location.pathname === '/login') {
+            const targetPath = data.user.role === 'instructor'
+              ? (data.user.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
+              : '/learner';
+            window.history.replaceState({}, document.title, targetPath);
+            setCurrentPath(targetPath);
+          }
+        } else {
+          // Unauthenticated in current session -> clear session state
+          setCurrentUser(null);
+          sessionStorage.removeItem('upskillr_user');
+          sessionStorage.removeItem('upskillr_token');
+        }
+      } catch (err) {
+        // Backend not reachable or network error
+        setCurrentUser(null);
+        sessionStorage.removeItem('upskillr_user');
+        sessionStorage.removeItem('upskillr_token');
+      } finally {
+        setAuthChecking(false);
+      }
+    };
+
+    checkAuthStatus();
 
     const handlePopState = () => {
       setCurrentPath(window.location.pathname);
@@ -58,7 +115,7 @@ function App() {
       } else {
         setCurrentPath(window.location.pathname);
       }
-      const stored = localStorage.getItem('upskillr_user');
+      const stored = sessionStorage.getItem('upskillr_user');
       if (stored) {
         try {
           setCurrentUser(JSON.parse(stored));
@@ -70,7 +127,7 @@ function App() {
 
     // Custom event listener for when the user profile or avatar is updated
     const handleUserUpdate = () => {
-      const stored = localStorage.getItem('upskillr_user');
+      const stored = sessionStorage.getItem('upskillr_user');
       if (stored) {
         try {
           setCurrentUser(JSON.parse(stored));
@@ -91,7 +148,15 @@ function App() {
     };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('http://localhost:5000/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (e) { }
+    sessionStorage.removeItem('upskillr_token');
+    sessionStorage.removeItem('upskillr_user');
     localStorage.removeItem('upskillr_token');
     localStorage.removeItem('upskillr_user');
     setCurrentUser(null);
@@ -101,6 +166,31 @@ function App() {
 
   const renderContent = () => {
     const path = currentPath.toLowerCase();
+
+    // 0. General Dashboard Route
+    if (path === '/dashboard') {
+      if (currentUser) {
+        const targetPath = currentUser.role === 'instructor'
+          ? (currentUser.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
+          : '/learner';
+        if (currentPath !== targetPath) {
+          window.history.replaceState({}, '', targetPath);
+        }
+        return currentUser.role === 'instructor' ? (
+          <InstructorDashboard user={currentUser} onLogout={handleLogout} />
+        ) : (
+          <LearnerDashboard user={currentUser} />
+        );
+      }
+      if (authChecking) {
+        return (
+          <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main, #0f172a)', color: '#6366f1', fontWeight: 600 }}>
+            <div>Loading dashboard...</div>
+          </div>
+        );
+      }
+      return <Login />;
+    }
 
     // 1. Auth Routing
     if (path === '/login' || path === '/signin') {
@@ -138,6 +228,13 @@ function App() {
     // 2. Protected Role-based Routing
     if (path.startsWith('/instructor/') || path === '/instructor') {
       if (!currentUser) {
+        if (authChecking) {
+          return (
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main, #0f172a)', color: '#6366f1', fontWeight: 600 }}>
+              <div>Loading dashboard...</div>
+            </div>
+          );
+        }
         return <Login />;
       }
       if (currentUser.role !== 'instructor') {
@@ -165,6 +262,13 @@ function App() {
     }
     if (path.startsWith('/learner/') || path === '/learner') {
       if (!currentUser) {
+        if (authChecking) {
+          return (
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main, #0f172a)', color: '#6366f1', fontWeight: 600 }}>
+              <div>Loading dashboard...</div>
+            </div>
+          );
+        }
         return <Login />;
       }
       if (currentUser.role !== 'learner') {

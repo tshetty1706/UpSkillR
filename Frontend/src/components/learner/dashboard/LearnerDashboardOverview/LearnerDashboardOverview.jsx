@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import './LearnerDashboardOverview.css';
 import {
   BookOpen,
   CheckCircle2,
@@ -14,10 +15,37 @@ import {
   PlayCircle,
   PlusCircle,
   MessageSquare,
-  ThumbsUp
+  ThumbsUp,
+  ArrowRight,
+  Flame,
+  Trophy,
+  History
 } from 'lucide-react';
 import { CourseRatingModal } from './CourseRatingModal';
 import { CourseThumbnail } from '../../../common/CourseThumbnail';
+import { LearnerNotificationBanner } from '../LearnerNotificationBanner/LearnerNotificationBanner';
+import { useToast } from '../../../../context/ToastContext';
+import { API_BASE } from '../../../../config/api';
+
+const LinkedinIcon = ({ size = 15, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
+    <rect x="2" y="9" width="4" height="12" />
+    <circle cx="4" cy="4" r="2" />
+  </svg>
+);
+
+const GithubIcon = ({ size = 15, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
+  </svg>
+);
+
+const LeetcodeIcon = ({ size = 15, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M13.483 0a1.374 1.374 0 0 0-.961.438L7.116 6.226l-3.854 4.126a5.266 5.266 0 0 0-1.209 2.104 5.35 5.35 0 0 0-.125.513 5.527 5.527 0 0 0 .062 2.362 5.83 5.83 0 0 0 .349 1.017 5.938 5.938 0 0 0 1.271 1.818l4.277 4.193.039.038c2.248 2.165 5.852 2.133 8.063-.074l2.396-2.392c.54-.54.54-1.414.003-1.955a1.378 1.378 0 0 0-1.951-.003l-2.396 2.392a3.021 3.021 0 0 1-4.205.038l-.02-.019-4.276-4.193c-.652-.64-.972-1.469-.948-2.263a2.68 2.68 0 0 1 .066-.523 2.545 2.545 0 0 1 .619-1.164L9.13 8.114c1.058-1.134 3.204-1.27 4.43-.278l3.501 2.831c.593.48 1.461.387 1.94-.207a1.384 1.384 0 0 0-.207-1.943l-3.5-2.831c-.8-.647-1.766-1.045-2.774-1.202l2.015-2.158A1.384 1.384 0 0 0 13.483 0zm-2.866 12.815a1.38 1.38 0 0 0-1.38 1.382 1.38 1.38 0 0 0 1.38 1.382H20.79a1.38 1.38 0 0 0 1.38-1.382 1.38 1.38 0 0 0-1.38-1.382z" />
+  </svg>
+);
 
 // High-quality mock published courses for fallback/demo
 const MOCK_PUBLISHED_COURSES = [
@@ -106,10 +134,29 @@ export const LearnerDashboardOverview = ({
   activeTab = 'enrolled',
   setActiveTab
 }) => {
+  const { toast } = useToast();
+
   // Search & Filters State (FR-05)
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedLevel, setSelectedLevel] = useState('All');
+
+  // Gamification & Check-in State
+  const [profileUser, setProfileUser] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem('upskillr_user');
+      return stored ? JSON.parse(stored) : (user || {});
+    } catch {
+      return user || {};
+    }
+  });
+  const [gamification, setGamification] = useState({
+    points: 0,
+    currentStreak: 0,
+    longestStreak: 0,
+    checkedInToday: false
+  });
+  const [pointHistory, setPointHistory] = useState([]);
 
   // Trigger Backend API Query Filtering when search/category/level change
   useEffect(() => {
@@ -134,6 +181,70 @@ export const LearnerDashboardOverview = ({
       return {};
     }
   });
+
+  // Fetch gamification points, streak, and transaction history
+  const fetchGamificationData = async () => {
+    try {
+      const token = sessionStorage.getItem('upskillr_token');
+      if (!token) return;
+
+      const [statsRes, historyRes] = await Promise.all([
+        fetch(`${API_BASE}/learners/me`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_BASE}/learners/me/point-history`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+
+      const statsData = await statsRes.json();
+      if (statsData.success) {
+        if (statsData.user) {
+          setProfileUser(prev => ({ ...prev, ...statsData.user }));
+        }
+        if (statsData.stats) {
+          setGamification({
+            points: statsData.stats.totalPoints || 0,
+            currentStreak: statsData.stats.currentStreak || 0,
+            longestStreak: statsData.stats.longestStreak || 0,
+            checkedInToday: Boolean(statsData.stats.checkedInToday)
+          });
+        }
+      }
+
+      const historyData = await historyRes.json();
+      if (historyData.success && Array.isArray(historyData.transactions)) {
+        setPointHistory(historyData.transactions);
+      }
+    } catch (err) {
+      console.error('Failed to load gamification data:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      setProfileUser(prev => ({ ...prev, ...user }));
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchGamificationData();
+
+    const handlePointsRefresh = () => fetchGamificationData();
+    const handleUserRefresh = () => {
+      try {
+        const stored = sessionStorage.getItem('upskillr_user');
+        if (stored) {
+          setProfileUser(JSON.parse(stored));
+        }
+      } catch (e) {}
+      fetchGamificationData();
+    };
+
+    window.addEventListener('upskillr_points_updated', handlePointsRefresh);
+    window.addEventListener('upskillr_user_updated', handleUserRefresh);
+
+    return () => {
+      window.removeEventListener('upskillr_points_updated', handlePointsRefresh);
+      window.removeEventListener('upskillr_user_updated', handleUserRefresh);
+    };
+  }, []);
 
   const categories = ['All', 'Web Development', 'Data Science', 'Design', 'AI & Machine Learning', 'Business'];
 
@@ -168,7 +279,7 @@ export const LearnerDashboardOverview = ({
   // Dashboard Stats Calculations (FR-08)
   const stats = useMemo(() => {
     const totalEnrolled = enrolments.length;
-    const completed = enrolments.filter(e => e.progressPercentage === 100).length;
+    const completed = enrolments.filter(e => e.progressPercentage === 100 || e.status === 'completed').length;
     const inProgress = totalEnrolled - completed;
     let totalLessonsDone = 0;
     enrolments.forEach(e => {
@@ -205,15 +316,72 @@ export const LearnerDashboardOverview = ({
     }
   };
 
+  const userFullName = profileUser?.fullName || user?.fullName || user?.name || 'Learner';
+  const rawUsername = profileUser?.username || user?.username || '';
+  const cleanUsername = rawUsername ? rawUsername.replace(/^@+/, '') : '';
+
   return (
     <main className="learner-main-workspace section">
       <div className="container main-container">
         
+        {/* Persistent Notification Banner for newly uploaded lessons/modules */}
+        <LearnerNotificationBanner
+          onGoToCourse={(courseId) => {
+            setActiveTab('enrolled');
+          }}
+        />
+
         {/* Welcome Header */}
         <div className="learner-welcome-header">
           <div className="welcome-text-content">
-            <h1>Welcome back, <span className="accent-green">{user?.fullName || 'Learner'}</span>! 👋</h1>
-            <p>Track your course progress, explore new skills, and earn course completions on UpSkillr.</p>
+            <div className="welcome-title-row">
+              <h1 className="welcome-heading">
+                Welcome, <span className="accent-green">{userFullName}</span> 👋
+              </h1>
+              {cleanUsername && (
+                <span className="username-sub-badge" title={`@${cleanUsername}`}>
+                  @{cleanUsername}
+                </span>
+              )}
+              {profileUser?.socialLinks && (profileUser.socialLinks.github || profileUser.socialLinks.linkedin || profileUser.socialLinks.leetcode) && (
+                <div className="dashboard-developer-links" aria-label="Developer Profile Links">
+                  {profileUser.socialLinks.github && (
+                    <a
+                      href={profileUser.socialLinks.github}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="dashboard-social-link github"
+                      title="GitHub Profile"
+                    >
+                      <GithubIcon size={14} />
+                    </a>
+                  )}
+                  {profileUser.socialLinks.linkedin && (
+                    <a
+                      href={profileUser.socialLinks.linkedin}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="dashboard-social-link linkedin"
+                      title="LinkedIn Profile"
+                    >
+                      <LinkedinIcon size={14} />
+                    </a>
+                  )}
+                  {profileUser.socialLinks.leetcode && (
+                    <a
+                      href={profileUser.socialLinks.leetcode}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="dashboard-social-link leetcode"
+                      title="LeetCode Profile"
+                    >
+                      <LeetcodeIcon size={14} />
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+            <p>Track your course progress, earn points, and build your continuous learning streak on UpSkillr.</p>
           </div>
 
           <div className="tab-pill-switcher" role="tablist">
@@ -224,7 +392,7 @@ export const LearnerDashboardOverview = ({
               onClick={() => setActiveTab('enrolled')}
             >
               <BookOpen size={16} />
-              <span>My Enrolled Courses ({enrolments.length})</span>
+              <span>My Courses ({enrolments.length})</span>
             </button>
             <button
               role="tab"
@@ -233,8 +401,51 @@ export const LearnerDashboardOverview = ({
               onClick={() => setActiveTab('browse')}
             >
               <Sparkles size={16} />
-              <span>Browse Course</span>
+              <span>Browse Catalog</span>
             </button>
+          </div>
+        </div>
+
+        {/* GAMIFICATION STATS & CHECK-IN HERO BAR */}
+        <div className="learner-gamification-bar">
+          <div className="gamification-stats-group">
+            <div className="gamification-stat-chip">
+              <span className="gamification-emoji">⭐</span>
+              <div className="gamification-text-stack">
+                <span className="gamification-number">{gamification.points}</span>
+                <span className="gamification-label">Total Points</span>
+              </div>
+            </div>
+
+            <div className="gamification-stat-chip">
+              <span className="gamification-emoji">🔥</span>
+              <div className="gamification-text-stack">
+                <span className="gamification-number">{gamification.currentStreak} {gamification.currentStreak === 1 ? 'Day' : 'Days'}</span>
+                <span className="gamification-label">Current Streak</span>
+              </div>
+            </div>
+
+            <div className="gamification-stat-chip">
+              <span className="gamification-emoji">🏆</span>
+              <div className="gamification-text-stack">
+                <span className="gamification-number">{gamification.longestStreak} {gamification.longestStreak === 1 ? 'Day' : 'Days'}</span>
+                <span className="gamification-label">Best Streak</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="gamification-action-box">
+            <div
+              className="gamification-status-pill"
+              title="Daily login streak is automatically recorded on login (+1 point awarded daily)"
+            >
+              <span className="streak-pill-icon">🔥</span>
+              <span>
+                {gamification.currentStreak > 0
+                  ? `${gamification.currentStreak} Day Streak Active`
+                  : 'Daily Streak Active (+1 pt)'}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -276,17 +487,17 @@ export const LearnerDashboardOverview = ({
             </div>
             <div className="stat-details">
               <span className="stat-number">{stats.totalLessonsDone}</span>
-              <span className="stat-label">Lessons Completed</span>
+              <span className="stat-label">Modules Done (+5 pts ea)</span>
             </div>
           </div>
         </div>
 
-        {/* VIEW 1: MY ENROLLED COURSES (FR-07, FR-08, FR-09) */}
+        {/* VIEW 1: MY ENROLLED COURSES (FR-06, FR-07, FR-08) */}
         {activeTab === 'enrolled' && (
           <div className="learner-section-block">
             <div className="section-header-flex">
-              <h2>My Learning Progress</h2>
-              <span className="section-subtitle">Manage lesson completion and submit course feedback</span>
+              <h2>My Courses</h2>
+              <span className="section-subtitle">Track your module completion progress and continue learning</span>
             </div>
 
             {loading ? (
@@ -310,40 +521,60 @@ export const LearnerDashboardOverview = ({
                   const course = typeof enrol.courseId === 'object' ? enrol.courseId : { _id: enrol.courseId, title: enrol.courseTitle || 'Enrolled Course' };
                   if (!course) return null;
 
-                  const isCompleted = enrol.progressPercentage === 100;
-                  const lessons = course.lessons || [
-                    { title: 'Lesson 1: Core Fundamentals & Overview', duration: '15 min' },
-                    { title: 'Lesson 2: Practical Walkthrough & Concepts', duration: '25 min' },
-                    { title: 'Lesson 3: Advanced Implementation & Project', duration: '35 min' }
-                  ];
+                  // Compute lessons / modules count
+                  const lessons = (course.lessons && course.lessons.length > 0)
+                    ? course.lessons
+                    : (course.modules && course.modules.length > 0)
+                    ? course.modules
+                    : [
+                        { title: 'Module 1: Introduction & Fundamentals', duration: '15 min' },
+                        { title: 'Module 2: Core Concepts & Practice', duration: '25 min' },
+                        { title: 'Module 3: Project Architecture & Code', duration: '35 min' }
+                      ];
+
+                  const totalModules = Math.max(lessons.length, 1);
+                  
+                  // Accurately compute completed modules matching the course's modules list
+                  const validDoneIndices = new Set();
+                  (enrol.completedLessons || []).forEach(k => {
+                    const num = Number(k);
+                    if (!isNaN(num) && num >= 0 && num < totalModules) {
+                      validDoneIndices.add(num);
+                    } else if (lessons.some(l => l._id && String(l._id) === String(k))) {
+                      const mIdx = lessons.findIndex(l => l._id && String(l._id) === String(k));
+                      if (mIdx !== -1) validDoneIndices.add(mIdx);
+                    }
+                  });
+                  const completedCount = Math.min(validDoneIndices.size, totalModules);
+                  
+                  // Accurately compute progress percentage directly from actual completion count & total modules
+                  const progressPct = totalModules > 0
+                    ? Math.min(Math.round((completedCount / totalModules) * 100), 100)
+                    : (enrol.progressPercentage || 0);
+
+                  const isCompleted = progressPct === 100 || enrol.status === 'completed' || completedCount >= totalModules;
 
                   const isExpanded = expandedCourseId === (course._id || enrol._id);
-                  const userRating = (enrol.rating ? {
-                    rating: enrol.rating,
-                    feedback: enrol.feedback,
-                    tags: enrol.feedbackTags || [],
-                    date: enrol.ratedAt ? new Date(enrol.ratedAt).toLocaleDateString() : 'recently'
-                  } : null) || ratingsMap[course._id];
 
                   return (
                     <div
                       key={enrol._id || course._id}
                       className={`enrolled-card ${isCompleted ? 'completed-card' : ''}`}
                     >
-                      <div className="card-top-header">
+                      <div className="card-top-header" style={{ position: 'relative' }}>
                         <CourseThumbnail
                           src={course.thumbnail}
                           alt={course.title}
                           className="enrolled-thumb"
                         />
-                        <div className="card-status-pill-container">
+                        <div className="card-status-pill-container" style={{ position: 'absolute', top: '10px', right: '10px' }}>
                           {isCompleted ? (
-                            <span className="badge-pill badge-success">
+                            <span className="badge-pill badge-success" style={{ backgroundColor: 'rgba(16, 185, 129, 0.9)', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <CheckCircle2 size={13} />
-                              <span>Completed</span>
+                              <span>✓ Course Completed</span>
                             </span>
                           ) : (
-                            <span className="badge-pill badge-warning">
+                            <span className="badge-pill badge-warning" style={{ backgroundColor: 'rgba(245, 158, 11, 0.9)', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <Clock size={13} />
                               <span>In Progress</span>
                             </span>
@@ -352,289 +583,242 @@ export const LearnerDashboardOverview = ({
                       </div>
 
                       <div className="enrolled-body">
-                        <span className="category-pill">{course.category || 'General'}</span>
-                        <h3 className="course-card-title">{course.title}</h3>
-                        <p className="instructor-text">Instructor: {course.instructorName || 'UpSkillr Instructor'}</p>
+                        <span className="category-meta-tag" style={{ fontSize: '11px', color: 'var(--brand-primary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                          {course.category || 'General'}
+                        </span>
+                        <h3 className="course-card-title" style={{ fontSize: '1.05rem', fontWeight: 700, margin: '2px 0 6px 0', color: 'var(--text-primary)' }}>
+                          {course.title}
+                        </h3>
 
-                        {/* FR-08 Progress Bar Display */}
+                        {/* Visual Progress Bar & Module Count */}
                         <div className="progress-bar-container">
                           <div className="progress-label">
-                            <span>Overall Progress</span>
-                            <strong>{enrol.progressPercentage || 0}%</strong>
+                            <span>{completedCount} / {totalModules} Modules Completed</span>
+                            <span className="progress-percentage-text">{progressPct}%</span>
                           </div>
                           <div className="progress-track">
                             <div
                               className={`progress-fill ${isCompleted ? 'completed' : ''}`}
-                              style={{ width: `${enrol.progressPercentage || 0}%` }}
+                              style={{ width: `${Math.min(progressPct, 100)}%` }}
                             />
                           </div>
                         </div>
 
-                        {/* FR-09 Rated Feedback Display */}
-                        {isCompleted && userRating && (
-                          <div className="submitted-feedback-card">
-                            <div className="feedback-stars">
-                              {[1, 2, 3, 4, 5].map((s) => (
-                                <Star
-                                  key={s}
-                                  size={15}
-                                  className={s <= userRating.rating ? 'star-gold' : 'star-muted'}
-                                />
-                              ))}
-                              <span className="rating-date">Rated on {userRating.date}</span>
-                            </div>
-                            {userRating.feedback && (
-                              <p className="feedback-quote">"{userRating.feedback}"</p>
-                            )}
+                        {/* Interactive Lessons / Modules Accordion */}
+                        <button
+                          type="button"
+                          className="accordion-toggle-btn"
+                          style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', cursor: 'pointer', fontSize: '0.85rem' }}
+                          onClick={() => toggleCourseExpand(course._id || enrol._id)}
+                        >
+                          <span style={{ fontWeight: 600 }}>Modules Breakdown ({completedCount}/{totalModules})</span>
+                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+
+                        {isExpanded && (
+                          <div className="learner-lessons-list">
+                            {lessons.map((lesson, idx) => {
+                              const isLessonDone = validDoneIndices.has(idx) || (enrol.completedLessons || []).includes(idx);
+                              return (
+                                <div key={idx} className="learner-lesson-item">
+                                  <span style={{ color: isLessonDone ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: isLessonDone ? 'line-through' : 'none' }}>
+                                    {lesson.title || `Module ${idx + 1}`}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className={`btn-lesson-check ${isLessonDone ? 'done' : ''}`}
+                                    onClick={() => onLessonComplete(course._id, idx)}
+                                  >
+                                    <CheckCircle2 size={13} />
+                                    <span>{isLessonDone ? 'Done (+5 pts)' : 'Mark Done'}</span>
+                                  </button>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
 
-                        {/* Action Buttons Row */}
-                        <div className="course-card-actions">
+                        <div className="card-actions-row" style={{ marginTop: 'auto', paddingTop: '10px', display: 'flex', gap: '8px' }}>
                           <button
                             type="button"
-                            className="btn btn-outline btn-toggle-lessons"
-                            onClick={() => toggleCourseExpand(course._id || enrol._id)}
+                            className="btn btn-primary"
+                            style={{ flex: 1, padding: '8px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                            onClick={() => handleNavigateToCourse(course._id)}
                           >
-                            <Layers size={15} />
-                            <span>{isExpanded ? 'Hide Lessons' : `Lessons (${enrol.completedLessons?.length || 0}/${lessons.length})`}</span>
-                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                            <span>{isCompleted ? 'Go to Course' : 'Continue Learning →'}</span>
                           </button>
-
-                          {/* FR-09 Rating Action Button */}
                           {isCompleted && (
                             <button
                               type="button"
-                              className={`btn ${userRating ? 'btn-outline' : 'btn-primary'} btn-rate-course`}
+                              className="btn btn-outline"
+                              style={{ padding: '8px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '5px' }}
                               onClick={() => setRatingModalCourse(course)}
+                              title={ratingsMap[course._id] || enrol.rating ? 'Edit your review for this course' : 'Rate this course'}
                             >
-                              <Star size={15} />
-                              <span>{userRating ? 'Edit Review' : 'Rate & Review'}</span>
+                              <Star size={13} style={{ color: '#10b981', fill: ratingsMap[course._id] || enrol.rating ? '#10b981' : 'none' }} />
+                              <span>{ratingsMap[course._id] || enrol.rating ? 'Edit Review' : 'Rate Course'}</span>
                             </button>
                           )}
                         </div>
-
-                        {/* FR-07 Lesson Completion Tracker Accordion */}
-                        {isExpanded && (
-                          <div className="learner-lessons-drawer">
-                            <h4>Lessons Checklist</h4>
-                            <div className="lessons-checklist-list">
-                              {lessons.map((ls, idx) => {
-                                const isDone = enrol.completedLessons?.includes(idx);
-                                return (
-                                  <div
-                                    key={idx}
-                                    className={`learner-lesson-item ${isDone ? 'done-item' : ''}`}
-                                    role="button"
-                                    tabIndex={0}
-                                    aria-label={`${ls.title}, ${isDone ? 'Completed' : 'Incomplete'}. Click to toggle completion.`}
-                                    onClick={() => onLessonComplete(course._id, idx)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        onLessonComplete(course._id, idx);
-                                      }
-                                    }}
-                                    style={{ cursor: 'pointer' }}
-                                  >
-                                    <div className="lesson-info">
-                                      <PlayCircle size={16} className="lesson-icon" />
-                                      <span className="lesson-title-text">{ls.title}</span>
-                                      {ls.duration && <span className="lesson-duration">{ls.duration}</span>}
-                                    </div>
-                                    <button
-                                      type="button"
-                                      className={`btn-lesson-check ${isDone ? 'done' : ''}`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        onLessonComplete(course._id, idx);
-                                      }}
-                                      title={isDone ? 'Mark as incomplete' : 'Mark lesson as complete'}
-                                      tabIndex={-1}
-                                    >
-                                      <CheckCircle2 size={16} />
-                                      <span>{isDone ? 'Completed' : 'Mark Complete'}</span>
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
                   );
                 })}
               </div>
             )}
+
+            {/* RECENT POINT ACTIVITY / POINT HISTORY FEED */}
+            <div className="point-history-wrapper">
+              <div className="point-history-header">
+                <h3 className="point-history-title">
+                  <Flame size={18} style={{ color: '#f59e0b' }} />
+                  <span>Recent Point Activity & History</span>
+                </h3>
+                <span className="point-history-badge">Immutable Audit Log</span>
+              </div>
+
+              {pointHistory.length === 0 ? (
+                <div className="empty-point-history">
+                  <p>No points logged yet. Complete course modules (+5 pts) or log in daily (+1 pt) to start building your score!</p>
+                </div>
+              ) : (
+                <div className="point-history-grid">
+                  {pointHistory.slice(0, 8).map((tx) => {
+                    const isCheckin = tx.type === 'DAILY_CHECKIN';
+                    return (
+                      <div key={tx._id} className="point-history-item">
+                        <div className={`point-pts-badge ${isCheckin ? 'checkin' : ''}`}>
+                          +{tx.points}
+                        </div>
+                        <div className="point-item-meta">
+                          <span className="point-item-desc">{tx.description}</span>
+                          <span className="point-item-date">
+                            {new Date(tx.createdAt).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* VIEW 2: BROWSE CATALOG & 1-CLICK ENROLMENT (FR-05 & FR-06) */}
+        {/* VIEW 2: BROWSE CATALOG (FR-05 & FR-06) */}
         {activeTab === 'browse' && (
           <div className="learner-section-block">
-            {/* Search & Filtering Bar */}
-            <div className="catalog-toolbar">
-              <div className="search-input-wrapper">
-                <Search size={18} className="search-icon" />
+            <div className="search-filter-controls-row" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+              <div className="search-input-wrapper" style={{ flex: '1 1 260px', position: 'relative' }}>
                 <input
                   type="text"
-                  className="search-input"
-                  placeholder="Search available courses by title, topic, or instructor..."
+                  className="form-input"
+                  placeholder="Search courses by title, topic, or instructor..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ width: '100%' }}
                 />
               </div>
 
-              <div className="filter-dropdowns">
-                <div className="select-wrapper">
-                  <Filter size={15} className="select-icon" />
-                  <select
-                    className="filter-select"
-                    value={selectedLevel}
-                    onChange={(e) => setSelectedLevel(e.target.value)}
-                  >
-                    <option value="All">All Skill Levels</option>
-                    <option value="Beginner">Beginner</option>
-                    <option value="Intermediate">Intermediate</option>
-                    <option value="Advanced">Advanced</option>
-                  </select>
-                </div>
-              </div>
+              <select
+                className="form-input"
+                style={{ flex: '0 1 180px' }}
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+              >
+                {categories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+
+              <select
+                className="form-input"
+                style={{ flex: '0 1 180px' }}
+                value={selectedLevel}
+                onChange={(e) => setSelectedLevel(e.target.value)}
+              >
+                <option value="All">All Levels</option>
+                <option value="Beginner">Beginner</option>
+                <option value="Intermediate">Intermediate</option>
+                <option value="Advanced">Advanced</option>
+              </select>
             </div>
 
-            {/* Category Pills Slider */}
-            <div className="category-pills-row">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  className={`category-chip ${selectedCategory === cat ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory(cat)}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
+            <div className="enrolled-courses-grid">
+              {filteredCatalog.map(course => {
+                const isEnrolled = enrolledCourseIds.has(course._id);
+                return (
+                  <div key={course._id} className="enrolled-card">
+                    <CourseThumbnail
+                      src={course.thumbnail}
+                      alt={course.title}
+                      className="enrolled-thumb"
+                    />
+                    <div className="enrolled-body">
+                      <span className="category-meta-tag" style={{ fontSize: '11px', color: 'var(--brand-primary)', fontWeight: 600, textTransform: 'uppercase' }}>
+                        {course.category || 'General'}
+                      </span>
+                      <h3 className="course-card-title" style={{ fontSize: '1.05rem', fontWeight: 700, margin: '2px 0 6px 0', color: 'var(--text-primary)' }}>
+                        {course.title}
+                      </h3>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.4', margin: '4px 0 12px 0', flex: 1 }}>
+                        {course.shortDescription || course.description}
+                      </p>
 
-            {/* Course Catalog Grid */}
-            {filteredCatalog.length === 0 ? (
-              <div className="empty-courses-card">
-                <Search size={32} />
-                <h2>No Courses Found</h2>
-                <p>Try searching for a different keyword or resetting filters.</p>
-                <button
-                  className="btn btn-outline"
-                  onClick={() => { setSearchQuery(''); setSelectedCategory('All'); setSelectedLevel('All'); }}
-                >
-                  Reset Search Filters
-                </button>
-              </div>
-            ) : (
-              <div className="enrolled-courses-grid catalog-courses-grid">
-                {filteredCatalog.map((course) => {
-                  const isEnrolled = enrolledCourseIds.has(course._id);
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          By {course.instructorName || 'UpSkillr Educator'}
+                        </span>
 
-                  return (
-                    <div key={course._id} className="enrolled-card catalog-card">
-                      <div
-                        className="card-top-header"
-                        onClick={() => handleNavigateToCourse(course._id)}
-                        style={{ cursor: 'pointer' }}
-                        title={`View ${course.title} Overview`}
-                      >
-                        <CourseThumbnail src={course.thumbnail} alt={course.title} className="enrolled-thumb" />
-                        <span className="level-badge">{course.skillLevel || 'All Levels'}</span>
-                      </div>
-
-                      <div className="enrolled-body">
-                        <span className="category-pill">{course.category}</span>
-                        <h3
-                          className="course-card-title"
-                          onClick={() => handleNavigateToCourse(course._id)}
-                          style={{ cursor: 'pointer' }}
-                          title={`View ${course.title} Overview`}
-                        >
-                          {course.title}
-                        </h3>
-                        <p className="course-desc-clamp">{course.description}</p>
-
-                        <div className="course-meta-row">
-                          <span className="meta-item">
-                            <Star size={15} className="star-gold" />
-                            <strong>{course.rating || '4.8'}</strong>
-                          </span>
-                          <span className="meta-item">
-                            <Layers size={15} />
-                            {(() => {
-                              const publishedCount = (course.modules ? course.modules.filter(m => m.state === 'published' || m.status === 'published').length : (course.moduleCount ?? course.modulesCount ?? 0));
-                              return (
-                                <span>{publishedCount} {publishedCount === 1 ? 'module' : 'modules'}</span>
-                              );
-                            })()}
-                          </span>
-                          <span className="meta-item">
-                            <ThumbsUp size={15} />
-                            <span>{course.learnersCount || 0} {(course.learnersCount === 1) ? 'learner' : 'learners'}</span>
-                          </span>
-                        </div>
-
-                        <div className="catalog-card-footer">
-                          <span className="course-price">
-                            {course.price > 0 ? `\$${course.price}` : 'Free'}
-                          </span>
-
-                          {/* FR-06 Single Action Enrol Button */}
-                          {isEnrolled ? (
-                            <button
-                              type="button"
-                              className="btn btn-success btn-enrolled-status"
-                              onClick={() => setActiveTab('enrolled')}
-                            >
-                              <CheckCircle2 size={16} />
-                              <span>Enrolled — Go to Course</span>
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              className="btn btn-primary btn-single-enrol"
-                              onClick={() => onEnrolCourse(course._id)}
-                            >
-                              <PlusCircle size={16} />
-                              <span>Enroll</span>
-                            </button>
-                          )}
-                        </div>
+                        {isEnrolled ? (
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            style={{ padding: '6px 14px', fontSize: '13px' }}
+                            onClick={() => {
+                              setActiveTab('enrolled');
+                              handleNavigateToCourse(course._id);
+                            }}
+                          >
+                            <span>Enrolled • Continue</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            style={{ padding: '6px 14px', fontSize: '13px' }}
+                            onClick={() => onEnrolCourse(course._id)}
+                          >
+                            <span>Enroll Now</span>
+                          </button>
+                        )}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
-        {/* FR-09 Rating Modal */}
-        <CourseRatingModal
-          isOpen={!!ratingModalCourse}
-          onClose={() => setRatingModalCourse(null)}
-          course={ratingModalCourse}
-          initialRating={ratingModalCourse ? (() => {
-            const enrolRecord = enrolments.find(e => {
-              const id = typeof e.courseId === 'object' ? e.courseId._id : e.courseId;
-              return id === ratingModalCourse._id;
-            });
-            if (enrolRecord && enrolRecord.rating) {
-              return {
-                rating: enrolRecord.rating,
-                feedback: enrolRecord.feedback,
-                tags: enrolRecord.feedbackTags || []
-              };
-            }
-            return ratingsMap[ratingModalCourse._id] || null;
-          })() : null}
-          onSubmit={handleRatingSubmit}
-        />
+        {/* Rating Modal */}
+        {ratingModalCourse && (
+          <CourseRatingModal
+            isOpen={Boolean(ratingModalCourse)}
+            course={ratingModalCourse}
+            initialRating={ratingsMap[ratingModalCourse._id]}
+            onClose={() => setRatingModalCourse(null)}
+            onSubmit={(courseId, ratingData) => {
+              handleRatingSubmit(courseId || ratingModalCourse._id, ratingData);
+              setRatingModalCourse(null);
+            }}
+          />
+        )}
       </div>
     </main>
   );

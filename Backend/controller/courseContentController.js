@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const Course = require('../model/Course');
 const mongoose = require('mongoose');
+const { notifyStudentsOnNewContent } = require('./notificationController');
 
 // Helper to generate fractional / lexicographical sort key (LexoRank style)
 const generateSortKey = (prevKey, nextKey) => {
@@ -240,6 +241,14 @@ exports.createModule = async (req, res) => {
     recomputeEffectiveVisibility(course);
     await course.save();
 
+    // Notify students of the new module upload
+    notifyStudentsOnNewContent({
+      courseId: course._id,
+      courseTitle: course.title,
+      type: 'NEW_MODULE',
+      moduleTitle: title.trim()
+    });
+
     res.status(201).json({
       success: true,
       message: `Module created successfully in ${finalState} state.`,
@@ -407,6 +416,15 @@ exports.createLesson = async (req, res) => {
     mod.lessons.push(newLesson);
     recomputeEffectiveVisibility(course);
     await course.save();
+
+    // Notify students of the new lesson upload
+    notifyStudentsOnNewContent({
+      courseId: course._id,
+      courseTitle: course.title,
+      type: 'NEW_LESSON',
+      lessonTitle: title.trim(),
+      moduleTitle: mod.title
+    });
 
     res.status(201).json({
       success: true,

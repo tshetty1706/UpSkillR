@@ -17,6 +17,15 @@ const protect = (req, res, next) => {
 
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
     token = req.headers.authorization.split(' ')[1];
+  } else if (req.cookies && req.cookies.token) {
+    token = req.cookies.token;
+  } else if (req.cookies && req.cookies.upskillr_token) {
+    token = req.cookies.upskillr_token;
+  } else if (req.headers.cookie) {
+    const match = req.headers.cookie.match(/(?:^|;\s*)(?:token|upskillr_token)=([^;]+)/);
+    if (match) {
+      token = decodeURIComponent(match[1]);
+    }
   }
 
   if (!token || token === 'null' || token === 'undefined') {
@@ -37,6 +46,7 @@ const protect = (req, res, next) => {
     }
 
     // Establish normalized authenticated user
+    req.token = token;
     req.user = {
       id: decoded.id.toString(),
       _id: decoded.id.toString(),

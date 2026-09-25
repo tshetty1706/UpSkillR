@@ -33,7 +33,7 @@ export const InstructorProfile = ({ user }) => {
     e.preventDefault();
 
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const response = await fetch(`${API_BASE}/auth/profile`, {
         method: 'PUT',
         headers: {
@@ -50,14 +50,15 @@ export const InstructorProfile = ({ user }) => {
 
       if (data.success) {
         toast.success('Profile information saved successfully!');
-        const storedUser = localStorage.getItem('upskillr_user');
+        localStorage.removeItem('upskillr_user');
+        const storedUser = sessionStorage.getItem('upskillr_user');
         if (storedUser) {
           try {
             const parsed = JSON.parse(storedUser);
             parsed.fullName = data.user.fullName;
             parsed.bio = data.user.bio;
             parsed.specialization = data.user.specialization;
-            localStorage.setItem('upskillr_user', JSON.stringify(parsed));
+            sessionStorage.setItem('upskillr_user', JSON.stringify(parsed));
           } catch (err) {}
         }
         window.dispatchEvent(new Event('upskillr_user_updated'));
@@ -78,7 +79,7 @@ export const InstructorProfile = ({ user }) => {
     formDataPayload.append('file', file);
 
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const response = await fetch(`${API_BASE}/auth/profile/upload/photo`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -91,12 +92,13 @@ export const InstructorProfile = ({ user }) => {
         const newAvatar = data.user?.avatar || data.photoUrl || '';
         setProfile((prev) => ({ ...prev, avatar: newAvatar }));
 
-        const storedUser = localStorage.getItem('upskillr_user');
+        localStorage.removeItem('upskillr_user');
+        const storedUser = sessionStorage.getItem('upskillr_user');
         if (storedUser) {
           try {
             const parsed = JSON.parse(storedUser);
             parsed.avatar = newAvatar;
-            localStorage.setItem('upskillr_user', JSON.stringify(parsed));
+            sessionStorage.setItem('upskillr_user', JSON.stringify(parsed));
           } catch (err) {}
         }
         window.dispatchEvent(new Event('upskillr_user_updated'));
@@ -113,7 +115,7 @@ export const InstructorProfile = ({ user }) => {
 
   const handlePhotoRemove = async () => {
     try {
-      const token = localStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token');
       const response = await fetch(`${API_BASE}/auth/profile/upload/photo`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
@@ -124,14 +126,15 @@ export const InstructorProfile = ({ user }) => {
         toast.success('Profile photo removed.');
         setProfile((prev) => ({ ...prev, avatar: '' }));
 
-        const storedUser = localStorage.getItem('upskillr_user');
+        localStorage.removeItem('upskillr_user');
+        const storedUser = sessionStorage.getItem('upskillr_user');
         if (storedUser) {
           try {
             const parsed = JSON.parse(storedUser);
             parsed.avatar = '';
             parsed.photoUrl = '';
             parsed.profilePhoto = '';
-            localStorage.setItem('upskillr_user', JSON.stringify(parsed));
+            sessionStorage.setItem('upskillr_user', JSON.stringify(parsed));
           } catch (err) {}
         }
         window.dispatchEvent(new Event('upskillr_user_updated'));
