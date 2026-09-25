@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Mail, Save, Camera, Check, AlertCircle, Sparkles, Flame, Trophy,
   BookOpen, CheckCircle, FileText, ExternalLink, Trash2, Plus, Edit2,
-  X, GraduationCap, Briefcase, Star, MessageSquare
+  X, GraduationCap, Briefcase, Star, MessageSquare, Calendar
 } from 'lucide-react';
 import './LearnerProfile.css';
 import { Avatar } from '../../common/Avatar/Avatar';
@@ -120,116 +120,235 @@ const StarRating = ({ rating, size = 15 }) => (
 
 // ─── Activity Heatmap Component ───
 const ActivityHeatmap = ({ activityData, loading }) => {
-  const [tooltip, setTooltip] = useState({ visible: false, data: null });
+  const [hoveredDay, setHoveredDay] = useState(null);
+  const [selectedDay, setSelectedDay] = useState(null);
+  const scrollRef = useRef(null);
 
-  const activityMap = {};
-  (activityData || []).forEach(item => {
-    activityMap[item.date] = item;
-  });
+  const activityMap = useMemo(() => {
+    const map = {};
+    (activityData || []).forEach(item => {
+      map[item.date] = item;
+    });
+    return map;
+  }, [activityData]);
 
-  const today = new Date();
-  today.setHours(23, 59, 59, 999);
+  // Compute 52 weeks aligned from 52 weeks ago to today
+  const { weeks, monthLabels, totalCount, latestActiveDay } = useMemo(() => {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
 
-  // Start from ~52 weeks ago, aligned to Sunday
-  const start = new Date(today);
-  start.setDate(start.getDate() - 363);
-  start.setDate(start.getDate() - start.getDay()); // align to Sunday
+    // 52 weeks ago, aligned to Sunday
+    const start = new Date(today);
+    start.setDate(start.getDate() - 364);
+    start.setDate(start.getDate() - start.getDay());
 
-  const weeks = [];
-  const monthLabels = [];
-  const cursor = new Date(start);
+    const weeksArr = [];
+    const monthsArr = [];
+    let lastMonth = -1;
+    let lastColIdx = -10;
+    let total = 0;
+    let latest = null;
 
-  while (cursor <= today) {
-    const week = [];
-    const weekStart = new Date(cursor);
+    const cursor = new Date(start);
+    while (cursor <= today) {
+      const week = [];
+      const colIdx = weeksArr.length;
+      const weekStartMonth = cursor.getMonth();
 
-    for (let d = 0; d < 7; d++) {
-      const dateStr = cursor.toISOString().split('T')[0];
-      const isFuture = new Date(cursor) > today;
-      week.push({
-        date: new Date(cursor),
-        dateStr,
-        isFuture,
-        count: activityMap[dateStr]?.count || 0,
-        activities: activityMap[dateStr]?.activities || [],
-        descriptions: activityMap[dateStr]?.descriptions || []
-      });
-      cursor.setDate(cursor.getDate() + 1);
+      // Check if new month starts in this week and at least 3 weeks since last label to avoid collision
+      if (weekStartMonth !== lastMonth && colIdx - lastColIdx >= 3) {
+        monthsArr.push({
+          colIdx,
+          label: cursor.toLocaleString('en-US', { month: 'short' })
+        });
+        lastMonth = weekStartMonth;
+        lastColIdx = colIdx;
+      }
+
+      for (let d = 0; d < 7; d++) {
+        const dateStr = cursor.toISOString().split('T')[0];
+        const isFuture = new Date(cursor) > today;
+        const count = activityMap[dateStr]?.count || 0;
+        const activities = activityMap[dateStr]?.activities || [];
+        const descriptions = activityMap[dateStr]?.descriptions || [];
+
+        total += count;
+
+        const dayObj = {
+          date: new Date(cursor),
+          dateStr,
+          isFuture,
+          count,
+          activities,
+          descriptions
+        };
+
+        if (count > 0 && !isFuture) {
+          latest = dayObj;
+        }
+
+        week.push(dayObj);
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      weeksArr.push(week);
     }
-    // Month label when week starts a new month
-    if (weeks.length === 0 || weekStart.getMonth() !== (weeks.length > 0 ? weeks[weeks.length - 1][0].date.getMonth() : -1)) {
-      monthLabels.push({ wIdx: weeks.length, label: weekStart.toLocaleString('en-US', { month: 'short' }) });
+
+    return { weeks: weeksArr, monthLabels: monthsArr, totalCount: total, latestActiveDay: latest };
+  }, [activityMap]);
+
+  // Auto-scroll to the right so recent activity is immediately in view
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
     }
-    weeks.push(week);
-  }
+  }, [loading, weeks.length]);
 
   if (loading) {
     return <div className="heatmap-loading">Loading activity data...</div>;
   }
 
+  // Active day to display in the detailed card (hovered > selected > latest with activity > today)
+  const activeDay = hoveredDay || selectedDay || latestActiveDay || weeks[weeks.length - 1]?.[new Date().getDay()] || null;
+
+  const formattedDate = activeDay
+    ? new Date(activeDay.dateStr + 'T12:00:00').toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
+      })
+    : '';
+
   return (
     <div className="heatmap-wrapper">
-      {/* Month labels */}
-      <div className="heatmap-months-row">
-        {monthLabels.map((m, i) => (
-          <div
-            key={i}
-            className="heatmap-month-label"
-            style={{ left: `${m.wIdx * 15}px` }}
-          >
-            {m.label}
-          </div>
-        ))}
+      {/* Heatmap header summary */}
+      <div className="heatmap-header-summary">
+        <span className="heatmap-total-badge">
+          <strong>{totalCount}</strong> {totalCount === 1 ? 'activity' : 'activities'} in the last 12 months
+        </span>
+        <span className="heatmap-hint-sub">Scroll or click dates to inspect activity</span>
       </div>
 
-      {/* Grid */}
-      <div className="heatmap-scroll-container">
-        <div className="heatmap-grid">
-          {weeks.map((week, wIdx) => (
-            <div key={wIdx} className="heatmap-week-col">
-              {week.map((day, dIdx) => (
-                <div
-                  key={dIdx}
-                  className={`heatmap-cell ${day.isFuture ? 'heat-future' : `heat-${Math.min(day.count, 3)}`}`}
-                  onMouseEnter={() => !day.isFuture && setTooltip({ visible: true, data: day })}
-                  onMouseLeave={() => setTooltip({ visible: false, data: null })}
-                  aria-label={day.isFuture ? '' : `${day.dateStr}: ${day.count} activities`}
-                />
+      {/* Synchronized Scroll Container (Months + Grid scroll together) */}
+      <div className="heatmap-scroll-container" ref={scrollRef}>
+        <div className="heatmap-scroll-inner">
+          {/* Month labels header row */}
+          <div className="heatmap-month-header">
+            <div className="heatmap-weekday-spacer" />
+            <div
+              className="heatmap-months-track"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${weeks.length}, 13px)`,
+                columnGap: '3px'
+              }}
+            >
+              {monthLabels.map(m => (
+                <span
+                  key={m.label + m.colIdx}
+                  style={{ gridColumnStart: m.colIdx + 1 }}
+                  className="heatmap-month-name"
+                >
+                  {m.label}
+                </span>
               ))}
             </div>
-          ))}
-        </div>
-
-        {/* Tooltip */}
-        {tooltip.visible && tooltip.data && (
-          <div className="heatmap-tooltip-card">
-            <div className="tooltip-date-label">
-              {new Date(tooltip.data.dateStr + 'T12:00:00').toLocaleDateString('en-US', {
-                month: 'long', day: 'numeric', year: 'numeric'
-              })}
-            </div>
-            <div className="tooltip-count-label">
-              {tooltip.data.count === 0 ? 'No activity' : `${tooltip.data.count} ${tooltip.data.count === 1 ? 'activity' : 'activities'}`}
-            </div>
-            {tooltip.data.descriptions.length > 0 && (
-              <ul className="tooltip-activities-list">
-                {tooltip.data.descriptions.map((desc, i) => (
-                  <li key={i}>✓ {desc}</li>
-                ))}
-              </ul>
-            )}
           </div>
-        )}
+
+          {/* Grid with day labels */}
+          <div className="heatmap-grid-row">
+            {/* Weekday labels */}
+            <div className="heatmap-day-labels" aria-hidden="true">
+              <span className="day-label"></span>
+              <span className="day-label">Mon</span>
+              <span className="day-label"></span>
+              <span className="day-label">Wed</span>
+              <span className="day-label"></span>
+              <span className="day-label">Fri</span>
+              <span className="day-label"></span>
+            </div>
+
+            {/* Weeks columns */}
+            <div
+              className="heatmap-weeks-track"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${weeks.length}, 13px)`,
+                columnGap: '3px'
+              }}
+            >
+              {weeks.map((week, wIdx) => (
+                <div key={wIdx} className="heatmap-week-col">
+                  {week.map((day, dIdx) => {
+                    const isSelected = activeDay?.dateStr === day.dateStr;
+                    return (
+                      <button
+                        type="button"
+                        key={dIdx}
+                        className={`heatmap-cell ${day.isFuture ? 'heat-future' : `heat-${Math.min(day.count, 3)}`} ${isSelected ? 'cell-selected' : ''}`}
+                        onMouseEnter={() => !day.isFuture && setHoveredDay(day)}
+                        onMouseLeave={() => setHoveredDay(null)}
+                        onClick={() => !day.isFuture && setSelectedDay(day)}
+                        aria-label={day.isFuture ? '' : `${day.dateStr}: ${day.count} activities`}
+                        title={day.isFuture ? '' : `${day.dateStr} • ${day.count} activities`}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Legend */}
-      <div className="heatmap-legend">
-        <span className="legend-label">Less</span>
-        {[0, 1, 2, 3].map(level => (
-          <div key={level} className={`heatmap-cell heat-${level}`} style={{ width: '12px', height: '12px' }} />
-        ))}
-        <span className="legend-label">More</span>
+      {/* Heatmap Legend */}
+      <div className="heatmap-footer-row">
+        <span className="heatmap-click-tip">Click or hover any date to inspect details</span>
+        <div className="heatmap-legend">
+          <span className="legend-label">Less</span>
+          <div className="heatmap-cell heat-0" title="0 activities" />
+          <div className="heatmap-cell heat-1" title="1 activity" />
+          <div className="heatmap-cell heat-2" title="2 activities" />
+          <div className="heatmap-cell heat-3" title="3+ activities" />
+          <span className="legend-label">More</span>
+        </div>
       </div>
+
+      {/* Detailed Activity Card (OUTSIDE the scroll container, NEVER clipped!) */}
+      {activeDay && (
+        <div className="heatmap-detail-card">
+          <div className="heatmap-detail-header">
+            <div className="heatmap-detail-date-col">
+              <div className="heatmap-detail-date-title">
+                <Calendar size={15} className="heatmap-cal-icon" />
+                <span>{formattedDate}</span>
+              </div>
+              <div className="heatmap-detail-count-badge">
+                {activeDay.count === 0 ? (
+                  <span className="count-zero">No learning activity on this day</span>
+                ) : (
+                  <span className="count-active">
+                    <strong>{activeDay.count}</strong> {activeDay.count === 1 ? 'activity' : 'activities'} logged
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {activeDay.descriptions && activeDay.descriptions.length > 0 ? (
+            <ul className="heatmap-detail-list">
+              {activeDay.descriptions.map((desc, i) => (
+                <li key={i} className="heatmap-detail-item">
+                  <CheckCircle size={14} className="heatmap-item-icon" />
+                  <span>{desc}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="heatmap-detail-empty-text">No recorded modules, check-ins, or completions for this date.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 };
