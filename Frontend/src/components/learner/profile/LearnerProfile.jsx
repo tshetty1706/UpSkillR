@@ -66,12 +66,12 @@ const HackerRankIcon = ({ size = 16, className = '' }) => (
 const PLATFORM_REGEXES = {
   github: /^https:\/\/(www\.)?github\.com\/[A-Za-z0-9_.-]+\/?$/,
   linkedin: /^https:\/\/(www\.)?linkedin\.com\/in\/[A-Za-z0-9_.-]+\/?$/,
-  leetcode: /^https:\/\/(www\.)?leetcode\.com\/u\/[A-Za-z0-9_.-]+\/?$/,
+  leetcode: /^https:\/\/(www\.)?leetcode\.com\/(u\/)?[A-Za-z0-9_.-]+\/?$/,
   instagram: /^https:\/\/(www\.)?instagram\.com\/[A-Za-z0-9_.-]+\/?$/,
   facebook: /^https:\/\/(www\.)?facebook\.com\/[A-Za-z0-9_.-]+\/?$/,
   codeforces: /^https:\/\/(www\.)?codeforces\.com\/profile\/[A-Za-z0-9_.-]+\/?$/,
-  geeksforgeeks: /^https:\/\/(www\.)?geeksforgeeks\.org\/user\/[A-Za-z0-9_.-]+\/?$/,
-  hackerrank: /^https:\/\/(www\.)?hackerrank\.com\/profile\/[A-Za-z0-9_.-]+\/?$/
+  geeksforgeeks: /^https:\/\/(www\.|auth\.)?geeksforgeeks\.org\/user\/[A-Za-z0-9_.-]+\/?$/,
+  hackerrank: /^https:\/\/(www\.)?hackerrank\.com\/(profile\/)?[A-Za-z0-9_.-]+\/?$/
 };
 
 const SOCIAL_PLATFORMS = [
@@ -386,13 +386,18 @@ export const LearnerProfile = ({ user }) => {
   const [saving, setSaving] = useState(false);
   const checkUsernameTimerRef = useRef(null);
 
-  // ─── New Sections State ───
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(true);
   const [certificates, setCertificates] = useState([]);
   const [certsLoading, setCertsLoading] = useState(true);
   const [activityData, setActivityData] = useState([]);
   const [activityLoading, setActivityLoading] = useState(true);
+
+  // ─── Edit Review Modal State ───
+  const [editingReview, setEditingReview] = useState(null);
+  const [editRating, setEditRating] = useState(5);
+  const [editFeedback, setEditFeedback] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
   // ─── Entry saving state (education / experience auto-save) ───
   const [entrySaving, setEntrySaving] = useState(false);
@@ -760,6 +765,57 @@ export const LearnerProfile = ({ user }) => {
         localStorage.setItem('upskillr_user', JSON.stringify(parsed));
         window.dispatchEvent(new Event('upskillr_user_updated'));
       } catch {}
+    }
+  };
+
+  // ════════════════════════════════════════════════════════════════
+  // REVIEW EDIT HANDLERS (FR-09)
+  // ════════════════════════════════════════════════════════════════
+  const handleOpenEditReview = (review) => {
+    setEditingReview(review);
+    setEditRating(review.rating || 5);
+    setEditFeedback(review.feedback || '');
+  };
+
+  const handleCloseEditReview = () => {
+    setEditingReview(null);
+  };
+
+  const handleSaveEditedReview = async (e) => {
+    e.preventDefault();
+    if (!editingReview) return;
+    const trimmed = (editFeedback || '').trim();
+    if (!trimmed || trimmed.length < 3) {
+      toast.error('Feedback must be at least 3 characters.');
+      return;
+    }
+    setEditSubmitting(true);
+    try {
+      const token = localStorage.getItem('upskillr_token');
+      const courseId = editingReview.courseId?._id || editingReview.courseId;
+      const res = await fetch(`${API_BASE}/courses/${courseId}/review`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          rating: editRating,
+          feedback: trimmed
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Course review updated successfully!');
+        setEditingReview(null);
+        fetchReviews();
+      } else {
+        toast.error(data.message || 'Failed to update review.');
+      }
+    } catch {
+      toast.error('Error updating review.');
+    } finally {
+      setEditSubmitting(false);
     }
   };
 
@@ -1188,7 +1244,7 @@ export const LearnerProfile = ({ user }) => {
               <div className="section-empty-state cert-empty-state">
                 <div className="cert-empty-icon">🏆</div>
                 <p className="cert-empty-title">No certificates received yet.</p>
-                <p className="cert-empty-sub">Complete a course to earn your first certificate.</p>
+                <p className="cert-empty-sub">Complete a course to gain a certificate.</p>
               </div>
             ) : (
               <div className="cert-grid">
@@ -1198,7 +1254,7 @@ export const LearnerProfile = ({ user }) => {
                       <span className="cert-badge">🏆</span>
                       <div className="cert-card-info">
                         <div className="cert-course-title">{cert.courseTitle}</div>
-                        <div className="cert-category">{cert.category}</div>
+                        {cert.category && <div className="cert-category">{cert.category}</div>}
                       </div>
                     </div>
                     <div className="cert-card-meta">
@@ -1252,13 +1308,24 @@ export const LearnerProfile = ({ user }) => {
                           <span className="review-course-category">{review.category}</span>
                         )}
                       </div>
-                      <div className="review-date">
-                        {new Date(review.createdAt).toLocaleDateString('en-IN', {
-                          day: 'numeric', month: 'long', year: 'numeric'
-                        })}
-                        {review.updatedAt && review.updatedAt !== review.createdAt && (
-                          <span className="review-edited"> (edited)</span>
-                        )}
+                      <div className="review-header-actions">
+                        <div className="review-date">
+                          {new Date(review.createdAt).toLocaleDateString('en-IN', {
+                            day: 'numeric', month: 'long', year: 'numeric'
+                          })}
+                          {review.updatedAt && review.updatedAt !== review.createdAt && (
+                            <span className="review-edited"> (edited)</span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-edit-review"
+                          onClick={() => handleOpenEditReview(review)}
+                          aria-label={`Edit review for ${review.courseTitle}`}
+                        >
+                          <Edit2 size={12} />
+                          <span>Edit Review</span>
+                        </button>
                       </div>
                     </div>
                     <div className="review-rating-row">
@@ -1283,6 +1350,84 @@ export const LearnerProfile = ({ user }) => {
 
         </div>{/* end learner-profile-card */}
       </div>
+
+      {/* ─── REVIEW EDIT MODAL (FR-09) ─── */}
+      {editingReview && (
+        <div className="review-modal-backdrop" onClick={handleCloseEditReview}>
+          <div className="review-modal-card" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="edit-review-modal-title">
+            <div className="review-modal-header">
+              <h3 id="edit-review-modal-title" className="review-modal-title">Edit Course Review</h3>
+              <button
+                type="button"
+                className="btn-modal-close"
+                onClick={handleCloseEditReview}
+                aria-label="Close edit review dialog"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditedReview} className="review-modal-form">
+              <div className="review-modal-course-name">
+                <FileText size={15} />
+                <span>{editingReview.courseTitle || 'Course Review'}</span>
+              </div>
+
+              <div className="review-modal-field">
+                <label className="review-modal-label">Your Rating</label>
+                <div className="rating-select-stars">
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <button
+                      type="button"
+                      key={star}
+                      className={`star-select-btn ${star <= editRating ? 'active' : ''}`}
+                      onClick={() => setEditRating(star)}
+                      aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                    >
+                      <Star size={22} fill={star <= editRating ? '#10b981' : 'none'} color={star <= editRating ? '#10b981' : '#4b5563'} />
+                    </button>
+                  ))}
+                  <span className="rating-select-label">{editRating} of 5 Stars</span>
+                </div>
+              </div>
+
+              <div className="review-modal-field">
+                <label className="review-modal-label" htmlFor="edit-feedback-input">Feedback</label>
+                <textarea
+                  id="edit-feedback-input"
+                  className="review-modal-textarea"
+                  rows={4}
+                  value={editFeedback}
+                  onChange={e => setEditFeedback(e.target.value)}
+                  placeholder="Share your feedback about this course..."
+                  required
+                  minLength={3}
+                  maxLength={1000}
+                />
+                <div className="review-char-count">{editFeedback.length}/1000</div>
+              </div>
+
+              <div className="review-modal-actions">
+                <button
+                  type="button"
+                  className="btn-modal-cancel"
+                  onClick={handleCloseEditReview}
+                  disabled={editSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-modal-save"
+                  disabled={editSubmitting}
+                >
+                  {editSubmitting ? 'Saving...' : 'Save Review'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 };

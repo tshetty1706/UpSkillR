@@ -19,14 +19,14 @@ const updateCourseRatingStats = async (courseId) => {
   }
 };
 
-// 1. Submit New Review (POST /api/courses/:courseId/review)
+// 1. Submit New Review (POST /api/courses/:courseId/review or POST /api/courses/rate)
 exports.submitCourseReview = async (req, res) => {
   try {
-    const { courseId } = req.params;
+    const courseId = req.params.courseId || req.body.courseId;
     const { rating, feedback, tags } = req.body;
     const learnerId = req.user.id;
 
-    if (!mongoose.Types.ObjectId.isValid(courseId)) {
+    if (!courseId || !mongoose.Types.ObjectId.isValid(courseId)) {
       return res.status(400).json({ success: false, message: 'Invalid course ID format.' });
     }
 
@@ -53,7 +53,7 @@ exports.submitCourseReview = async (req, res) => {
     }
 
     // 2. Must have completed the course (FR-09 Rule)
-    const isCompleted = enrolment.status === 'completed' || enrolment.progressPercentage === 100;
+    const isCompleted = enrolment.status === 'completed' || (enrolment.progressPercentage && enrolment.progressPercentage >= 100);
     if (!isCompleted) {
       return res.status(403).json({
         success: false,
@@ -61,18 +61,34 @@ exports.submitCourseReview = async (req, res) => {
       });
     }
 
-    // 3. Unique check: Only one review per course
+    const cleanTags = Array.isArray(tags) ? tags.map(t => String(t).trim()).filter(Boolean) : [];
+
+    // 3. Unique check: Only one review per course. If existing, update it cleanly
     const existingReview = await CourseReview.findOne({ learnerId, courseId });
     if (existingReview) {
-      return res.status(409).json({
-        success: false,
-        message: 'You have already reviewed this course. Please use edit review instead.',
-        review: existingReview
+      existingReview.rating = numRating;
+      existingReview.feedback = trimmedFeedback;
+      if (cleanTags.length > 0) existingReview.tags = cleanTags;
+      await existingReview.save();
+
+      // Sync with enrolment
+      enrolment.rating = numRating;
+      enrolment.feedback = trimmedFeedback;
+      enrolment.feedbackTags = cleanTags;
+      enrolment.ratedAt = new Date();
+      await enrolment.save();
+
+      await updateCourseRatingStats(courseId);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Your course review has been updated successfully.',
+        review: existingReview,
+        isUpdate: true
       });
     }
 
     // Create the review
-    const cleanTags = Array.isArray(tags) ? tags.map(t => String(t).trim()).filter(Boolean) : [];
     const review = await CourseReview.create({
       learnerId,
       courseId,
@@ -111,11 +127,11 @@ exports.submitCourseReview = async (req, res) => {
 // 2. Edit Review (PATCH /api/courses/:courseId/review)
 exports.updateCourseReview = async (req, res) => {
   try {
-    const { courseId } = req.params;
+    const courseId = req.params.courseId || req.body.courseId;
     const { rating, feedback, tags } = req.body;
     const learnerId = req.user.id;
 
-    if (!mongoose.Types.ObjectId.isValid(courseId)) {
+    if (!courseId || !mongoose.Types.ObjectId.isValid(courseId)) {
       return res.status(400).json({ success: false, message: 'Invalid course ID format.' });
     }
 

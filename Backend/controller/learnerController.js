@@ -7,12 +7,12 @@ const CourseReview = require('../model/CourseReview');
 const PLATFORM_REGEXES = {
   github: /^https:\/\/(www\.)?github\.com\/[A-Za-z0-9_.-]+\/?$/,
   linkedin: /^https:\/\/(www\.)?linkedin\.com\/in\/[A-Za-z0-9_.-]+\/?$/,
-  leetcode: /^https:\/\/(www\.)?leetcode\.com\/u\/[A-Za-z0-9_.-]+\/?$/,
+  leetcode: /^https:\/\/(www\.)?leetcode\.com\/(u\/)?[A-Za-z0-9_.-]+\/?$/,
   instagram: /^https:\/\/(www\.)?instagram\.com\/[A-Za-z0-9_.-]+\/?$/,
   facebook: /^https:\/\/(www\.)?facebook\.com\/[A-Za-z0-9_.-]+\/?$/,
   codeforces: /^https:\/\/(www\.)?codeforces\.com\/profile\/[A-Za-z0-9_.-]+\/?$/,
-  geeksforgeeks: /^https:\/\/(www\.)?geeksforgeeks\.org\/user\/[A-Za-z0-9_.-]+\/?$/,
-  hackerrank: /^https:\/\/(www\.)?hackerrank\.com\/profile\/[A-Za-z0-9_.-]+\/?$/
+  geeksforgeeks: /^https:\/\/(www\.|auth\.)?geeksforgeeks\.org\/user\/[A-Za-z0-9_.-]+\/?$/,
+  hackerrank: /^https:\/\/(www\.)?hackerrank\.com\/(profile\/)?[A-Za-z0-9_.-]+\/?$/
 };
 
 const PLATFORM_LABELS = {
@@ -96,7 +96,7 @@ exports.getLearnerProfileAndStats = async (req, res) => {
     const enrolments = await Enrolment.find({ learnerId });
     const coursesEnrolled = enrolments.length;
     const coursesCompleted = enrolments.filter(
-      e => e.status === 'completed' || e.progressPercentage === 100
+      e => e.status === 'completed' || (e.progressPercentage && e.progressPercentage >= 100)
     ).length;
     const modulesCompleted = enrolments.reduce(
       (sum, e) => sum + (e.completedLessons ? e.completedLessons.length : 0), 0
@@ -447,7 +447,7 @@ exports.getLearnerCertificates = async (req, res) => {
     const learnerId = req.user.id;
     const completedEnrolments = await Enrolment.find({
       learnerId,
-      $or: [{ status: 'completed' }, { progressPercentage: 100 }]
+      $or: [{ status: 'completed' }, { progressPercentage: { $gte: 100 } }]
     }).populate('courseId', 'title thumbnail category certificate instructorName');
 
     const certificates = completedEnrolments
