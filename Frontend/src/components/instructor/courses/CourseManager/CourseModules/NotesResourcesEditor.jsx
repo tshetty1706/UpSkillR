@@ -115,8 +115,12 @@ export const NotesResourcesEditor = ({
     const scopeVal = note.scope || note.attachableType || 'course';
     setScope(scopeVal);
 
-    const modId = note.moduleId || (note.attachableType === 'module' ? note.attachableId : '') || '';
+    let modId = note.moduleId || (note.attachableType === 'module' ? note.attachableId : '') || '';
     const lesId = note.lessonId || (note.attachableType === 'lesson' ? note.attachableId : '') || '';
+    if (!modId && lesId && modules.length > 0) {
+      const parentMod = modules.find(m => (m.lessons || []).some(l => String(l._id) === String(lesId)));
+      if (parentMod) modId = String(parentMod._id);
+    }
     setSelectedModuleId(modId ? String(modId) : '');
     setSelectedLessonId(lesId ? String(lesId) : '');
 
@@ -164,7 +168,7 @@ export const NotesResourcesEditor = ({
   };
 
   // Find lessons for selected module
-  const currentModule = modules.find(m => m._id === selectedModuleId);
+  const currentModule = modules.find(m => String(m._id) === String(selectedModuleId));
   const availableLessons = currentModule ? currentModule.lessons || [] : [];
 
   // Helper for scope label display in sidebar items
@@ -176,13 +180,13 @@ export const NotesResourcesEditor = ({
 
     if (scopeVal === 'course') return 'Course Level';
     if (scopeVal === 'module') {
-      const mod = modules.find(m => m._id === modId);
+      const mod = modules.find(m => String(m._id) === String(modId));
       return mod?.title ? `Module: ${mod.title}` : 'Module Level';
     }
     if (scopeVal === 'lesson') {
       let lessonTitle = 'Lesson Level';
       modules.forEach(m => {
-        const found = (m.lessons || []).find(l => l._id === lesId);
+        const found = (m.lessons || []).find(l => String(l._id) === String(lesId));
         if (found) lessonTitle = `Lesson: ${found.title}`;
       });
       return lessonTitle;
@@ -303,7 +307,8 @@ export const NotesResourcesEditor = ({
           }
           if (onCurriculumUpdated) onCurriculumUpdated();
         } else {
-          toast.error(data?.message || 'Failed to update resource');
+          const errMsg = data?.message || (res.status ? `Failed to update resource (${res.status} ${res.statusText || 'Error'})` : 'Failed to update resource');
+          toast.error(errMsg);
         }
       } else {
         // CREATE NEW RESOURCE
@@ -321,12 +326,13 @@ export const NotesResourcesEditor = ({
           loadNoteIntoEditor(data.note);
           if (onCurriculumUpdated) onCurriculumUpdated();
         } else {
-          toast.error(data?.message || 'Failed to attach resource');
+          const errMsg = data?.message || (res.status ? `Failed to attach resource (${res.status} ${res.statusText || 'Error'})` : 'Failed to attach resource');
+          toast.error(errMsg);
         }
       }
     } catch (err) {
       console.error('Error saving resource:', err);
-      toast.error('Network error saving resource');
+      toast.error(err.message || 'Network error saving resource');
     } finally {
       setSaving(false);
     }

@@ -439,9 +439,9 @@ export const LearnerPreview = ({
                     <span className="pill-title">{note.title}</span>
                     <span className="pill-scope">{note.scope.toUpperCase()} LEVEL</span>
                   </div>
-                  {note.mediaUrl && (
+                  {(note.mediaUrl || note.fileUrl) && (
                     <a
-                      href={note.mediaUrl}
+                      href={note.mediaUrl || note.fileUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="pill-link"

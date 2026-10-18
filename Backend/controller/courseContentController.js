@@ -3,6 +3,7 @@ const path = require('path');
 const Course = require('../model/Course');
 const mongoose = require('mongoose');
 const { notifyStudentsOnNewContent } = require('./notificationController');
+const { courseCache } = require('./courseController');
 
 // Helper to generate fractional / lexicographical sort key (LexoRank style)
 const generateSortKey = (prevKey, nextKey) => {
@@ -71,7 +72,16 @@ const canPublishItem = (item) => {
     return Array.isArray(questions) && questions.length > 0;
   }
   if (itemType === 'video') {
-    return Boolean(item.video?.muxPlaybackId || item.video?.muxAssetId);
+    return Boolean(
+      item.video?.muxPlaybackId ||
+      item.video?.muxAssetId ||
+      item.video?.videoUrl ||
+      item.video?.url ||
+      item.video?.fileUrl ||
+      item.videoUrl ||
+      item.url ||
+      item.fileUrl
+    );
   }
   return true;
 };
@@ -88,30 +98,46 @@ const recomputeEffectiveVisibility = (course) => {
 
   for (const mod of course.modules || []) {
     const modQualifies = canPublishModule(mod);
-    const modPublished = mod.state === 'published';
+    const modPublished = mod.state === 'published' || mod.status === 'published';
     mod.effective_visible = coursePublished && modPublished && modQualifies;
 
     for (const lesson of mod.lessons || []) {
       const lessonQualifies = canPublishLesson(lesson);
-      const lessonPublished = lesson.state === 'published';
+      const lessonPublished = lesson.state === 'published' || lesson.status === 'published';
       lesson.effective_visible = mod.effective_visible && lessonPublished && lessonQualifies;
 
       const items = lesson.items || lesson.contentItems || [];
       for (const item of items) {
         const itemQualifies = canPublishItem(item);
-        const itemPublished = item.state === 'published';
+        const itemPublished = item.state === 'published' || item.status === 'published';
         item.effective_visible = lesson.effective_visible && itemPublished && itemQualifies;
       }
     }
   }
 
   for (const note of course.notes || []) {
-    note.effective_visible = coursePublished && note.state === 'published';
+    let parentVisible = coursePublished;
+    if (note.scope === 'module' && note.moduleId) {
+      const parentMod = (course.modules || []).find(m => String(m._id) === String(note.moduleId));
+      parentVisible = parentMod ? (parentMod.state === 'published' || parentMod.status === 'published') : coursePublished;
+    } else if (note.scope === 'lesson' && note.lessonId) {
+      let parentLes = null;
+      for (const m of course.modules || []) {
+        const found = (m.lessons || []).find(l => String(l._id) === String(note.lessonId));
+        if (found) {
+          parentLes = found;
+          break;
+        }
+      }
+      parentVisible = parentLes ? (parentLes.state === 'published' || parentLes.status === 'published') : coursePublished;
+    }
+    const notePublished = note.state === 'published' || note.status === 'published';
+    note.effective_visible = coursePublished && parentVisible && notePublished;
   }
 
   for (const ca of course.courseAssessments || []) {
     const caQualifies = canPublishAssessment(ca);
-    ca.effective_visible = coursePublished && ca.state === 'published' && caQualifies;
+    ca.effective_visible = coursePublished && (ca.state === 'published' || ca.status === 'published') && caQualifies;
   }
 };
 
@@ -589,14 +615,20 @@ exports.createContentItem = async (req, res) => {
       video: {
         muxAssetId: video.muxAssetId || '',
         muxPlaybackId: video.muxPlaybackId || '',
+        videoUrl: video.videoUrl || video.url || video.fileUrl || '',
+        url: video.url || video.videoUrl || video.fileUrl || '',
+        fileUrl: video.fileUrl || video.videoUrl || video.url || '',
         duration: Number(video.duration) || 0,
         watchedThresholdPercent: Number(video.watchedThresholdPercent) || 90,
         allowScrubAhead: video.allowScrubAhead !== false,
-        status: video.muxPlaybackId ? 'ready' : 'processing'
+        status: (video.muxPlaybackId || video.videoUrl || video.url || video.fileUrl) ? 'ready' : (video.status || 'processing')
       },
       videoDetails: {
         muxAssetId: video.muxAssetId || '',
         muxPlaybackId: video.muxPlaybackId || '',
+        videoUrl: video.videoUrl || video.url || video.fileUrl || '',
+        url: video.url || video.videoUrl || video.fileUrl || '',
+        fileUrl: video.fileUrl || video.videoUrl || video.url || '',
         duration: video.duration ? `${video.duration} min` : '10 min',
         durationSeconds: Number(video.duration) || 0,
         watchedPctThreshold: Number(video.watchedThresholdPercent) || 90,
@@ -625,6 +657,7 @@ exports.createContentItem = async (req, res) => {
 
     recomputeEffectiveVisibility(course);
     await course.save();
+    if (courseCache && courseCache.invalidateCourse) courseCache.invalidateCourse(courseId);
 
     res.status(201).json({
       success: true,
@@ -673,10 +706,13 @@ exports.updateContentItem = async (req, res) => {
       targetItem.video = {
         muxAssetId: video.muxAssetId || targetItem.video?.muxAssetId || '',
         muxPlaybackId: video.muxPlaybackId || targetItem.video?.muxPlaybackId || '',
+        videoUrl: video.videoUrl || video.url || video.fileUrl || targetItem.video?.videoUrl || targetItem.video?.url || '',
+        url: video.url || video.videoUrl || video.fileUrl || targetItem.video?.url || targetItem.video?.videoUrl || '',
+        fileUrl: video.fileUrl || video.videoUrl || video.url || targetItem.video?.fileUrl || '',
         duration: Number(video.duration) || targetItem.video?.duration || 0,
         watchedThresholdPercent: Number(video.watchedThresholdPercent) || targetItem.video?.watchedThresholdPercent || 90,
         allowScrubAhead: video.allowScrubAhead !== undefined ? video.allowScrubAhead : true,
-        status: video.muxPlaybackId ? 'ready' : (targetItem.video?.status || 'ready')
+        status: (video.muxPlaybackId || video.videoUrl || video.url || targetItem.video?.muxPlaybackId || targetItem.video?.videoUrl) ? 'ready' : (targetItem.video?.status || 'ready')
       };
       targetItem.videoDetails = {
         ...targetItem.video,
@@ -707,6 +743,7 @@ exports.updateContentItem = async (req, res) => {
 
     recomputeEffectiveVisibility(course);
     await course.save();
+    if (courseCache && courseCache.invalidateCourse) courseCache.invalidateCourse(courseId);
 
     res.json({
       success: true,
@@ -760,6 +797,7 @@ exports.toggleContentItemState = async (req, res) => {
 
     recomputeEffectiveVisibility(course);
     await course.save();
+    if (courseCache && courseCache.invalidateCourse) courseCache.invalidateCourse(courseId);
 
     res.json({
       success: true,
@@ -875,6 +913,7 @@ exports.attachNote = async (req, res) => {
     course.notes.push(newNote);
     recomputeEffectiveVisibility(course);
     await course.save();
+    if (courseCache && courseCache.invalidateCourse) courseCache.invalidateCourse(courseId);
 
     res.status(201).json({
       success: true,
@@ -933,9 +972,11 @@ exports.updateNote = async (req, res) => {
     if (moduleId !== undefined) note.moduleId = moduleId && mongoose.Types.ObjectId.isValid(moduleId) ? moduleId : null;
     if (lessonId !== undefined) note.lessonId = lessonId && mongoose.Types.ObjectId.isValid(lessonId) ? lessonId : null;
     if (attachableId !== undefined) note.attachableId = attachableId;
+    if (req.body.fileName !== undefined) note.fileName = req.body.fileName;
     if (type !== undefined) {
       note.type = type === 'article' ? 'article_md' : type;
       note.noteType = note.type;
+      note.fileType = note.type === 'pdf' ? 'pdf' : (note.type === 'image' ? 'image' : 'md');
     }
     if (state !== undefined) {
       note.state = state === 'published' ? 'published' : 'draft';
@@ -943,6 +984,7 @@ exports.updateNote = async (req, res) => {
 
     recomputeEffectiveVisibility(course);
     await course.save();
+    if (courseCache && courseCache.invalidateCourse) courseCache.invalidateCourse(courseId);
 
     res.json({ success: true, message: 'Note updated.', note });
   } catch (err) {
@@ -961,6 +1003,7 @@ exports.toggleNoteState = async (req, res) => {
     note.state = note.state === 'published' ? 'draft' : 'published';
     recomputeEffectiveVisibility(course);
     await course.save();
+    if (courseCache && courseCache.invalidateCourse) courseCache.invalidateCourse(courseId);
 
     res.json({
       success: true,
@@ -981,9 +1024,23 @@ exports.deleteNote = async (req, res) => {
     const note = course.notes.id(noteId);
     if (!note) return res.status(404).json({ success: false, message: 'Resource note not found.' });
 
+    // Clean up local disk resource if stored locally
+    if (note.fileUrl && note.fileUrl.includes('/uploads/resources/')) {
+      try {
+        const filename = path.basename(note.fileUrl);
+        const filePath = path.join(__dirname, '..', 'uploads', 'resources', filename);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      } catch (fErr) {
+        console.warn('Could not remove local resource file:', fErr.message);
+      }
+    }
+
     note.deleteOne();
     recomputeEffectiveVisibility(course);
     await course.save();
+    if (courseCache && courseCache.invalidateCourse) courseCache.invalidateCourse(courseId);
 
     res.json({
       success: true,
@@ -1223,7 +1280,7 @@ exports.uploadVideoFromDevice = async (req, res) => {
     let finalUrl = uploadRes?.secure_url;
     let publicId = uploadRes?.public_id;
 
-    if (!finalUrl) {
+    if (!finalUrl || finalUrl.startsWith('data:') || !publicId) {
       const uploadsDir = path.join(__dirname, '..', 'uploads', 'videos');
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
@@ -1234,8 +1291,8 @@ exports.uploadVideoFromDevice = async (req, res) => {
       const filePath = path.join(uploadsDir, filename);
       await fs.promises.writeFile(filePath, req.file.buffer);
 
-      const host = req.get('host') || 'localhost:5000';
-      const protocol = req.protocol || 'http';
+      const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost:5000';
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
       finalUrl = `${protocol}://${host}/uploads/videos/${filename}`;
       publicId = `local_vid_${Date.now()}`;
     }
@@ -1275,7 +1332,8 @@ exports.uploadResourceFromDevice = async (req, res) => {
     let finalUrl = uploadRes?.secure_url;
     let publicId = uploadRes?.public_id;
 
-    if (!finalUrl) {
+    // If Cloudinary failed, lacks permissions, or fell back to Data URL, persist locally
+    if (!finalUrl || finalUrl.startsWith('data:') || !publicId) {
       const uploadsDir = path.join(__dirname, '..', 'uploads', 'resources');
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
@@ -1286,8 +1344,8 @@ exports.uploadResourceFromDevice = async (req, res) => {
       const filePath = path.join(uploadsDir, filename);
       await fs.promises.writeFile(filePath, req.file.buffer);
 
-      const host = req.get('host') || 'localhost:5000';
-      const protocol = req.protocol || 'http';
+      const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost:5000';
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
       finalUrl = `${protocol}://${host}/uploads/resources/${filename}`;
       publicId = `local_res_${Date.now()}`;
     }

@@ -42,7 +42,7 @@ const notesSchema = new mongoose.Schema({
 
 const contentItemSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
-  type: { type: String, required: true, lowercase: true, enum: ['video', 'quiz', 'Video', 'Quiz'] },
+  type: { type: String, required: true, lowercase: true, enum: ['video', 'quiz', 'Video', 'Quiz', 'article', 'article_md', 'pdf', 'image', 'resource'] },
   state: { type: String, enum: ['draft', 'published'], default: 'draft' },
   effective_visible: { type: Boolean, default: false },
   sortKey: { type: String, default: 'a0' },
@@ -51,11 +51,18 @@ const contentItemSchema = new mongoose.Schema({
   video: {
     muxAssetId: { type: String, default: '' },
     muxPlaybackId: { type: String, default: '' },
+    videoUrl: { type: String, default: '' },
+    url: { type: String, default: '' },
+    fileUrl: { type: String, default: '' },
     duration: { type: Number, default: 0 },
     watchedThresholdPercent: { type: Number, default: 90 },
     allowScrubAhead: { type: Boolean, default: true },
     status: { type: String, default: 'ready' }
   },
+  fileUrl: { type: String, default: '' },
+  mediaUrl: { type: String, default: '' },
+  content: { type: String, default: '' },
+  markdownContent: { type: String, default: '' },
   quiz: {
     instructions: { type: String, default: '' },
     passThresholdPercent: { type: Number, default: 70 },
