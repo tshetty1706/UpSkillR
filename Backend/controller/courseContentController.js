@@ -933,9 +933,11 @@ exports.updateNote = async (req, res) => {
     if (moduleId !== undefined) note.moduleId = moduleId && mongoose.Types.ObjectId.isValid(moduleId) ? moduleId : null;
     if (lessonId !== undefined) note.lessonId = lessonId && mongoose.Types.ObjectId.isValid(lessonId) ? lessonId : null;
     if (attachableId !== undefined) note.attachableId = attachableId;
+    if (req.body.fileName !== undefined) note.fileName = req.body.fileName;
     if (type !== undefined) {
       note.type = type === 'article' ? 'article_md' : type;
       note.noteType = note.type;
+      note.fileType = note.type === 'pdf' ? 'pdf' : (note.type === 'image' ? 'image' : 'md');
     }
     if (state !== undefined) {
       note.state = state === 'published' ? 'published' : 'draft';
@@ -980,6 +982,19 @@ exports.deleteNote = async (req, res) => {
 
     const note = course.notes.id(noteId);
     if (!note) return res.status(404).json({ success: false, message: 'Resource note not found.' });
+
+    // Clean up local disk resource if stored locally
+    if (note.fileUrl && note.fileUrl.includes('/uploads/resources/')) {
+      try {
+        const filename = path.basename(note.fileUrl);
+        const filePath = path.join(__dirname, '..', 'uploads', 'resources', filename);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      } catch (fErr) {
+        console.warn('Could not remove local resource file:', fErr.message);
+      }
+    }
 
     note.deleteOne();
     recomputeEffectiveVisibility(course);
@@ -1223,7 +1238,7 @@ exports.uploadVideoFromDevice = async (req, res) => {
     let finalUrl = uploadRes?.secure_url;
     let publicId = uploadRes?.public_id;
 
-    if (!finalUrl) {
+    if (!finalUrl || finalUrl.startsWith('data:') || !publicId) {
       const uploadsDir = path.join(__dirname, '..', 'uploads', 'videos');
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
@@ -1234,8 +1249,8 @@ exports.uploadVideoFromDevice = async (req, res) => {
       const filePath = path.join(uploadsDir, filename);
       await fs.promises.writeFile(filePath, req.file.buffer);
 
-      const host = req.get('host') || 'localhost:5000';
-      const protocol = req.protocol || 'http';
+      const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost:5000';
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
       finalUrl = `${protocol}://${host}/uploads/videos/${filename}`;
       publicId = `local_vid_${Date.now()}`;
     }
@@ -1275,7 +1290,8 @@ exports.uploadResourceFromDevice = async (req, res) => {
     let finalUrl = uploadRes?.secure_url;
     let publicId = uploadRes?.public_id;
 
-    if (!finalUrl) {
+    // If Cloudinary failed, lacks permissions, or fell back to Data URL, persist locally
+    if (!finalUrl || finalUrl.startsWith('data:') || !publicId) {
       const uploadsDir = path.join(__dirname, '..', 'uploads', 'resources');
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
@@ -1286,8 +1302,8 @@ exports.uploadResourceFromDevice = async (req, res) => {
       const filePath = path.join(uploadsDir, filename);
       await fs.promises.writeFile(filePath, req.file.buffer);
 
-      const host = req.get('host') || 'localhost:5000';
-      const protocol = req.protocol || 'http';
+      const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost:5000';
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
       finalUrl = `${protocol}://${host}/uploads/resources/${filename}`;
       publicId = `local_res_${Date.now()}`;
     }

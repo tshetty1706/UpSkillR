@@ -41,7 +41,7 @@ const resourceUpload = multer({
   fileFilter: (req, file, cb) => {
     const allowedExts = [
       '.pdf', '.ppt', '.pptx', '.doc', '.docx', '.xls', '.xlsx', '.zip',
-      '.jpg', '.jpeg', '.png', '.webp'
+      '.jpg', '.jpeg', '.png', '.webp', '.gif'
     ];
     const ext = path.extname(file.originalname).toLowerCase();
     if (allowedExts.includes(ext)) {
