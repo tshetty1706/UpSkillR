@@ -28,6 +28,10 @@ router.get('/logout', authController.logout);
 router.post('/send-otp', authController.sendOtp);
 router.post('/verify-otp', authController.verifyOtp);
 
+// Password Reset (Option B: 6-Digit Email OTP) Routes
+router.post('/forgot-password', authController.forgotPassword);
+router.post('/reset-password', authController.resetPassword);
+
 // Google OAuth Routes
 router.get('/google', authController.googleOAuthRedirect);
 router.get('/google/callback', authController.googleOAuthCallback);

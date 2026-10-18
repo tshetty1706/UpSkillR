@@ -155,6 +155,26 @@ const learnerSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  resetPasswordOtp: {
+    type: String,
+    default: null
+  },
+  resetPasswordExpires: {
+    type: Date,
+    default: null
+  },
+  resetPasswordAttempts: {
+    type: Number,
+    default: 0
+  },
+  resetPasswordCooldown: {
+    type: Date,
+    default: null
+  },
+  passwordChangedAt: {
+    type: Date,
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now

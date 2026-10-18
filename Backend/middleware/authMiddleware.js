@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { Instructor } = require('../model/User');
+const { Instructor, Learner } = require('../model/User');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'upskillr_jwt_secret_key_2026_super_secure';
 
@@ -10,9 +10,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'upskillr_jwt_secret_key_2026_super
  * - Missing token -> 401
  * - Invalid, expired, or malformed token -> 401
  * - Establishes normalized req.user
+ * - Checks passwordChangedAt to invalidate tokens issued before password reset
  * - Never trusts client-supplied user identity
  */
-const protect = (req, res, next) => {
+const protect = async (req, res, next) => {
   let token;
 
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
@@ -45,6 +46,22 @@ const protect = (req, res, next) => {
       });
     }
 
+    // Verify token has not been revoked by a subsequent password reset
+    let user = await Learner.findById(decoded.id).select('passwordChangedAt');
+    if (!user) {
+      user = await Instructor.findById(decoded.id).select('passwordChangedAt');
+    }
+
+    if (user && user.passwordChangedAt && decoded.iat) {
+      const changedTimestamp = parseInt(user.passwordChangedAt.getTime() / 1000, 10);
+      if (decoded.iat < changedTimestamp) {
+        return res.status(401).json({
+          success: false,
+          message: 'Your password was recently changed. Please log in again.'
+        });
+      }
+    }
+
     // Establish normalized authenticated user
     req.token = token;
     req.user = {
@@ -54,7 +71,8 @@ const protect = (req, res, next) => {
       role: decoded.role,
       fullName: decoded.fullName,
       isVerified: decoded.isVerified,
-      applicationStatus: decoded.applicationStatus
+      applicationStatus: decoded.applicationStatus,
+      iat: decoded.iat
     };
 
     next();

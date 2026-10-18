@@ -324,7 +324,14 @@ export default function Login() {
                   />
                   <span>Remember me</span>
                 </label>
-                <a href="/forgot-password" className="forgot-link" onClick={(e) => e.preventDefault()}>
+                <a
+                  href="/forgot-password"
+                  className="forgot-link"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate('/forgot-password');
+                  }}
+                >
                   Forgot password?
                 </a>
               </div>
