@@ -27,9 +27,74 @@ const courseCache = {
   invalidateCourse(courseId) {
     this.published = null;
     this.publishedExpiry = 0;
-    if (courseId) this.overviews.delete(String(courseId));
   }
 };
+exports.courseCache = courseCache;
+
+// Helper to sanitize and map published course content (modules, lessons, items, notes) for learner/public retrieval
+const sanitizeCourseForLearner = (course) => {
+  if (!course) return null;
+  const courseObj = course.toObject ? course.toObject() : { ...course };
+
+  // 1. Gather all published notes from course.notes, and any mod/lesson notes
+  const rawCourseNotes = Array.isArray(courseObj.notes) ? courseObj.notes : [];
+  const publishedCourseNotes = rawCourseNotes.filter(
+    n => (n.state === 'published' || n.status === 'published')
+  );
+
+  // 2. Filter modules to only published modules
+  const rawModules = Array.isArray(courseObj.modules) ? courseObj.modules : [];
+  const publishedModules = rawModules
+    .filter(m => (m.state === 'published' || m.status === 'published'))
+    .map(mod => {
+      const modObj = { ...mod };
+
+      // Map published module-level notes
+      const modDirectNotes = (modObj.notes || []).filter(n => n.state === 'published' || n.status === 'published');
+      const modAttachedNotes = publishedCourseNotes.filter(
+        n => (n.scope === 'module' || n.attachableType === 'module') &&
+             String(n.moduleId || n.attachableId) === String(modObj._id)
+      );
+      const modNotesMap = new Map();
+      [...modDirectNotes, ...modAttachedNotes].forEach(n => modNotesMap.set(String(n._id || n.title), n));
+      modObj.notes = Array.from(modNotesMap.values());
+
+      // Filter lessons to only published lessons
+      const rawLessons = Array.isArray(modObj.lessons) ? modObj.lessons : [];
+      modObj.lessons = rawLessons
+        .filter(l => (l.state === 'published' || l.status === 'published'))
+        .map(les => {
+          const lesObj = { ...les };
+
+          // Filter items to only published items (videos, quizzes, etc.)
+          const rawItems = Array.isArray(lesObj.items) ? lesObj.items : (Array.isArray(lesObj.contentItems) ? lesObj.contentItems : []);
+          lesObj.items = rawItems.filter(i => (i.state === 'published' || i.status === 'published'));
+          lesObj.contentItems = lesObj.items;
+
+          // Map published lesson-level notes (articles, pdfs, images)
+          const lesDirectNotes = (lesObj.notes || []).filter(n => n.state === 'published' || n.status === 'published');
+          const lesAttachedNotes = publishedCourseNotes.filter(
+            n => (n.scope === 'lesson' || n.attachableType === 'lesson') &&
+                 String(n.lessonId || n.attachableId) === String(lesObj._id)
+          );
+          const lesNotesMap = new Map();
+          [...lesDirectNotes, ...lesAttachedNotes].forEach(n => lesNotesMap.set(String(n._id || n.title), n));
+          lesObj.notes = Array.from(lesNotesMap.values());
+
+          return lesObj;
+        });
+
+      return modObj;
+    });
+
+  courseObj.modules = publishedModules;
+  courseObj.moduleCount = publishedModules.length;
+  courseObj.modulesCount = publishedModules.length;
+  courseObj.notes = publishedCourseNotes;
+
+  return courseObj;
+};
+exports.sanitizeCourseForLearner = sanitizeCourseForLearner;
 
 // 2. Get All Courses owned by Instructor + Stats
 exports.getInstructorCourses = async (req, res) => {
@@ -125,14 +190,8 @@ exports.getPublicCourseById = async (req, res) => {
     }
 
     const enrolCount = await Enrolment.countDocuments({ courseId: course._id });
-    const courseObj = course.toObject();
+    const courseObj = sanitizeCourseForLearner(course);
     courseObj.learnersCount = enrolCount;
-
-    // Filter modules to ONLY published modules for public/learner
-    const publishedModules = (courseObj.modules || []).filter(m => m.state === 'published' || m.status === 'published');
-    courseObj.modules = publishedModules;
-    courseObj.moduleCount = publishedModules.length;
-    courseObj.modulesCount = publishedModules.length;
 
     return res.status(200).json({ success: true, course: courseObj });
   } catch (error) {
@@ -1343,22 +1402,16 @@ exports.getCourseProgress = async (req, res) => {
 exports.getLearnerEnrolments = async (req, res) => {
   try {
     const enrolments = await Enrolment.find({ learnerId: req.user.id })
-      .populate('courseId', 'title category skillLevel language thumbnail price modules status state')
+      .populate('courseId', 'title category skillLevel language thumbnail price modules status state notes')
       .lean();
     const sanitisedEnrolments = enrolments.map(enrolment => {
       const eObj = enrolment;
       if (eObj.courseId) {
-        let publishedModules = (eObj.courseId.modules || []).filter(m => m.state === 'published' || m.status === 'published');
-        if (publishedModules.length === 0 && eObj.courseId.modules && eObj.courseId.modules.length > 0) {
-          publishedModules = eObj.courseId.modules;
-        }
-        eObj.courseId.modules = publishedModules;
-        eObj.courseId.moduleCount = publishedModules.length;
-        eObj.courseId.modulesCount = publishedModules.length;
+        eObj.courseId = sanitizeCourseForLearner(eObj.courseId);
 
         const totalItems = (eObj.courseId.lessons && eObj.courseId.lessons.length > 0)
           ? eObj.courseId.lessons.length
-          : publishedModules.length;
+          : (eObj.courseId.modules || []).length;
 
         if (totalItems > 0) {
           const validCompleted = new Set();
@@ -1822,11 +1875,7 @@ exports.getPublicCourseOverview = async (req, res) => {
       } catch (e) {}
     });
 
-    const courseObj = { ...course };
-    const publishedModules = (courseObj.modules || []).filter(m => m.state === 'published' || m.status === 'published');
-    courseObj.modules = publishedModules;
-    courseObj.moduleCount = publishedModules.length;
-    courseObj.modulesCount = publishedModules.length;
+    const courseObj = sanitizeCourseForLearner(course);
 
     const responsePayload = {
       success: true,

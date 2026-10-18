@@ -19,11 +19,16 @@ import {
   Layers,
   Video,
   PlayCircle,
-  CheckCircle2
+  CheckCircle2,
+  FileText,
+  Image as ImageIcon,
+  Play
 } from 'lucide-react';
 import { CourseThumbnail } from '../../../../common/CourseThumbnail';
 import { Avatar } from '../../../../common/Avatar/Avatar';
 import { QuizPlayerModal } from '../../../../learner/quiz/QuizPlayerModal';
+import { CourseVideoModal } from './CourseVideoModal';
+import { CourseResourceModal } from './CourseResourceModal';
 import './CourseOverviewTemplate.css';
 
 const LinkedinIcon = ({ size = 16 }) => (
@@ -59,6 +64,8 @@ export const CourseOverviewTemplate = ({
   const [activeFaq, setActiveFaq] = useState(null);
   const [expandedModules, setExpandedModules] = useState({});
   const [activeQuizModal, setActiveQuizModal] = useState(null);
+  const [activeVideoModal, setActiveVideoModal] = useState(null);
+  const [activeResourceModal, setActiveResourceModal] = useState(null);
   const [passedQuizzes, setPassedQuizzes] = useState(() => {
     try {
       const stored = sessionStorage.getItem(`upskillr_passed_quizzes_${course?._id}`);
@@ -78,6 +85,131 @@ export const CourseOverviewTemplate = ({
       } catch {}
       return updated;
     });
+  };
+
+  // Helper to extract lesson-level resources (notes, PDFs, articles, images)
+  const getLessonResources = (lesson, module) => {
+    const list = [];
+    const seenIds = new Set();
+
+    // 1. Check lesson.notes
+    if (Array.isArray(lesson?.notes)) {
+      lesson.notes.forEach(note => {
+        if (note && !seenIds.has(String(note._id || note.title))) {
+          seenIds.add(String(note._id || note.title));
+          list.push(note);
+        }
+      });
+    }
+
+    // 2. Check course.notes scoped to this lesson
+    if (Array.isArray(course?.notes)) {
+      course.notes.forEach(note => {
+        if (
+          note &&
+          note.scope === 'lesson' &&
+          (String(note.lessonId) === String(lesson?._id) || String(note.lessonId) === String(lesson?.id)) &&
+          !seenIds.has(String(note._id || note.title))
+        ) {
+          seenIds.add(String(note._id || note.title));
+          list.push(note);
+        }
+      });
+    }
+
+    // 3. Check lesson items that are articles, pdfs, images
+    const items = lesson?.items || lesson?.contentItems || [];
+    items.forEach(item => {
+      const type = (item?.type || '').toLowerCase();
+      if (['article', 'article_md', 'pdf', 'image', 'resource'].includes(type) && !seenIds.has(String(item._id || item.title))) {
+        seenIds.add(String(item._id || item.title));
+        list.push({
+          ...item,
+          fileType: type === 'article_md' ? 'article' : type,
+          content: item.content || item.markdownContent,
+          fileUrl: item.fileUrl || item.mediaUrl || item.url
+        });
+      }
+    });
+
+    return list;
+  };
+
+  // Helper to extract module-level resources
+  const getModuleResources = (module) => {
+    const list = [];
+    const seenIds = new Set();
+
+    if (Array.isArray(module?.notes)) {
+      module.notes.forEach(note => {
+        if (note && !note.lessonId && !seenIds.has(String(note._id || note.title))) {
+          seenIds.add(String(note._id || note.title));
+          list.push(note);
+        }
+      });
+    }
+
+    if (Array.isArray(course?.notes)) {
+      course.notes.forEach(note => {
+        if (
+          note &&
+          note.scope === 'module' &&
+          (String(note.moduleId) === String(module?._id) || String(note.moduleId) === String(module?.id)) &&
+          !note.lessonId &&
+          !seenIds.has(String(note._id || note.title))
+        ) {
+          seenIds.add(String(note._id || note.title));
+          list.push(note);
+        }
+      });
+    }
+
+    return list;
+  };
+
+  // Helper to extract course-level resources
+  const getCourseResources = () => {
+    const list = [];
+    const seenIds = new Set();
+
+    if (Array.isArray(course?.notes)) {
+      course.notes.forEach(note => {
+        if (
+          note &&
+          (note.scope === 'course' || (!note.moduleId && !note.lessonId)) &&
+          !seenIds.has(String(note._id || note.title))
+        ) {
+          seenIds.add(String(note._id || note.title));
+          list.push(note);
+        }
+      });
+    }
+
+    return list;
+  };
+
+  const getResourceIcon = (res) => {
+    const type = (res?.fileType || res?.type || '').toLowerCase();
+    if (type.includes('pdf')) return <FileText size={14} className="resource-icon pdf-color" />;
+    if (type.includes('image') || type.includes('img') || type.includes('png') || type.includes('jpg')) return <ImageIcon size={14} className="resource-icon image-color" />;
+    if (type.includes('article') || type.includes('md') || type.includes('text')) return <BookOpen size={14} className="resource-icon article-color" />;
+    return <FileText size={14} className="resource-icon" />;
+  };
+
+  const getResourceBadgeLabel = (res) => {
+    const type = (res?.fileType || res?.type || '').toLowerCase();
+    if (type.includes('pdf')) return 'PDF Document';
+    if (type.includes('image') || type.includes('img')) return 'Image Guide';
+    if (type.includes('article') || type.includes('md')) return 'Article / Notes';
+    return 'Resource';
+  };
+
+  const getResourceActionLabel = (res) => {
+    const type = (res?.fileType || res?.type || '').toLowerCase();
+    if (type.includes('pdf')) return 'Read PDF';
+    if (type.includes('image') || type.includes('img')) return 'View Image';
+    if (type.includes('article') || type.includes('md')) return 'Read Article';
+    return 'View Resource';
   };
 
   const handleQuestionSubmit = async (e) => {
@@ -419,119 +551,292 @@ export const CourseOverviewTemplate = ({
                         </div>
                       </button>
                       {isModOpen && (
-                        <div className="curriculum-lessons-list">
-                          {!mod.lessons || mod.lessons.length === 0 ? (
-                            <div className="curriculum-empty-lesson">No lessons published in this module yet.</div>
-                          ) : (
-                            mod.lessons.map((les, lIdx) => {
-                              const items = les.items || les.contentItems || [];
-                              const hasQuiz = items.some(i => (i.type || '').toLowerCase() === 'quiz');
-                              const quizItem = items.find(i => (i.type || '').toLowerCase() === 'quiz');
-
-                              return (
-                                <div key={les._id || lIdx} className="curriculum-lesson-container">
-                                  <div
-                                    className="curriculum-lesson-row"
-                                    onClick={() => {
-                                      if (quizItem) {
-                                        const isPassed = passedQuizzes.has(String(quizItem._id || quizItem.title || mIdx));
-                                        setActiveQuizModal({
-                                          item: quizItem,
-                                          module: mod,
-                                          lesson: les,
-                                          moduleIndex: mIdx,
-                                          lessonIndex: lIdx,
-                                          isAlreadyPassed: isPassed
-                                        });
-                                      }
-                                    }}
-                                    style={quizItem ? { cursor: 'pointer' } : {}}
-                                  >
-                                    <div className="lesson-left">
-                                      <PlayCircle size={15} className="lesson-play-icon" />
-                                      <span className="lesson-row-title">{les.title}</span>
-                                      {hasQuiz && (
-                                        <span className="lesson-has-quiz-tag">
-                                          <HelpCircle size={12} />
-                                          <span>1 Quiz</span>
-                                        </span>
-                                      )}
+                        <>
+                          {/* Module-level Resources Banner */}
+                          {(() => {
+                            const modResources = getModuleResources(mod);
+                            if (modResources.length === 0) return null;
+                            return (
+                              <div className="module-resources-banner">
+                                <div className="module-resources-header">
+                                  <span className="module-resources-title">
+                                    <BookOpen size={14} /> Module Resources ({modResources.length})
+                                  </span>
+                                </div>
+                                <div className="module-resources-list">
+                                  {modResources.map((res, mrIdx) => (
+                                    <div key={res._id || mrIdx} className="module-resource-card">
+                                      <div className="module-resource-info">
+                                        {getResourceIcon(res)}
+                                        <span className="module-resource-name">{res.title}</span>
+                                        <span className="module-resource-badge">{getResourceBadgeLabel(res)}</span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        className="btn-view-resource-action"
+                                        onClick={() => setActiveResourceModal({ resource: res, module: mod })}
+                                      >
+                                        <Eye size={13} />
+                                        <span>{getResourceActionLabel(res)}</span>
+                                      </button>
                                     </div>
-                                    <div className="lesson-right-meta">
-                                      {les.duration && <span className="lesson-row-duration">{les.duration}</span>}
-                                    </div>
-                                  </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
 
-                                  {/* Exposed Content Items (e.g. Quizzes and Videos) */}
-                                  {items.length > 0 && (
-                                    <div className="curriculum-items-sublist">
-                                      {items.map((item, iIdx) => {
-                                        const isQuiz = (item.type || '').toLowerCase() === 'quiz';
-                                        return (
+                          <div className="curriculum-lessons-list">
+                            {!mod.lessons || mod.lessons.length === 0 ? (
+                              <div className="curriculum-empty-lesson">No lessons published in this module yet.</div>
+                            ) : (
+                              mod.lessons.map((les, lIdx) => {
+                                const items = les.items || les.contentItems || [];
+                                const hasQuiz = items.some(i => (i.type || '').toLowerCase() === 'quiz');
+                                const quizItem = items.find(i => (i.type || '').toLowerCase() === 'quiz');
+                                const videoItems = items.filter(i => (i.type || '').toLowerCase() === 'video' || (!i.type && (i.video || i.muxPlaybackId)));
+                                const lessonResources = getLessonResources(les, mod);
+                                const hasVideo = videoItems.length > 0;
+                                const hasResources = lessonResources.length > 0;
+
+                                return (
+                                  <div key={les._id || lIdx} className="curriculum-lesson-container">
+                                    <div
+                                      className="curriculum-lesson-row"
+                                      onClick={() => {
+                                        if (quizItem) {
+                                          const isPassed = passedQuizzes.has(String(quizItem._id || quizItem.title || mIdx));
+                                          setActiveQuizModal({
+                                            item: quizItem,
+                                            module: mod,
+                                            lesson: les,
+                                            moduleIndex: mIdx,
+                                            lessonIndex: lIdx,
+                                            isAlreadyPassed: isPassed
+                                          });
+                                        } else if (hasVideo) {
+                                          setActiveVideoModal({
+                                            item: videoItems[0],
+                                            module: mod,
+                                            lesson: les,
+                                            moduleIndex: mIdx,
+                                            lessonIndex: lIdx
+                                          });
+                                        } else if (hasResources) {
+                                          setActiveResourceModal({
+                                            resource: lessonResources[0],
+                                            module: mod,
+                                            lesson: les
+                                          });
+                                        }
+                                      }}
+                                      style={(quizItem || hasVideo || hasResources) ? { cursor: 'pointer' } : {}}
+                                    >
+                                      <div className="lesson-left">
+                                        <PlayCircle size={15} className="lesson-play-icon" />
+                                        <span className="lesson-row-title">{les.title}</span>
+                                        {hasQuiz && (
+                                          <span className="lesson-has-quiz-tag">
+                                            <HelpCircle size={12} />
+                                            <span>1 Quiz</span>
+                                          </span>
+                                        )}
+                                        {hasVideo && (
+                                          <span className="lesson-has-video-tag">
+                                            <Video size={12} />
+                                            <span>{videoItems.length} Video{videoItems.length > 1 ? 's' : ''}</span>
+                                          </span>
+                                        )}
+                                        {hasResources && (
+                                          <span className="lesson-has-resources-tag">
+                                            <FileText size={12} />
+                                            <span>{lessonResources.length} Resource{lessonResources.length > 1 ? 's' : ''}</span>
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="lesson-right-meta">
+                                        {les.duration && <span className="lesson-row-duration">{les.duration}</span>}
+                                      </div>
+                                    </div>
+
+                                    {/* Exposed Content Items (Quizzes, Videos, Articles, PDFs, Images) */}
+                                    {(items.length > 0 || lessonResources.length > 0) && (
+                                      <div className="curriculum-items-sublist">
+                                        {items.map((item, iIdx) => {
+                                          const isQuiz = (item.type || '').toLowerCase() === 'quiz';
+                                          const isVideo = (item.type || '').toLowerCase() === 'video' || (!item.type && (item.video || item.muxPlaybackId));
+                                          return (
+                                            <div
+                                              key={item._id || iIdx}
+                                              className={`curriculum-item-subrow ${isQuiz ? 'quiz-item-row' : isVideo ? 'video-item-row' : 'resource-item-row'}`}
+                                            >
+                                              <div className="item-subrow-left">
+                                                {isQuiz ? (
+                                                  <HelpCircle size={15} className="item-sub-icon quiz-color" />
+                                                ) : isVideo ? (
+                                                  <Video size={15} className="item-sub-icon video-color" />
+                                                ) : null}
+                                                <span className="item-sub-title">{item.title || (isQuiz ? 'Quiz' : isVideo ? 'Video Lecture' : 'Learning Material')}</span>
+                                                <span className="item-sub-badge">
+                                                  {isQuiz
+                                                    ? `Quiz • ${item.quiz?.questions?.length || 1} Question${(item.quiz?.questions?.length || 1) === 1 ? '' : 's'}`
+                                                    : isVideo
+                                                    ? 'Video Lecture'
+                                                    : 'Resource'}
+                                                </span>
+                                              </div>
+
+                                              {isQuiz && (
+                                                <button
+                                                  type="button"
+                                                  className={`btn-take-quiz-action ${passedQuizzes.has(String(item._id || item.title || mIdx)) ? 'passed-quiz-badge' : ''}`}
+                                                  style={passedQuizzes.has(String(item._id || item.title || mIdx)) ? { borderColor: 'rgba(16, 185, 129, 0.4)', background: 'rgba(16, 185, 129, 0.08)' } : {}}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const isItemPassed = passedQuizzes.has(String(item._id || item.title || mIdx));
+                                                    setActiveQuizModal({
+                                                      item,
+                                                      module: mod,
+                                                      lesson: les,
+                                                      moduleIndex: mIdx,
+                                                      lessonIndex: lIdx,
+                                                      isAlreadyPassed: isItemPassed
+                                                    });
+                                                  }}
+                                                >
+                                                  {passedQuizzes.has(String(item._id || item.title || mIdx)) ? (
+                                                    <>
+                                                      <CheckCircle2 size={13} style={{ color: '#10b981' }} />
+                                                      <span style={{ color: '#10b981', fontWeight: 600 }}>Passed ✓</span>
+                                                    </>
+                                                  ) : (
+                                                    <>
+                                                      <Award size={13} />
+                                                      <span>{isEnrolled ? 'Open Quiz' : 'Preview Quiz'}</span>
+                                                    </>
+                                                  )}
+                                                </button>
+                                              )}
+
+                                              {isVideo && (
+                                                <button
+                                                  type="button"
+                                                  className="btn-watch-video-action"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setActiveVideoModal({
+                                                      item,
+                                                      module: mod,
+                                                      lesson: les,
+                                                      moduleIndex: mIdx,
+                                                      lessonIndex: lIdx
+                                                    });
+                                                  }}
+                                                >
+                                                  <Play size={13} />
+                                                  <span>{isEnrolled ? 'Watch Video' : 'Preview Video'}</span>
+                                                </button>
+                                              )}
+
+                                              {!isQuiz && !isVideo && (
+                                                <button
+                                                  type="button"
+                                                  className="btn-view-resource-action"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setActiveResourceModal({
+                                                      resource: item,
+                                                      module: mod,
+                                                      lesson: les
+                                                    });
+                                                  }}
+                                                >
+                                                  <Eye size={13} />
+                                                  <span>{getResourceActionLabel(item)}</span>
+                                                </button>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+
+                                        {/* Render Lesson Resources (PDF, Article, Image Notes) */}
+                                        {lessonResources.map((res, rIdx) => (
                                           <div
-                                            key={item._id || iIdx}
-                                            className={`curriculum-item-subrow ${isQuiz ? 'quiz-item-row' : 'video-item-row'}`}
+                                            key={res._id || `res_${rIdx}`}
+                                            className={`curriculum-item-subrow resource-item-row resource-${(res.fileType || res.type || 'resource').toLowerCase()}`}
                                           >
                                             <div className="item-subrow-left">
-                                              {isQuiz ? (
-                                                <HelpCircle size={15} className="item-sub-icon quiz-color" />
-                                              ) : (
-                                                <Video size={15} className="item-sub-icon video-color" />
-                                              )}
-                                              <span className="item-sub-title">{item.title || (isQuiz ? 'Quiz' : 'Video Lecture')}</span>
+                                              {getResourceIcon(res)}
+                                              <span className="item-sub-title">{res.title || 'Learning Resource'}</span>
                                               <span className="item-sub-badge">
-                                                {isQuiz
-                                                  ? `Quiz • ${item.quiz?.questions?.length || 1} Question${(item.quiz?.questions?.length || 1) === 1 ? '' : 's'}`
-                                                  : 'Video Lecture'}
+                                                {getResourceBadgeLabel(res)}
                                               </span>
                                             </div>
-
-                                            {isQuiz && (
-                                              <button
-                                                type="button"
-                                                className={`btn-take-quiz-action ${passedQuizzes.has(String(item._id || item.title || mIdx)) ? 'passed-quiz-badge' : ''}`}
-                                                style={passedQuizzes.has(String(item._id || item.title || mIdx)) ? { borderColor: 'rgba(16, 185, 129, 0.4)', background: 'rgba(16, 185, 129, 0.08)' } : {}}
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  const isItemPassed = passedQuizzes.has(String(item._id || item.title || mIdx));
-                                                  setActiveQuizModal({
-                                                    item,
-                                                    module: mod,
-                                                    lesson: les,
-                                                    moduleIndex: mIdx,
-                                                    lessonIndex: lIdx,
-                                                    isAlreadyPassed: isItemPassed
-                                                  });
-                                                }}
-                                              >
-                                                {passedQuizzes.has(String(item._id || item.title || mIdx)) ? (
-                                                  <>
-                                                    <CheckCircle2 size={13} style={{ color: '#10b981' }} />
-                                                    <span style={{ color: '#10b981', fontWeight: 600 }}>Passed ✓</span>
-                                                  </>
-                                                ) : (
-                                                  <>
-                                                    <Award size={13} />
-                                                    <span>{isEnrolled ? 'Open Quiz' : 'Preview Quiz'}</span>
-                                                  </>
-                                                )}
-                                              </button>
-                                            )}
+                                            <button
+                                              type="button"
+                                              className="btn-view-resource-action"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setActiveResourceModal({
+                                                  resource: res,
+                                                  module: mod,
+                                                  lesson: les
+                                                });
+                                              }}
+                                            >
+                                              <Eye size={13} />
+                                              <span>{getResourceActionLabel(res)}</span>
+                                            </button>
                                           </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </>
                       )}
                     </div>
                   );
                 })}
               </div>
+
+              {/* Course-level Resources Section */}
+              {(() => {
+                const courseResources = getCourseResources();
+                if (courseResources.length === 0) return null;
+                return (
+                  <div className="course-resources-section">
+                    <h3 className="course-resources-heading">
+                      <BookOpen size={16} /> Course Learning Materials & Resources ({courseResources.length})
+                    </h3>
+                    <div className="course-resources-grid">
+                      {courseResources.map((res, crIdx) => (
+                        <div key={res._id || crIdx} className="course-resource-card">
+                          <div className="course-resource-header">
+                            {getResourceIcon(res)}
+                            <div>
+                              <h4 className="course-resource-title">{res.title}</h4>
+                              <span className="course-resource-badge">{getResourceBadgeLabel(res)}</span>
+                            </div>
+                          </div>
+                          {res.description && <p className="course-resource-desc">{res.description}</p>}
+                          <button
+                            type="button"
+                            className="btn-view-resource-action full-width"
+                            onClick={() => setActiveResourceModal({ resource: res })}
+                          >
+                            <Eye size={13} />
+                            <span>{getResourceActionLabel(res)}</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </section>
           )}
 
@@ -766,6 +1071,26 @@ export const CourseOverviewTemplate = ({
           isAlreadyPassed={activeQuizModal.isAlreadyPassed}
           onClose={() => setActiveQuizModal(null)}
           onQuizPassed={handleQuizPassed}
+        />
+      )}
+
+      {/* Video Modal */}
+      {activeVideoModal && (
+        <CourseVideoModal
+          videoItem={activeVideoModal.item}
+          moduleTitle={activeVideoModal.module?.title}
+          lessonTitle={activeVideoModal.lesson?.title}
+          onClose={() => setActiveVideoModal(null)}
+        />
+      )}
+
+      {/* Resource Modal (PDF, Article, Image) */}
+      {activeResourceModal && (
+        <CourseResourceModal
+          resource={activeResourceModal.resource}
+          moduleTitle={activeResourceModal.module?.title}
+          lessonTitle={activeResourceModal.lesson?.title}
+          onClose={() => setActiveResourceModal(null)}
         />
       )}
     </div>
