@@ -1,7 +1,7 @@
 /* ==========================================================================
    UpSkillr Course Overview Redesign Styles
-   Visual Hierarchy Inspired by Reference Image
-   Clean, Modern, Responsive & Brand-Cohesive (Light & Dark Mode)
+   Tab-Based Switching, Clean Borderless Illustration & Full-Width Cards
+   Cohesive Light & Dark Mode Theming
    ========================================================================== */
 
 .course-overview-redesign-root {
@@ -14,7 +14,7 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   1. HERO SECTION
+   1. HERO SECTION (THEME-AWARE: LIGHT & DARK)
    ───────────────────────────────────────────────────────────────────────── */
 .overview-hero-section {
   width: 100%;
@@ -24,6 +24,7 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   position: relative;
   overflow: hidden;
+  transition: var(--theme-transition);
 }
 
 [data-theme="dark"] .overview-hero-section {
@@ -238,10 +239,20 @@
   min-height: 48px;
 }
 
+[data-theme="dark"] .btn-hero-enroll {
+  background-color: var(--brand-primary, #39d95f);
+  color: #07120a;
+  box-shadow: 0 4px 16px rgba(57, 217, 95, 0.3);
+}
+
 .btn-hero-enroll:hover:not(:disabled) {
   background-color: var(--brand-primary-hover, #0d5728);
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(17, 104, 48, 0.45);
+}
+
+[data-theme="dark"] .btn-hero-enroll:hover:not(:disabled) {
+  background-color: var(--brand-primary-hover, #50e76f);
 }
 
 .btn-hero-enroll:disabled {
@@ -269,7 +280,6 @@
 }
 
 .btn-hero-enrolled:hover {
-  background: rgba(57, 217, 95, 0.25);
   transform: translateY(-2px);
 }
 
@@ -300,7 +310,9 @@
   border: 1px solid rgba(234, 179, 8, 0.3);
 }
 
-/* Hero Right Column: Illustration */
+/* ─────────────────────────────────────────────────────────────────────────
+   HERO RIGHT: CLEAN BORDERLESS ILLUSTRATION (NO CONTAINER BOX)
+   ───────────────────────────────────────────────────────────────────────── */
 .overview-hero-right {
   display: flex;
   align-items: center;
@@ -311,12 +323,12 @@
 .overview-hero-illustration-wrapper {
   width: 100%;
   max-width: 440px;
-  border-radius: var(--radius-lg, 16px);
-  padding: 1.5rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -325,7 +337,7 @@
 .overview-hero-svg {
   width: 100%;
   height: auto;
-  max-height: 280px;
+  max-height: 320px;
   object-fit: contain;
   display: block;
 }
@@ -340,6 +352,7 @@
   background-color: var(--surface, #ffffff);
   border-bottom: 1px solid var(--border, #c6d3cb);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: var(--theme-transition);
 }
 
 .overview-tabs-container {
@@ -427,6 +440,11 @@
   font-family: inherit;
 }
 
+[data-theme="dark"] .btn-tab-quick-enroll {
+  background-color: var(--brand-primary, #39d95f);
+  color: #07120a;
+}
+
 .btn-tab-quick-enroll:hover:not(:disabled) {
   background-color: var(--brand-primary-hover, #0d5728);
   transform: translateY(-1px);
@@ -447,7 +465,7 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   3. MAIN CONTENT LAYOUT
+   3. TAB PANES & MAIN CONTENT LAYOUT
    ───────────────────────────────────────────────────────────────────────── */
 .overview-main-wrapper {
   max-width: var(--max-width, 1440px);
@@ -462,20 +480,42 @@
   gap: 2.5rem;
 }
 
-.overview-content-section-group {
+/* Animated Tab Panes */
+.overview-tab-pane,
+.curriculum-tab-pane,
+.reviews-tab-pane,
+.qa-tab-pane {
   display: flex;
   flex-direction: column;
   gap: 2rem;
+  width: 100%;
+  animation: tabFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes tabFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Base Card Block */
 .overview-card-block {
+  width: 100%;
   background-color: var(--surface, #ffffff);
   border: 1px solid var(--border, #c6d3cb);
   border-radius: var(--radius-lg, 16px);
   padding: 2rem;
   box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.04));
   transition: var(--theme-transition);
+}
+
+.overview-card-block.full-width {
+  width: 100%;
 }
 
 .block-header {
@@ -687,12 +727,18 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   TWO-COLUMN GRIDS: Prerequisites & Target Audience / Benefits & Message
+   TWO-COLUMN & FULL-WIDTH GRID MANAGERS FOR COMPANION SECTIONS
    ───────────────────────────────────────────────────────────────────────── */
 .overview-two-col-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 2rem;
+  width: 100%;
+}
+
+.overview-two-col-grid > *:only-child {
+  grid-column: 1 / -1;
+  width: 100%;
 }
 
 /* Bullet list with checks */
@@ -703,6 +749,13 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+/* Responsive multi-column layout for full-width prerequisite / audience cards */
+.check-bullet-list.multi-col-bullets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem 2rem;
 }
 
 .check-bullet-item {
@@ -727,14 +780,27 @@
   gap: 1rem;
 }
 
+.benefits-grid.full-width-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+}
+
 .benefit-card-mini {
   display: flex;
   align-items: flex-start;
   gap: 0.85rem;
-  padding: 0.85rem;
+  padding: 1rem;
   border-radius: var(--radius-md, 12px);
   background-color: var(--surface-muted, #ebf0ec);
   border: 1px solid var(--border-subtle, #e2eae5);
+  transition: all 0.2s ease;
+}
+
+.benefit-card-mini:hover {
+  border-color: var(--brand-primary, #116830);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
 }
 
 .benefit-icon {
@@ -763,7 +829,6 @@
   flex-direction: column;
   justify-content: space-between;
   gap: 1.5rem;
-  height: calc(100% - 3.5rem);
   padding: 1.5rem;
   border-radius: var(--radius-md, 12px);
   background: var(--brand-green-tint, rgba(17, 104, 48, 0.05));
@@ -865,7 +930,7 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   SECTION B: CURRICULUM & SYLLABUS (Structure Only, No Content Leaks)
+   TAB 2: CURRICULUM & SYLLABUS (Structure Only, No Content Leaks)
    ───────────────────────────────────────────────────────────────────────── */
 .curriculum-header-flex {
   justify-content: space-between;
@@ -935,6 +1000,11 @@
   border-radius: var(--radius-pill, 9999px);
   background-color: var(--brand-primary, #116830);
   color: #ffffff;
+}
+
+[data-theme="dark"] .module-number-pill {
+  background-color: var(--brand-primary, #39d95f);
+  color: #07120a;
 }
 
 .module-title-heading {
@@ -1020,7 +1090,7 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   SECTION C: REVIEWS & RATINGS
+   TAB 3: REVIEWS & RATINGS
    ───────────────────────────────────────────────────────────────────────── */
 .empty-reviews-state {
   display: flex;
@@ -1129,7 +1199,7 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   SECTION D: Q&A / COURSE DOUBTS
+   TAB 4: Q&A / COURSE DOUBTS
    ───────────────────────────────────────────────────────────────────────── */
 .qa-inquiry-form {
   display: flex;
@@ -1189,6 +1259,11 @@
   cursor: pointer;
   transition: all 0.2s ease;
   font-family: inherit;
+}
+
+[data-theme="dark"] .btn-submit-qa {
+  background-color: var(--brand-primary, #39d95f);
+  color: #07120a;
 }
 
 .btn-submit-qa:hover:not(:disabled) {
@@ -1357,6 +1432,11 @@
   min-height: 48px;
 }
 
+[data-theme="dark"] .btn-bottom-enroll {
+  background-color: var(--brand-primary, #39d95f);
+  color: #07120a;
+}
+
 .btn-bottom-enroll:hover:not(:disabled) {
   background-color: var(--brand-primary-hover, #0d5728);
   transform: translateY(-2px);
@@ -1371,8 +1451,21 @@
    ───────────────────────────────────────────────────────────────────────── */
 @media (max-width: 1023px) {
   .overview-hero-container {
-    grid-template-columns: 1fr 340px;
-    gap: 2rem;
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+
+  .overview-hero-right {
+    order: 2;
+  }
+
+  .overview-hero-illustration-wrapper {
+    max-width: 380px;
+    margin: 0 auto;
+  }
+
+  .overview-hero-svg {
+    max-height: 260px;
   }
 
   .overview-hero-section {
@@ -1400,13 +1493,12 @@
   }
 
   .overview-hero-illustration-wrapper {
-    max-width: 320px;
+    max-width: 300px;
     margin: 0 auto;
-    padding: 1rem;
   }
 
   .overview-hero-svg {
-    max-height: 200px;
+    max-height: 220px;
   }
 
   .overview-hero-title {
@@ -1438,7 +1530,7 @@
   }
 
   .overview-tabs-action {
-    display: none; /* Hide quick enroll on small screens to save space */
+    display: none;
   }
 
   .overview-card-block {
@@ -1446,6 +1538,14 @@
   }
 
   .outcomes-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .benefits-grid.full-width-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .check-bullet-list.multi-col-bullets {
     grid-template-columns: 1fr;
   }
 

@@ -22,7 +22,9 @@ import {
   Quote
 } from 'lucide-react';
 import { Avatar } from '../../../../common/Avatar/Avatar';
+import { useTheme } from '../../../../../context/ThemeContext';
 import courseOverviewIllustration from '../../../../../assets/illustrations/courseOverview.svg';
+import courseOverviewDarkIllustration from '../../../../../assets/illustrations/courseOverview_dark.svg';
 import './CourseOverviewTemplate.css';
 
 /**
@@ -59,17 +61,25 @@ export const CourseOverviewTemplate = ({
   const [expandedModules, setExpandedModules] = useState({});
   const [isDescExpanded, setIsDescExpanded] = useState(false);
 
-  // Section references for in-page navigation
-  const overviewRef = useRef(null);
-  const curriculumRef = useRef(null);
-  const reviewsRef = useRef(null);
-  const qaRef = useRef(null);
+  // Safe theme detection (supports ThemeProvider and data-theme fallback)
+  let isDarkMode = false;
+  try {
+    const themeCtx = useTheme();
+    isDarkMode = Boolean(themeCtx?.isDarkMode || themeCtx?.theme === 'dark');
+  } catch (e) {
+    isDarkMode = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark';
+  }
 
-  const scrollToSection = (ref, tabName) => {
-    setActiveTab(tabName);
-    if (ref?.current) {
-      const topOffset = ref.current.getBoundingClientRect().top + window.pageYOffset - 130;
-      window.scrollTo({ top: topOffset, behavior: 'smooth' });
+  const tabsBarRef = useRef(null);
+
+  // Tab switching without jumping/directing the screen down
+  const handleTabClick = (tabKey) => {
+    setActiveTab(tabKey);
+    if (tabsBarRef.current) {
+      const rect = tabsBarRef.current.getBoundingClientRect();
+      if (rect.top < 65) {
+        tabsBarRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
   };
 
@@ -140,6 +150,15 @@ export const CourseOverviewTemplate = ({
   const instructorName = instructor?.name || instructor?.fullName || course?.instructorName || 'UpSkillr Instructor';
   const instructorHeadline = instructor?.headline || instructor?.designation || 'Instructor';
   const instructorAvatar = instructor?.profilePhoto || instructor?.avatar;
+
+  // Width management for companion sections:
+  const hasPrerequisites = prerequisites.length > 0;
+  const hasTargetAudience = targetAudience.length > 0;
+  const isPrereqAudienceTwoCol = hasPrerequisites && hasTargetAudience;
+
+  const hasBenefits = benefits.length > 0 || hasCertificate;
+  const hasInstructorMessage = Boolean(overview?.instructorMessage && overview.instructorMessage.trim());
+  const isBenefitsMsgTwoCol = hasBenefits && hasInstructorMessage;
 
   const renderDescription = (text) => {
     if (!text || !text.trim()) {
@@ -315,11 +334,11 @@ export const CourseOverviewTemplate = ({
             </div>
           </div>
 
-          {/* Right Column: Existing SVG Illustration (No Thumbnail, No Right Pricing Card) */}
+          {/* Right Column: Clean Illustration without any enclosing box container */}
           <div className="overview-hero-right">
             <div className="overview-hero-illustration-wrapper">
               <img
-                src={courseOverviewIllustration}
+                src={isDarkMode ? courseOverviewDarkIllustration : courseOverviewIllustration}
                 alt="Course Overview Graphic"
                 className="overview-hero-svg"
                 loading="eager"
@@ -330,13 +349,13 @@ export const CourseOverviewTemplate = ({
       </section>
 
       {/* ───────────────── 2. SECTION TABS BAR ───────────────── */}
-      <nav className="overview-section-tabs-bar" aria-label="Course section navigation">
+      <nav ref={tabsBarRef} className="overview-section-tabs-bar" aria-label="Course section navigation">
         <div className="overview-tabs-container">
           <div className="overview-tabs-list">
             <button
               type="button"
               className={`overview-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
-              onClick={() => scrollToSection(overviewRef, 'overview')}
+              onClick={() => handleTabClick('overview')}
             >
               <BookOpen size={16} />
               <span>Overview</span>
@@ -344,7 +363,7 @@ export const CourseOverviewTemplate = ({
             <button
               type="button"
               className={`overview-tab-btn ${activeTab === 'curriculum' ? 'active' : ''}`}
-              onClick={() => scrollToSection(curriculumRef, 'curriculum')}
+              onClick={() => handleTabClick('curriculum')}
             >
               <Layers size={16} />
               <span>Curriculum</span>
@@ -353,7 +372,7 @@ export const CourseOverviewTemplate = ({
             <button
               type="button"
               className={`overview-tab-btn ${activeTab === 'reviews' ? 'active' : ''}`}
-              onClick={() => scrollToSection(reviewsRef, 'reviews')}
+              onClick={() => handleTabClick('reviews')}
             >
               <Star size={16} />
               <span>Reviews</span>
@@ -362,7 +381,7 @@ export const CourseOverviewTemplate = ({
             <button
               type="button"
               className={`overview-tab-btn ${activeTab === 'qa' ? 'active' : ''}`}
-              onClick={() => scrollToSection(qaRef, 'qa')}
+              onClick={() => handleTabClick('qa')}
             >
               <MessageCircle size={16} />
               <span>Q&A</span>
@@ -395,81 +414,80 @@ export const CourseOverviewTemplate = ({
         </div>
       </nav>
 
-      {/* ───────────────── 3. MAIN CONTENT CONTAINER ───────────────── */}
+      {/* ───────────────── 3. TAB-SWITCHED MAIN CONTENT ───────────────── */}
       <div className="overview-main-wrapper">
         <div className="overview-content-layout">
-          {/* ───────────────── SECTION A: OVERVIEW ───────────────── */}
-          <div ref={overviewRef} id="overview-content" className="overview-content-section-group">
-            {/* A. About This Course */}
-            <section className="overview-card-block about-course-block">
-              <div className="block-header">
-                <BookOpen size={20} className="block-header-icon" />
-                <h2 className="block-title">About This Course</h2>
-              </div>
-              <div className="about-course-body">
-                {renderDescription(fullDescriptionText)}
-              </div>
-            </section>
-
-            {/* B. What You'll Learn */}
-            {learningOutcomes.length > 0 && (
-              <section className="overview-card-block outcomes-block">
+          {/* ───────────────── TAB 1: OVERVIEW ───────────────── */}
+          {activeTab === 'overview' && (
+            <div className="overview-tab-pane">
+              {/* A. About This Course */}
+              <section className="overview-card-block about-course-block">
                 <div className="block-header">
-                  <Target size={20} className="block-header-icon accent-green" />
-                  <h2 className="block-title">What You'll Learn</h2>
+                  <BookOpen size={20} className="block-header-icon" />
+                  <h2 className="block-title">About This Course</h2>
                 </div>
-                <div className="outcomes-grid">
-                  {learningOutcomes.map((outcome, idx) => (
-                    <div key={idx} className="outcome-item-card">
-                      <div className="outcome-check-wrap">
-                        <Check size={16} strokeWidth={2.5} />
+                <div className="about-course-body">
+                  {renderDescription(fullDescriptionText)}
+                </div>
+              </section>
+
+              {/* B. What You'll Learn */}
+              {learningOutcomes.length > 0 && (
+                <section className="overview-card-block outcomes-block">
+                  <div className="block-header">
+                    <Target size={20} className="block-header-icon accent-green" />
+                    <h2 className="block-title">What You'll Learn</h2>
+                  </div>
+                  <div className="outcomes-grid">
+                    {learningOutcomes.map((outcome, idx) => (
+                      <div key={idx} className="outcome-item-card">
+                        <div className="outcome-check-wrap">
+                          <Check size={16} strokeWidth={2.5} />
+                        </div>
+                        <span className="outcome-text">{outcome}</span>
                       </div>
-                      <span className="outcome-text">{outcome}</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
+                    ))}
+                  </div>
+                </section>
+              )}
 
-            {/* C. Skills You'll Gain */}
-            {skills.length > 0 && (
-              <section className="overview-card-block skills-block">
-                <div className="block-header">
-                  <Sparkles size={20} className="block-header-icon" />
-                  <h2 className="block-title">Skills You'll Gain</h2>
-                </div>
-                <div className="skills-chips-cloud">
-                  {skills.map((skill, idx) => (
-                    <span key={idx} className="skill-chip-tag">
-                      {skill}
-                    </span>
-                  ))}
-                </div>
-              </section>
-            )}
+              {/* C. Skills You'll Gain */}
+              {skills.length > 0 && (
+                <section className="overview-card-block skills-block">
+                  <div className="block-header">
+                    <Sparkles size={20} className="block-header-icon" />
+                    <h2 className="block-title">Skills You'll Gain</h2>
+                  </div>
+                  <div className="skills-chips-cloud">
+                    {skills.map((skill, idx) => (
+                      <span key={idx} className="skill-chip-tag">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </section>
+              )}
 
-            {/* D. Technologies & Tools (Text-Only Labels per Rule) */}
-            {techStack.length > 0 && (
-              <section className="overview-card-block techstack-block">
-                <div className="block-header">
-                  <Layers size={20} className="block-header-icon" />
-                  <h2 className="block-title">Technologies & Tools</h2>
-                </div>
-                <div className="techstack-chips-cloud">
-                  {techStack.map((tool, idx) => (
-                    <span key={idx} className="techstack-text-badge">
-                      {tool}
-                    </span>
-                  ))}
-                </div>
-              </section>
-            )}
+              {/* D. Technologies & Tools (Text-Only Labels per Rule) */}
+              {techStack.length > 0 && (
+                <section className="overview-card-block techstack-block">
+                  <div className="block-header">
+                    <Layers size={20} className="block-header-icon" />
+                    <h2 className="block-title">Technologies & Tools</h2>
+                  </div>
+                  <div className="techstack-chips-cloud">
+                    {techStack.map((tool, idx) => (
+                      <span key={idx} className="techstack-text-badge">
+                        {tool}
+                      </span>
+                    ))}
+                  </div>
+                </section>
+              )}
 
-            {/* E & F. Prerequisites and Who This Course Is For (Side-by-Side 2-Column Grid) */}
-            {(prerequisites.length > 0 || targetAudience.length > 0) && (
-              <div className="overview-two-col-grid">
-                {/* Prerequisites */}
-                {prerequisites.length > 0 && (
+              {/* E & F. Prerequisites and Who This Course Is For (Proper Full-Width or Two-Col) */}
+              {isPrereqAudienceTwoCol ? (
+                <div className="overview-two-col-grid">
                   <section className="overview-card-block prereq-block">
                     <div className="block-header">
                       <CheckCircle2 size={20} className="block-header-icon" />
@@ -484,10 +502,7 @@ export const CourseOverviewTemplate = ({
                       ))}
                     </ul>
                   </section>
-                )}
 
-                {/* Who This Course Is For */}
-                {targetAudience.length > 0 && (
                   <section className="overview-card-block audience-block">
                     <div className="block-header">
                       <Users size={20} className="block-header-icon" />
@@ -502,15 +517,42 @@ export const CourseOverviewTemplate = ({
                       ))}
                     </ul>
                   </section>
-                )}
-              </div>
-            )}
+                </div>
+              ) : hasPrerequisites ? (
+                <section className="overview-card-block prereq-block full-width">
+                  <div className="block-header">
+                    <CheckCircle2 size={20} className="block-header-icon" />
+                    <h2 className="block-title">Prerequisites</h2>
+                  </div>
+                  <ul className="check-bullet-list multi-col-bullets">
+                    {prerequisites.map((p, idx) => (
+                      <li key={idx} className="check-bullet-item">
+                        <Check size={14} className="check-bullet-icon" strokeWidth={2.5} />
+                        <span>{p}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : hasTargetAudience ? (
+                <section className="overview-card-block audience-block full-width">
+                  <div className="block-header">
+                    <Users size={20} className="block-header-icon" />
+                    <h2 className="block-title">Who This Course Is For</h2>
+                  </div>
+                  <ul className="check-bullet-list multi-col-bullets">
+                    {targetAudience.map((aud, idx) => (
+                      <li key={idx} className="check-bullet-item">
+                        <Check size={14} className="check-bullet-icon" strokeWidth={2.5} />
+                        <span>{aud}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
 
-            {/* G & H. Key Benefits & Instructor's Message (Side-by-Side 2-Column Grid) */}
-            {(benefits.length > 0 || hasCertificate || overview?.instructorMessage) && (
-              <div className="overview-two-col-grid">
-                {/* Key Benefits */}
-                {(benefits.length > 0 || hasCertificate) && (
+              {/* G & H. Key Benefits & Instructor's Message (Proper Full-Width or Two-Col) */}
+              {isBenefitsMsgTwoCol ? (
+                <div className="overview-two-col-grid">
                   <section className="overview-card-block benefits-block">
                     <div className="block-header">
                       <ShieldCheck size={20} className="block-header-icon accent-green" />
@@ -543,10 +585,7 @@ export const CourseOverviewTemplate = ({
                       ))}
                     </div>
                   </section>
-                )}
 
-                {/* Instructor's Message inside Overview (Not a separate Instructor tab) */}
-                {overview?.instructorMessage && (
                   <section className="overview-card-block instructor-message-block">
                     <div className="block-header">
                       <Quote size={20} className="block-header-icon accent-green" />
@@ -569,292 +608,354 @@ export const CourseOverviewTemplate = ({
                       </div>
                     </div>
                   </section>
-                )}
-              </div>
-            )}
-
-            {/* I. Frequently Asked Questions */}
-            {faqs.length > 0 && (
-              <section className="overview-card-block faqs-block">
-                <div className="block-header">
-                  <HelpCircle size={20} className="block-header-icon" />
-                  <h2 className="block-title">Frequently Asked Questions</h2>
                 </div>
-                <div className="faq-accordion-container">
-                  {faqs.map((faq, idx) => {
-                    const isOpen = activeFaq === idx;
-                    return (
-                      <div key={idx} className={`faq-accordion-item ${isOpen ? 'open' : ''}`}>
-                        <button
-                          type="button"
-                          className="faq-question-trigger"
-                          onClick={() => setActiveFaq(isOpen ? null : idx)}
-                          aria-expanded={isOpen}
-                        >
-                          <span className="faq-question-label">{faq.question}</span>
-                          {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                        </button>
-                        {isOpen && (
-                          <div className="faq-answer-panel">
-                            <p>{faq.answer}</p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-          </div>
-
-          {/* ───────────────── SECTION B: CURRICULUM (STRUCTURE ONLY) ───────────────── */}
-          <div ref={curriculumRef} id="curriculum-content" className="overview-content-section-group">
-            <section className="overview-card-block curriculum-block">
-              <div className="block-header curriculum-header-flex">
-                <div className="header-left">
-                  <Layers size={20} className="block-header-icon accent-green" />
-                  <div>
-                    <h2 className="block-title">Course Curriculum & Syllabus</h2>
-                    <p className="block-subtitle">
-                      {modules.length} {modules.length === 1 ? 'Module' : 'Modules'} • {totalLessonsCount} Lessons
-                    </p>
+              ) : hasBenefits ? (
+                <section className="overview-card-block benefits-block full-width">
+                  <div className="block-header">
+                    <ShieldCheck size={20} className="block-header-icon accent-green" />
+                    <h2 className="block-title">Key Benefits</h2>
                   </div>
-                </div>
-              </div>
-
-              {modules.length === 0 ? (
-                <div className="empty-curriculum-notice">
-                  <Layers size={28} className="empty-icon" />
-                  <p>Curriculum is being finalized by the instructor. Check back soon!</p>
-                </div>
-              ) : (
-                <div className="curriculum-modules-accordion">
-                  {modules.map((mod, mIdx) => {
-                    const modKey = mod._id || `mod_${mIdx}`;
-                    const isModOpen = expandedModules[modKey] !== false; // open by default
-                    const lessons = Array.isArray(mod.lessons) ? mod.lessons : [];
-
-                    return (
-                      <div key={modKey} className={`curriculum-module-item ${isModOpen ? 'open' : ''}`}>
-                        <button
-                          type="button"
-                          className="curriculum-module-bar"
-                          onClick={() =>
-                            setExpandedModules((prev) => ({
-                              ...prev,
-                              [modKey]: !isModOpen
-                            }))
-                          }
-                          aria-expanded={isModOpen}
-                        >
-                          <div className="module-bar-left">
-                            <span className="module-number-pill">Module {mIdx + 1}</span>
-                            <span className="module-title-heading">{mod.title}</span>
-                          </div>
-                          <div className="module-bar-right">
-                            <span className="module-lessons-count-text">
-                              {lessons.length} {lessons.length === 1 ? 'Lesson' : 'Lessons'}
-                            </span>
-                            {isModOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                          </div>
-                        </button>
-
-                        {/* STRICT RESTRICTION: Structure ONLY. Real lesson titles & durations. NO private content, quiz, video, or note preview */}
-                        {isModOpen && (
-                          <div className="curriculum-lessons-tree">
-                            {lessons.length === 0 ? (
-                              <div className="curriculum-no-lessons">No lessons listed in this module.</div>
-                            ) : (
-                              lessons.map((les, lIdx) => (
-                                <div key={les._id || lIdx} className="curriculum-lesson-leaf">
-                                  <div className="lesson-leaf-left">
-                                    <PlayCircle size={15} className="lesson-play-glyph" />
-                                    <span className="lesson-leaf-title">{les.title}</span>
-                                  </div>
-                                  {les.duration && (
-                                    <div className="lesson-leaf-right">
-                                      <Clock size={13} className="lesson-clock-icon" />
-                                      <span className="lesson-leaf-duration">{les.duration}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          </div>
-
-          {/* ───────────────── SECTION C: REVIEWS ───────────────── */}
-          <div ref={reviewsRef} id="reviews-content" className="overview-content-section-group">
-            <section className="overview-card-block reviews-block">
-              <div className="block-header">
-                <Star size={20} className="block-header-icon" />
-                <div>
-                  <h2 className="block-title">Learner Ratings & Feedback</h2>
-                  {stats?.reviewCount > 0 && (
-                    <p className="block-subtitle">
-                      Based on real feedback from verified enrolled students
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {safeReviews.length === 0 ? (
-                <div className="empty-reviews-state">
-                  <Star size={32} className="empty-reviews-star" />
-                  <h3>No reviews yet</h3>
-                  <p>This course is recently published. Verified student ratings and feedback will appear here as learners progress.</p>
-                </div>
-              ) : (
-                <div className="reviews-cards-grid">
-                  {safeReviews.map((rev, idx) => (
-                    <div key={idx} className="review-item-card">
-                      <div className="review-item-header">
-                        <Avatar
-                          image={rev.learnerAvatar}
-                          name={rev.learnerName}
-                          size="small"
-                        />
-                        <div className="review-author-meta">
-                          <span className="review-author-name">{rev.learnerName || 'Learner'}</span>
-                          <span className="review-date-text">
-                            {rev.ratedAt ? new Date(rev.ratedAt).toLocaleDateString() : ''}
-                          </span>
-                        </div>
-                        <div className="review-stars-wrap">
-                          {[...Array(5)].map((_, sIdx) => (
-                            <Star
-                              key={sIdx}
-                              size={14}
-                              className={sIdx < rev.rating ? 'star-filled' : 'star-empty'}
-                              fill="currentColor"
-                            />
-                          ))}
+                  <div className="benefits-grid full-width-grid">
+                    {hasCertificate && (
+                      <div className="benefit-card-mini">
+                        <Award size={18} className="benefit-icon" />
+                        <div className="benefit-content">
+                          <h4>Certificate of Completion</h4>
+                          <p>Earn an industry-recognized certificate upon completing all lessons.</p>
                         </div>
                       </div>
-
-                      <p className="review-quote-body">"{rev.feedback}"</p>
-
-                      {Array.isArray(rev.tags) && rev.tags.length > 0 && (
-                        <div className="review-tags-list">
-                          {rev.tags.map((tag, tIdx) => (
-                            <span key={tIdx} className="review-tag-badge">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
-
-          {/* ───────────────── SECTION D: Q&A / COURSE DOUBTS ───────────────── */}
-          <div ref={qaRef} id="qa-content" className="overview-content-section-group">
-            <section className="overview-card-block qa-block">
-              <div className="block-header">
-                <MessageCircle size={20} className="block-header-icon accent-green" />
-                <div>
-                  <h2 className="block-title">Course Doubts & Inquiries</h2>
-                  <p className="block-subtitle">
-                    Have questions before enrolling? Ask the instructor directly.
-                  </p>
-                </div>
-              </div>
-
-              {/* Inquiry Question Submission Form */}
-              {!isPreviewMode && onAskQuestion && (
-                <form className="qa-inquiry-form" onSubmit={handleQuestionSubmit}>
-                  <textarea
-                    rows={3}
-                    className="qa-textarea-input"
-                    placeholder={user ? "Ask a question or doubt about this course..." : "Log in as a learner to ask a doubt..."}
-                    value={questionInput}
-                    onChange={(e) => setQuestionInput(e.target.value)}
-                    disabled={!user || submittingQ}
-                  />
-                  <div className="qa-form-actions-row">
-                    {!user && (
-                      <span className="qa-login-hint">
-                        You must be signed in as a learner to ask a question.
-                      </span>
                     )}
-                    <button
-                      type="submit"
-                      className="btn-submit-qa"
-                      disabled={!user || !questionInput.trim() || submittingQ}
-                    >
-                      <Send size={15} />
-                      <span>{submittingQ ? 'Submitting...' : 'Ask Question'}</span>
-                    </button>
+                    <div className="benefit-card-mini">
+                      <Clock size={18} className="benefit-icon" />
+                      <div className="benefit-content">
+                        <h4>Self-Paced Lifetime Learning</h4>
+                        <p>Learn at your own pace with unlimited lifetime access to all course modules.</p>
+                      </div>
+                    </div>
+                    {benefits.map((benefit, idx) => (
+                      <div key={idx} className="benefit-card-mini">
+                        <Sparkles size={18} className="benefit-icon" />
+                        <div className="benefit-content">
+                          <h4>{benefit}</h4>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </form>
-              )}
+                </section>
+              ) : hasInstructorMessage ? (
+                <section className="overview-card-block instructor-message-block full-width">
+                  <div className="block-header">
+                    <Quote size={20} className="block-header-icon accent-green" />
+                    <h2 className="block-title">Instructor's Message</h2>
+                  </div>
+                  <div className="instructor-quote-card">
+                    <p className="instructor-quote-text">
+                      "{overview.instructorMessage}"
+                    </p>
+                    <div className="instructor-quote-author">
+                      <Avatar
+                        image={instructorAvatar}
+                        name={instructorName}
+                        size="small"
+                      />
+                      <div className="quote-author-info">
+                        <span className="quote-author-name">{instructorName}</span>
+                        <span className="quote-author-headline">{instructorHeadline}</span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
 
-              {/* Answered Questions List */}
-              <div className="qa-inquiries-list">
-                {safeQuestions.length === 0 ? (
-                  <div className="empty-qa-state">
-                    <FileQuestion size={30} className="empty-qa-icon" />
-                    <p>No inquiries asked yet. Be the first to ask a question!</p>
+              {/* I. Frequently Asked Questions */}
+              {faqs.length > 0 && (
+                <section className="overview-card-block faqs-block">
+                  <div className="block-header">
+                    <HelpCircle size={20} className="block-header-icon" />
+                    <h2 className="block-title">Frequently Asked Questions</h2>
                   </div>
-                ) : (
-                  safeQuestions.map((q, idx) => (
-                    <div key={idx} className="qa-inquiry-card">
-                      <div className="qa-inquiry-question-box">
-                        <div className="qa-user-row">
-                          <Avatar
-                            image={q.userAvatar}
-                            name={q.userName}
-                            size="small"
-                          />
-                          <span className="qa-user-title">{q.userName || 'Learner'}</span>
-                          {q.createdAt && (
-                            <span className="qa-timestamp">
-                              • {new Date(q.createdAt).toLocaleDateString()}
-                            </span>
+                  <div className="faq-accordion-container">
+                    {faqs.map((faq, idx) => {
+                      const isOpen = activeFaq === idx;
+                      return (
+                        <div key={idx} className={`faq-accordion-item ${isOpen ? 'open' : ''}`}>
+                          <button
+                            type="button"
+                            className="faq-question-trigger"
+                            onClick={() => setActiveFaq(isOpen ? null : idx)}
+                            aria-expanded={isOpen}
+                          >
+                            <span className="faq-question-label">{faq.question}</span>
+                            {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                          </button>
+                          {isOpen && (
+                            <div className="faq-answer-panel">
+                              <p>{faq.answer}</p>
+                            </div>
                           )}
                         </div>
-                        <p className="qa-question-content">{q.question}</p>
-                      </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+            </div>
+          )}
 
-                      {q.instructorReply && (
-                        <div className="qa-instructor-reply-box">
-                          <div className="qa-reply-header">
+          {/* ───────────────── TAB 2: CURRICULUM (STRUCTURE ONLY) ───────────────── */}
+          {activeTab === 'curriculum' && (
+            <div className="curriculum-tab-pane">
+              <section className="overview-card-block curriculum-block">
+                <div className="block-header curriculum-header-flex">
+                  <div className="header-left">
+                    <Layers size={20} className="block-header-icon accent-green" />
+                    <div>
+                      <h2 className="block-title">Course Curriculum & Syllabus</h2>
+                      <p className="block-subtitle">
+                        {modules.length} {modules.length === 1 ? 'Module' : 'Modules'} • {totalLessonsCount} Lessons
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {modules.length === 0 ? (
+                  <div className="empty-curriculum-notice">
+                    <Layers size={28} className="empty-icon" />
+                    <p>Curriculum is being finalized by the instructor. Check back soon!</p>
+                  </div>
+                ) : (
+                  <div className="curriculum-modules-accordion">
+                    {modules.map((mod, mIdx) => {
+                      const modKey = mod._id || `mod_${mIdx}`;
+                      const isModOpen = Boolean(expandedModules[modKey]); // Kept closed by default, only opens when clicked
+                      const lessons = Array.isArray(mod.lessons) ? mod.lessons : [];
+
+                      return (
+                        <div key={modKey} className={`curriculum-module-item ${isModOpen ? 'open' : ''}`}>
+                          <button
+                            type="button"
+                            className="curriculum-module-bar"
+                            onClick={() =>
+                              setExpandedModules((prev) => ({
+                                ...prev,
+                                [modKey]: !isModOpen
+                              }))
+                            }
+                            aria-expanded={isModOpen}
+                          >
+                            <div className="module-bar-left">
+                              <span className="module-number-pill">Module {mIdx + 1}</span>
+                              <span className="module-title-heading">{mod.title}</span>
+                            </div>
+                            <div className="module-bar-right">
+                              <span className="module-lessons-count-text">
+                                {lessons.length} {lessons.length === 1 ? 'Lesson' : 'Lessons'}
+                              </span>
+                              {isModOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                            </div>
+                          </button>
+
+                          {/* STRICT RESTRICTION: Structure ONLY. Real lesson titles & durations. NO private content, quiz, video, or note preview */}
+                          {isModOpen && (
+                            <div className="curriculum-lessons-tree">
+                              {lessons.length === 0 ? (
+                                <div className="curriculum-no-lessons">No lessons listed in this module.</div>
+                              ) : (
+                                lessons.map((les, lIdx) => (
+                                  <div key={les._id || lIdx} className="curriculum-lesson-leaf">
+                                    <div className="lesson-leaf-left">
+                                      <PlayCircle size={15} className="lesson-play-glyph" />
+                                      <span className="lesson-leaf-title">{les.title}</span>
+                                    </div>
+                                    {les.duration && (
+                                      <div className="lesson-leaf-right">
+                                        <Clock size={13} className="lesson-clock-icon" />
+                                        <span className="lesson-leaf-duration">{les.duration}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          {/* ───────────────── TAB 3: REVIEWS ───────────────── */}
+          {activeTab === 'reviews' && (
+            <div className="reviews-tab-pane">
+              <section className="overview-card-block reviews-block">
+                <div className="block-header">
+                  <Star size={20} className="block-header-icon" />
+                  <div>
+                    <h2 className="block-title">Learner Ratings & Feedback</h2>
+                    {stats?.reviewCount > 0 && (
+                      <p className="block-subtitle">
+                        Based on real feedback from verified enrolled students
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {safeReviews.length === 0 ? (
+                  <div className="empty-reviews-state">
+                    <Star size={32} className="empty-reviews-star" />
+                    <h3>No reviews yet</h3>
+                    <p>This course is recently published. Verified student ratings and feedback will appear here as learners progress.</p>
+                  </div>
+                ) : (
+                  <div className="reviews-cards-grid">
+                    {safeReviews.map((rev, idx) => (
+                      <div key={idx} className="review-item-card">
+                        <div className="review-item-header">
+                          <Avatar
+                            image={rev.learnerAvatar}
+                            name={rev.learnerName}
+                            size="small"
+                          />
+                          <div className="review-author-meta">
+                            <span className="review-author-name">{rev.learnerName || 'Learner'}</span>
+                            <span className="review-date-text">
+                              {rev.ratedAt ? new Date(rev.ratedAt).toLocaleDateString() : ''}
+                            </span>
+                          </div>
+                          <div className="review-stars-wrap">
+                            {[...Array(5)].map((_, sIdx) => (
+                              <Star
+                                key={sIdx}
+                                size={14}
+                                className={sIdx < rev.rating ? 'star-filled' : 'star-empty'}
+                                fill="currentColor"
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        <p className="review-quote-body">"{rev.feedback}"</p>
+
+                        {Array.isArray(rev.tags) && rev.tags.length > 0 && (
+                          <div className="review-tags-list">
+                            {rev.tags.map((tag, tIdx) => (
+                              <span key={tIdx} className="review-tag-badge">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          {/* ───────────────── TAB 4: Q&A / COURSE DOUBTS ───────────────── */}
+          {activeTab === 'qa' && (
+            <div className="qa-tab-pane">
+              <section className="overview-card-block qa-block">
+                <div className="block-header">
+                  <MessageCircle size={20} className="block-header-icon accent-green" />
+                  <div>
+                    <h2 className="block-title">Course Doubts & Inquiries</h2>
+                    <p className="block-subtitle">
+                      Have questions before enrolling? Ask the instructor directly.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Inquiry Question Submission Form */}
+                {!isPreviewMode && onAskQuestion && (
+                  <form className="qa-inquiry-form" onSubmit={handleQuestionSubmit}>
+                    <textarea
+                      rows={3}
+                      className="qa-textarea-input"
+                      placeholder={user ? "Ask a question or doubt about this course..." : "Log in as a learner to ask a doubt..."}
+                      value={questionInput}
+                      onChange={(e) => setQuestionInput(e.target.value)}
+                      disabled={!user || submittingQ}
+                    />
+                    <div className="qa-form-actions-row">
+                      {!user && (
+                        <span className="qa-login-hint">
+                          You must be signed in as a learner to ask a question.
+                        </span>
+                      )}
+                      <button
+                        type="submit"
+                        className="btn-submit-qa"
+                        disabled={!user || !questionInput.trim() || submittingQ}
+                      >
+                        <Send size={15} />
+                        <span>{submittingQ ? 'Submitting...' : 'Ask Question'}</span>
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Answered Questions List */}
+                <div className="qa-inquiries-list">
+                  {safeQuestions.length === 0 ? (
+                    <div className="empty-qa-state">
+                      <FileQuestion size={30} className="empty-qa-icon" />
+                      <p>No inquiries asked yet. Be the first to ask a question!</p>
+                    </div>
+                  ) : (
+                    safeQuestions.map((q, idx) => (
+                      <div key={idx} className="qa-inquiry-card">
+                        <div className="qa-inquiry-question-box">
+                          <div className="qa-user-row">
                             <Avatar
-                              image={instructorAvatar}
-                              name={instructorName}
+                              image={q.userAvatar}
+                              name={q.userName}
                               size="small"
                             />
-                            <div className="reply-meta">
-                              <span className="reply-instructor-name">{instructorName}</span>
-                              <span className="reply-instructor-tag">Instructor Reply</span>
-                            </div>
-                            {q.replyTimestamp && (
-                              <span className="reply-date">
-                                {new Date(q.replyTimestamp).toLocaleDateString()}
+                            <span className="qa-user-title">{q.userName || 'Learner'}</span>
+                            {q.createdAt && (
+                              <span className="qa-timestamp">
+                                • {new Date(q.createdAt).toLocaleDateString()}
                               </span>
                             )}
                           </div>
-                          <p className="qa-reply-text">{q.instructorReply}</p>
+                          <p className="qa-question-content">{q.question}</p>
                         </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-          </div>
 
-          {/* ───────────────── BOTTOM ENROLL CTA BANNER ───────────────── */}
+                        {q.instructorReply && (
+                          <div className="qa-instructor-reply-box">
+                            <div className="qa-reply-header">
+                              <Avatar
+                                image={instructorAvatar}
+                                name={instructorName}
+                                size="small"
+                              />
+                              <div className="reply-meta">
+                                <span className="reply-instructor-name">{instructorName}</span>
+                                <span className="reply-instructor-tag">Instructor Reply</span>
+                              </div>
+                              {q.replyTimestamp && (
+                                <span className="reply-date">
+                                  {new Date(q.replyTimestamp).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                            <p className="qa-reply-text">{q.instructorReply}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* ───────────────── BOTTOM ENROLL CTA BANNER (Visible across tabs) ───────────────── */}
           {!isPreviewMode && !isEnrolled && (
             <div className="overview-bottom-cta-banner">
               <div className="bottom-cta-content">
