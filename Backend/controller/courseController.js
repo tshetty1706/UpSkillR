@@ -96,6 +96,52 @@ const sanitizeCourseForLearner = (course) => {
 };
 exports.sanitizeCourseForLearner = sanitizeCourseForLearner;
 
+/**
+ * Sanitizes course structure strictly for public/prospective learners on Course Overview.
+ * Returns only published module and lesson structural hierarchy (titles, durations, descriptions, order).
+ * Strictly removes all private learning materials: quiz items, video URLs/mux IDs, PDF/article notes,
+ * and assessment questions.
+ */
+const sanitizeCourseForPublicOverview = (course) => {
+  if (!course) return null;
+  const courseObj = course.toObject ? course.toObject() : { ...course };
+
+  const rawModules = Array.isArray(courseObj.modules) ? courseObj.modules : [];
+  const publishedModules = rawModules
+    .filter((m) => m.state === 'published' || m.status === 'published')
+    .map((mod) => {
+      const rawLessons = Array.isArray(mod.lessons) ? mod.lessons : [];
+      const publishedLessons = rawLessons
+        .filter((l) => l.state === 'published' || l.status === 'published')
+        .map((les) => ({
+          _id: les._id,
+          title: les.title,
+          description: les.description || '',
+          duration: les.duration || '',
+          order: les.order || 1
+        }));
+
+      return {
+        _id: mod._id,
+        title: mod.title,
+        description: mod.description || '',
+        order: mod.order || 1,
+        lessons: publishedLessons
+      };
+    });
+
+  courseObj.modules = publishedModules;
+  courseObj.moduleCount = publishedModules.length;
+  courseObj.modulesCount = publishedModules.length;
+
+  // Strict security: ensure no raw notes, items, or assessments leak in public overview
+  delete courseObj.notes;
+  delete courseObj.courseAssessments;
+
+  return courseObj;
+};
+exports.sanitizeCourseForPublicOverview = sanitizeCourseForPublicOverview;
+
 // 2. Get All Courses owned by Instructor + Stats
 exports.getInstructorCourses = async (req, res) => {
   try {
@@ -1276,7 +1322,7 @@ exports.getPublishedCourses = async (req, res) => {
 
     // 1. Fetch courses using .lean() with field projection for fast JSON serialization
     const courses = await Course.find(filter)
-      .select('title category skillLevel language price shortDescription thumbnail instructorId instructorName rating reviewCount overviewViews modules.title modules.state modules.status createdAt')
+      .select('title category skillLevel language price description shortDescription fullDescription certificate thumbnail instructorId instructorName rating reviewCount overviewViews courseAssessments modules createdAt updatedAt')
       .populate('instructorId', 'fullName avatar')
       .sort({ createdAt: -1 })
       .lean();
@@ -1297,11 +1343,77 @@ exports.getPublishedCourses = async (req, res) => {
         c.instructorName = c.instructorId.fullName || c.instructorName;
       }
 
-      // Filter modules to ONLY published modules for public/learner exploration
+      // Ensure normalized description
+      c.description = c.description || c.shortDescription || c.fullDescription || '';
+
+      // Explicit certificate boolean
+      c.certificate = c.certificate !== false;
+
+      // Published modules count
       const publishedModules = (c.modules || []).filter(m => m.state === 'published' || m.status === 'published');
       c.modules = publishedModules;
       c.moduleCount = publishedModules.length;
       c.modulesCount = publishedModules.length;
+
+      // Assessment count
+      c.assessmentCount = (c.courseAssessments || []).length;
+
+      // Total completion time calculation from lessons, videos, and assessments
+      let totalDurationSeconds = 0;
+      let hasDuration = false;
+
+      for (const mod of publishedModules) {
+        for (const les of (mod.lessons || [])) {
+          if (les.duration) {
+            if (typeof les.duration === 'number' && les.duration > 0) {
+              totalDurationSeconds += les.duration;
+              hasDuration = true;
+            } else if (typeof les.duration === 'string') {
+              const mMatch = les.duration.match(/(\d+)\s*m/i);
+              const sMatch = les.duration.match(/(\d+)\s*s/i);
+              const hMatch = les.duration.match(/(\d+)\s*h/i);
+              if (mMatch || sMatch || hMatch) {
+                hasDuration = true;
+                if (hMatch) totalDurationSeconds += parseInt(hMatch[1], 10) * 3600;
+                if (mMatch) totalDurationSeconds += parseInt(mMatch[1], 10) * 60;
+                if (sMatch) totalDurationSeconds += parseInt(sMatch[1], 10);
+              }
+            }
+          }
+          for (const item of (les.items || [])) {
+            const vidDur = item.video?.duration || item.duration || 0;
+            if (vidDur > 0) {
+              totalDurationSeconds += Math.round(vidDur);
+              hasDuration = true;
+            }
+          }
+        }
+      }
+
+      for (const ca of (c.courseAssessments || [])) {
+        if (ca.durationMinutes && ca.durationMinutes > 0 && ca.durationMinutes < 1000) {
+          totalDurationSeconds += ca.durationMinutes * 60;
+          hasDuration = true;
+        }
+      }
+
+      if (hasDuration && totalDurationSeconds > 0) {
+        const hours = Math.floor(totalDurationSeconds / 3600);
+        const minutes = Math.floor((totalDurationSeconds % 3600) / 60);
+        if (hours > 0 && minutes > 0) {
+          c.formattedDuration = `Up to ${hours}h ${minutes}m`;
+        } else if (hours > 0) {
+          c.formattedDuration = `Up to ${hours}h`;
+        } else if (minutes > 0) {
+          c.formattedDuration = `Up to ${minutes}m`;
+        } else {
+          c.formattedDuration = `Up to 1m`;
+        }
+      } else {
+        c.formattedDuration = 'Duration unavailable';
+      }
+
+      delete c.courseAssessments;
 
       return c;
     });
@@ -1798,7 +1910,7 @@ exports.getPublicCourseOverview = async (req, res) => {
     const [overviewDoc, instructorUser, enrolments, questions] = await Promise.all([
       CourseOverview.findOne({ courseId: id }).lean(),
       course.instructorId ? Instructor.findById(course.instructorId).select('fullName avatar profilePhoto bio headline email').lean() : null,
-      Enrolment.find({ courseId: id }, { rating: 1, feedback: 1, feedbackTags: 1, ratedAt: 1, learnerName: 1 }).lean(),
+      Enrolment.find({ courseId: id }, { rating: 1, feedback: 1, feedbackTags: 1, ratedAt: 1, learnerName: 1, learnerId: 1 }).populate('learnerId', 'avatar').lean(),
       CourseQuestion.find({ courseId: id, status: 'answered' })
         .sort({ replyTimestamp: -1 })
         .select('userName userAvatar question status instructorReply replyTimestamp createdAt')
@@ -1853,7 +1965,8 @@ exports.getPublicCourseOverview = async (req, res) => {
         feedback: e.feedback,
         tags: e.feedbackTags || [],
         ratedAt: e.ratedAt,
-        learnerName: e.learnerName || 'Learner'
+        learnerName: e.learnerName || 'Learner',
+        learnerAvatar: e.learnerId?.avatar || ''
       }));
 
     // Non-blocking view tracking in background
@@ -1875,7 +1988,7 @@ exports.getPublicCourseOverview = async (req, res) => {
       } catch (e) {}
     });
 
-    const courseObj = sanitizeCourseForLearner(course);
+    const courseObj = sanitizeCourseForPublicOverview(course);
 
     const responsePayload = {
       success: true,

@@ -4,12 +4,13 @@
   z-index: 1000;
   background-color: rgba(255, 255, 255, 0.85);
   border-bottom: 1px solid var(--border-subtle);
-  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: var(--theme-transition);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
 
-.dark .navbar-header {
+.dark .navbar-header,
+[data-theme="dark"] .navbar-header {
   background-color: rgba(9, 15, 19, 0.85);
   border-bottom: 1px solid var(--border-subtle);
 }

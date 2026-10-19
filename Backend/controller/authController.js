@@ -1253,21 +1253,21 @@ exports.getInstructors = async (req, res) => {
     // Fetch all published courses
     const courses = await Course.find({ status: 'published' });
     
-    // Aggregate enrolments by courseId in a single query
+    // Aggregate unique learner IDs per courseId in a single query
     const enrolmentsGrouped = await Enrolment.aggregate([
       {
         $group: {
           _id: '$courseId',
-          count: { $sum: 1 }
+          learners: { $addToSet: '$learnerId' }
         }
       }
     ]);
     
-    // Map courseId to enrollment counts for O(1) lookups
-    const enrolmentsMap = {};
+    // Map courseId to distinct learner IDs array
+    const enrolmentsLearnersMap = {};
     enrolmentsGrouped.forEach((item) => {
       if (item._id) {
-        enrolmentsMap[item._id.toString()] = item.count;
+        enrolmentsLearnersMap[item._id.toString()] = item.learners || [];
       }
     });
     
@@ -1277,19 +1277,23 @@ exports.getInstructors = async (req, res) => {
         (c) => c.instructorId && c.instructorId.toString() === inst._id.toString()
       );
       
-      let learnersCount = 0;
+      const uniqueLearnerIds = new Set();
       let totalRatingsSum = 0;
       let ratedCoursesCount = 0;
       let ratingsCount = 0;
       
       instCourses.forEach((c) => {
-        learnersCount += (enrolmentsMap[c._id.toString()] || 0);
+        const learners = enrolmentsLearnersMap[c._id.toString()] || [];
+        learners.forEach((lid) => {
+          if (lid) uniqueLearnerIds.add(lid.toString());
+        });
         if (c.rating !== null && c.rating !== undefined) {
           totalRatingsSum += c.rating;
           ratedCoursesCount += 1;
         }
         ratingsCount += (c.reviewCount || 0);
       });
+      const learnersCount = uniqueLearnerIds.size;
       
       const averageRating = ratedCoursesCount > 0
         ? Math.round((totalRatingsSum / ratedCoursesCount) * 10) / 10
@@ -1355,15 +1359,8 @@ exports.getPublicInstructorById = async (req, res) => {
     });
 
     const courseIds = instCourses.map((c) => c._id);
-    const enrolmentsGrouped = await Enrolment.aggregate([
-      { $match: { courseId: { $in: courseIds } } },
-      { $group: { _id: '$courseId', count: { $sum: 1 } } }
-    ]);
-
-    let totalLearners = 0;
-    enrolmentsGrouped.forEach((e) => {
-      totalLearners += e.count;
-    });
+    const distinctLearners = await Enrolment.distinct('learnerId', { courseId: { $in: courseIds } });
+    const totalLearners = distinctLearners.length;
 
     let totalRatingsSum = 0;
     let ratedCoursesCount = 0;

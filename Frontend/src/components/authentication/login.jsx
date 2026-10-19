@@ -141,7 +141,13 @@ export default function Login() {
             navigate('/instructor/application');
           }
         } else {
-          navigate('/learner');
+          const redirectPath = sessionStorage.getItem('upskillr_redirect_after_login');
+          if (redirectPath) {
+            sessionStorage.removeItem('upskillr_redirect_after_login');
+            navigate(redirectPath);
+          } else {
+            navigate('/learner');
+          }
         }
       }, 800);
     } catch (err) {

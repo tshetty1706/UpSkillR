@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  BookOpen, Search, Users, Star, Sparkles, ArrowRight, Bookmark,
-  Layers, CheckCircle2, Award, GraduationCap, Code2, SlidersHorizontal,
+  BookOpen, Search, Users, Star, Bookmark,
+  Layers, CheckCircle2, Award, GraduationCap, Code2,
   ExternalLink, ArrowLeft, User, MessageSquare
 } from 'lucide-react';
 import './InstructorExploreCourses.css';
 import { Avatar } from '../../common/Avatar/Avatar';
 import { CourseThumbnail } from '../../common/CourseThumbnail';
+import { CourseCard } from '../../common/CourseCard/CourseCard';
 import { API_BASE } from '../../../config/api';
 import { useToast } from '../../../context/ToastContext';
 
@@ -398,121 +399,22 @@ export const InstructorExploreCourses = ({ instructorId, user }) => {
             )
           ) : (
             <div className="instructor-courses-grid">
-              {sortedCourses.map((course) => {
-                const isBookmarked = !!bookmarksMap[course._id];
-                const publishedModCount = course.modules
-                  ? course.modules.filter((m) => m.state === 'published' || m.status === 'published').length
-                  : (course.moduleCount ?? course.modulesCount ?? 0);
-
-                return (
-                  <div
-                    key={course._id}
-                    className="explore-course-card"
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`View details for ${course.title}`}
-                    onClick={() => handleNavigateToCourse(course._id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        handleNavigateToCourse(course._id);
-                      }
-                    }}
-                  >
-                    <div className="course-card-thumb-wrap">
-                      <CourseThumbnail src={course.thumbnail} alt={course.title} className="course-card-thumb" />
-                      <button
-                        type="button"
-                        className={`course-bookmark-btn ${isBookmarked ? 'bookmarked' : ''}`}
-                        aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark course'}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setBookmarksMap((prev) => ({ ...prev, [course._id]: !prev[course._id] }));
-                        }}
-                      >
-                        <Bookmark size={15} fill={isBookmarked ? 'currentColor' : 'none'} />
-                      </button>
-                    </div>
-
-                    <div className="course-card-body">
-                      <span className="course-category">{course.category}</span>
-                      <h3 className="course-card-title" title={course.title}>
-                        {course.title}
-                      </h3>
-                      <p className="course-card-description" title={course.description}>
-                        {course.description || course.shortDescription}
-                      </p>
-
-                      {/* Skills Badges */}
-                      <div className="course-card-skills">
-                        {course.skills && course.skills.length > 0 ? (
-                          course.skills.map((skill, index) => (
-                            <span key={index} className="course-skill-badge">
-                              {skill}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="course-skill-badge">{course.category}</span>
-                        )}
-                      </div>
-
-                      {/* Instructor & Rating */}
-                      <div className="course-instructor-rating-row">
-                        <div className="course-instructor-info">
-                          <Avatar image={instructor.avatar} name={instructor.fullName} size="small" />
-                          <span className="course-instructor-name">{instructor.fullName}</span>
-                        </div>
-
-                        <div className="course-rating-info">
-                          {course.rating !== null && course.rating !== undefined ? (
-                            <>
-                              <Star size={13} className="course-rating-star" fill="currentColor" />
-                              <span>{course.rating.toFixed(1)}</span>
-                              <span className="course-rating-count">({course.reviewCount || 0})</span>
-                            </>
-                          ) : (
-                            <span className="course-rating-count">No ratings yet</span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Metadata Row */}
-                      <div className="course-metadata-row">
-                        <span className={`course-level-badge ${course.skillLevel?.toLowerCase().replace(' ', '-') || 'beginner'}`}>
-                          {course.skillLevel || 'Beginner'}
-                        </span>
-                        <span className="course-meta-divider">•</span>
-                        <div className="course-meta-item">
-                          <Layers size={12} />
-                          <span>{publishedModCount} {publishedModCount === 1 ? 'Module' : 'Modules'}</span>
-                        </div>
-                        <span className="course-meta-divider">•</span>
-                        <div className="course-meta-item">
-                          <Users size={12} />
-                          <span>{course.learnersCount || 0} {course.learnersCount === 1 ? 'Learner' : 'Learners'}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Card Footer */}
-                    <div className="course-card-footer-row">
-                      <span className="course-updated-date">
-                        {course.updatedAt ? `Updated: ${formatLastUpdated(course.updatedAt)}` : ''}
-                      </span>
-                      <button
-                        type="button"
-                        className="btn btn-primary course-view-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleNavigateToCourse(course._id);
-                        }}
-                      >
-                        <span>View Course</span>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+              {sortedCourses.map((course) => (
+                <CourseCard
+                  key={course._id}
+                  course={course}
+                  instructor={instructor}
+                  isBookmarked={!!bookmarksMap[course._id]}
+                  onBookmarkToggle={(courseId, courseTitle) => {
+                    setBookmarksMap((prev) => {
+                      const nextState = !prev[courseId];
+                      toast.info(nextState ? `Bookmarked "${courseTitle}"` : `Removed bookmark for "${courseTitle}"`);
+                      return { ...prev, [courseId]: nextState };
+                    });
+                  }}
+                  onNavigate={handleNavigateToCourse}
+                />
+              ))}
             </div>
           )}
         </section>

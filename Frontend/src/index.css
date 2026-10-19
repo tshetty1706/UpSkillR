@@ -79,9 +79,18 @@
   --color-error: #DC2626;
   --color-error-bg: rgba(220, 38, 38, 0.1);
   --color-error-border: rgba(220, 38, 38, 0.25);
+
+  /* Coordinated Global Theme Transition Tokens (150-250ms) */
+  --theme-transition-duration: 200ms;
+  --theme-transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+  --theme-transition: background-color var(--theme-transition-duration) var(--theme-transition-timing),
+                      border-color var(--theme-transition-duration) var(--theme-transition-timing),
+                      color var(--theme-transition-duration) var(--theme-transition-timing),
+                      box-shadow var(--theme-transition-duration) var(--theme-transition-timing);
 }
 
-.dark {
+.dark,
+[data-theme="dark"] {
   /* Brand Green Palette - Dark Mode */
   --brand-primary: #39D95F;
   --brand-primary-hover: #50E76F;
@@ -166,15 +175,89 @@ body {
   background-color: var(--background);
   color: var(--text-primary);
   line-height: 1.5;
-  transition: background-color 0.25s ease, color 0.25s ease;
+  transition: var(--theme-transition);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Responsive Image Rule */
+/* ──────────────────────────────────────────────────────────
+   COORDINATED GLOBAL THEME TRANSITIONS
+   Carefully scoped to color, background-color, border-color, and box-shadow.
+   Layout, dimensions, positioning, and image sizing are NOT animated.
+   ────────────────────────────────────────────────────────── */
+.app-main,
+.navbar-header,
+.footer,
+.explore-courses-page,
+.instructor-explore-page,
+.explore-course-card,
+.course-card-body,
+.course-card-footer-row,
+.explore-search-input,
+.toolbar-btn,
+.chip,
+.scroll-next-btn,
+.course-bookmark-btn,
+.course-skill-badge,
+.course-level-badge,
+.course-instructor-avatar-placeholder,
+.instructor-about-hero-card,
+.overview-card-sticky,
+.overview-sticky-sidebar,
+.course-view-modal-container,
+.course-view-modal-header,
+.modal-category-badge,
+.modal-level-badge,
+.btn,
+.btn-outline,
+.btn-primary,
+.badge-pill,
+.card {
+  transition: var(--theme-transition);
+}
+
+/* Exempt images, illustrations, and videos from dimensional transitions */
 img, svg, video {
   max-width: 100%;
   height: auto;
+}
+
+/* Clean image transition without layout shifting */
+img,
+.course-card-thumb,
+.preview-image,
+.overview-card-thumb-img {
+  transition: opacity var(--theme-transition-duration) var(--theme-transition-timing),
+              transform 0.3s ease;
+}
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  body,
+  .app-main,
+  .navbar-header,
+  .footer,
+  .explore-courses-page,
+  .instructor-explore-page,
+  .explore-course-card,
+  .course-card-body,
+  .course-card-footer-row,
+  .explore-search-input,
+  .toolbar-btn,
+  .chip,
+  .scroll-next-btn,
+  .course-bookmark-btn,
+  .course-skill-badge,
+  .course-level-badge,
+  .instructor-about-hero-card,
+  .overview-card-sticky,
+  .course-view-modal-container,
+  img,
+  svg,
+  video {
+    transition: none !important;
+    animation-duration: 0.01ms !important;
+  }
 }
 
 /* Accessibility Focus Visible Styles */

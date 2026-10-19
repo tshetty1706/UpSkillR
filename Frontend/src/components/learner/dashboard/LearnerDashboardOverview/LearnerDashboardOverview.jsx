@@ -47,80 +47,7 @@ const LeetcodeIcon = ({ size = 15, className = '' }) => (
   </svg>
 );
 
-// High-quality mock published courses for fallback/demo
-const MOCK_PUBLISHED_COURSES = [
-  {
-    _id: 'mock_c1',
-    title: 'Full-Stack Modern React & Node.js Masterclass',
-    description: 'Build enterprise-ready web apps with React 18, Node.js, Express, MongoDB, and TailwindCSS.',
-    category: 'Web Development',
-    skillLevel: 'Intermediate',
-    thumbnail: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80',
-    price: 0,
-    instructorName: 'Sarah Jenkins',
-    rating: 4.9,
-    learnersCount: 1420,
-    lessons: [
-      { title: 'Introduction to Modern Full-Stack Architecture', duration: '12 min' },
-      { title: 'Setting Up Frontend React with Vite & Tailwind', duration: '24 min' },
-      { title: 'Building RESTful APIs with Node.js & Express', duration: '35 min' },
-      { title: 'MongoDB Database Integration & Mongoose Schemas', duration: '40 min' },
-      { title: 'Deploying Production Apps & Security Best Practices', duration: '28 min' }
-    ]
-  },
-  {
-    _id: 'mock_c2',
-    title: 'Python for Data Science & Machine Learning',
-    description: 'Master Data Analysis, Pandas, NumPy, Scikit-Learn, and Neural Networks with real projects.',
-    category: 'Data Science',
-    skillLevel: 'Beginner',
-    thumbnail: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&auto=format&fit=crop&q=80',
-    price: 0,
-    instructorName: 'Dr. Alan Turing',
-    rating: 4.8,
-    learnersCount: 2310,
-    lessons: [
-      { title: 'Python Fundamentals & Data Structures', duration: '15 min' },
-      { title: 'Data Wrangling with Pandas & NumPy', duration: '30 min' },
-      { title: 'Exploratory Data Analysis & Visualization', duration: '25 min' },
-      { title: 'Building Machine Learning Models with Scikit-Learn', duration: '45 min' }
-    ]
-  },
-  {
-    _id: 'mock_c3',
-    title: 'UI/UX Design Systems & Figma Prototyping',
-    description: 'Learn professional UI design, component libraries, typography scale, and responsive grid layouts.',
-    category: 'Design',
-    skillLevel: 'All Levels',
-    thumbnail: 'https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?w=800&auto=format&fit=crop&q=80',
-    price: 0,
-    instructorName: 'Elena Rostova',
-    rating: 4.9,
-    learnersCount: 980,
-    lessons: [
-      { title: 'Design Principles & Visual Hierarchy', duration: '18 min' },
-      { title: 'Figma Auto-Layout & Design Tokens', duration: '32 min' },
-      { title: 'Creating High-Fidelity Interactive Prototypes', duration: '40 min' }
-    ]
-  },
-  {
-    _id: 'mock_c4',
-    title: 'Artificial Intelligence & Prompt Engineering',
-    description: 'Understand Large Language Models, Generative AI applications, and agentic prompt techniques.',
-    category: 'AI & Machine Learning',
-    skillLevel: 'Beginner',
-    thumbnail: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
-    price: 0,
-    instructorName: 'Marcus Vance',
-    rating: 4.7,
-    learnersCount: 1850,
-    lessons: [
-      { title: 'Generative AI Architecture Overview', duration: '20 min' },
-      { title: 'Advanced Prompting Patterns & System Prompts', duration: '30 min' },
-      { title: 'Integrating LLMs into Software Workflows', duration: '38 min' }
-    ]
-  }
-];
+
 
 export const LearnerDashboardOverview = ({
   user,
@@ -248,12 +175,12 @@ export const LearnerDashboardOverview = ({
 
   const categories = ['All', 'Web Development', 'Data Science', 'Design', 'AI & Machine Learning', 'Business'];
 
-  // Combined published courses (API + fallback mock)
+  // Published courses strictly from database
   const allAvailableCourses = useMemo(() => {
     if (publishedCourses && publishedCourses.length > 0) {
       return publishedCourses;
     }
-    return MOCK_PUBLISHED_COURSES;
+    return [];
   }, [publishedCourses]);
 
   // Set of enrolled course IDs

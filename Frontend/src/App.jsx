@@ -185,7 +185,7 @@ function App() {
       }
       if (authChecking) {
         return (
-          <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main, #0f172a)', color: '#6366f1', fontWeight: 600 }}>
+          <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', color: 'var(--brand-primary)', fontWeight: 600 }}>
             <div>Loading dashboard...</div>
           </div>
         );
@@ -247,7 +247,7 @@ function App() {
       if (!currentUser) {
         if (authChecking) {
           return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main, #0f172a)', color: '#6366f1', fontWeight: 600 }}>
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', color: 'var(--brand-primary)', fontWeight: 600 }}>
               <div>Loading dashboard...</div>
             </div>
           );
@@ -281,7 +281,7 @@ function App() {
       if (!currentUser) {
         if (authChecking) {
           return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main, #0f172a)', color: '#6366f1', fontWeight: 600 }}>
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', color: 'var(--brand-primary)', fontWeight: 600 }}>
               <div>Loading dashboard...</div>
             </div>
           );
