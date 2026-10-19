@@ -79,9 +79,18 @@
   --color-error: #DC2626;
   --color-error-bg: rgba(220, 38, 38, 0.1);
   --color-error-border: rgba(220, 38, 38, 0.25);
+
+  /* Coordinated Global Theme Transition Tokens (150-250ms) */
+  --theme-transition-duration: 200ms;
+  --theme-transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+  --theme-transition: background-color var(--theme-transition-duration) var(--theme-transition-timing),
+                      border-color var(--theme-transition-duration) var(--theme-transition-timing),
+                      color var(--theme-transition-duration) var(--theme-transition-timing),
+                      box-shadow var(--theme-transition-duration) var(--theme-transition-timing);
 }
 
-.dark {
+.dark,
+[data-theme="dark"] {
   /* Brand Green Palette - Dark Mode */
   --brand-primary: #39D95F;
   --brand-primary-hover: #50E76F;
@@ -166,15 +175,89 @@ body {
   background-color: var(--background);
   color: var(--text-primary);
   line-height: 1.5;
-  transition: background-color 0.25s ease, color 0.25s ease;
+  transition: var(--theme-transition);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Responsive Image Rule */
+/* ──────────────────────────────────────────────────────────
+   COORDINATED GLOBAL THEME TRANSITIONS
+   Carefully scoped to color, background-color, border-color, and box-shadow.
+   Layout, dimensions, positioning, and image sizing are NOT animated.
+   ────────────────────────────────────────────────────────── */
+.app-main,
+.navbar-header,
+.footer,
+.explore-courses-page,
+.instructor-explore-page,
+.explore-course-card,
+.course-card-body,
+.course-card-footer-row,
+.explore-search-input,
+.toolbar-btn,
+.chip,
+.scroll-next-btn,
+.course-bookmark-btn,
+.course-skill-badge,
+.course-level-badge,
+.course-instructor-avatar-placeholder,
+.instructor-about-hero-card,
+.overview-card-sticky,
+.overview-sticky-sidebar,
+.course-view-modal-container,
+.course-view-modal-header,
+.modal-category-badge,
+.modal-level-badge,
+.btn,
+.btn-outline,
+.btn-primary,
+.badge-pill,
+.card {
+  transition: var(--theme-transition);
+}
+
+/* Exempt images, illustrations, and videos from dimensional transitions */
 img, svg, video {
   max-width: 100%;
   height: auto;
+}
+
+/* Clean image transition without layout shifting */
+img,
+.course-card-thumb,
+.preview-image,
+.overview-card-thumb-img {
+  transition: opacity var(--theme-transition-duration) var(--theme-transition-timing),
+              transform 0.3s ease;
+}
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  body,
+  .app-main,
+  .navbar-header,
+  .footer,
+  .explore-courses-page,
+  .instructor-explore-page,
+  .explore-course-card,
+  .course-card-body,
+  .course-card-footer-row,
+  .explore-search-input,
+  .toolbar-btn,
+  .chip,
+  .scroll-next-btn,
+  .course-bookmark-btn,
+  .course-skill-badge,
+  .course-level-badge,
+  .instructor-about-hero-card,
+  .overview-card-sticky,
+  .course-view-modal-container,
+  img,
+  svg,
+  video {
+    transition: none !important;
+    animation-duration: 0.01ms !important;
+  }
 }
 
 /* Accessibility Focus Visible Styles */
@@ -462,11 +545,13 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: var(--shadow-md);
 }
 
+.auth-theme-toggle-btn,
 .theme-toggle-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 6px 14px;
+  padding: 6px 12px;
   background-color: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
@@ -477,12 +562,16 @@ h1, h2, h3, h4, h5, h6 {
   cursor: pointer;
   transition: all 0.2s ease;
   min-height: 36px;
+  box-shadow: var(--shadow-sm);
 }
 
+.auth-theme-toggle-btn:hover,
 .theme-toggle-btn:hover {
   border-color: var(--brand-primary);
   color: var(--brand-accent-text);
   background-color: var(--brand-soft);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 /* Main Grid Layout */
@@ -651,6 +740,49 @@ h1, h2, h3, h4, h5, h6 {
 
 .dark .auth-illustration-img {
   filter: drop-shadow(0 6px 20px rgba(57, 217, 95, 0.16)) brightness(1.05);
+}
+
+/* ───── Account Recovery (Forgot Password) Hero Illustration ───── */
+.hero-middle-row-single {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin: 0.4rem 0 0.6rem 0;
+}
+
+.auth-illustration-wrapper.recovery-illustration-wrapper {
+  max-width: 310px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0.25rem auto 0.5rem auto;
+}
+
+.recovery-illustration-img {
+  width: 100%;
+  height: auto;
+  max-height: 195px;
+  object-fit: contain;
+  aspect-ratio: 800 / 645;
+  filter: drop-shadow(0 8px 24px rgba(17, 104, 48, 0.09));
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.3s ease;
+}
+
+.recovery-illustration-img:hover {
+  transform: translateY(-3px) scale(1.02);
+  filter: drop-shadow(0 12px 28px rgba(17, 104, 48, 0.14));
+}
+
+[data-theme="dark"] .recovery-illustration-img,
+.dark .recovery-illustration-img {
+  filter: drop-shadow(0 8px 26px rgba(57, 217, 95, 0.22)) brightness(1.04);
+}
+
+[data-theme="dark"] .recovery-illustration-img:hover,
+.dark .recovery-illustration-img:hover {
+  filter: drop-shadow(0 12px 32px rgba(57, 217, 95, 0.32)) brightness(1.08);
 }
 
 /* ───── Signup Page Illustration ───── */
@@ -1208,6 +1340,46 @@ textarea.form-input:focus {
   cursor: not-allowed;
 }
 
+/* 6-Digit Individual OTP Input Boxes */
+.otp-digit-group {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.otp-digit-input {
+  width: 44px;
+  height: 48px;
+  text-align: center;
+  font-size: 1.35rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm, 8px);
+  border: 2px solid var(--border);
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  outline: none;
+  font-family: monospace;
+  transition: all 0.2s ease;
+}
+
+.otp-digit-input:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px var(--brand-emerald-glow);
+}
+
+@media (max-width: 480px) {
+  .otp-digit-group {
+    gap: 6px;
+  }
+  .otp-digit-input {
+    width: 38px;
+    height: 44px;
+    font-size: 1.15rem;
+  }
+}
+
 /* ========================================================
    RESPONSIVE MEDIA QUERIES (Desktop, Tablet, Mobile)
    ======================================================== */
@@ -1232,6 +1404,14 @@ textarea.form-input:focus {
 
   .auth-illustration-wrapper.full-illustration {
     max-width: 280px;
+  }
+
+  .auth-illustration-wrapper.recovery-illustration-wrapper {
+    max-width: 270px;
+  }
+
+  .recovery-illustration-img {
+    max-height: 175px;
   }
 
   /* Signup illustration — slightly shorter at 1024px to maintain 100vh fit */
@@ -1298,6 +1478,19 @@ textarea.form-input:focus {
     max-width: 280px;
   }
 
+  .hero-middle-row-single {
+    margin: 0.25rem 0 0.5rem 0;
+  }
+
+  .auth-illustration-wrapper.recovery-illustration-wrapper {
+    max-width: 250px;
+    margin: 0.35rem auto 0.6rem auto;
+  }
+
+  .recovery-illustration-img {
+    max-height: 160px;
+  }
+
   /* Signup illustration — full-width and centered on tablet/small screens */
   .signup-illustration-wrapper {
     max-width: 100%;
@@ -1341,6 +1534,24 @@ textarea.form-input:focus {
 
   .left-heading {
     font-size: 1.65rem;
+  }
+
+  .auth-illustration-wrapper.recovery-illustration-wrapper {
+    max-width: 200px;
+  }
+
+  .recovery-illustration-img {
+    max-height: 130px;
+  }
+}
+
+@media (max-width: 380px) {
+  .auth-illustration-wrapper.recovery-illustration-wrapper {
+    max-width: 165px;
+  }
+
+  .recovery-illustration-img {
+    max-height: 110px;
   }
 }
 

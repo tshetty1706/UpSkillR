@@ -1,44 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Check,
   Award,
-  Globe,
-  Users,
-  Eye,
   Star,
+  Users,
   BookOpen,
   MessageCircle,
-  ExternalLink,
   ChevronDown,
   ChevronUp,
-  Clock,
   Sparkles,
-  Zap,
   Send,
   HelpCircle,
   Layers,
-  Video,
   PlayCircle,
-  CheckCircle2
+  ArrowRight,
+  Clock,
+  Target,
+  ShieldCheck,
+  CheckCircle2,
+  FileQuestion,
+  Quote
 } from 'lucide-react';
-import { CourseThumbnail } from '../../../../common/CourseThumbnail';
 import { Avatar } from '../../../../common/Avatar/Avatar';
-import { QuizPlayerModal } from '../../../../learner/quiz/QuizPlayerModal';
+import { useTheme } from '../../../../../context/ThemeContext';
+import courseOverviewIllustration from '../../../../../assets/illustrations/courseOverview.svg';
+import courseOverviewDarkIllustration from '../../../../../assets/illustrations/courseOverview_dark.svg';
 import './CourseOverviewTemplate.css';
 
-const LinkedinIcon = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
-    <rect x="2" y="9" width="4" height="12" />
-    <circle cx="4" cy="4" r="2" />
-  </svg>
-);
-
-const GithubIcon = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
-  </svg>
-);
+/**
+ * Formats large counts compactly (e.g. 1420 -> 1.4K).
+ */
+const formatCount = (num) => {
+  if (num === null || num === undefined) return '0';
+  const n = Number(num);
+  if (isNaN(n) || n <= 0) return '0';
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return String(n);
+};
 
 export const CourseOverviewTemplate = ({
   course = {},
@@ -49,35 +48,39 @@ export const CourseOverviewTemplate = ({
   questions = [],
   onAskQuestion = null,
   onEnroll = null,
+  onGoToLearning = null,
   isEnrolled = false,
   enrolling = false,
   isPreviewMode = false,
   user = null
 }) => {
+  const [activeTab, setActiveTab] = useState('overview');
   const [questionInput, setQuestionInput] = useState('');
   const [submittingQ, setSubmittingQ] = useState(false);
   const [activeFaq, setActiveFaq] = useState(null);
   const [expandedModules, setExpandedModules] = useState({});
-  const [activeQuizModal, setActiveQuizModal] = useState(null);
-  const [passedQuizzes, setPassedQuizzes] = useState(() => {
-    try {
-      const stored = sessionStorage.getItem(`upskillr_passed_quizzes_${course?._id}`);
-      return stored ? new Set(JSON.parse(stored)) : new Set();
-    } catch {
-      return new Set();
-    }
-  });
+  const [isDescExpanded, setIsDescExpanded] = useState(false);
 
-  const handleQuizPassed = (quizItem, percent, moduleIndex) => {
-    const key = String(quizItem?._id || quizItem?.title || moduleIndex);
-    setPassedQuizzes(prev => {
-      const updated = new Set(prev);
-      updated.add(key);
-      try {
-        sessionStorage.setItem(`upskillr_passed_quizzes_${course?._id}`, JSON.stringify([...updated]));
-      } catch {}
-      return updated;
-    });
+  // Safe theme detection (supports ThemeProvider and data-theme fallback)
+  let isDarkMode = false;
+  try {
+    const themeCtx = useTheme();
+    isDarkMode = Boolean(themeCtx?.isDarkMode || themeCtx?.theme === 'dark');
+  } catch (e) {
+    isDarkMode = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark';
+  }
+
+  const tabsBarRef = useRef(null);
+
+  // Tab switching without jumping/directing the screen down
+  const handleTabClick = (tabKey) => {
+    setActiveTab(tabKey);
+    if (tabsBarRef.current) {
+      const rect = tabsBarRef.current.getBoundingClientRect();
+      if (rect.top < 65) {
+        tabsBarRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
   };
 
   const handleQuestionSubmit = async (e) => {
@@ -92,682 +95,888 @@ export const CourseOverviewTemplate = ({
     }
   };
 
+  // Safe data extraction
   const learningOutcomes = Array.isArray(overview?.learningOutcomes)
     ? overview.learningOutcomes
     : typeof overview?.learningOutcomes === 'string' && overview.learningOutcomes.trim()
     ? [overview.learningOutcomes]
     : [];
+
   const prerequisites = Array.isArray(overview?.prerequisites)
     ? overview.prerequisites
     : typeof overview?.prerequisites === 'string' && overview.prerequisites.trim()
     ? [overview.prerequisites]
     : [];
+
   const skills = Array.isArray(overview?.skills)
     ? overview.skills
     : typeof overview?.skills === 'string' && overview.skills.trim()
     ? [overview.skills]
     : [];
+
   const techStack = Array.isArray(overview?.techStack)
     ? overview.techStack
     : typeof overview?.techStack === 'string' && overview.techStack.trim()
     ? [overview.techStack]
     : [];
+
   const targetAudience = Array.isArray(overview?.targetAudience)
     ? overview.targetAudience
     : typeof overview?.targetAudience === 'string' && overview.targetAudience.trim()
     ? [overview.targetAudience]
     : [];
+
   const benefits = Array.isArray(overview?.benefits)
     ? overview.benefits
     : typeof overview?.benefits === 'string' && overview.benefits.trim()
     ? [overview.benefits]
     : [];
+
   const faqs = Array.isArray(overview?.faqs) ? overview.faqs : [];
-  const optionalLinks = Array.isArray(overview?.optionalLinks) ? overview.optionalLinks : [];
-  const safeQuestions = Array.isArray(questions) ? questions : [];
   const safeReviews = Array.isArray(reviews) ? reviews : [];
+  const safeQuestions = Array.isArray(questions) ? questions : [];
+  const courseTags = Array.isArray(course?.tags) ? course.tags : [];
+  const modules = Array.isArray(course?.modules) ? course.modules : [];
 
-  const wordCount = overview?.fullDescription
-    ? overview.fullDescription.trim().split(/\s+/).filter(Boolean).length
-    : 0;
-  const readTimeMinutes = Math.max(1, Math.ceil(wordCount / 160));
+  const fullDescriptionText = overview?.fullDescription || course?.fullDescription || course?.description || '';
+  const isDescriptionLong = fullDescriptionText.length > 400;
 
-  const renderFormattedDescription = (text) => {
+  const totalLessonsCount = modules.reduce(
+    (acc, m) => acc + (Array.isArray(m?.lessons) ? m.lessons.length : 0),
+    0
+  );
+
+  const hasCertificate = course?.certificate !== false && overview?.certificate !== false;
+  const instructorName = instructor?.name || instructor?.fullName || course?.instructorName || 'UpSkillr Instructor';
+  const instructorHeadline = instructor?.headline || instructor?.designation || 'Instructor';
+  const instructorAvatar = instructor?.profilePhoto || instructor?.avatar;
+
+  // Width management for companion sections:
+  const hasPrerequisites = prerequisites.length > 0;
+  const hasTargetAudience = targetAudience.length > 0;
+  const isPrereqAudienceTwoCol = hasPrerequisites && hasTargetAudience;
+
+  const hasBenefits = benefits.length > 0 || hasCertificate;
+  const hasInstructorMessage = Boolean(overview?.instructorMessage && overview.instructorMessage.trim());
+  const isBenefitsMsgTwoCol = hasBenefits && hasInstructorMessage;
+
+  const renderDescription = (text) => {
     if (!text || !text.trim()) {
-      return <p className="desc-empty-text">No description provided.</p>;
+      return <p className="desc-empty-text">No detailed description available.</p>;
     }
 
-    const paragraphs = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+    const displayText = isDescriptionLong && !isDescExpanded ? text.slice(0, 380) + '...' : text;
+    const paragraphs = displayText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
 
-    return paragraphs.map((block, pIdx) => {
-      const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
-      const isBulletList = lines.length > 1 && lines.every((l) => /^[-*•✓]\s+|^\d+\.\s+/.test(l));
+    return (
+      <div className="description-blocks">
+        {paragraphs.map((block, pIdx) => {
+          const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+          const isBulletList = lines.length > 1 && lines.every((l) => /^[-*•✓]\s+|^\d+\.\s+/.test(l));
 
-      if (isBulletList) {
-        return (
-          <ul key={pIdx} className="desc-bullet-list">
-            {lines.map((line, lIdx) => {
-              const cleanText = line.replace(/^[-*•✓]\s+|^\d+\.\s+/, '');
-              return (
-                <li key={lIdx} className="desc-bullet-item">
-                  <span className="desc-bullet-check">
-                    <Check size={13} strokeWidth={3} />
-                  </span>
-                  <span>{cleanText}</span>
-                </li>
-              );
-            })}
-          </ul>
-        );
-      }
+          if (isBulletList) {
+            return (
+              <ul key={pIdx} className="desc-bullet-list">
+                {lines.map((line, lIdx) => {
+                  const cleanText = line.replace(/^[-*•✓]\s+|^\d+\.\s+/, '');
+                  return (
+                    <li key={lIdx} className="desc-bullet-item">
+                      <span className="desc-bullet-check">
+                        <Check size={13} strokeWidth={3} />
+                      </span>
+                      <span>{cleanText}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            );
+          }
 
-      const hasBullets = lines.some((l) => /^[-*•✓]\s+|^\d+\.\s+/.test(l));
-      if (hasBullets) {
-        return (
-          <div key={pIdx} className="desc-mixed-block">
-            {lines.map((line, lIdx) => {
-              if (/^[-*•✓]\s+|^\d+\.\s+/.test(line)) {
-                const cleanText = line.replace(/^[-*•✓]\s+|^\d+\.\s+/, '');
-                return (
-                  <div key={lIdx} className="desc-bullet-item">
-                    <span className="desc-bullet-check">
-                      <Check size={13} strokeWidth={3} />
-                    </span>
-                    <span>{cleanText}</span>
-                  </div>
-                );
-              }
-              return (
-                <p
-                  key={lIdx}
-                  className={pIdx === 0 && lIdx === 0 ? 'desc-lead-paragraph' : 'desc-paragraph'}
-                >
-                  {line}
-                </p>
-              );
-            })}
-          </div>
-        );
-      }
+          return (
+            <p key={pIdx} className="desc-paragraph">
+              {block}
+            </p>
+          );
+        })}
 
-      return (
-        <p key={pIdx} className={pIdx === 0 ? 'desc-lead-paragraph' : 'desc-paragraph'}>
-          {block}
-        </p>
-      );
-    });
+        {isDescriptionLong && (
+          <button
+            type="button"
+            className="desc-expand-toggle-btn"
+            onClick={() => setIsDescExpanded((prev) => !prev)}
+            aria-expanded={isDescExpanded}
+          >
+            <span>{isDescExpanded ? 'Show less' : 'Show more'}</span>
+            {isDescExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          </button>
+        )}
+      </div>
+    );
   };
 
   return (
-    <div className="course-overview-template-root">
-      {/* Top Hero Banner */}
-      <header className="overview-hero-banner">
+    <div className="course-overview-redesign-root">
+      {/* ───────────────── 1. HERO SECTION ───────────────── */}
+      <section className="overview-hero-section">
         <div className="overview-hero-container">
-          <div className="overview-hero-content">
-            <div className="overview-tags-row">
-              <span className="overview-badge-cat">{course?.category || 'General'}</span>
-              <span className="overview-badge-lvl">{course?.skillLevel || 'Beginner'}</span>
-              <span className="overview-badge-lang">
-                <Globe size={13} /> {course?.language || 'English'}
-              </span>
-            </div>
+          {/* Left Column: Course Details */}
+          <div className="overview-hero-left">
+            {/* 1. Category Badge */}
+            {course?.category && (
+              <div className="overview-category-badge-wrap">
+                <span className="overview-category-badge">{course.category}</span>
+              </div>
+            )}
 
+            {/* 2. Course Title */}
             <h1 className="overview-hero-title">{course?.title || 'Untitled Course'}</h1>
-            <p className="overview-hero-desc">
-              {course?.shortDescription || overview?.fullDescription?.slice(0, 160) || ''}
-            </p>
 
-            <div className="overview-hero-meta-bar">
-              <div className="overview-meta-item">
-                <Users size={16} className="meta-icon" />
-                <span>{stats?.totalEnrolments || 0} Learners Enrolled</span>
+            {/* 3. Short Description */}
+            {(course?.shortDescription || course?.description) && (
+              <p className="overview-hero-subtitle">
+                {course.shortDescription || course.description}
+              </p>
+            )}
+
+            {/* 4. Instructor, Rating & Enrolled Learners Info Row */}
+            <div className="overview-hero-meta-strip">
+              {/* Instructor Pill */}
+              <div className="hero-instructor-item">
+                <Avatar
+                  image={instructorAvatar}
+                  name={instructorName}
+                  size="medium"
+                  className="hero-instructor-avatar"
+                />
+                <div className="hero-instructor-text">
+                  <span className="hero-instructor-name">{instructorName}</span>
+                  <span className="hero-instructor-headline">{instructorHeadline}</span>
+                </div>
               </div>
-              <div className="overview-meta-item">
-                <Eye size={16} className="meta-icon" />
-                <span>{stats?.overviewViews || course?.overviewViews || 0} Views</span>
-              </div>
-              {stats?.averageRating ? (
-                <div className="overview-meta-item rating-meta">
-                  <Star size={16} className="star-icon-fill" />
-                  <span>
-                    <strong>{stats.averageRating}</strong> ({stats.reviewCount || 0} reviews)
+
+              <span className="hero-meta-divider" aria-hidden="true">|</span>
+
+              {/* Rating */}
+              <div className="hero-rating-item">
+                <Star size={16} className="hero-star-icon" fill="currentColor" />
+                {stats?.averageRating ? (
+                  <span className="hero-rating-text">
+                    <strong>{stats.averageRating.toFixed(1)}</strong>
+                    <span className="hero-review-count"> ({stats.reviewCount || 0} reviews)</span>
                   </span>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="overview-instructor-pill">
-              <Avatar
-                image={instructor?.profilePhoto || instructor?.avatar || course?.instructorAvatar}
-                name={instructor?.name || instructor?.fullName || course?.instructorName || 'UpSkillr Instructor'}
-                size="small"
-              />
-              <div className="instructor-mini-info">
-                <span className="inst-label">Instructor</span>
-                <span className="inst-name">{instructor?.name || instructor?.fullName || course?.instructorName || 'UpSkillr Instructor'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Body Grid */}
-      <div className="overview-body-container">
-        {/* Left Column */}
-        <main className="overview-main-col">
-          {/* What You'll Learn Box */}
-          {learningOutcomes.length > 0 && (
-            <section className="overview-section outcomes-section">
-              <h2 className="section-heading">What You'll Learn</h2>
-              <div className="outcomes-grid">
-                {learningOutcomes.map((outcome, idx) => (
-                  <div key={idx} className="outcome-item">
-                    <Check size={18} className="outcome-check-icon" />
-                    <span>{outcome}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* About This Course (Best-in-Class Presentation) */}
-          <section className="overview-section about-course-section">
-            <div className="section-title-row title-with-meta">
-              <div className="title-left-group">
-                <BookOpen size={20} className="section-title-icon" />
-                <h2 className="section-heading">About This Course</h2>
-              </div>
-              {wordCount > 20 && (
-                <span className="read-time-badge">
-                  <Clock size={13} />
-                  <span>{readTimeMinutes} min read</span>
-                </span>
-              )}
-            </div>
-
-            <div className="about-course-card">
-              <div className="description-formatted-text">
-                {renderFormattedDescription(overview?.fullDescription)}
-              </div>
-
-              {/* Course Value Pillars Callout */}
-              <div className="course-value-pillars-strip">
-                <div className="value-pillar-badge">
-                  <Zap size={14} className="pillar-icon" />
-                  <span>Practical Hands-on Focus</span>
-                </div>
-                <div className="value-pillar-badge">
-                  <Sparkles size={14} className="pillar-icon" />
-                  <span>Curated Curriculum</span>
-                </div>
-                {overview?.certificate !== false && (
-                  <div className="value-pillar-badge">
-                    <Award size={14} className="pillar-icon" />
-                    <span>Verified Certificate Included</span>
-                  </div>
+                ) : (
+                  <span className="hero-rating-text hero-no-rating">No ratings yet</span>
                 )}
               </div>
+
+              <span className="hero-meta-divider" aria-hidden="true">|</span>
+
+              {/* Enrolled Learners */}
+              <div className="hero-learners-item">
+                <Users size={16} className="hero-learners-icon" />
+                <span className="hero-learners-text">
+                  <strong>{formatCount(stats?.totalEnrolments || 0)}</strong> learners
+                </span>
+              </div>
             </div>
-          </section>
 
-          {/* Skills You'll Gain (Distinct Point Identity) */}
-          {skills.length > 0 && (
-            <section className="overview-section skills-gain-section">
-              <div className="section-title-row">
-                <Sparkles size={20} className="section-title-icon" />
-                <h2 className="section-heading">Skills You'll Gain</h2>
-              </div>
-              <p className="section-subnote">
-                Key competencies and practical skillsets you will master upon completing this course:
-              </p>
-              <div className="skills-point-identity-grid">
-                {skills.map((skill, idx) => (
-                  <div key={idx} className="skill-point-card">
-                    <div className="skill-point-marker">
-                      <Check size={14} strokeWidth={3} />
-                    </div>
-                    <span className="skill-point-text">{skill}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Tech Stack / Tools */}
-          {techStack.length > 0 && (
-            <section className="overview-section">
-              <h2 className="section-heading">Technologies & Tools</h2>
-              <div className="chips-list">
-                {techStack.map((tool, idx) => (
-                  <span key={idx} className="overview-chip tech-chip">
-                    {tool}
+            {/* 5. Course Tags */}
+            {courseTags.length > 0 && (
+              <div className="overview-hero-tags-row">
+                {courseTags.map((tag, idx) => (
+                  <span key={idx} className="overview-hero-tag-chip">
+                    {tag}
                   </span>
                 ))}
               </div>
-            </section>
-          )}
-
-          {/* Who This Course is For */}
-          {targetAudience.length > 0 && (
-            <section className="overview-section audience-section">
-              <div className="section-title-row">
-                <Users size={20} className="section-title-icon" />
-                <h2 className="section-heading">Who This Course is For</h2>
-              </div>
-              <div className="audience-badges-wrap">
-                {targetAudience.map((aud, idx) => (
-                  <div key={idx} className="audience-badge-item">
-                    <span className="audience-dot" />
-                    <span className="audience-title">{aud}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Prerequisites */}
-          {prerequisites.length > 0 && (
-            <section className="overview-section">
-              <h2 className="section-heading">Prerequisites</h2>
-              <p className="section-subnote">Skills or background knowledge required before starting:</p>
-              <div className="chips-list">
-                {prerequisites.map((p, idx) => (
-                  <span key={idx} className="overview-chip prereq-chip">
-                    {p}
-                  </span>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Course Curriculum & Syllabus */}
-          {Array.isArray(course?.modules) && course.modules.length > 0 && (
-            <section className="overview-section syllabus-section">
-              <div className="section-title-row">
-                <Layers size={20} className="section-title-icon" />
-                <h2 className="section-heading">Course Curriculum & Syllabus</h2>
-              </div>
-              <p className="section-subnote">
-                {course.modules.length} {course.modules.length === 1 ? 'Module' : 'Modules'} •{' '}
-                {course.modules.reduce((acc, m) => acc + (m.lessons?.length || 0), 0)} Total Lessons
-              </p>
-              <div className="curriculum-accordion-list">
-                {course.modules.map((mod, mIdx) => {
-                  const modKey = mod._id || `m_${mIdx}`;
-                  const isModOpen = expandedModules[modKey] !== false; // open by default
-                  return (
-                    <div key={modKey} className={`curriculum-module-card ${isModOpen ? 'open' : ''}`}>
-                      <button
-                        type="button"
-                        className="curriculum-module-header"
-                        onClick={() =>
-                          setExpandedModules((prev) => ({
-                            ...prev,
-                            [modKey]: !isModOpen
-                          }))
-                        }
-                      >
-                        <div className="module-header-title-wrap">
-                          <span className="module-index-badge">Module {mIdx + 1}</span>
-                          <span className="module-title-text">{mod.title}</span>
-                        </div>
-                        <div className="module-header-meta">
-                          <span className="module-lesson-count">
-                            {mod.lessons?.length || 0} {mod.lessons?.length === 1 ? 'lesson' : 'lessons'}
-                          </span>
-                          {isModOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                        </div>
-                      </button>
-                      {isModOpen && (
-                        <div className="curriculum-lessons-list">
-                          {!mod.lessons || mod.lessons.length === 0 ? (
-                            <div className="curriculum-empty-lesson">No lessons published in this module yet.</div>
-                          ) : (
-                            mod.lessons.map((les, lIdx) => {
-                              const items = les.items || les.contentItems || [];
-                              const hasQuiz = items.some(i => (i.type || '').toLowerCase() === 'quiz');
-                              const quizItem = items.find(i => (i.type || '').toLowerCase() === 'quiz');
-
-                              return (
-                                <div key={les._id || lIdx} className="curriculum-lesson-container">
-                                  <div
-                                    className="curriculum-lesson-row"
-                                    onClick={() => {
-                                      if (quizItem) {
-                                        const isPassed = passedQuizzes.has(String(quizItem._id || quizItem.title || mIdx));
-                                        setActiveQuizModal({
-                                          item: quizItem,
-                                          module: mod,
-                                          lesson: les,
-                                          moduleIndex: mIdx,
-                                          lessonIndex: lIdx,
-                                          isAlreadyPassed: isPassed
-                                        });
-                                      }
-                                    }}
-                                    style={quizItem ? { cursor: 'pointer' } : {}}
-                                  >
-                                    <div className="lesson-left">
-                                      <PlayCircle size={15} className="lesson-play-icon" />
-                                      <span className="lesson-row-title">{les.title}</span>
-                                      {hasQuiz && (
-                                        <span className="lesson-has-quiz-tag">
-                                          <HelpCircle size={12} />
-                                          <span>1 Quiz</span>
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="lesson-right-meta">
-                                      {les.duration && <span className="lesson-row-duration">{les.duration}</span>}
-                                    </div>
-                                  </div>
-
-                                  {/* Exposed Content Items (e.g. Quizzes and Videos) */}
-                                  {items.length > 0 && (
-                                    <div className="curriculum-items-sublist">
-                                      {items.map((item, iIdx) => {
-                                        const isQuiz = (item.type || '').toLowerCase() === 'quiz';
-                                        return (
-                                          <div
-                                            key={item._id || iIdx}
-                                            className={`curriculum-item-subrow ${isQuiz ? 'quiz-item-row' : 'video-item-row'}`}
-                                          >
-                                            <div className="item-subrow-left">
-                                              {isQuiz ? (
-                                                <HelpCircle size={15} className="item-sub-icon quiz-color" />
-                                              ) : (
-                                                <Video size={15} className="item-sub-icon video-color" />
-                                              )}
-                                              <span className="item-sub-title">{item.title || (isQuiz ? 'Quiz' : 'Video Lecture')}</span>
-                                              <span className="item-sub-badge">
-                                                {isQuiz
-                                                  ? `Quiz • ${item.quiz?.questions?.length || 1} Question${(item.quiz?.questions?.length || 1) === 1 ? '' : 's'}`
-                                                  : 'Video Lecture'}
-                                              </span>
-                                            </div>
-
-                                            {isQuiz && (
-                                              <button
-                                                type="button"
-                                                className={`btn-take-quiz-action ${passedQuizzes.has(String(item._id || item.title || mIdx)) ? 'passed-quiz-badge' : ''}`}
-                                                style={passedQuizzes.has(String(item._id || item.title || mIdx)) ? { borderColor: 'rgba(16, 185, 129, 0.4)', background: 'rgba(16, 185, 129, 0.08)' } : {}}
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  const isItemPassed = passedQuizzes.has(String(item._id || item.title || mIdx));
-                                                  setActiveQuizModal({
-                                                    item,
-                                                    module: mod,
-                                                    lesson: les,
-                                                    moduleIndex: mIdx,
-                                                    lessonIndex: lIdx,
-                                                    isAlreadyPassed: isItemPassed
-                                                  });
-                                                }}
-                                              >
-                                                {passedQuizzes.has(String(item._id || item.title || mIdx)) ? (
-                                                  <>
-                                                    <CheckCircle2 size={13} style={{ color: '#10b981' }} />
-                                                    <span style={{ color: '#10b981', fontWeight: 600 }}>Passed ✓</span>
-                                                  </>
-                                                ) : (
-                                                  <>
-                                                    <Award size={13} />
-                                                    <span>{isEnrolled ? 'Open Quiz' : 'Preview Quiz'}</span>
-                                                  </>
-                                                )}
-                                              </button>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {/* FAQs */}
-          {faqs.length > 0 && (
-            <section className="overview-section">
-              <h2 className="section-heading">Frequently Asked Questions</h2>
-              <div className="faq-accordion-list">
-                {faqs.map((faq, idx) => {
-                  const isOpen = activeFaq === idx;
-                  return (
-                    <div key={idx} className={`faq-card ${isOpen ? 'open' : ''}`}>
-                      <button
-                        type="button"
-                        className="faq-question-btn"
-                        onClick={() => setActiveFaq(isOpen ? null : idx)}
-                      >
-                        <span>{faq.question}</span>
-                        {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                      </button>
-                      {isOpen && <div className="faq-answer-text">{faq.answer}</div>}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {/* Pre-enrollment Q&A / Inquiry Box */}
-          <section className="overview-section qa-section">
-            <div className="qa-section-header">
-              <MessageCircle size={22} className="accent-green" />
-              <div>
-                <h2 className="section-heading" style={{ margin: 0 }}>
-                  Course Doubts & Inquiries
-                </h2>
-                <p className="section-subnote" style={{ margin: '0.2rem 0 0 0' }}>
-                  Have questions before enrolling? Ask the instructor directly.
-                </p>
-              </div>
-            </div>
-
-            {!isPreviewMode && onAskQuestion && (
-              <form className="qa-ask-form" onSubmit={handleQuestionSubmit}>
-                <textarea
-                  rows={2}
-                  className="qa-input-area"
-                  placeholder={user ? "Ask a doubt about this course..." : "Log in as a learner to ask a doubt..."}
-                  value={questionInput}
-                  onChange={(e) => setQuestionInput(e.target.value)}
-                  disabled={!user || submittingQ}
-                />
-                <button
-                  type="submit"
-                  className="btn-ask-submit"
-                  disabled={!user || !questionInput.trim() || submittingQ}
-                >
-                  <Send size={15} />
-                  <span>{submittingQ ? 'Submitting...' : 'Ask Question'}</span>
-                </button>
-              </form>
             )}
 
-            {/* Answered Questions List */}
-            <div className="qa-questions-list">
-              {safeQuestions.length === 0 ? (
-                <div className="empty-qa-box">
-                  <HelpCircle size={24} />
-                  <p>No inquiries asked yet. Be the first to ask a question!</p>
-                </div>
-              ) : (
-                safeQuestions.map((q, idx) => (
-                  <div key={idx} className="qa-card-item">
-                    <div className="qa-question-row">
-                      <span className="qa-user-name">{q.userName || 'Learner'} asked:</span>
-                      <p className="qa-question-text">{q.question}</p>
-                    </div>
-                    {q.instructorReply && (
-                      <div className="qa-reply-box">
-                        <span className="qa-instructor-badge">
-                          Instructor Reply {q.replyTimestamp ? `• ${new Date(q.replyTimestamp).toLocaleDateString()}` : ''}
-                        </span>
-                        <p className="qa-reply-text">{q.instructorReply}</p>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-
-          {/* Real Reviews Section */}
-          <section className="overview-section reviews-section">
-            <h2 className="section-heading">Learner Ratings & Feedback</h2>
-            {safeReviews.length === 0 ? (
-              <div className="empty-reviews-box">
-                <Star size={26} className="empty-star-icon" />
-                <h3>No reviews yet</h3>
-                <p>This course is recently created. Real ratings and reviews will appear here once learners enroll and complete lessons.</p>
-              </div>
-            ) : (
-              <div className="real-reviews-grid">
-                {safeReviews.map((rev, idx) => (
-                  <div key={idx} className="review-card-item">
-                    <div className="review-rating-row">
-                      <div className="review-stars">
-                        {[...Array(5)].map((_, sIdx) => (
-                          <Star
-                            key={sIdx}
-                            size={14}
-                            className={sIdx < rev.rating ? 'star-filled' : 'star-empty'}
-                          />
-                        ))}
-                      </div>
-                      <span className="review-date">
-                        {rev.ratedAt ? new Date(rev.ratedAt).toLocaleDateString() : ''}
-                      </span>
-                    </div>
-                    <p className="review-feedback-quote">"{rev.feedback}"</p>
-                    <span className="review-learner-author">— {rev.learnerName}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        </main>
-
-        {/* Right Sticky Sidebar */}
-        <aside className="overview-sticky-sidebar">
-          <div className="overview-card-sticky">
-            <div className="overview-card-thumb-wrap">
-              <CourseThumbnail
-                src={course?.thumbnail}
-                alt={course?.title || 'Course Thumbnail'}
-                className="overview-card-thumb-img"
-              />
-            </div>
-
-            <div className="overview-card-details">
-              <div className="price-row">
-                <span className="price-label">Price</span>
-                <span className="price-value">
+            {/* 6. Prominent Hero Enrollment Action Bar */}
+            <div className="overview-hero-action-bar">
+              <div className="hero-price-wrap">
+                <span className="hero-price-label">Price</span>
+                <span className="hero-price-value">
                   {course?.price > 0 ? `₹${course.price}` : 'Free'}
                 </span>
               </div>
 
-              {overview?.certificate !== false && (
-                <div className="cert-feature-badge">
-                  <Award size={18} className="accent-green" />
-                  <span>Verified Certificate of Completion</span>
-                </div>
-              )}
-
               {isPreviewMode ? (
-                <div className="preview-mode-banner">
-                  <span>✦ Preview Mode (Live Form Data)</span>
+                <div className="hero-preview-badge">
+                  <span>✦ Preview Mode (Instructor Draft)</span>
                 </div>
               ) : isEnrolled ? (
-                <button type="button" className="btn-enroll-primary btn-enrolled-active" disabled>
-                  <Check size={18} />
-                  <span>Already Enrolled</span>
+                <button
+                  type="button"
+                  className="btn-hero-enrolled"
+                  onClick={onGoToLearning}
+                >
+                  <CheckCircle2 size={18} />
+                  <span>Already Enrolled • Go to Learning</span>
                 </button>
               ) : (
                 <button
                   type="button"
-                  className="btn-enroll-primary"
+                  className="btn-hero-enroll"
                   onClick={onEnroll}
                   disabled={enrolling}
                 >
-                  {enrolling ? 'Enrolling...' : 'Enroll Now'}
+                  <span>{enrolling ? 'Enrolling...' : (course?.price > 0 ? 'Enroll Now' : 'Enroll for Free')}</span>
+                  <ArrowRight size={18} />
                 </button>
               )}
 
-              {/* Instructor Details Card */}
-              <div className="instructor-sidebar-box">
-                <h4>About the Instructor</h4>
-                <p className="inst-sidebar-headline">
-                  {instructor?.headline || 'UpSkillr Instructor'}
-                </p>
-                {instructor?.bio && (
-                  <p className="inst-sidebar-bio">{instructor.bio}</p>
-                )}
+              {hasCertificate && (
+                <div className="hero-certificate-tag" title="Verified completion certificate included">
+                  <Award size={16} className="hero-cert-icon" />
+                  <span>Certificate Included</span>
+                </div>
+              )}
+            </div>
+          </div>
 
-                {overview?.instructorMessage && (
-                  <div className="inst-note-callout">
-                    <span>"{overview.instructorMessage}"</span>
+          {/* Right Column: Clean Illustration without any enclosing box container */}
+          <div className="overview-hero-right">
+            <div className="overview-hero-illustration-wrapper">
+              <img
+                src={isDarkMode ? courseOverviewDarkIllustration : courseOverviewIllustration}
+                alt="Course Overview Graphic"
+                className="overview-hero-svg"
+                loading="eager"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ───────────────── 2. SECTION TABS BAR ───────────────── */}
+      <nav ref={tabsBarRef} className="overview-section-tabs-bar" aria-label="Course section navigation">
+        <div className="overview-tabs-container">
+          <div className="overview-tabs-list">
+            <button
+              type="button"
+              className={`overview-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
+              onClick={() => handleTabClick('overview')}
+            >
+              <BookOpen size={16} />
+              <span>Overview</span>
+            </button>
+            <button
+              type="button"
+              className={`overview-tab-btn ${activeTab === 'curriculum' ? 'active' : ''}`}
+              onClick={() => handleTabClick('curriculum')}
+            >
+              <Layers size={16} />
+              <span>Curriculum</span>
+              {modules.length > 0 && <span className="tab-count-badge">{modules.length}</span>}
+            </button>
+            <button
+              type="button"
+              className={`overview-tab-btn ${activeTab === 'reviews' ? 'active' : ''}`}
+              onClick={() => handleTabClick('reviews')}
+            >
+              <Star size={16} />
+              <span>Reviews</span>
+              {stats?.reviewCount > 0 && <span className="tab-count-badge">{stats.reviewCount}</span>}
+            </button>
+            <button
+              type="button"
+              className={`overview-tab-btn ${activeTab === 'qa' ? 'active' : ''}`}
+              onClick={() => handleTabClick('qa')}
+            >
+              <MessageCircle size={16} />
+              <span>Q&A</span>
+              {safeQuestions.length > 0 && <span className="tab-count-badge">{safeQuestions.length}</span>}
+            </button>
+          </div>
+
+          {/* Quick Enroll CTA on tabs bar */}
+          <div className="overview-tabs-action">
+            {!isPreviewMode && !isEnrolled && (
+              <button
+                type="button"
+                className="btn-tab-quick-enroll"
+                onClick={onEnroll}
+                disabled={enrolling}
+              >
+                <span>{enrolling ? 'Enrolling...' : (course?.price > 0 ? `Enroll • ₹${course.price}` : 'Enroll for Free')}</span>
+              </button>
+            )}
+            {!isPreviewMode && isEnrolled && (
+              <button
+                type="button"
+                className="btn-tab-quick-enrolled"
+                onClick={onGoToLearning}
+              >
+                <span>Go to Learning</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      {/* ───────────────── 3. TAB-SWITCHED MAIN CONTENT ───────────────── */}
+      <div className="overview-main-wrapper">
+        <div className="overview-content-layout">
+          {/* ───────────────── TAB 1: OVERVIEW ───────────────── */}
+          {activeTab === 'overview' && (
+            <div className="overview-tab-pane">
+              {/* A. About This Course */}
+              <section className="overview-card-block about-course-block">
+                <div className="block-header">
+                  <BookOpen size={20} className="block-header-icon" />
+                  <h2 className="block-title">About This Course</h2>
+                </div>
+                <div className="about-course-body">
+                  {renderDescription(fullDescriptionText)}
+                </div>
+              </section>
+
+              {/* B. What You'll Learn */}
+              {learningOutcomes.length > 0 && (
+                <section className="overview-card-block outcomes-block">
+                  <div className="block-header">
+                    <Target size={20} className="block-header-icon accent-green" />
+                    <h2 className="block-title">What You'll Learn</h2>
+                  </div>
+                  <div className="outcomes-grid">
+                    {learningOutcomes.map((outcome, idx) => (
+                      <div key={idx} className="outcome-item-card">
+                        <div className="outcome-check-wrap">
+                          <Check size={16} strokeWidth={2.5} />
+                        </div>
+                        <span className="outcome-text">{outcome}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* C. Skills You'll Gain */}
+              {skills.length > 0 && (
+                <section className="overview-card-block skills-block">
+                  <div className="block-header">
+                    <Sparkles size={20} className="block-header-icon" />
+                    <h2 className="block-title">Skills You'll Gain</h2>
+                  </div>
+                  <div className="skills-chips-cloud">
+                    {skills.map((skill, idx) => (
+                      <span key={idx} className="skill-chip-tag">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* D. Technologies & Tools (Text-Only Labels per Rule) */}
+              {techStack.length > 0 && (
+                <section className="overview-card-block techstack-block">
+                  <div className="block-header">
+                    <Layers size={20} className="block-header-icon" />
+                    <h2 className="block-title">Technologies & Tools</h2>
+                  </div>
+                  <div className="techstack-chips-cloud">
+                    {techStack.map((tool, idx) => (
+                      <span key={idx} className="techstack-text-badge">
+                        {tool}
+                      </span>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* E & F. Prerequisites and Who This Course Is For (Proper Full-Width or Two-Col) */}
+              {isPrereqAudienceTwoCol ? (
+                <div className="overview-two-col-grid">
+                  <section className="overview-card-block prereq-block">
+                    <div className="block-header">
+                      <CheckCircle2 size={20} className="block-header-icon" />
+                      <h2 className="block-title">Prerequisites</h2>
+                    </div>
+                    <ul className="check-bullet-list">
+                      {prerequisites.map((p, idx) => (
+                        <li key={idx} className="check-bullet-item">
+                          <Check size={14} className="check-bullet-icon" strokeWidth={2.5} />
+                          <span>{p}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+
+                  <section className="overview-card-block audience-block">
+                    <div className="block-header">
+                      <Users size={20} className="block-header-icon" />
+                      <h2 className="block-title">Who This Course Is For</h2>
+                    </div>
+                    <ul className="check-bullet-list">
+                      {targetAudience.map((aud, idx) => (
+                        <li key={idx} className="check-bullet-item">
+                          <Check size={14} className="check-bullet-icon" strokeWidth={2.5} />
+                          <span>{aud}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                </div>
+              ) : hasPrerequisites ? (
+                <section className="overview-card-block prereq-block full-width">
+                  <div className="block-header">
+                    <CheckCircle2 size={20} className="block-header-icon" />
+                    <h2 className="block-title">Prerequisites</h2>
+                  </div>
+                  <ul className="check-bullet-list multi-col-bullets">
+                    {prerequisites.map((p, idx) => (
+                      <li key={idx} className="check-bullet-item">
+                        <Check size={14} className="check-bullet-icon" strokeWidth={2.5} />
+                        <span>{p}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : hasTargetAudience ? (
+                <section className="overview-card-block audience-block full-width">
+                  <div className="block-header">
+                    <Users size={20} className="block-header-icon" />
+                    <h2 className="block-title">Who This Course Is For</h2>
+                  </div>
+                  <ul className="check-bullet-list multi-col-bullets">
+                    {targetAudience.map((aud, idx) => (
+                      <li key={idx} className="check-bullet-item">
+                        <Check size={14} className="check-bullet-icon" strokeWidth={2.5} />
+                        <span>{aud}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+
+              {/* G & H. Key Benefits & Instructor's Message (Proper Full-Width or Two-Col) */}
+              {isBenefitsMsgTwoCol ? (
+                <div className="overview-two-col-grid">
+                  <section className="overview-card-block benefits-block">
+                    <div className="block-header">
+                      <ShieldCheck size={20} className="block-header-icon accent-green" />
+                      <h2 className="block-title">Key Benefits</h2>
+                    </div>
+                    <div className="benefits-grid">
+                      {hasCertificate && (
+                        <div className="benefit-card-mini">
+                          <Award size={18} className="benefit-icon" />
+                          <div className="benefit-content">
+                            <h4>Certificate of Completion</h4>
+                            <p>Earn an industry-recognized certificate upon completing all lessons.</p>
+                          </div>
+                        </div>
+                      )}
+                      <div className="benefit-card-mini">
+                        <Clock size={18} className="benefit-icon" />
+                        <div className="benefit-content">
+                          <h4>Self-Paced Lifetime Learning</h4>
+                          <p>Learn at your own pace with unlimited lifetime access to all course modules.</p>
+                        </div>
+                      </div>
+                      {benefits.map((benefit, idx) => (
+                        <div key={idx} className="benefit-card-mini">
+                          <Sparkles size={18} className="benefit-icon" />
+                          <div className="benefit-content">
+                            <h4>{benefit}</h4>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="overview-card-block instructor-message-block">
+                    <div className="block-header">
+                      <Quote size={20} className="block-header-icon accent-green" />
+                      <h2 className="block-title">Instructor's Message</h2>
+                    </div>
+                    <div className="instructor-quote-card">
+                      <p className="instructor-quote-text">
+                        "{overview.instructorMessage}"
+                      </p>
+                      <div className="instructor-quote-author">
+                        <Avatar
+                          image={instructorAvatar}
+                          name={instructorName}
+                          size="small"
+                        />
+                        <div className="quote-author-info">
+                          <span className="quote-author-name">{instructorName}</span>
+                          <span className="quote-author-headline">{instructorHeadline}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              ) : hasBenefits ? (
+                <section className="overview-card-block benefits-block full-width">
+                  <div className="block-header">
+                    <ShieldCheck size={20} className="block-header-icon accent-green" />
+                    <h2 className="block-title">Key Benefits</h2>
+                  </div>
+                  <div className="benefits-grid full-width-grid">
+                    {hasCertificate && (
+                      <div className="benefit-card-mini">
+                        <Award size={18} className="benefit-icon" />
+                        <div className="benefit-content">
+                          <h4>Certificate of Completion</h4>
+                          <p>Earn an industry-recognized certificate upon completing all lessons.</p>
+                        </div>
+                      </div>
+                    )}
+                    <div className="benefit-card-mini">
+                      <Clock size={18} className="benefit-icon" />
+                      <div className="benefit-content">
+                        <h4>Self-Paced Lifetime Learning</h4>
+                        <p>Learn at your own pace with unlimited lifetime access to all course modules.</p>
+                      </div>
+                    </div>
+                    {benefits.map((benefit, idx) => (
+                      <div key={idx} className="benefit-card-mini">
+                        <Sparkles size={18} className="benefit-icon" />
+                        <div className="benefit-content">
+                          <h4>{benefit}</h4>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : hasInstructorMessage ? (
+                <section className="overview-card-block instructor-message-block full-width">
+                  <div className="block-header">
+                    <Quote size={20} className="block-header-icon accent-green" />
+                    <h2 className="block-title">Instructor's Message</h2>
+                  </div>
+                  <div className="instructor-quote-card">
+                    <p className="instructor-quote-text">
+                      "{overview.instructorMessage}"
+                    </p>
+                    <div className="instructor-quote-author">
+                      <Avatar
+                        image={instructorAvatar}
+                        name={instructorName}
+                        size="small"
+                      />
+                      <div className="quote-author-info">
+                        <span className="quote-author-name">{instructorName}</span>
+                        <span className="quote-author-headline">{instructorHeadline}</span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
+
+              {/* I. Frequently Asked Questions */}
+              {faqs.length > 0 && (
+                <section className="overview-card-block faqs-block">
+                  <div className="block-header">
+                    <HelpCircle size={20} className="block-header-icon" />
+                    <h2 className="block-title">Frequently Asked Questions</h2>
+                  </div>
+                  <div className="faq-accordion-container">
+                    {faqs.map((faq, idx) => {
+                      const isOpen = activeFaq === idx;
+                      return (
+                        <div key={idx} className={`faq-accordion-item ${isOpen ? 'open' : ''}`}>
+                          <button
+                            type="button"
+                            className="faq-question-trigger"
+                            onClick={() => setActiveFaq(isOpen ? null : idx)}
+                            aria-expanded={isOpen}
+                          >
+                            <span className="faq-question-label">{faq.question}</span>
+                            {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                          </button>
+                          {isOpen && (
+                            <div className="faq-answer-panel">
+                              <p>{faq.answer}</p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+            </div>
+          )}
+
+          {/* ───────────────── TAB 2: CURRICULUM (STRUCTURE ONLY) ───────────────── */}
+          {activeTab === 'curriculum' && (
+            <div className="curriculum-tab-pane">
+              <section className="overview-card-block curriculum-block">
+                <div className="block-header curriculum-header-flex">
+                  <div className="header-left">
+                    <Layers size={20} className="block-header-icon accent-green" />
+                    <div>
+                      <h2 className="block-title">Course Curriculum & Syllabus</h2>
+                      <p className="block-subtitle">
+                        {modules.length} {modules.length === 1 ? 'Module' : 'Modules'} • {totalLessonsCount} Lessons
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {modules.length === 0 ? (
+                  <div className="empty-curriculum-notice">
+                    <Layers size={28} className="empty-icon" />
+                    <p>Curriculum is being finalized by the instructor. Check back soon!</p>
+                  </div>
+                ) : (
+                  <div className="curriculum-modules-accordion">
+                    {modules.map((mod, mIdx) => {
+                      const modKey = mod._id || `mod_${mIdx}`;
+                      const isModOpen = Boolean(expandedModules[modKey]); // Kept closed by default, only opens when clicked
+                      const lessons = Array.isArray(mod.lessons) ? mod.lessons : [];
+
+                      return (
+                        <div key={modKey} className={`curriculum-module-item ${isModOpen ? 'open' : ''}`}>
+                          <button
+                            type="button"
+                            className="curriculum-module-bar"
+                            onClick={() =>
+                              setExpandedModules((prev) => ({
+                                ...prev,
+                                [modKey]: !isModOpen
+                              }))
+                            }
+                            aria-expanded={isModOpen}
+                          >
+                            <div className="module-bar-left">
+                              <span className="module-number-pill">Module {mIdx + 1}</span>
+                              <span className="module-title-heading">{mod.title}</span>
+                            </div>
+                            <div className="module-bar-right">
+                              <span className="module-lessons-count-text">
+                                {lessons.length} {lessons.length === 1 ? 'Lesson' : 'Lessons'}
+                              </span>
+                              {isModOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                            </div>
+                          </button>
+
+                          {/* STRICT RESTRICTION: Structure ONLY. Real lesson titles & durations. NO private content, quiz, video, or note preview */}
+                          {isModOpen && (
+                            <div className="curriculum-lessons-tree">
+                              {lessons.length === 0 ? (
+                                <div className="curriculum-no-lessons">No lessons listed in this module.</div>
+                              ) : (
+                                lessons.map((les, lIdx) => (
+                                  <div key={les._id || lIdx} className="curriculum-lesson-leaf">
+                                    <div className="lesson-leaf-left">
+                                      <PlayCircle size={15} className="lesson-play-glyph" />
+                                      <span className="lesson-leaf-title">{les.title}</span>
+                                    </div>
+                                    {les.duration && (
+                                      <div className="lesson-leaf-right">
+                                        <Clock size={13} className="lesson-clock-icon" />
+                                        <span className="lesson-leaf-duration">{les.duration}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
+              </section>
+            </div>
+          )}
 
-                {optionalLinks.length > 0 && (
-                  <div className="inst-links-row">
-                    {optionalLinks.map((link, lIdx) => (
-                      <a
-                        key={lIdx}
-                        href={link.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inst-social-link"
-                        title={link.platform}
-                      >
-                        {link.platform === 'linkedin' ? (
-                          <LinkedinIcon size={16} />
-                        ) : link.platform === 'github' ? (
-                          <GithubIcon size={16} />
-                        ) : (
-                          <ExternalLink size={16} />
+          {/* ───────────────── TAB 3: REVIEWS ───────────────── */}
+          {activeTab === 'reviews' && (
+            <div className="reviews-tab-pane">
+              <section className="overview-card-block reviews-block">
+                <div className="block-header">
+                  <Star size={20} className="block-header-icon" />
+                  <div>
+                    <h2 className="block-title">Learner Ratings & Feedback</h2>
+                    {stats?.reviewCount > 0 && (
+                      <p className="block-subtitle">
+                        Based on real feedback from verified enrolled students
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {safeReviews.length === 0 ? (
+                  <div className="empty-reviews-state">
+                    <Star size={32} className="empty-reviews-star" />
+                    <h3>No reviews yet</h3>
+                    <p>This course is recently published. Verified student ratings and feedback will appear here as learners progress.</p>
+                  </div>
+                ) : (
+                  <div className="reviews-cards-grid">
+                    {safeReviews.map((rev, idx) => (
+                      <div key={idx} className="review-item-card">
+                        <div className="review-item-header">
+                          <Avatar
+                            image={rev.learnerAvatar}
+                            name={rev.learnerName}
+                            size="small"
+                          />
+                          <div className="review-author-meta">
+                            <span className="review-author-name">{rev.learnerName || 'Learner'}</span>
+                            <span className="review-date-text">
+                              {rev.ratedAt ? new Date(rev.ratedAt).toLocaleDateString() : ''}
+                            </span>
+                          </div>
+                          <div className="review-stars-wrap">
+                            {[...Array(5)].map((_, sIdx) => (
+                              <Star
+                                key={sIdx}
+                                size={14}
+                                className={sIdx < rev.rating ? 'star-filled' : 'star-empty'}
+                                fill="currentColor"
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        <p className="review-quote-body">"{rev.feedback}"</p>
+
+                        {Array.isArray(rev.tags) && rev.tags.length > 0 && (
+                          <div className="review-tags-list">
+                            {rev.tags.map((tag, tIdx) => (
+                              <span key={tIdx} className="review-tag-badge">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
                         )}
-                        <span>{link.platform}</span>
-                      </a>
+                      </div>
                     ))}
                   </div>
                 )}
-              </div>
+              </section>
             </div>
-          </div>
-        </aside>
-      </div>
+          )}
 
-      {/* Quiz Player Modal */}
-      {activeQuizModal && (
-        <QuizPlayerModal
-          quizItem={activeQuizModal.item}
-          moduleTitle={activeQuizModal.module?.title}
-          lessonTitle={activeQuizModal.lesson?.title}
-          moduleIndex={activeQuizModal.moduleIndex}
-          moduleId={activeQuizModal.module?._id}
-          lessonIndex={activeQuizModal.lessonIndex}
-          lessonId={activeQuizModal.lesson?._id}
-          courseId={course?._id}
-          courseTitle={course?.title}
-          isEnrolled={isEnrolled}
-          isAlreadyPassed={activeQuizModal.isAlreadyPassed}
-          onClose={() => setActiveQuizModal(null)}
-          onQuizPassed={handleQuizPassed}
-        />
-      )}
+          {/* ───────────────── TAB 4: Q&A / COURSE DOUBTS ───────────────── */}
+          {activeTab === 'qa' && (
+            <div className="qa-tab-pane">
+              <section className="overview-card-block qa-block">
+                <div className="block-header">
+                  <MessageCircle size={20} className="block-header-icon accent-green" />
+                  <div>
+                    <h2 className="block-title">Course Doubts & Inquiries</h2>
+                    <p className="block-subtitle">
+                      Have questions before enrolling? Ask the instructor directly.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Inquiry Question Submission Form */}
+                {!isPreviewMode && onAskQuestion && (
+                  <form className="qa-inquiry-form" onSubmit={handleQuestionSubmit}>
+                    <textarea
+                      rows={3}
+                      className="qa-textarea-input"
+                      placeholder={user ? "Ask a question or doubt about this course..." : "Log in as a learner to ask a doubt..."}
+                      value={questionInput}
+                      onChange={(e) => setQuestionInput(e.target.value)}
+                      disabled={!user || submittingQ}
+                    />
+                    <div className="qa-form-actions-row">
+                      {!user && (
+                        <span className="qa-login-hint">
+                          You must be signed in as a learner to ask a question.
+                        </span>
+                      )}
+                      <button
+                        type="submit"
+                        className="btn-submit-qa"
+                        disabled={!user || !questionInput.trim() || submittingQ}
+                      >
+                        <Send size={15} />
+                        <span>{submittingQ ? 'Submitting...' : 'Ask Question'}</span>
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Answered Questions List */}
+                <div className="qa-inquiries-list">
+                  {safeQuestions.length === 0 ? (
+                    <div className="empty-qa-state">
+                      <FileQuestion size={30} className="empty-qa-icon" />
+                      <p>No inquiries asked yet. Be the first to ask a question!</p>
+                    </div>
+                  ) : (
+                    safeQuestions.map((q, idx) => (
+                      <div key={idx} className="qa-inquiry-card">
+                        <div className="qa-inquiry-question-box">
+                          <div className="qa-user-row">
+                            <Avatar
+                              image={q.userAvatar}
+                              name={q.userName}
+                              size="small"
+                            />
+                            <span className="qa-user-title">{q.userName || 'Learner'}</span>
+                            {q.createdAt && (
+                              <span className="qa-timestamp">
+                                • {new Date(q.createdAt).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                          <p className="qa-question-content">{q.question}</p>
+                        </div>
+
+                        {q.instructorReply && (
+                          <div className="qa-instructor-reply-box">
+                            <div className="qa-reply-header">
+                              <Avatar
+                                image={instructorAvatar}
+                                name={instructorName}
+                                size="small"
+                              />
+                              <div className="reply-meta">
+                                <span className="reply-instructor-name">{instructorName}</span>
+                                <span className="reply-instructor-tag">Instructor Reply</span>
+                              </div>
+                              {q.replyTimestamp && (
+                                <span className="reply-date">
+                                  {new Date(q.replyTimestamp).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                            <p className="qa-reply-text">{q.instructorReply}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* ───────────────── BOTTOM ENROLL CTA BANNER (Visible across tabs) ───────────────── */}
+          {!isPreviewMode && !isEnrolled && (
+            <div className="overview-bottom-cta-banner">
+              <div className="bottom-cta-content">
+                <h3>Ready to start learning {course?.title}?</h3>
+                <p>
+                  {modules.length} Modules • {totalLessonsCount} Lessons • {course?.price > 0 ? `₹${course.price}` : 'Free Course'}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-bottom-enroll"
+                onClick={onEnroll}
+                disabled={enrolling}
+              >
+                <span>{enrolling ? 'Enrolling...' : (course?.price > 0 ? 'Enroll Now' : 'Enroll for Free')}</span>
+                <ArrowRight size={18} />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

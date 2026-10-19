@@ -6,6 +6,7 @@ import { HomePage } from './pages/Home/HomePage';
 import { Footer } from './components/common/Footer/Footer';
 import SignUp from './components/authentication/signup';
 import Login from './components/authentication/login';
+import ForgotPassword from './components/authentication/ForgotPassword';
 import { InstructorDashboard } from './pages/Instructor/InstructorDashboard';
 import { LearnerDashboard } from './pages/Learner/LearnerDashboard';
 import { ExploreCourses } from './components/home/ExploreCourses/ExploreCourses';
@@ -184,7 +185,7 @@ function App() {
       }
       if (authChecking) {
         return (
-          <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main, #0f172a)', color: '#6366f1', fontWeight: 600 }}>
+          <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', color: 'var(--brand-primary)', fontWeight: 600 }}>
             <div>Loading dashboard...</div>
           </div>
         );
@@ -225,12 +226,28 @@ function App() {
       }
       return <SignUp />;
     }
+    if (path === '/forgot-password' || path === '/reset-password') {
+      if (currentUser) {
+        const targetPath = currentUser.role === 'instructor'
+          ? (currentUser.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
+          : '/learner';
+        if (currentPath !== targetPath) {
+          window.history.replaceState({}, '', targetPath);
+        }
+        return currentUser.role === 'instructor' ? (
+          <InstructorDashboard user={currentUser} onLogout={handleLogout} />
+        ) : (
+          <LearnerDashboard user={currentUser} />
+        );
+      }
+      return <ForgotPassword />;
+    }
     // 2. Protected Role-based Routing
     if (path.startsWith('/instructor/') || path === '/instructor') {
       if (!currentUser) {
         if (authChecking) {
           return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main, #0f172a)', color: '#6366f1', fontWeight: 600 }}>
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', color: 'var(--brand-primary)', fontWeight: 600 }}>
               <div>Loading dashboard...</div>
             </div>
           );
@@ -264,7 +281,7 @@ function App() {
       if (!currentUser) {
         if (authChecking) {
           return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main, #0f172a)', color: '#6366f1', fontWeight: 600 }}>
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', color: 'var(--brand-primary)', fontWeight: 600 }}>
               <div>Loading dashboard...</div>
             </div>
           );

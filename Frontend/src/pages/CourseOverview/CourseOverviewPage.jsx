@@ -73,10 +73,16 @@ export const CourseOverviewPage = ({ courseId, user = null }) => {
     window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/courses' } }));
   };
 
+  const handleGoToLearning = () => {
+    window.history.pushState({}, '', '/learner');
+    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/learner' } }));
+  };
+
   const handleEnroll = async () => {
     const token = sessionStorage.getItem('upskillr_token');
     if (!token) {
       toast.warning('Please log in as a Learner to enroll in this course.');
+      sessionStorage.setItem('upskillr_redirect_after_login', `/courses/${courseId}`);
       window.history.pushState({}, '', '/login');
       window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/login' } }));
       return;
@@ -239,6 +245,7 @@ export const CourseOverviewPage = ({ courseId, user = null }) => {
           questions={data.questions}
           onAskQuestion={handleAskQuestion}
           onEnroll={handleEnroll}
+          onGoToLearning={handleGoToLearning}
           isEnrolled={isEnrolled}
           enrolling={enrolling}
           isPreviewMode={false}

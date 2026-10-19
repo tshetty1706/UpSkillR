@@ -141,7 +141,13 @@ export default function Login() {
             navigate('/instructor/application');
           }
         } else {
-          navigate('/learner');
+          const redirectPath = sessionStorage.getItem('upskillr_redirect_after_login');
+          if (redirectPath) {
+            sessionStorage.removeItem('upskillr_redirect_after_login');
+            navigate(redirectPath);
+          } else {
+            navigate('/learner');
+          }
         }
       }, 800);
     } catch (err) {
@@ -324,7 +330,14 @@ export default function Login() {
                   />
                   <span>Remember me</span>
                 </label>
-                <a href="/forgot-password" className="forgot-link" onClick={(e) => e.preventDefault()}>
+                <a
+                  href="/forgot-password"
+                  className="forgot-link"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate('/forgot-password');
+                  }}
+                >
                   Forgot password?
                 </a>
               </div>

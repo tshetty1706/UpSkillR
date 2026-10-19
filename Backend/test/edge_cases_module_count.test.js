@@ -57,6 +57,7 @@ async function runEdgeCases() {
       }
     ];
     await course.save();
+    if (courseController.courseCache) courseController.courseCache.invalidateAll();
 
     // Instructor View
     const instReq1 = mockReqRes({ user: { id: instructorId.toString() } });
@@ -84,6 +85,7 @@ async function runEdgeCases() {
       { title: 'Mod 3', state: 'published', lessons: [{ title: 'L3', state: 'published', items: [{ title: 'V3', type: 'video', state: 'published' }] }] }
     ];
     await course.save();
+    if (courseController.courseCache) courseController.courseCache.invalidateAll();
 
     const instReq2 = mockReqRes({ user: { id: instructorId.toString() } });
     await courseController.getInstructorCourses(instReq2.req, instReq2.res);
@@ -103,6 +105,7 @@ async function runEdgeCases() {
     console.log('\n--- CASE 3: All modules Draft (3 modules) ---');
     course.modules.forEach(m => { m.state = 'draft'; });
     await course.save();
+    if (courseController.courseCache) courseController.courseCache.invalidateAll();
 
     const instReq3 = mockReqRes({ user: { id: instructorId.toString() } });
     await courseController.getInstructorCourses(instReq3.req, instReq3.res);
@@ -123,6 +126,7 @@ async function runEdgeCases() {
     console.log('\n--- CASE 4: No modules (0 modules) ---');
     course.modules = [];
     await course.save();
+    if (courseController.courseCache) courseController.courseCache.invalidateAll();
 
     const instReq4 = mockReqRes({ user: { id: instructorId.toString() } });
     await courseController.getInstructorCourses(instReq4.req, instReq4.res);
@@ -146,6 +150,7 @@ async function runEdgeCases() {
       { title: 'Mod 3', state: 'draft', lessons: [{ title: 'L3', state: 'draft', items: [{ title: 'V3', type: 'video', state: 'draft' }] }] }
     ];
     await course.save();
+    if (courseController.courseCache) courseController.courseCache.invalidateAll();
 
     // Before publish
     const pubReq5a = mockReqRes();
@@ -156,6 +161,7 @@ async function runEdgeCases() {
     // Publish Mod 2
     course.modules[1].state = 'published';
     await course.save();
+    if (courseController.courseCache) courseController.courseCache.invalidateAll();
 
     const pubReq5b = mockReqRes();
     await courseController.getPublishedCourses(pubReq5b.req, pubReq5b.res);
@@ -169,6 +175,7 @@ async function runEdgeCases() {
     console.log('\n--- CASE 6: Unpublish a Published module ---');
     course.modules[1].state = 'draft';
     await course.save();
+    if (courseController.courseCache) courseController.courseCache.invalidateAll();
 
     const pubReq6 = mockReqRes();
     await courseController.getPublishedCourses(pubReq6.req, pubReq6.res);

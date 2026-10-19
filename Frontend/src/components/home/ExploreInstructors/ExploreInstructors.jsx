@@ -92,19 +92,19 @@ export const ExploreInstructors = () => {
             {filteredInstructors.map((inst, index) => {
               const cardAccents = ['accent-green', 'accent-purple', 'accent-blue', 'accent-orange'];
               const accentClass = cardAccents[index % cardAccents.length];
-              
+
               const maxSkills = 3;
               const displaySkills = (inst.expertise || []).slice(0, maxSkills);
               const hasMoreSkills = (inst.expertise || []).length > maxSkills;
               const remainingSkillsCount = (inst.expertise || []).length - maxSkills;
-              
+
               const formatNumber = (num) => {
                 if (num >= 1000) {
                   return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
                 }
                 return num;
               };
-              
+
               return (
                 <div
                   key={inst._id}
@@ -121,18 +121,8 @@ export const ExploreInstructors = () => {
                   }}
                   style={{ cursor: 'pointer' }}
                 >
-                  {/* Decorative / Action Bookmark */}
-                  <button
-                    type="button"
-                    className="instructor-bookmark-btn"
-                    aria-label={`Bookmark instructor ${inst.fullName}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                    }}
-                  >
-                    <Bookmark size={18} className="bookmark-icon" />
-                  </button>
-                  
+
+
                   {/* Top Header Block: Horizontal Layout */}
                   <div className="instructor-card-header">
                     <div className="instructor-avatar-container">
@@ -141,7 +131,7 @@ export const ExploreInstructors = () => {
                         <Avatar image={inst.avatar} name={inst.fullName} size="medium" />
                       </div>
                     </div>
-                    
+
                     <div className="instructor-header-info">
                       <div className="instructor-name-row">
                         <h3 className="instructor-name">{inst.fullName}</h3>
@@ -154,7 +144,7 @@ export const ExploreInstructors = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   {/* Skill Chips / Tags Row */}
                   <div className="instructor-skills-chips">
                     {displaySkills.length > 0 ? (
@@ -172,7 +162,7 @@ export const ExploreInstructors = () => {
                       </span>
                     )}
                   </div>
-                  
+
                   {/* Metrics Row: 3 Columns with vertical separators */}
                   <div className="instructor-metrics-row">
                     {/* Column 1: Rating */}
@@ -193,7 +183,7 @@ export const ExploreInstructors = () => {
                         <span className="metric-label">No ratings yet</span>
                       </div>
                     )}
-                    
+
                     {/* Column 2: Learners */}
                     <div className="metric-col">
                       <div className="metric-value-wrapper">
@@ -202,7 +192,7 @@ export const ExploreInstructors = () => {
                       </div>
                       <span className="metric-label">Learners</span>
                     </div>
-                    
+
                     {/* Column 3: Courses */}
                     <div className="metric-col">
                       <div className="metric-value-wrapper">
@@ -212,12 +202,12 @@ export const ExploreInstructors = () => {
                       <span className="metric-label">Courses</span>
                     </div>
                   </div>
-                  
+
                   {/* Short bio */}
                   <p className="instructor-bio-text">
-                    {inst.bio || 'Project-based instructor helping developers build practical web apps.'}
+                    {inst.bio || (inst.designation ? `${inst.fullName} is an educator on UpSkillr.` : '')}
                   </p>
-                  
+
                   {/* Footer Explore courses CTA button */}
                   <div className="instructor-card-footer">
                     <button

@@ -396,7 +396,7 @@
   display: flex;
   flex-direction: column;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02);
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s ease, background-color var(--theme-transition-duration, 200ms) var(--theme-transition-timing, ease), border-color var(--theme-transition-duration, 200ms) var(--theme-transition-timing, ease), box-shadow var(--theme-transition-duration, 200ms) var(--theme-transition-timing, ease);
   height: 100%;
 }
 
@@ -406,7 +406,8 @@
   box-shadow: 0 8px 24px rgba(17, 104, 48, 0.06);
 }
 
-.dark .explore-course-card:hover {
+.dark .explore-course-card:hover,
+[data-theme="dark"] .explore-course-card:hover {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
@@ -416,11 +417,13 @@
   height: 150px;
   /* Compact height */
   overflow: hidden;
-  background-color: var(--surface-muted, #f8f8f8);
+  background-color: var(--surface-muted);
+  transition: background-color var(--theme-transition-duration, 200ms) var(--theme-transition-timing, ease);
 }
 
-.dark .course-card-thumb-wrap {
-  background-color: #0c1512;
+.dark .course-card-thumb-wrap,
+[data-theme="dark"] .course-card-thumb-wrap {
+  background-color: var(--surface-muted);
 }
 
 .course-card-thumb {
