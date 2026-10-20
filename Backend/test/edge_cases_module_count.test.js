@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 const Course = require('../model/Course');
 const courseController = require('../controller/courseController');
 
@@ -24,13 +24,24 @@ const mockReqRes = (reqData = {}) => {
 };
 
 async function runEdgeCases() {
-  await mongoose.connect(process.env.MONGO_URL);
+  await mongoose.connect(process.env.MONGO_URL, { dbName: 'UpSkillr' });
   console.log('Connected to MongoDB');
 
-  const course = await Course.findOne({});
+  let course = await Course.findOne({});
+  let createdTestCourse = false;
   if (!course) {
-    console.log('No courses in DB');
-    process.exit(1);
+    const dummyInstructorId = new mongoose.Types.ObjectId();
+    course = await Course.create({
+      title: 'Module Count Test Course',
+      shortDescription: 'Test course for module count edge cases',
+      category: 'Web Development',
+      skillLevel: 'Beginner',
+      instructorId: dummyInstructorId,
+      instructorName: 'Test Instructor',
+      status: 'published',
+      modules: []
+    });
+    createdTestCourse = true;
   }
 
   console.log(`Testing with Course: "${course.title}" (_id: ${course._id})`);
@@ -191,10 +202,14 @@ async function runEdgeCases() {
 
     console.log('\n✓ ALL 6 EDGE CASES PASSED PERFECTLY!');
   } finally {
-    // Restore original course modules
-    course.modules = originalModules;
-    await course.save();
-    console.log('Restored original database state.');
+    if (createdTestCourse) {
+      await Course.deleteOne({ _id: course._id });
+      console.log('Cleaned up temporary test course fixture.');
+    } else {
+      course.modules = originalModules;
+      await course.save();
+      console.log('Restored original database state.');
+    }
     await mongoose.disconnect();
   }
 }

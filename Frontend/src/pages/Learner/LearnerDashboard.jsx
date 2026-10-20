@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { BookOpen, Sun, Moon, LogOut, Compass, User, LayoutDashboard } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { BookOpen, Sun, Moon, LogOut, User, LayoutDashboard } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { LearnerDashboardOverview } from '../../components/learner/dashboard/LearnerDashboardOverview/LearnerDashboardOverview';
@@ -9,7 +9,7 @@ import { LogoutModal } from '../../components/common/LogoutModal/LogoutModal';
 import '../../components/learner/dashboard/LearnerDashboardOverview/LearnerDashboardOverview.css';
 
 export const LearnerDashboard = ({ user }) => {
-  const { theme, toggleTheme, isDarkMode } = useTheme();
+  const { toggleTheme, isDarkMode } = useTheme();
   const { toast } = useToast();
   const [enrolments, setEnrolments] = useState([]);
   const [publishedCourses, setPublishedCourses] = useState([]);
@@ -24,7 +24,9 @@ export const LearnerDashboard = ({ user }) => {
         method: 'POST',
         credentials: 'include'
       });
-    } catch (e) { }
+    } catch {
+      // Ignore logout API failures and clear client session
+    }
     sessionStorage.removeItem('upskillr_token');
     sessionStorage.removeItem('upskillr_user');
     localStorage.removeItem('upskillr_token');
@@ -38,17 +40,7 @@ export const LearnerDashboard = ({ user }) => {
     window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
   };
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
-    setLoading(true);
-    await Promise.all([fetchMyEnrolments(), fetchPublishedCourses()]);
-    setLoading(false);
-  };
-
-  const fetchMyEnrolments = async () => {
+  const fetchMyEnrolments = useCallback(async () => {
     try {
       const token = sessionStorage.getItem('upskillr_token');
       const headers = {};
@@ -64,9 +56,9 @@ export const LearnerDashboard = ({ user }) => {
     } catch (err) {
       console.error('Failed to fetch enrolments', err);
     }
-  };
+  }, []);
 
-  const fetchPublishedCourses = async (search = '', category = 'All', level = 'All') => {
+  const fetchPublishedCourses = useCallback(async (search = '', category = 'All', level = 'All') => {
     try {
       const params = new URLSearchParams();
       if (search && search.trim()) params.append('search', search.trim());
@@ -84,8 +76,17 @@ export const LearnerDashboard = ({ user }) => {
     } catch (err) {
       console.error('Failed to fetch published courses', err);
     }
-  };
+  }, []);
 
+  const fetchDashboardData = useCallback(async () => {
+    setLoading(true);
+    await Promise.all([fetchMyEnrolments(), fetchPublishedCourses()]);
+    setLoading(false);
+  }, [fetchMyEnrolments, fetchPublishedCourses]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
   // FR-06 Single Action Enrolment Handler
   const handleEnrolCourse = async (courseId) => {
     const token = sessionStorage.getItem('upskillr_token');
@@ -260,7 +261,7 @@ export const LearnerDashboard = ({ user }) => {
             </button>
 
             <NotificationBell
-              onNavigateToCourse={(courseId) => {
+              onNavigateToCourse={() => {
                 setActiveView('dashboard');
                 setActiveTab('enrolled');
               }}

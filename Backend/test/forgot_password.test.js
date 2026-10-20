@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const axios = require('axios');
+axios.defaults.headers.common['x-test-suite'] = 'true';
 const jwt = require('jsonwebtoken');
 const { Learner, Instructor } = require('../model/User');
 

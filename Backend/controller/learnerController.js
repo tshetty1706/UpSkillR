@@ -7,7 +7,7 @@ const CourseReview = require('../model/CourseReview');
 const PLATFORM_REGEXES = {
   github: /^https:\/\/(www\.)?github\.com\/[A-Za-z0-9_.-]+\/?$/,
   linkedin: /^https:\/\/(www\.)?linkedin\.com\/in\/[A-Za-z0-9_.-]+\/?$/,
-  leetcode: /^https:\/\/(www\.)?leetcode\.com\/(u\/)?[A-Za-z0-9_.-]+\/?$/,
+  leetcode: /^https:\/\/(www\.)?leetcode\.com\/u\/[A-Za-z0-9_.-]+\/?$/,
   instagram: /^https:\/\/(www\.)?instagram\.com\/[A-Za-z0-9_.-]+\/?$/,
   facebook: /^https:\/\/(www\.)?facebook\.com\/[A-Za-z0-9_.-]+\/?$/,
   codeforces: /^https:\/\/(www\.)?codeforces\.com\/profile\/[A-Za-z0-9_.-]+\/?$/,

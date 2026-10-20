@@ -542,32 +542,14 @@
   margin: 0;
 }
 
-/* Responsive Overrides & Container Padding rules from AGENTS.md */
-@media (min-width: 1024px) {
-  .instructor-explore-page .container {
-    padding-left: 32px;
-    padding-right: 32px;
-    max-width: 1440px;
-    margin: 0 auto;
-  }
-}
-
+/* Responsive Overrides */
 @media (min-width: 768px) and (max-width: 1023px) {
-  .instructor-explore-page .container {
-    padding-left: 24px;
-    padding-right: 24px;
-  }
-
   .instructor-about-header-row {
     flex-wrap: wrap;
   }
 }
 
 @media (max-width: 767px) {
-  .instructor-explore-page .container {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
 
   .instructor-about-hero-card {
     padding: 1.25rem;

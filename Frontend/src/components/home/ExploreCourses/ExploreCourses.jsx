@@ -1,13 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  BookOpen, Search, Video, Users, CheckCircle2, Star, Sparkles, ArrowRight, Bookmark, Clock, User,
-  SlidersHorizontal, BarChart2, ChevronRight, ChevronDown, X, Award, FileText, Layers, FileCode, HelpCircle
+  BookOpen, Search, Sparkles, SlidersHorizontal, BarChart2, ChevronRight, X
 } from 'lucide-react';
 import './ExploreCourses.css';
 import { useToast } from '../../../context/ToastContext';
 import exploreCoursesSvg from '../../../assets/illustrations/explore_courses.svg?raw';
-import { CourseThumbnail } from '../../common/CourseThumbnail';
-import { Avatar } from '../../common/Avatar/Avatar';
 import { CourseCard } from '../../common/CourseCard/CourseCard';
 
 export const ExploreCourses = () => {

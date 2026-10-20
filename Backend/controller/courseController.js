@@ -262,10 +262,18 @@ exports.getCourseUniversal = async (req, res) => {
           const decoded = jwt.verify(token, JWT_SECRET);
           if (decoded && (decoded.role === 'instructor' || decoded.role === 'admin')) {
             const course = await Course.findById(courseId);
-            if (course && course.instructorId.toString() === decoded.id.toString()) {
-              req.user = decoded;
-              req.course = course;
-              return exports.getCourseById(req, res);
+            if (course) {
+              if (course.instructorId.toString() === decoded.id.toString()) {
+                req.user = decoded;
+                req.course = course;
+                return exports.getCourseById(req, res);
+              }
+              if (!course.isPublished) {
+                return res.status(403).json({
+                  success: false,
+                  message: 'Forbidden. You do not have permission to view another instructor’s unpublished course.'
+                });
+              }
             }
           }
         } catch (e) {

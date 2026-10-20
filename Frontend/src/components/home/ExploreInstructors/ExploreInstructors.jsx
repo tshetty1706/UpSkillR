@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Sparkles, BookOpen, Users, Award, ArrowRight, User, Bookmark, CheckCircle2, Star } from 'lucide-react';
+import { Search, Sparkles, BookOpen, Users, Award, ArrowRight, User } from 'lucide-react';
 import './ExploreInstructors.css';
 import { Avatar } from '../../common/Avatar/Avatar';
 import exploreInstructorSvg from '../../../assets/illustrations/explore_instructor.svg?raw';

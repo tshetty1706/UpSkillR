@@ -1565,3 +1565,41 @@
     justify-content: center;
   }
 }
+
+@media (max-width: 480px) {
+  .overview-hero-section {
+    padding: 1.5rem 1rem;
+  }
+
+  .overview-main-wrapper {
+    padding: 1.5rem 1rem 2.5rem 1rem;
+  }
+
+  .curriculum-module-bar {
+    padding: 0.9rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+  }
+
+  .module-bar-right {
+    width: 100%;
+    justify-content: space-between;
+    padding-top: 0.25rem;
+  }
+
+  .instructor-card-large {
+    padding: 1.25rem;
+  }
+
+  .instructor-header-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .instructor-stats-strip {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}

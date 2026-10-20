@@ -75,7 +75,7 @@ const getCountryName = (isoCode) => {
   try {
     const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
     return regionNames.of(isoCode) || isoCode;
-  } catch (e) {
+  } catch {
     return isoCode;
   }
 };
@@ -94,10 +94,10 @@ const getPhoneLengthRules = (isoCode) => {
 export const ALL_COUNTRIES = getCountries()
   .filter((iso) => !EXCLUDED_TERRITORIES.has(iso))
   .map((iso) => {
-    let callingCode = '';
+    let callingCode;
     try {
       callingCode = '+' + getCountryCallingCode(iso);
-    } catch (e) {
+    } catch {
       callingCode = '+1';
     }
     const name = getCountryName(iso);

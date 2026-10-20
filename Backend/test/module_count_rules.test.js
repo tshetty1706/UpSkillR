@@ -1,16 +1,33 @@
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
-require('dotenv').config();
+const mongoose = require('mongoose');
+const { Instructor } = require('../model/User');
 
 const secret = process.env.JWT_SECRET || 'upskillr_jwt_secret_key_2026_super_secure';
-const instructorToken = jwt.sign(
-  { id: '6ab0009531616018dcb618a9', email: 'instructor@upskillr.com', role: 'instructor' },
-  secret,
-  { expiresIn: '7d' }
-);
 
 async function testModuleCountRules() {
   console.log('=== Testing Module Count Rules for Instructors vs Learners ===');
+
+  await mongoose.connect(process.env.MONGO_URL, { dbName: 'UpSkillr' });
+
+  let instructor = await Instructor.findOne({ applicationStatus: { $in: ['submitted', 'approved'] } });
+  let createdTemp = false;
+  if (!instructor) {
+    instructor = await Instructor.create({
+      fullName: 'Rule Test Instructor',
+      email: 'rule_test_instructor@upskillr.dev',
+      password: 'TestPassword123!',
+      applicationStatus: 'submitted'
+    });
+    createdTemp = true;
+  }
+
+  const instructorToken = jwt.sign(
+    { id: instructor._id, email: instructor.email, role: 'instructor', fullName: instructor.fullName },
+    secret,
+    { expiresIn: '7d' }
+  );
 
   try {
     // 1. Fetch Instructor Courses
@@ -47,6 +64,11 @@ async function testModuleCountRules() {
   } catch (err) {
     console.error('Error during test:', err.response?.data || err.message);
     process.exit(1);
+  } finally {
+    if (createdTemp) {
+      await Instructor.deleteOne({ _id: instructor._id });
+    }
+    await mongoose.disconnect();
   }
 }
 
