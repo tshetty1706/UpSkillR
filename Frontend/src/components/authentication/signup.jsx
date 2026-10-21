@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
-import { useToast } from '../../context/ToastContext';
 import Signin_page from '../../assets/illustrations/Signin_page.svg';
 import {
   User,
@@ -24,7 +23,6 @@ const API_BASE_URL = 'http://localhost:5000/api/auth';
 
 export default function SignUp() {
   const { theme, toggleTheme } = useTheme();
-  const { toast } = useToast();
   const [role, setRole] = useState('learner'); // 'learner' or 'instructor'
   const [formData, setFormData] = useState({
     fullName: '',
@@ -40,59 +38,153 @@ export default function SignUp() {
   const [showOtpStep, setShowOtpStep] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [unverifiedEmail, setUnverifiedEmail] = useState('');
+  const [otpChallengeId, setOtpChallengeId] = useState(null);
+  const [countdown, setCountdown] = useState(30);
+  const [canResend, setCanResend] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
 
+  // 30-Second Countdown Timer for Signup Email Verification
+  useEffect(() => {
+    let timer;
+    if (showOtpStep && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [showOtpStep, countdown]);
+
+  const dismissAlert = () => {
+    setAuthAlert(null);
+    sessionStorage.removeItem('upskillr_signup_error_code');
+    sessionStorage.removeItem('upskillr_signup_error_provider');
+    if (window.location.search) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  };
+
   const navigate = (path) => {
+    dismissAlert();
     window.history.pushState({}, '', path);
     window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
   };
 
-  // Handle URL search params on mount (for OAuth callbacks, errors, or role pre-selection)
+  const [authAlert, setAuthAlert] = useState(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const errorParam = urlParams.get('error');
+    const providerParam = urlParams.get('provider');
+    if (!errorParam) return null;
+
+    if (errorParam === 'account_exists') {
+      const providerName = providerParam === 'github' ? 'GitHub' : (providerParam === 'google' ? 'Google' : 'OAuth');
+      return {
+        type: 'warning',
+        message: `An account with this email address already exists. Please sign in instead.`,
+        actionText: 'Proceed to Sign In',
+        actionPath: '/login'
+      };
+    }
+    if (errorParam === 'no_account') {
+      return {
+        type: 'info',
+        message: 'Please complete your registration to create your UpSkillr account.',
+        actionText: null,
+        actionPath: null
+      };
+    }
+    if (errorParam === 'google_oauth_failed') {
+      return {
+        type: 'error',
+        message: 'Google registration was canceled or could not be completed. Please try again.',
+        actionText: null,
+        actionPath: null
+      };
+    }
+    if (errorParam === 'github_oauth_failed') {
+      return {
+        type: 'error',
+        message: 'GitHub registration was canceled or could not be completed. Please try again.',
+        actionText: null,
+        actionPath: null
+      };
+    }
+    return {
+      type: 'error',
+      message: 'Authentication failed. Please try again.',
+      actionText: null,
+      actionPath: null
+    };
+  });
+
+  // Handle URL search params on mount & cleanup so errors don't linger on page transitions
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     const userParam = urlParams.get('user');
     const errorParam = urlParams.get('error');
-    const providerParam = urlParams.get('provider');
     const roleParam = urlParams.get('role');
 
     if (roleParam === 'instructor' || roleParam === 'learner') {
       setRole(roleParam);
     }
 
+    // Immediately clean URL search params so browser back/refresh won't re-trigger error state
+    if (token || userParam || errorParam) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    sessionStorage.removeItem('upskillr_signup_error_code');
+    sessionStorage.removeItem('upskillr_signup_error_provider');
+
     if (token && userParam) {
       try {
-        const user = JSON.parse(decodeURIComponent(userParam));
+        let user;
+        try {
+          user = JSON.parse(decodeURIComponent(userParam));
+        } catch (e1) {
+          user = JSON.parse(userParam);
+        }
         sessionStorage.setItem('upskillr_token', token);
         sessionStorage.setItem('upskillr_user', JSON.stringify(user));
         localStorage.removeItem('upskillr_token');
         localStorage.removeItem('upskillr_user');
-        const successMsg = `Successfully signed in via ${providerParam ? providerParam.toUpperCase() : 'OAuth'}! Welcome, ${user.fullName}.`;
-        toast.success(successMsg);
-        setTimeout(() => {
-          if (user.role === 'instructor') {
-            navigate('/instructor');
+
+        if (user.role === 'instructor') {
+          if (user.applicationStatus === 'submitted') {
+            navigate('/instructor/dashboard');
           } else {
-            navigate('/learner');
+            navigate('/instructor/application');
           }
-        }, 1000);
+        } else {
+          navigate('/learner');
+        }
       } catch (e) {
-        console.error('Failed to parse user data from OAuth callback');
+        console.error('Failed to parse user data from OAuth callback', e);
       }
-    } else if (errorParam) {
-      let oauthErrorMsg = 'Authentication failed. Please try again.';
-      if (errorParam === 'google_oauth_failed') {
-        oauthErrorMsg = 'Google OAuth authentication failed. Please try again.';
-      } else if (errorParam === 'github_oauth_failed') {
-        oauthErrorMsg = 'GitHub OAuth authentication failed. Please try again.';
-      }
-      toast.error(oauthErrorMsg);
-      window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [toast]);
+
+    const handlePopState = () => {
+      dismissAlert();
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      sessionStorage.removeItem('upskillr_signup_error_code');
+      sessionStorage.removeItem('upskillr_signup_error_provider');
+    };
+  }, []);
 
   const handleInputChange = (e) => {
+    if (authAlert) setAuthAlert(null);
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
@@ -101,23 +193,23 @@ export default function SignUp() {
     e.preventDefault();
 
     if (!formData.fullName.trim()) {
-      toast.error('Please enter your full name.');
+      setAuthAlert({ type: 'error', message: 'Please enter your full name.' });
       return;
     }
     if (!formData.email.trim()) {
-      toast.error('Please enter your email address.');
+      setAuthAlert({ type: 'error', message: 'Please enter your email address.' });
       return;
     }
     if (!formData.password) {
-      toast.error('Please enter a password.');
+      setAuthAlert({ type: 'error', message: 'Please enter a password.' });
       return;
     }
     if (formData.password.length < 8) {
-      toast.error('Password must be at least 8 characters.');
+      setAuthAlert({ type: 'error', message: 'Password must be at least 8 characters.' });
       return;
     }
     if (formData.password !== formData.confirmPassword) {
-      toast.error('Passwords do not match.');
+      setAuthAlert({ type: 'error', message: 'Passwords do not match.' });
       return;
     }
 
@@ -141,15 +233,21 @@ export default function SignUp() {
         throw new Error(data.message || 'Registration failed.');
       }
 
-      // Backend always sends OTP email before saving to MongoDB.
+      // Backend prepares unverified account in MongoDB and sends 30s OTP email.
       // Show the OTP verification step so the user can verify and complete registration.
       setUnverifiedEmail(formData.email);
+      setOtpChallengeId(data.challengeId || null);
+      setCountdown(data.expiresInSeconds || 30);
+      setCanResend(false);
+      setOtpCode('');
       setShowOtpStep(true);
-      const codeSentMsg = `Verification code sent to ${formData.email}. Enter the 6-digit code to complete registration.`;
-      toast.success(codeSentMsg);
+      setAuthAlert({
+        type: 'info',
+        message: `Verification code sent to ${formData.email}. Enter the 6-digit code below to complete registration.`
+      });
     } catch (err) {
       const regErrorMsg = err.message || 'Registration failed. Please try again.';
-      toast.error(regErrorMsg);
+      setAuthAlert({ type: 'error', message: regErrorMsg });
     } finally {
       setLoading(false);
     }
@@ -159,11 +257,11 @@ export default function SignUp() {
     e.preventDefault();
 
     if (!otpCode.trim() || otpCode.length < 6) {
-      toast.error('Please enter a valid 6-digit OTP code.');
+      setAuthAlert({ type: 'error', message: 'Please enter a valid 6-digit OTP code.' });
       return;
     }
 
-    setLoading(true);
+    setOtpLoading(true);
 
     try {
       const response = await fetch(`${API_BASE_URL}/verify-otp`, {
@@ -172,54 +270,52 @@ export default function SignUp() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: unverifiedEmail,
-          otp: otpCode.trim()
+          otp: otpCode.trim(),
+          challengeId: otpChallengeId
         })
       });
 
       const data = await response.json();
 
       if (!response.ok || !data.success) {
+        if (data.isAlreadyVerified) {
+          setAuthAlert({
+            type: 'info',
+            message: data.message || 'Account is already verified! Redirecting to login...'
+          });
+          setTimeout(() => navigate('/login'), 1200);
+          return;
+        }
         throw new Error(data.message || 'OTP Verification failed.');
       }
 
-      if (data.token) {
-        sessionStorage.setItem('upskillr_token', data.token);
-        sessionStorage.setItem('upskillr_user', JSON.stringify(data.user));
-      }
-      localStorage.removeItem('upskillr_token');
-      localStorage.removeItem('upskillr_user');
-
-      const isInstructor = data.user?.role === 'instructor';
-      const welcomeMsg = isInstructor
-        ? `Email verified successfully! Redirecting to Instructor Application...`
-        : `Email verified successfully! Welcome to UpSkillr, ${data.user?.fullName}!`;
-      toast.success(welcomeMsg);
-      setShowOtpStep(false);
+      setAuthAlert({
+        type: 'success',
+        message: 'Email verified successfully! Please sign in with your email and password.'
+      });
 
       setTimeout(() => {
-        if (isInstructor) {
-          navigate('/instructor/application');
-        } else {
-          navigate('/learner');
-        }
-      }, 1000);
+        navigate('/login');
+      }, 1200);
     } catch (err) {
       const otpErrorMsg = err.message || 'Invalid or expired OTP code.';
-      toast.error(otpErrorMsg);
+      setAuthAlert({ type: 'error', message: otpErrorMsg });
     } finally {
-      setLoading(false);
+      setOtpLoading(false);
     }
   };
 
   const handleResendOtp = async () => {
+    if (!canResend || resendLoading) return;
+
     setResendLoading(true);
+    setOtpCode('');
 
     try {
-      // Backend route is /send-otp (not /resend-otp)
       const response = await fetch(`${API_BASE_URL}/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: unverifiedEmail })
+        body: JSON.stringify({ email: unverifiedEmail, purpose: 'signup' })
       });
 
       const data = await response.json();
@@ -228,22 +324,30 @@ export default function SignUp() {
         throw new Error(data.message || 'Failed to resend verification code.');
       }
 
-      const resentMsg = data.message || 'A new verification code has been sent to your email.';
-      toast.success(resentMsg);
+      setOtpChallengeId(data.challengeId);
+      setCountdown(data.expiresInSeconds || 30);
+      setCanResend(false);
+
+      setAuthAlert({
+        type: 'info',
+        message: data.message || 'A new verification code has been sent to your email.'
+      });
     } catch (err) {
       const resendErrorMsg = err.message || 'Could not resend code. Please try again.';
-      toast.error(resendErrorMsg);
+      setAuthAlert({ type: 'error', message: resendErrorMsg });
     } finally {
       setResendLoading(false);
     }
   };
 
   const handleGoogleOAuth = () => {
-    window.location.href = `${API_BASE_URL}/google?role=${role}`;
+    dismissAlert();
+    window.location.href = `${API_BASE_URL}/google?action=signup&role=${role}`;
   };
 
   const handleGithubOAuth = () => {
-    window.location.href = `${API_BASE_URL}/github?role=${role}`;
+    dismissAlert();
+    window.location.href = `${API_BASE_URL}/github?action=signup&role=${role}`;
   };
 
   return (
@@ -313,6 +417,88 @@ export default function SignUp() {
         {/* Right Column: Form Card */}
         <section className="signup-right">
           <div className="signup-card">
+            {/* In-page OAuth & Registration Feedback Alert Banner */}
+            {authAlert && (
+              <div
+                className={`auth-status-banner ${authAlert.type}`}
+                role="alert"
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: '10px',
+                  marginBottom: '16px',
+                  fontSize: '0.86rem',
+                  lineHeight: '1.45',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  backgroundColor:
+                    authAlert.type === 'error'
+                      ? 'rgba(239, 68, 68, 0.12)'
+                      : authAlert.type === 'warning'
+                      ? 'rgba(245, 158, 11, 0.12)'
+                      : authAlert.type === 'success'
+                      ? 'rgba(16, 185, 129, 0.12)'
+                      : 'rgba(59, 130, 246, 0.12)',
+                  border: `1px solid ${
+                    authAlert.type === 'error'
+                      ? 'rgba(239, 68, 68, 0.35)'
+                      : authAlert.type === 'warning'
+                      ? 'rgba(245, 158, 11, 0.35)'
+                      : authAlert.type === 'success'
+                      ? 'rgba(16, 185, 129, 0.35)'
+                      : 'rgba(59, 130, 246, 0.35)'
+                  }`,
+                  color:
+                    authAlert.type === 'error'
+                      ? '#ef4444'
+                      : authAlert.type === 'warning'
+                      ? '#f59e0b'
+                      : authAlert.type === 'success'
+                      ? '#10b981'
+                      : '#3b82f6'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+                  <span style={{ fontWeight: 500 }}>{authAlert.message}</span>
+                  <button
+                    type="button"
+                    onClick={dismissAlert}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'inherit',
+                      cursor: 'pointer',
+                      padding: '0 2px',
+                      fontSize: '1rem',
+                      lineHeight: '1',
+                      opacity: 0.8
+                    }}
+                    aria-label="Dismiss alert"
+                  >
+                    ✕
+                  </button>
+                </div>
+                {authAlert.actionText && authAlert.actionPath && (
+                  <a
+                    href={authAlert.actionPath}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      dismissAlert();
+                      navigate(authAlert.actionPath);
+                    }}
+                    style={{
+                      color: 'inherit',
+                      fontWeight: 600,
+                      textDecoration: 'underline',
+                      alignSelf: 'flex-start'
+                    }}
+                  >
+                    {authAlert.actionText} →
+                  </a>
+                )}
+              </div>
+            )}
+
             {/* STEP 2: Resend OTP Verification Step */}
             {showOtpStep ? (
               <div className="otp-box">
@@ -331,12 +517,24 @@ export default function SignUp() {
                     maxLength={6}
                     placeholder="000000"
                     value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                    onChange={(e) => {
+                      if (authAlert) setAuthAlert(null);
+                      setOtpCode(e.target.value.replace(/\D/g, ''));
+                    }}
                     required
                     autoFocus
                   />
 
-                  <button type="submit" className="submit-btn" disabled={otpLoading} style={{ marginTop: '0.5rem' }}>
+                  {/* 30-Second Countdown Timer Display */}
+                  <div style={{ marginTop: '0.4rem', fontSize: '0.85rem', color: countdown > 0 ? 'var(--text-secondary)' : '#ef4444', fontWeight: 500 }}>
+                    {countdown > 0 ? (
+                      <span>Code expires in <strong style={{ color: 'var(--brand-primary)' }}>00:{countdown < 10 ? `0${countdown}` : countdown}</strong></span>
+                    ) : (
+                      <span>Code expired. Please request a new code.</span>
+                    )}
+                  </div>
+
+                  <button type="submit" className="submit-btn" disabled={otpLoading} style={{ marginTop: '0.65rem' }}>
                     {otpLoading ? (
                       <span>Verifying Code...</span>
                     ) : (
@@ -348,10 +546,15 @@ export default function SignUp() {
                   </button>
                 </form>
 
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.35rem' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Didn't get code?</span>
-                  <button type="button" className="resend-btn" onClick={handleResendOtp} disabled={resendLoading}>
-                    {resendLoading ? 'Sending...' : 'Resend Code'}
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.4rem' }}>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Didn't receive code?</span>
+                  <button
+                    type="button"
+                    className="resend-btn"
+                    onClick={handleResendOtp}
+                    disabled={!canResend || resendLoading}
+                  >
+                    {resendLoading ? 'Sending...' : (canResend ? 'Resend Code' : `Resend in ${countdown}s`)}
                   </button>
                 </div>
 

@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const InstructorApplication = require('../model/InstructorApplication');
 const Instructor = require('../model/Instructor');
 const { uploadBufferToCloudinary, deleteCloudinaryAsset } = require('./mediaController');
@@ -88,7 +90,10 @@ exports.updateApplication = async (req, res) => {
         instructor.avatar = personalInfo.photoUrl || '';
       }
       if (personalInfo.professionalTitle !== undefined) {
-        instructor.designation = personalInfo.professionalTitle || '';
+        const title = personalInfo.professionalTitle?.trim() || '';
+        const titleOther = personalInfo.professionalTitleOther?.trim() || '';
+        const isOther = title === 'Other' || title.toLowerCase().startsWith('other');
+        instructor.designation = isOther && titleOther ? titleOther : title;
       }
       if (personalInfo.bio !== undefined) {
         instructor.bio = personalInfo.bio || '';
@@ -163,13 +168,35 @@ exports.uploadPhoto = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please select an image file to upload.' });
     }
 
-    const uploadResult = await uploadBufferToCloudinary(
-      req.file.buffer,
-      req.file.mimetype,
-      req.file.originalname,
-      'instructor_photos'
-    );
-    const photoUrl = uploadResult.secure_url;
+    let photoUrl = '';
+
+    // Attempt Cloudinary upload first if credentials are configured
+    try {
+      const uploadResult = await uploadBufferToCloudinary(
+        req.file.buffer,
+        req.file.mimetype,
+        req.file.originalname,
+        'instructor_photos'
+      );
+      if (uploadResult && uploadResult.secure_url && !uploadResult.secure_url.startsWith('data:')) {
+        photoUrl = uploadResult.secure_url;
+      }
+    } catch (cErr) {
+      console.warn('Cloudinary upload warning:', cErr.message);
+    }
+
+    // Fallback: If Cloudinary did not return a remote URL (offline / local development / unconfigured),
+    // save to local uploads/photos directory so it is served quickly and reliably via express.static
+    if (!photoUrl) {
+      const ext = path.extname(req.file.originalname) || (req.file.mimetype.includes('png') ? '.png' : req.file.mimetype.includes('webp') ? '.webp' : '.jpg');
+      const filename = `instructor-${instructorId}-${Date.now()}${ext}`;
+      const photosDir = path.join(__dirname, '../uploads/photos');
+      if (!fs.existsSync(photosDir)) {
+        fs.mkdirSync(photosDir, { recursive: true });
+      }
+      fs.writeFileSync(path.join(photosDir, filename), req.file.buffer);
+      photoUrl = `/uploads/photos/${filename}`;
+    }
 
     const instructor = await Instructor.findById(instructorId);
     if (instructor) {
@@ -186,7 +213,7 @@ exports.uploadPhoto = async (req, res) => {
     }
 
     application.personalInfo = {
-      ...application.personalInfo.toObject(),
+      ...(application.personalInfo ? application.personalInfo.toObject() : {}),
       photoUrl
     };
     if (application.applicationStatus === 'not_started') {
@@ -216,8 +243,13 @@ exports.removePhoto = async (req, res) => {
 
     const instructor = await Instructor.findById(instructorId);
     if (instructor) {
-      if (instructor.avatar) {
+      if (instructor.avatar && !instructor.avatar.startsWith('/uploads/')) {
         await deleteCloudinaryAsset(instructor.avatar);
+      } else if (instructor.avatar && instructor.avatar.startsWith('/uploads/')) {
+        const localPath = path.join(__dirname, '..', instructor.avatar);
+        if (fs.existsSync(localPath)) {
+          try { fs.unlinkSync(localPath); } catch (e) {}
+        }
       }
       instructor.avatar = '';
       await instructor.save();
@@ -372,6 +404,19 @@ exports.uploadCertificate = async (req, res) => {
  */
 exports.removeCertificate = async (req, res) => {
   try {
+    const targetUrl = req.body?.url || req.body?.fileUrl || req.query?.url;
+    const publicId = req.body?.publicId;
+
+    if (publicId || (targetUrl && targetUrl.includes('cloudinary.com'))) {
+      const isPdf = typeof targetUrl === 'string' && targetUrl.endsWith('.pdf');
+      deleteCloudinaryAsset(publicId || targetUrl, isPdf ? 'raw' : 'image').catch(() => {});
+    } else if (targetUrl && targetUrl.startsWith('/uploads/')) {
+      try {
+        const filePath = path.join(__dirname, '..', targetUrl);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      } catch (fErr) {}
+    }
+
     return res.status(200).json({
       success: true,
       message: 'Certificate file reference removed.',
@@ -406,10 +451,18 @@ exports.submitApplication = async (req, res) => {
 
     // Check required fields per section
     const pInfo = application.personalInfo || {};
-    if (!pInfo.fullName?.trim() || !pInfo.email?.trim() || !pInfo.phone?.trim() || !pInfo.professionalTitle?.trim() || !pInfo.bio?.trim()) {
+    const isOtherTitle = pInfo.professionalTitle === 'Other' || pInfo.professionalTitle?.toLowerCase().startsWith('other');
+    if (
+      !pInfo.fullName?.trim() ||
+      !pInfo.email?.trim() ||
+      !pInfo.phone?.trim() ||
+      !pInfo.professionalTitle?.trim() ||
+      (isOtherTitle && !pInfo.professionalTitleOther?.trim()) ||
+      !pInfo.bio?.trim()
+    ) {
       return res.status(400).json({
         success: false,
-        message: 'Please complete all required fields in Personal Information (including Bio) before submitting.'
+        message: 'Please complete all required fields in Personal Information (including Professional Title and Bio) before submitting.'
       });
     }
 
@@ -462,7 +515,10 @@ exports.submitApplication = async (req, res) => {
     if (pInfo.photoUrl) {
       instructor.avatar = pInfo.photoUrl;
     }
-    instructor.designation = pInfo.professionalTitle || '';
+    const resolvedTitle = isOtherTitle && pInfo.professionalTitleOther?.trim()
+      ? pInfo.professionalTitleOther.trim()
+      : (pInfo.professionalTitle || '');
+    instructor.designation = resolvedTitle;
     instructor.bio = pInfo.bio || '';
     instructor.keySkills = profInfo.keySkills || [];
     await instructor.save();
@@ -489,3 +545,32 @@ exports.submitApplication = async (req, res) => {
     });
   }
 };
+
+/**
+ * Stream/Proxy PDF or document for in-app inline preview (avoids CORS and forces inline header)
+ * GET /api/instructor/application/preview-proxy?url=...
+ */
+exports.previewProxy = async (req, res) => {
+  try {
+    const fileUrl = req.query.url;
+    if (!fileUrl) {
+      return res.status(400).json({ success: false, message: 'File URL is required.' });
+    }
+
+    const axios = require('axios');
+    const response = await axios.get(fileUrl, {
+      responseType: 'arraybuffer',
+      timeout: 20000
+    });
+
+    const contentType = response.headers['content-type'] || 'application/pdf';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', 'inline; filename="document.pdf"');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.send(Buffer.from(response.data));
+  } catch (error) {
+    console.error('Error in previewProxy:', error.message);
+    return res.status(500).json({ success: false, message: 'Could not load document preview.' });
+  }
+};
+

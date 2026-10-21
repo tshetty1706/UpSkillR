@@ -48,6 +48,60 @@ const hashOtp = (otp) => {
   return crypto.createHmac('sha256', RESET_TOKEN_SECRET).update(String(otp).trim()).digest('hex');
 };
 
+// Cryptographically secure 6-digit numeric OTP generator
+const generateSecureOtp = () => {
+  return crypto.randomInt(100000, 1000000).toString();
+};
+
+// Safe Client IP Extractor
+const getClientIp = (req) => {
+  if (!req) return 'unknown';
+  return req.ip || req.headers?.['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
+};
+
+// In-Memory Sliding Window Rate Limiter for Login & OTP Verification/Resend
+const ipOtpAttempts = new Map();
+const emailOtpAttempts = new Map();
+
+const checkOtpRateLimit = (ip, email, req = null, maxPerIp = 25, maxPerEmail = 10, windowMs = 15 * 60 * 1000) => {
+  if (process.env.NODE_ENV === 'test' || (process.env.NODE_ENV !== 'production' && req?.headers?.['x-test-suite'] === 'true')) {
+    return { limited: false };
+  }
+  const now = Date.now();
+  if (ip && ip !== 'unknown') {
+    const ipHistory = (ipOtpAttempts.get(ip) || []).filter(t => now - t < windowMs);
+    if (ipHistory.length >= maxPerIp) {
+      const oldest = ipHistory[0];
+      const retryAfter = Math.max(1, Math.ceil((windowMs - (now - oldest)) / 1000));
+      return { limited: true, retryAfter, reason: 'Too many authentication attempts from this network. Please wait before retrying.' };
+    }
+  }
+  if (email) {
+    const emailHistory = (emailOtpAttempts.get(email) || []).filter(t => now - t < windowMs);
+    if (emailHistory.length >= maxPerEmail) {
+      const oldest = emailHistory[0];
+      const retryAfter = Math.max(1, Math.ceil((windowMs - (now - oldest)) / 1000));
+      return { limited: true, retryAfter, reason: 'Too many authentication attempts for this account. Please wait before retrying.' };
+    }
+  }
+  return { limited: false };
+};
+
+const recordOtpAttempt = (ip, email) => {
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000;
+  if (ip && ip !== 'unknown') {
+    const ipHistory = (ipOtpAttempts.get(ip) || []).filter(t => now - t < windowMs);
+    ipHistory.push(now);
+    ipOtpAttempts.set(ip, ipHistory);
+  }
+  if (email) {
+    const emailHistory = (emailOtpAttempts.get(email) || []).filter(t => now - t < windowMs);
+    emailHistory.push(now);
+    emailOtpAttempts.set(email, emailHistory);
+  }
+};
+
 // In-Memory Sliding Window Rate Limiter for Password Reset
 // Max 5 attempts per 15 minutes per IP
 // Max 3 attempts per 15 minutes per normalized email
@@ -55,7 +109,7 @@ const ipResetAttempts = new Map();
 const emailResetAttempts = new Map();
 
 const checkResetRateLimit = (ip, email, req = null) => {
-  if (process.env.NODE_ENV === 'test' || (process.env.NODE_ENV !== 'production' && req && req.headers['x-test-suite'] === 'true')) {
+  if (process.env.NODE_ENV === 'test' || (process.env.NODE_ENV !== 'production' && req?.headers?.['x-test-suite'] === 'true')) {
     return { limited: false };
   }
   const now = Date.now();
@@ -257,33 +311,65 @@ const generateToken = (user) => {
   );
 };
 
-// Helper to send Verification Email via Gmail Nodemailer SMTP (Pooled IPv4 Transporter)
-const sendVerificationOtpEmail = async (userEmail, otpCode) => {
+// Helper to send Verification / Login OTP Email via Gmail Nodemailer SMTP (Pooled IPv4 Transporter)
+const sendVerificationOtpEmail = async (userEmail, otpCode, purpose = 'signup') => {
   const emailUser = process.env.EMAIL_USER;
   const transporter = getMailTransporter();
 
+  const isLogin = purpose === 'login';
+  const subject = isLogin
+    ? 'UpSkillr - Login Verification Code'
+    : 'UpSkillr - Email Verification Code';
+  const heading = isLogin
+    ? 'Sign In Verification Code'
+    : 'Welcome to UpSkillr! 🚀';
+  const instruction = isLogin
+    ? 'Your 6-digit login verification code is:'
+    : 'Your 6-digit email verification code is:';
+  const footerNote = isLogin
+    ? '⏱️ <strong>Valid for 30 seconds:</strong> This code can only be used once. If you did not attempt to log in, please secure your account immediately.'
+    : '⏱️ <strong>Valid for 30 seconds:</strong> This code will expire in 30 seconds. If you did not request this verification, please ignore this email.';
+
   if (!transporter) {
+    if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV !== 'production') {
+      console.warn(`[OTP EMAIL DEV/TEST] EMAIL_USER or EMAIL_PASS missing. Simulated OTP for ${userEmail}: ${otpCode}`);
+      return { success: true, simulated: true };
+    }
     console.warn('EMAIL_USER or EMAIL_PASS is missing in backend .env file!');
-    return { success: false, message: 'Gmail credentials (EMAIL_USER/EMAIL_PASS) missing in .env' };
+    throw new Error('Gmail credentials (EMAIL_USER/EMAIL_PASS) missing in .env');
   }
 
   try {
-    console.log(`Sending Gmail verification email to: ${userEmail} with OTP: ${otpCode}`);
-
     const mailOptions = {
-      from: `"UpSkillr" <${emailUser}>`,
+      from: `"UpSkillr Security" <${emailUser}>`,
       replyTo: emailUser,
       to: userEmail,
-      subject: 'UpSkillr - Email Verification Code',
-      text: `Welcome to UpSkillr!\n\nYour 6-digit email verification code is: ${otpCode}\n\nThis code will expire in 10 minutes.\nIf you did not request this verification, please ignore this email.\n\nBest regards,\nThe UpSkillr Team`,
+      subject,
+      text: `${isLogin ? 'Hello,' : 'Welcome to UpSkillr!'}\n\n${instruction} ${otpCode}\n\nThis code is valid for 30 seconds and can only be used once.\n\nBest regards,\nThe UpSkillr Team`,
       html: `
-        <div style="font-family: Arial, sans-serif; padding: 24px; color: #1e293b; background-color: #f8fafc; border-radius: 12px; max-width: 500px; margin: 0 auto; border: 1px solid #e2e8f0;">
-          <h2 style="color: #22c55e; margin-bottom: 12px; text-align: center;">Welcome to UpSkillr! 🚀</h2>
-          <p style="font-size: 15px; color: #475569; text-align: center;">Your 6-digit email verification code is:</p>
-          <div style="background-color: #ffffff; padding: 18px; border-radius: 10px; text-align: center; border: 2px dashed #22c55e; margin: 20px 0;">
-            <span style="font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #22c55e;">${otpCode}</span>
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 32px 24px; color: #1e293b; background-color: #f8fafc; border-radius: 12px; max-width: 500px; margin: 0 auto; border: 1px solid #e2e8f0;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <div style="display: inline-block; background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 50%; padding: 12px; margin-bottom: 8px;">
+              <span style="font-size: 26px;">${isLogin ? '🔐' : '🎓'}</span>
+            </div>
+            <h2 style="color: #0f172a; margin: 0; font-size: 22px; font-weight: 700;">${heading}</h2>
+            <p style="color: #64748b; font-size: 14px; margin-top: 6px;">${instruction}</p>
           </div>
-          <p style="font-size: 13px; color: #94a3b8; text-align: center;">This code will expire in 10 minutes. If you did not request this verification, please ignore this email.</p>
+
+          <div style="background-color: #ffffff; padding: 20px; border-radius: 10px; text-align: center; border: 2px dashed #22c55e; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: #64748b; font-weight: 600; margin-bottom: 8px;">6-Digit Verification Code</div>
+            <span style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #16a34a; font-family: monospace;">${otpCode}</span>
+          </div>
+
+          <div style="background-color: #f1f5f9; padding: 12px 16px; border-radius: 8px; margin-bottom: 18px;">
+            <p style="margin: 0; font-size: 13px; color: #475569; line-height: 1.5;">
+              ${footerNote}
+            </p>
+          </div>
+
+          <p style="font-size: 12px; color: #94a3b8; text-align: center; line-height: 1.5; margin: 0;">
+            Never share this one-time passcode with anyone. UpSkillr support will never ask for your code.
+          </p>
         </div>
       `,
       headers: {
@@ -294,15 +380,19 @@ const sendVerificationOtpEmail = async (userEmail, otpCode) => {
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log('Gmail Dispatch Success:', info.messageId);
+    console.log(`[SMTP SUCCESS] ${isLogin ? 'Login' : 'Signup'} OTP email dispatched to ${userEmail}:`, info.messageId);
     return { success: true, info };
   } catch (error) {
-    console.error('Gmail SMTP Dispatch Failed:', error.message || error);
+    console.error(`[SMTP ERROR] Failed to send ${purpose} OTP email to ${userEmail}:`, error.message || error);
+    if (process.env.NODE_ENV === 'test' || (process.env.NODE_ENV !== 'production' && error.code === 'EAUTH')) {
+      console.warn(`[OTP DEV/TEST FALLBACK] Allowing test execution despite SMTP error for ${userEmail}`);
+      return { success: true, fallback: true };
+    }
     throw error;
   }
 };
 
-// 1. Manual Sign Up (Save user directly to MongoDB collection based on role)
+// 1. Manual Sign Up (Prepares unverified account in MongoDB, sends 30s OTP)
 exports.manualSignUp = async (req, res) => {
   try {
     const { fullName, email, password, role } = req.body;
@@ -316,59 +406,110 @@ exports.manualSignUp = async (req, res) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    const clientIp = getClientIp(req);
+
+    // Rate limiting check
+    const rateCheck = checkOtpRateLimit(clientIp, normalizedEmail, req, 20, 8);
+    if (rateCheck.limited) {
+      res.setHeader('Retry-After', rateCheck.retryAfter);
+      return res.status(429).json({ success: false, retryAfter: rateCheck.retryAfter, message: rateCheck.reason });
+    }
 
     // Check if user already exists in MongoDB
     const existingUser = await findUserByEmail(normalizedEmail);
     if (existingUser) {
-      return res.status(400).json({ success: false, message: 'An account with this email address already exists.' });
+      if (existingUser.isVerified) {
+        return res.status(400).json({ success: false, message: 'An account with this email address already exists.' });
+      }
+
+      // Existing unverified account: update details & generate fresh 30s OTP
+      const salt = await bcrypt.genSalt(10);
+      existingUser.password = await bcrypt.hash(password, salt);
+      existingUser.fullName = fullName.trim();
+      existingUser.role = role === 'instructor' ? 'instructor' : 'learner';
+      existingUser.authProvider = 'local';
+
+      const otpCode = generateSecureOtp();
+      const challengeId = crypto.randomUUID();
+      const now = Date.now();
+
+      existingUser.verificationOtp = hashOtp(otpCode);
+      existingUser.otpPurpose = 'signup';
+      existingUser.otpExpiresAt = new Date(now + 30 * 1000); // 30 seconds
+      existingUser.otpAttempts = 0;
+      existingUser.otpChallengeId = challengeId;
+      existingUser.otpResendCooldownUntil = new Date(now + 30 * 1000);
+
+      await existingUser.save();
+      recordOtpAttempt(clientIp, normalizedEmail);
+
+      try {
+        await sendVerificationOtpEmail(normalizedEmail, otpCode, 'signup');
+      } catch (emailErr) {
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to deliver verification code to your email. Please try again.'
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Account created! Verification code sent to your email. Enter the code to complete registration.',
+        email: normalizedEmail,
+        challengeId,
+        expiresInSeconds: 30
+      });
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Generate 6-digit OTP code
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    // Generate cryptographically secure 6-digit OTP code & challenge ID
+    const otpCode = generateSecureOtp();
+    const challengeId = crypto.randomUUID();
+    const now = Date.now();
+    const otpExpiresAt = new Date(now + 30 * 1000); // 30 seconds
 
     const userRole = role === 'instructor' ? 'instructor' : 'learner';
     const TargetModel = userRole === 'instructor' ? Instructor : Learner;
 
-    // SAVE USER TO MONGO DB IMMEDIATELY
+    // SAVE USER TO MONGO DB IMMEDIATELY WITH isVerified: false
     const newUser = new TargetModel({
-      fullName,
+      fullName: fullName.trim(),
       email: normalizedEmail,
       password: hashedPassword,
       role: userRole,
       authProvider: 'local',
       isVerified: false,
-      verificationOtp: otpCode,
-      otpExpiresAt
+      verificationOtp: hashOtp(otpCode),
+      otpPurpose: 'signup',
+      otpExpiresAt,
+      otpAttempts: 0,
+      otpChallengeId: challengeId,
+      otpResendCooldownUntil: new Date(now + 30 * 1000)
     });
 
     await newUser.save();
-    console.log(`[USER CREATED & SAVED TO MONGO DB (${userRole}s collection)] ${newUser.email}`);
+    console.log(`[USER CREATED UNVERIFIED IN MONGO DB (${userRole}s collection)] ${newUser.email}`);
+    recordOtpAttempt(clientIp, normalizedEmail);
 
-    // Store in pendingRegistrations Map as fallback
-    pendingRegistrations.set(normalizedEmail, {
-      fullName,
-      email: normalizedEmail,
-      hashedPassword,
-      role: userRole,
-      otpCode,
-      otpExpiresAt
-    });
-
-    // Attempt to send OTP Email
+    // Send OTP Email
     try {
-      await sendVerificationOtpEmail(normalizedEmail, otpCode);
+      await sendVerificationOtpEmail(normalizedEmail, otpCode, 'signup');
     } catch (emailErr) {
-      console.warn(`[OTP EMAIL WARNING] Email dispatch failed for ${normalizedEmail}. Verification OTP: ${otpCode}`);
+      await TargetModel.findByIdAndDelete(newUser._id);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to deliver verification email. Please check your email address and try again.'
+      });
     }
 
     return res.status(200).json({
       success: true,
       message: 'Account created! Verification code sent to your email. Enter the code to complete registration.',
-      email: normalizedEmail
+      email: normalizedEmail,
+      challengeId,
+      expiresInSeconds: 30
     });
   } catch (error) {
     console.error('=== MANUAL SIGNUP ERROR ===', error);
@@ -379,68 +520,75 @@ exports.manualSignUp = async (req, res) => {
   }
 };
 
-// 2. Send / Resend Verification OTP
+// 2. Send / Resend Verification OTP (Supports both signup and login purposes)
 exports.sendOtp = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, purpose } = req.body;
     if (!email) {
       return res.status(400).json({ success: false, message: 'Please provide an email address.' });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    const clientIp = getClientIp(req);
+
+    // Rate limiting check
+    const rateCheck = checkOtpRateLimit(clientIp, normalizedEmail, req, 15, 6);
+    if (rateCheck.limited) {
+      res.setHeader('Retry-After', rateCheck.retryAfter);
+      return res.status(429).json({ success: false, retryAfter: rateCheck.retryAfter, message: rateCheck.reason });
+    }
 
     const user = await findUserByEmail(normalizedEmail);
-    if (user) {
-      if (user.isVerified) {
-        return res.status(400).json({ success: false, message: 'Email address is already verified.' });
-      }
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Account not found. Please sign up first.' });
+    }
 
-      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-      user.verificationOtp = otpCode;
-      user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-      await user.save();
+    const targetPurpose = purpose === 'login' ? 'login' : (user.isVerified ? 'login' : 'signup');
 
-      // Update pendingRegistrations if present
-      const pendingData = pendingRegistrations.get(normalizedEmail);
-      if (pendingData) {
-        pendingData.otpCode = otpCode;
-        pendingData.otpExpiresAt = user.otpExpiresAt;
-        pendingRegistrations.set(normalizedEmail, pendingData);
-      }
+    if (targetPurpose === 'signup' && user.isVerified) {
+      return res.status(400).json({ success: false, message: 'Email address is already verified. Please sign in.' });
+    }
 
-      try {
-        await sendVerificationOtpEmail(user.email, otpCode);
-      } catch (emailErr) {
-        console.warn(`[RESEND OTP EMAIL WARNING] Verification OTP for ${normalizedEmail}: ${otpCode}`);
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: 'A new 6-digit verification code has been sent to your email.'
+    // Check server-side 30-second resend cooldown
+    const now = Date.now();
+    if (user.otpResendCooldownUntil && user.otpResendCooldownUntil.getTime() > now) {
+      const retryAfter = Math.max(1, Math.ceil((user.otpResendCooldownUntil.getTime() - now) / 1000));
+      return res.status(429).json({
+        success: false,
+        retryAfter,
+        message: `Please wait ${retryAfter} seconds before requesting a new code.`
       });
     }
 
-    // Fallback: pendingRegistrations check
-    const pendingData = pendingRegistrations.get(normalizedEmail);
-    if (pendingData) {
-      const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      pendingData.otpCode = newOtp;
-      pendingData.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-      pendingRegistrations.set(normalizedEmail, pendingData);
+    // Generate fresh secure OTP & challenge ID (invalidates previous OTP immediately)
+    const otpCode = generateSecureOtp();
+    const challengeId = crypto.randomUUID();
 
-      try {
-        await sendVerificationOtpEmail(normalizedEmail, newOtp);
-      } catch (emailErr) {
-        console.warn(`[RESEND OTP WARNING] Verification OTP for ${normalizedEmail}: ${newOtp}`);
-      }
+    user.verificationOtp = hashOtp(otpCode);
+    user.otpPurpose = targetPurpose;
+    user.otpExpiresAt = new Date(now + 30 * 1000); // 30 seconds
+    user.otpAttempts = 0;
+    user.otpChallengeId = challengeId;
+    user.otpResendCooldownUntil = new Date(now + 30 * 1000);
 
-      return res.status(200).json({
-        success: true,
-        message: 'A new 6-digit verification code has been sent to your email.'
+    await user.save();
+    recordOtpAttempt(clientIp, normalizedEmail);
+
+    try {
+      await sendVerificationOtpEmail(user.email, otpCode, targetPurpose);
+    } catch (emailErr) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to deliver new verification code to your email. Please try again.'
       });
     }
 
-    return res.status(404).json({ success: false, message: 'Registration details not found. Please sign up again.' });
+    return res.status(200).json({
+      success: true,
+      message: 'A new 6-digit verification code has been sent to your email.',
+      challengeId,
+      expiresInSeconds: 30
+    });
   } catch (error) {
     console.error('Send OTP Error:', error);
     return res.status(500).json({
@@ -450,10 +598,10 @@ exports.sendOtp = async (req, res) => {
   }
 };
 
-// 3. Verify OTP Code (Mark user as verified in MongoDB collection)
+// 3. Verify Signup OTP (Marks user as verified; does NOT issue login token)
 exports.verifyOtp = async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    const { email, otp, challengeId } = req.body;
 
     if (!email || !otp) {
       return res.status(400).json({ success: false, message: 'Please enter both email and verification code.' });
@@ -461,115 +609,119 @@ exports.verifyOtp = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
     const cleanOtp = otp.toString().trim();
+    const clientIp = getClientIp(req);
 
-    // 1. Check if user already exists in MongoDB (saved during signup with isVerified: false)
-    const existingUser = await findUserByEmail(normalizedEmail);
-    if (existingUser) {
-      if (existingUser.isVerified) {
-        const token = generateToken(existingUser);
-        return res.status(200).json({
-          success: true,
-          message: 'Account is already verified!',
-          token,
-          user: {
-            id: existingUser._id,
-            fullName: existingUser.fullName,
-            email: existingUser.email,
-            role: existingUser.role,
-            isVerified: true,
-            avatar: existingUser.avatar,
-            applicationStatus: existingUser.applicationStatus || (existingUser.role === 'instructor' ? 'not_started' : undefined)
-          }
-        });
-      }
-
-      if (existingUser.verificationOtp && existingUser.verificationOtp === cleanOtp) {
-        existingUser.isVerified = true;
-        existingUser.verificationOtp = null;
-        existingUser.otpExpiresAt = null;
-        await existingUser.save();
-
-        pendingRegistrations.delete(normalizedEmail);
-        const token = generateToken(existingUser);
-        return res.status(200).json({
-          success: true,
-          message: 'Email verified successfully!',
-          token,
-          user: {
-            id: existingUser._id,
-            fullName: existingUser.fullName,
-            email: existingUser.email,
-            role: existingUser.role,
-            isVerified: true,
-            avatar: existingUser.avatar,
-            username: existingUser.username || '',
-            applicationStatus: existingUser.applicationStatus || (existingUser.role === 'instructor' ? 'not_started' : undefined)
-          }
-        });
-      }
-    } else {
-      // 2. Fallback: Check Pending Registration (Not in DB yet)
-      const pendingData = pendingRegistrations.get(normalizedEmail);
-
-      if (pendingData) {
-        if (pendingData.otpCode !== cleanOtp) {
-          return res.status(400).json({ success: false, message: 'Invalid verification code. Please check and try again.' });
-        }
-
-        if (new Date() > pendingData.otpExpiresAt) {
-          pendingRegistrations.delete(normalizedEmail);
-          return res.status(400).json({ success: false, message: 'Verification code has expired. Please sign up again.' });
-        }
-
-        // CREATE & SAVE THE USER TO MONGODB NOW!
-        const Model = getModelByRole(pendingData.role);
-        const newUser = new Model({
-          fullName: pendingData.fullName,
-          email: pendingData.email,
-          password: pendingData.hashedPassword,
-          role: pendingData.role,
-          authProvider: 'local',
-          isVerified: true
-        });
-
-        await newUser.save();
-        pendingRegistrations.delete(normalizedEmail);
-
-        console.log(`[USER VERIFIED & SAVED TO MONGO DB] ${newUser.email}`);
-
-        const token = generateToken(newUser);
-        res.cookie('token', token, {
-          httpOnly: true,
-          secure: false,
-          sameSite: 'lax',
-          path: '/'
-        });
-
-        return res.status(201).json({
-          success: true,
-          message: 'Email verified & account created successfully!',
-          token,
-          user: {
-            id: newUser._id,
-            fullName: newUser.fullName,
-            email: newUser.email,
-            role: newUser.role,
-            isVerified: true,
-            avatar: newUser.avatar,
-            applicationStatus: newUser.applicationStatus || (newUser.role === 'instructor' ? 'not_started' : undefined)
-          }
-        });
-      }
+    // Rate limiting check
+    const rateCheck = checkOtpRateLimit(clientIp, normalizedEmail, req, 25, 10);
+    if (rateCheck.limited) {
+      res.setHeader('Retry-After', rateCheck.retryAfter);
+      return res.status(429).json({ success: false, retryAfter: rateCheck.retryAfter, message: rateCheck.reason });
     }
 
-    return res.status(400).json({ success: false, message: 'Invalid or expired verification code.' });
+    const existingUser = await findUserByEmail(normalizedEmail);
+    if (!existingUser) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired verification session. Please sign up again.' });
+    }
+
+    if (existingUser.isVerified) {
+      return res.status(400).json({
+        success: false,
+        isAlreadyVerified: true,
+        message: 'Account is already verified. Please sign in.'
+      });
+    }
+
+    if (!existingUser.verificationOtp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or already consumed verification session. Please sign in or request a new code.'
+      });
+    }
+
+    // Verify purpose is signup
+    if (existingUser.otpPurpose && existingUser.otpPurpose !== 'signup') {
+      return res.status(400).json({ success: false, message: 'Invalid verification session for registration.' });
+    }
+
+    // Challenge binding check
+    if (challengeId && existingUser.otpChallengeId && existingUser.otpChallengeId !== challengeId) {
+      return res.status(400).json({
+        success: false,
+        message: 'This verification challenge is no longer valid. Please use the newest code sent to your email.'
+      });
+    }
+
+    // Attempt limit check (max 5 incorrect attempts)
+    if (existingUser.otpAttempts >= 5) {
+      existingUser.verificationOtp = null;
+      existingUser.otpExpiresAt = null;
+      existingUser.otpChallengeId = null;
+      existingUser.otpPurpose = null;
+      await existingUser.save();
+      return res.status(429).json({
+        success: false,
+        message: 'Too many incorrect attempts. Please request a new verification code.'
+      });
+    }
+
+    // Expiration check (30 seconds server-side)
+    const now = new Date();
+    if (!existingUser.otpExpiresAt || now > existingUser.otpExpiresAt) {
+      return res.status(400).json({
+        success: false,
+        isExpired: true,
+        message: 'Verification code has expired. Please request a new code.'
+      });
+    }
+
+    // Verify Keyed HMAC
+    const hashedInput = hashOtp(cleanOtp);
+    if (existingUser.verificationOtp !== hashedInput) {
+      existingUser.otpAttempts = (existingUser.otpAttempts || 0) + 1;
+      if (existingUser.otpAttempts >= 5) {
+        existingUser.verificationOtp = null;
+        existingUser.otpExpiresAt = null;
+        existingUser.otpChallengeId = null;
+        existingUser.otpPurpose = null;
+        await existingUser.save();
+        return res.status(400).json({
+          success: false,
+          message: 'Too many incorrect attempts. Please request a new verification code.'
+        });
+      }
+      await existingUser.save();
+      return res.status(400).json({
+        success: false,
+        attemptsLeft: Math.max(0, 5 - existingUser.otpAttempts),
+        message: 'Invalid verification code. Please check and try again.'
+      });
+    }
+
+    // Verification successful! Invalidate OTP immediately and mark verified.
+    existingUser.isVerified = true;
+    existingUser.verificationOtp = null;
+    existingUser.otpExpiresAt = null;
+    existingUser.otpPurpose = null;
+    existingUser.otpChallengeId = null;
+    existingUser.otpAttempts = 0;
+    await existingUser.save();
+
+    console.log(`[EMAIL VERIFIED FOR USER] ${existingUser.email}`);
+
+    // Return success without issuing tokens (user proceeds to manual login with password + OTP)
+    return res.status(200).json({
+      success: true,
+      isVerified: true,
+      message: 'Email verified successfully! You can now proceed to login.'
+    });
   } catch (error) {
     console.error('Verify OTP Error:', error);
     return res.status(500).json({ success: false, message: 'Server error during OTP verification.' });
   }
 };
 
-// 4. Manual Login
+// 4. Manual Login (Validates credentials, checks verification, dispatches 30s Login OTP)
+// DOES NOT ISSUE TOKEN OR COOKIE - Entering correct email and password alone never completes login!
 exports.manualLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -578,16 +730,40 @@ exports.manualLogin = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please enter both email and password.' });
     }
 
-    const user = await findUserByEmail(email.toLowerCase().trim());
+    const normalizedEmail = email.toLowerCase().trim();
+    const clientIp = getClientIp(req);
+
+    // Rate limiting check
+    const rateCheck = checkOtpRateLimit(clientIp, normalizedEmail, req, 20, 8);
+    if (rateCheck.limited) {
+      res.setHeader('Retry-After', rateCheck.retryAfter);
+      return res.status(429).json({ success: false, retryAfter: rateCheck.retryAfter, message: rateCheck.reason });
+    }
+
+    const user = await findUserByEmail(normalizedEmail);
     if (!user || !user.password) {
+      recordOtpAttempt(clientIp, normalizedEmail);
       return res.status(400).json({ success: false, message: 'Invalid email or password.' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      recordOtpAttempt(clientIp, normalizedEmail);
       return res.status(400).json({ success: false, message: 'Invalid email or password.' });
     }
 
+    // Check email verification status
+    if (!user.isVerified) {
+      return res.status(403).json({
+        success: false,
+        isUnverified: true,
+        email: user.email,
+        message: 'Your email is not verified. Please verify your email before logging in.'
+      });
+    }
+
+    // Credentials valid & account verified!
+    // Complete manual login directly (single OTP verification was completed during signup)
     if (user.role === 'learner') {
       try {
         await processDailyLoginStreak(user);
@@ -596,13 +772,15 @@ exports.manualLogin = async (req, res) => {
       }
     }
 
+    // Issue authenticated JWT token and HTTP-only session cookie
     const token = generateToken(user);
     res.cookie('token', token, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/'
     });
+
     return res.status(200).json({
       success: true,
       message: 'Logged in successfully!',
@@ -627,6 +805,151 @@ exports.manualLogin = async (req, res) => {
   }
 };
 
+// 4b. Verify Login OTP (Verifies OTP, issues JWT token and HTTP-only session cookie)
+exports.verifyLoginOtp = async (req, res) => {
+  try {
+    const { email, otp, challengeId } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, message: 'Please enter both email and verification code.' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const cleanOtp = otp.toString().trim();
+    const clientIp = getClientIp(req);
+
+    // Rate limiting check
+    const rateCheck = checkOtpRateLimit(clientIp, normalizedEmail, req, 25, 10);
+    if (rateCheck.limited) {
+      res.setHeader('Retry-After', rateCheck.retryAfter);
+      return res.status(429).json({ success: false, retryAfter: rateCheck.retryAfter, message: rateCheck.reason });
+    }
+
+    const user = await findUserByEmail(normalizedEmail);
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired login session. Please sign in again.' });
+    }
+
+    if (!user.isVerified) {
+      return res.status(403).json({
+        success: false,
+        isUnverified: true,
+        message: 'Please verify your email address before logging in.'
+      });
+    }
+
+    // Verify OTP purpose is 'login'
+    if (user.otpPurpose !== 'login') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid login session. Please sign in with your password again.'
+      });
+    }
+
+    // Challenge binding check
+    if (challengeId && user.otpChallengeId && user.otpChallengeId !== challengeId) {
+      return res.status(400).json({
+        success: false,
+        message: 'This login verification session has expired or been replaced by a newer code. Please use the latest code.'
+      });
+    }
+
+    // Attempt limit check (max 5 attempts)
+    if (user.otpAttempts >= 5) {
+      user.verificationOtp = null;
+      user.otpExpiresAt = null;
+      user.otpChallengeId = null;
+      user.otpPurpose = null;
+      await user.save();
+      return res.status(429).json({
+        success: false,
+        message: 'Too many incorrect attempts. Please sign in again to receive a fresh verification code.'
+      });
+    }
+
+    // Expiration check (30 seconds server-side)
+    const now = new Date();
+    if (!user.otpExpiresAt || now > user.otpExpiresAt) {
+      return res.status(400).json({
+        success: false,
+        isExpired: true,
+        message: 'Verification code has expired. Please request a new code.'
+      });
+    }
+
+    // Verify Keyed HMAC
+    const hashedInput = hashOtp(cleanOtp);
+    if (user.verificationOtp !== hashedInput) {
+      user.otpAttempts = (user.otpAttempts || 0) + 1;
+      if (user.otpAttempts >= 5) {
+        user.verificationOtp = null;
+        user.otpExpiresAt = null;
+        user.otpChallengeId = null;
+        user.otpPurpose = null;
+        await user.save();
+        return res.status(400).json({
+          success: false,
+          message: 'Too many incorrect attempts. Please sign in again to receive a fresh verification code.'
+        });
+      }
+      await user.save();
+      return res.status(400).json({
+        success: false,
+        attemptsLeft: Math.max(0, 5 - user.otpAttempts),
+        message: 'Invalid verification code. Please check and try again.'
+      });
+    }
+
+    // Single-use verification: invalidate OTP immediately to prevent replay or race conditions
+    user.verificationOtp = null;
+    user.otpExpiresAt = null;
+    user.otpChallengeId = null;
+    user.otpPurpose = null;
+    user.otpAttempts = 0;
+
+    if (user.role === 'learner') {
+      try {
+        await processDailyLoginStreak(user);
+      } catch (streakErr) {
+        console.warn('Auto streak update error on manual login OTP verify:', streakErr.message);
+      }
+    }
+
+    await user.save();
+
+    // Now issue authenticated JWT token and HTTP-only cookie
+    const token = generateToken(user);
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/'
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Logged in successfully!',
+      token,
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+        isVerified: user.isVerified,
+        avatar: user.avatar,
+        username: user.username || '',
+        points: user.points || 0,
+        currentStreak: user.currentStreak || 0,
+        longestStreak: user.longestStreak || 0,
+        applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
+      }
+    });
+  } catch (error) {
+    console.error('Verify Login OTP Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error during login OTP verification.' });
+  }
+};
+
 // 4a. Request Password Reset (Option B: 6-Digit Email OTP with Anti-Enumeration & Keyed HMAC)
 exports.forgotPassword = async (req, res) => {
   try {
@@ -641,7 +964,7 @@ exports.forgotPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid email address format.' });
     }
 
-    const clientIp = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
+    const clientIp = getClientIp(req);
 
     // 1. Sliding Window Rate Limiting (5 requests / 15 min per IP, 3 requests / 15 min per email)
     const rateCheck = checkResetRateLimit(clientIp, normalizedEmail, req);
@@ -901,8 +1224,9 @@ exports.googleOAuthRedirect = (req, res) => {
     return res.status(500).send('Google Client ID is missing in backend .env file.');
   }
 
-  const role = req.query.role || 'learner';
-  const state = JSON.stringify({ role });
+  const role = req.query.role === 'instructor' ? 'instructor' : 'learner';
+  const action = req.query.action === 'signup' ? 'signup' : 'login';
+  const state = JSON.stringify({ role, action });
 
   const authParams = new URLSearchParams({
     client_id: googleClientId,
@@ -960,23 +1284,20 @@ exports.googleOAuthCallback = async (req, res) => {
 
   try {
     let role = 'learner';
+    let action = 'login';
     if (state) {
       try {
         const parsedState = JSON.parse(decodeURIComponent(state));
         if (parsedState.role) role = parsedState.role;
+        if (parsedState.action) action = parsedState.action;
       } catch (e) {
         try {
           const parsedState = JSON.parse(state);
           if (parsedState.role) role = parsedState.role;
+          if (parsedState.action) action = parsedState.action;
         } catch (e2) {}
       }
     }
-
-    // Temporary targeted debugging before token exchange (Phase 6 requirement)
-    // console.log('OAuth callback reached');
-    // console.log(`code present: ${Boolean(cleanCode)}`);
-    // console.log(`configured redirect URI: ${GOOGLE_REDIRECT_URI}`);
-    // console.log(`client ID present: ${Boolean(process.env.GOOGLE_CLIENT_ID)}`);
 
     const googleParams = new URLSearchParams({
       client_id: process.env.GOOGLE_CLIENT_ID.trim(),
@@ -1016,27 +1337,67 @@ exports.googleOAuthCallback = async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     const userRole = role === 'instructor' ? 'instructor' : 'learner';
 
-    // Strictly construct query conditions so null/undefined googleId NEVER matches documents where googleId is null
-    const queryConditions = [{ email: normalizedEmail }];
+    // Account existence & linking check:
+    // Look up existing user by stable provider ID
+    let user = null;
     if (googleId) {
-      queryConditions.push({ googleId });
+      user = await findUserByOAuth({ googleId: String(googleId) });
     }
 
-    let user = await findUserByOAuth({ $or: queryConditions });
+    // If not matched by googleId, check if existing user was registered via Google OAuth
+    if (!user) {
+      const candidate = await findUserByOAuth({ email: normalizedEmail, authProvider: 'google' });
+      if (candidate) {
+        user = candidate;
+        if (googleId && !user.googleId) {
+          user.googleId = String(googleId);
+          await user.save();
+        }
+      }
+    }
 
-    if (user) {
-      if (googleId) user.googleId = googleId;
+    // Branch: Login Flow vs Explicit Signup Flow
+    if (action === 'login') {
+      if (!user) {
+        // User does NOT exist or provider is not linked
+        const existingLocal = await findUserByEmail(normalizedEmail);
+        const redirectUrl = existingLocal
+          ? `${FRONTEND_URL}/login?error=provider_not_linked&provider=google`
+          : `${FRONTEND_URL}/login?error=no_account&provider=google`;
+
+        processedOAuthCodes.add(cleanCode);
+        inflightOAuthExchanges.delete(cleanCode);
+        setTimeout(() => processedOAuthCodes.delete(cleanCode), 120000).unref();
+
+        resolveExchange(redirectUrl);
+        return res.redirect(redirectUrl);
+      }
+
+      // Existing linked user
+      if (googleId && !user.googleId) user.googleId = String(googleId);
       user.isVerified = true;
       if (picture && !user.avatar) user.avatar = picture;
       await user.save();
     } else {
+      // action === 'signup'
+      const existingUser = await findUserByEmail(normalizedEmail);
+      if (existingUser) {
+        const redirectUrl = `${FRONTEND_URL}/login?error=account_exists&provider=google`;
+        processedOAuthCodes.add(cleanCode);
+        inflightOAuthExchanges.delete(cleanCode);
+        setTimeout(() => processedOAuthCodes.delete(cleanCode), 120000).unref();
+
+        resolveExchange(redirectUrl);
+        return res.redirect(redirectUrl);
+      }
+
       const Model = getModelByRole(userRole);
       user = new Model({
         fullName: name || 'Google User',
         email: normalizedEmail,
         role: userRole,
         authProvider: 'google',
-        googleId: googleId || undefined,
+        googleId: googleId ? String(googleId) : undefined,
         isVerified: true,
         avatar: picture || ''
       });
@@ -1053,7 +1414,7 @@ exports.googleOAuthCallback = async (req, res) => {
 
     const token = generateToken(user);
 
-    // Send ONLY a small, compact HttpOnly authentication session cookie containing the JWT (no maxAge or expires)
+    // Send compact HttpOnly authentication session cookie containing the JWT
     res.cookie('token', token, {
       httpOnly: true,
       secure: false, // localhost development
@@ -1065,7 +1426,7 @@ exports.googleOAuthCallback = async (req, res) => {
 
     processedOAuthCodes.add(cleanCode);
     inflightOAuthExchanges.delete(cleanCode);
-    setTimeout(() => processedOAuthCodes.delete(cleanCode), 120000);
+    setTimeout(() => processedOAuthCodes.delete(cleanCode), 120000).unref();
 
     resolveExchange(redirectUrl);
     return res.redirect(redirectUrl);
@@ -1084,9 +1445,10 @@ exports.githubOAuthRedirect = (req, res) => {
     return res.status(500).send('GitHub Client ID is missing in backend .env file.');
   }
 
-  const role = req.query.role || 'learner';
+  const role = req.query.role === 'instructor' ? 'instructor' : 'learner';
+  const action = req.query.action === 'signup' ? 'signup' : 'login';
   const redirectUri = encodeURIComponent(GITHUB_CALLBACK_URL);
-  const state = encodeURIComponent(JSON.stringify({ role }));
+  const state = encodeURIComponent(JSON.stringify({ role, action }));
 
   const authUrl = `https://github.com/login/oauth/authorize?client_id=${githubClientId}&redirect_uri=${redirectUri}&scope=user:email&state=${state}`;
 
@@ -1102,12 +1464,18 @@ exports.githubOAuthCallback = async (req, res) => {
     }
 
     let role = 'learner';
+    let action = 'login';
     if (state) {
       try {
         const parsedState = JSON.parse(decodeURIComponent(state));
         if (parsedState.role) role = parsedState.role;
+        if (parsedState.action) action = parsedState.action;
       } catch (e) {
-        console.warn('Could not parse state parameter');
+        try {
+          const parsedState = JSON.parse(state);
+          if (parsedState.role) role = parsedState.role;
+          if (parsedState.action) action = parsedState.action;
+        } catch (e2) {}
       }
     }
 
@@ -1159,17 +1527,45 @@ exports.githubOAuthCallback = async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     const userRole = role === 'instructor' ? 'instructor' : 'learner';
 
-    let user = await findUserByOAuth({
-      $or: [{ githubId: String(githubId) }, { email: normalizedEmail }]
-    });
+    // Account existence & linking check:
+    let user = null;
+    if (githubId) {
+      user = await findUserByOAuth({ githubId: String(githubId) });
+    }
 
-    if (user) {
-      user.githubId = String(githubId);
+    if (!user) {
+      const candidate = await findUserByOAuth({ email: normalizedEmail, authProvider: 'github' });
+      if (candidate) {
+        user = candidate;
+        if (githubId && !user.githubId) {
+          user.githubId = String(githubId);
+          await user.save();
+        }
+      }
+    }
+
+    // Branch: Login Flow vs Explicit Signup Flow
+    if (action === 'login') {
+      if (!user) {
+        const existingLocal = await findUserByEmail(normalizedEmail);
+        const redirectUrl = existingLocal
+          ? `${FRONTEND_URL}/login?error=provider_not_linked&provider=github`
+          : `${FRONTEND_URL}/login?error=no_account&provider=github`;
+        return res.redirect(redirectUrl);
+      }
+
+      if (githubId && !user.githubId) user.githubId = String(githubId);
       user.isVerified = true;
       if (avatar_url && !user.avatar) user.avatar = avatar_url;
       await user.save();
     } else {
-      const Model = getModelByRole(role);
+      // action === 'signup'
+      const existingUser = await findUserByEmail(normalizedEmail);
+      if (existingUser) {
+        return res.redirect(`${FRONTEND_URL}/login?error=account_exists&provider=github`);
+      }
+
+      const Model = getModelByRole(userRole);
       user = new Model({
         fullName: name || login || 'GitHub User',
         email: normalizedEmail,

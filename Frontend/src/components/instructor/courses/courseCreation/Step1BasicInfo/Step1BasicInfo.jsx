@@ -12,12 +12,26 @@ export const Step1BasicInfo = ({
   const [metaOptions] = useState({
     categories: [
       'Web Development',
-      'Data Science',
-      'Design',
-      'Business',
-      'Marketing',
-      'Artificial Intelligence',
-      'Cybersecurity'
+      'Software Engineering & DevOps',
+      'Mobile App Development',
+      'Artificial Intelligence & Machine Learning',
+      'Data Science & Analytics',
+      'Cloud Computing & Architecture',
+      'Cybersecurity & Ethical Hacking',
+      'UI/UX & Product Design',
+      'Game Development & 3D Modeling',
+      'Blockchain & Web3',
+      'Database Architecture & SQL',
+      'Business & Entrepreneurship',
+      'Digital Marketing & Growth',
+      'Product & Project Management',
+      'Finance, Investing & FinTech',
+      'Graphic Design & Illustration',
+      'Photography & Video Production',
+      'Health, Fitness & Wellness',
+      'Personal Development & Leadership',
+      'Teaching & Academics',
+      'Other'
     ],
     skillLevels: ['Beginner', 'Intermediate', 'Advanced', 'All Levels'],
     languages: ['English', 'Spanish', 'French', 'German', 'Hindi', 'Japanese']
@@ -35,6 +49,8 @@ export const Step1BasicInfo = ({
 
     if (!data.category || !data.category.trim()) {
       newErrors.category = 'Please select a course category.';
+    } else if (data.category === 'Other' && (!data.categoryOther || !data.categoryOther.trim())) {
+      newErrors.categoryOther = 'Please specify your custom category / subject area.';
     }
 
     if (!data.shortDescription || !data.shortDescription.trim()) {
@@ -111,8 +127,16 @@ export const Step1BasicInfo = ({
                 className={`form-select ${errors.category ? 'input-error' : ''}`}
                 value={data.category || ''}
                 onChange={(e) => {
-                  onChange({ ...data, category: e.target.value });
+                  const val = e.target.value;
+                  onChange({
+                    ...data,
+                    category: val,
+                    categoryOther: val === 'Other' ? (data.categoryOther || '') : ''
+                  });
                   if (errors.category) setErrors({ ...errors, category: null });
+                  if (val !== 'Other' && errors.categoryOther) {
+                    setErrors({ ...errors, categoryOther: null });
+                  }
                 }}
               >
                 <option value="">Select a category</option>
@@ -126,6 +150,32 @@ export const Step1BasicInfo = ({
                 <span className="error-message">
                   <AlertCircle size={14} /> {errors.category}
                 </span>
+              )}
+
+              {/* Other Custom Category Input */}
+              {data.category === 'Other' && (
+                <div style={{ marginTop: '0.65rem' }}>
+                  <label htmlFor="course-category-other" className="form-label" style={{ fontSize: '0.8rem' }}>
+                    Specify Custom Category / Subject Area <span className="required-star">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="course-category-other"
+                    className={`form-input ${errors.categoryOther ? 'input-error' : ''}`}
+                    placeholder="e.g. Quantum Computing, Bioinformatics, Robotics..."
+                    value={data.categoryOther || ''}
+                    onChange={(e) => {
+                      onChange({ ...data, categoryOther: e.target.value });
+                      if (errors.categoryOther) setErrors({ ...errors, categoryOther: null });
+                    }}
+                    maxLength={80}
+                  />
+                  {errors.categoryOther && (
+                    <span className="error-message">
+                      <AlertCircle size={14} /> {errors.categoryOther}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
 
@@ -258,7 +308,9 @@ export const Step1BasicInfo = ({
           <span className="preview-pill-tag">Search Card Preview</span>
           <div className="mini-card-mockup">
             <div className="mini-card-badge-row">
-              <span className="mini-category-tag">{data.category || 'Category'}</span>
+              <span className="mini-category-tag">
+                {(data.category === 'Other' && data.categoryOther?.trim()) ? data.categoryOther.trim() : (data.category || 'Category')}
+              </span>
               <span className="mini-level-tag">{data.skillLevel || 'Beginner'}</span>
             </div>
             <h4 className="mini-card-title">{data.title || 'Your Course Title Here'}</h4>

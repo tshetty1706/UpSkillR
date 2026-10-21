@@ -1185,12 +1185,13 @@ export const CourseManager = ({
                     What You'll Learn (Outcomes) <span className="required-star">*</span>
                   </label>
                   <p className="field-subnote">
-                    Add key learning outcomes. You can drag and drop or use chevrons to reorder items.
+                    Add key learning outcomes. Be specific and learner-focused.
                   </p>
-                  <DynamicListInput
-                    items={overviewForm.learningOutcomes}
+                  <DynamicTagInput
+                    tags={overviewForm.learningOutcomes || []}
                     onChange={(learningOutcomes) => setOverviewForm({ ...overviewForm, learningOutcomes })}
-                    placeholder="e.g. Build scalable architectures"
+                    placeholder="Add a learning outcome and press Enter..."
+                    maxTags={12}
                   />
                 </div>
 

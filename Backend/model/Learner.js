@@ -155,6 +155,23 @@ const learnerSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  otpPurpose: {
+    type: String,
+    enum: ['signup', 'login', null],
+    default: null
+  },
+  otpAttempts: {
+    type: Number,
+    default: 0
+  },
+  otpChallengeId: {
+    type: String,
+    default: null
+  },
+  otpResendCooldownUntil: {
+    type: Date,
+    default: null
+  },
   resetPasswordOtp: {
     type: String,
     default: null

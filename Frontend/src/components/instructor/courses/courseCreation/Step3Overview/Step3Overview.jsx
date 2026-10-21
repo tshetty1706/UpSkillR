@@ -17,7 +17,6 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { DynamicTagInput } from '../Common/DynamicTagInput';
-import { DynamicListInput } from '../Common/DynamicListInput';
 import './Step3Overview.css';
 
 export const Step3Overview = ({
@@ -156,13 +155,14 @@ export const Step3Overview = ({
             <p className="field-subnote">
               Add 4–8 key learning outcomes. Be specific and learner-focused.
             </p>
-            <DynamicListInput
-              items={overviewData.learningOutcomes || ['', '', '']}
+            <DynamicTagInput
+              tags={overviewData.learningOutcomes || []}
               onChange={(learningOutcomes) => {
                 onChange({ ...overviewData, learningOutcomes });
                 if (errors.learningOutcomes) setErrors({ ...errors, learningOutcomes: null });
               }}
-              placeholder="e.g. Build real-world projects from scratch"
+              placeholder="Add a learning outcome and press Enter..."
+              maxTags={12}
             />
             {errors.learningOutcomes && (
               <span className="error-message">
@@ -281,13 +281,24 @@ export const Step3Overview = ({
                   </div>
                   {(overviewData.faqs || []).map((faq, fIdx) => (
                     <div key={fIdx} className="faq-edit-row">
-                      <input
-                        type="text"
-                        className="form-input"
-                        placeholder="Question"
-                        value={faq.question}
-                        onChange={(e) => handleFaqChange(fIdx, 'question', e.target.value)}
-                      />
+                      <div className="faq-question-header-row">
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Question"
+                          value={faq.question}
+                          onChange={(e) => handleFaqChange(fIdx, 'question', e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className="delete-faq-btn"
+                          onClick={() => handleRemoveFaq(fIdx)}
+                          title="Delete FAQ"
+                          aria-label="Delete FAQ"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                       <textarea
                         rows={2}
                         className="form-textarea"
@@ -295,14 +306,6 @@ export const Step3Overview = ({
                         value={faq.answer}
                         onChange={(e) => handleFaqChange(fIdx, 'answer', e.target.value)}
                       />
-                      <button
-                        type="button"
-                        className="delete-faq-btn"
-                        onClick={() => handleRemoveFaq(fIdx)}
-                        title="Delete FAQ"
-                      >
-                        <Trash2 size={15} />
-                      </button>
                     </div>
                   ))}
                 </div>

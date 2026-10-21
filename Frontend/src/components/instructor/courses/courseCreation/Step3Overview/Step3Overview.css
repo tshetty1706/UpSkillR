@@ -257,21 +257,47 @@
 .faq-edit-row {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.65rem;
   background-color: var(--surface-muted, #f8faf9);
-  padding: 0.75rem;
+  border: 1px solid var(--border-color, #c6d3cb);
+  padding: 0.85rem;
   border-radius: var(--radius-md, 10px);
-  position: relative;
+  margin-bottom: 0.75rem;
+  transition: border-color 0.15s ease;
+}
+
+.faq-question-header-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.faq-question-header-row .form-input {
+  flex: 1;
+  min-width: 0;
 }
 
 .delete-faq-btn {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  background: transparent;
-  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  background-color: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: var(--radius-sm, 8px);
   color: var(--color-error, #dc2626);
   cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.delete-faq-btn:hover {
+  background-color: var(--color-error, #dc2626);
+  color: #ffffff;
+  border-color: var(--color-error, #dc2626);
 }
 
 /* Footer Actions */
@@ -499,6 +525,23 @@
 
 .dark .add-faq-btn {
   background-color: rgba(57, 217, 95, 0.15);
+}
+
+.dark .faq-edit-row {
+  background-color: var(--surface-muted, #1a2c26);
+  border-color: var(--border-color, rgba(255, 255, 255, 0.12));
+}
+
+.dark .delete-faq-btn {
+  background-color: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+}
+
+.dark .delete-faq-btn:hover {
+  background-color: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
 }
 
 /* Tablet responsiveness */

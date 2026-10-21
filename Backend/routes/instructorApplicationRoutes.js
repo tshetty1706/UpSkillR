@@ -13,6 +13,7 @@ const {
   removeResume,
   uploadCertificate,
   removeCertificate,
+  previewProxy,
   submitApplication
 } = require('../controller/instructorApplicationController');
 
@@ -69,6 +70,7 @@ router.post('/upload/resume', resumeUpload.single('file'), uploadResume);
 router.delete('/upload/resume', removeResume);
 router.post('/upload/certificate', certificateUpload.single('file'), uploadCertificate);
 router.delete('/upload/certificate', removeCertificate);
+router.get('/preview-proxy', previewProxy);
 router.post('/submit', submitApplication);
 
 module.exports = router;

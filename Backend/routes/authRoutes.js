@@ -27,6 +27,7 @@ router.get('/logout', authController.logout);
 // Email Verification (Resend OTP) Routes
 router.post('/send-otp', authController.sendOtp);
 router.post('/verify-otp', authController.verifyOtp);
+router.post('/verify-login-otp', authController.verifyLoginOtp);
 
 // Password Reset (Option B: 6-Digit Email OTP) Routes
 router.post('/forgot-password', authController.forgotPassword);

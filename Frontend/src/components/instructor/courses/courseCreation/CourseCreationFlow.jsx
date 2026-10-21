@@ -23,6 +23,7 @@ export const CourseCreationFlow = ({ user, onCancel, onCourseCreated, onNavigate
   const [basicInfo, setBasicInfo] = useState({
     title: '',
     category: '',
+    categoryOther: '',
     skillLevel: 'Beginner',
     language: 'English',
     shortDescription: '',
@@ -35,7 +36,7 @@ export const CourseCreationFlow = ({ user, onCancel, onCourseCreated, onNavigate
   const [overviewData, setOverviewData] = useState({
     fullDescription: '',
     prerequisites: [],
-    learningOutcomes: ['', '', ''],
+    learningOutcomes: [],
     skills: [],
     techStack: [],
     targetAudience: [],
@@ -93,8 +94,12 @@ export const CourseCreationFlow = ({ user, onCancel, onCourseCreated, onNavigate
       setCurrentStep(1);
       return;
     }
-    if (!basicInfo.category || !basicInfo.category.trim()) {
-      toast.error('Please select a course category in Step 1');
+    const resolvedCategory = (basicInfo.category === 'Other' && basicInfo.categoryOther?.trim())
+      ? basicInfo.categoryOther.trim()
+      : (basicInfo.category || '').trim();
+
+    if (!resolvedCategory) {
+      toast.error('Please select or specify a course category in Step 1');
       setCurrentStep(1);
       return;
     }
@@ -104,7 +109,7 @@ export const CourseCreationFlow = ({ user, onCancel, onCourseCreated, onNavigate
       const token = sessionStorage.getItem('upskillr_token');
       const formData = new FormData();
       formData.append('title', basicInfo.title.trim());
-      formData.append('category', basicInfo.category.trim());
+      formData.append('category', resolvedCategory);
       formData.append('skillLevel', basicInfo.skillLevel || 'Beginner');
       formData.append('language', basicInfo.language || 'English');
       formData.append('shortDescription', (basicInfo.shortDescription || '').trim());

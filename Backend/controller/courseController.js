@@ -10,7 +10,7 @@ const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const path = require('path');
-const { uploadBufferToCloudinary } = require('./mediaController');
+const { uploadBufferToCloudinary, deleteCloudinaryAsset, deleteMuxAsset } = require('./mediaController');
 const { notifyStudentsOnNewContent } = require('./notificationController');
 const JWT_SECRET = process.env.JWT_SECRET || 'upskillr_jwt_secret_key_2026_super_secure';
 
@@ -377,17 +377,70 @@ exports.updateCourse = async (req, res) => {
   }
 };
 
-// 5. Delete Course (with full cascading deletion across all related collections)
+// 5. Delete Course (with full cascading deletion across all related collections and cloud media)
 exports.deleteCourse = async (req, res) => {
   try {
     const courseId = req.course._id;
-    await Course.findOneAndDelete({ _id: courseId, instructorId: req.user.id });
+    const course = await Course.findOne({ _id: courseId, instructorId: req.user.id });
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found or access denied.' });
+    }
+
+    // 1. Clean up Course Thumbnail
+    if (course.thumbnail_public_id || (course.thumbnail && course.thumbnail.includes('cloudinary.com'))) {
+      deleteCloudinaryAsset(course.thumbnail_public_id || course.thumbnail, 'image')
+        .catch(e => console.warn('Cloudinary course thumbnail delete error:', e.message));
+    } else if (course.thumbnail && course.thumbnail.includes('/uploads/thumbnails/')) {
+      try {
+        const thumbName = path.basename(course.thumbnail);
+        const thumbPath = path.join(__dirname, '../uploads/thumbnails', thumbName);
+        if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
+      } catch (fErr) {}
+    }
+
+    // 2. Clean up Course / Module / Lesson Notes & Attached Resources
+    const allNotes = [
+      ...(course.notes || []),
+      ...(course.modules || []).flatMap(m => m.notes || []),
+      ...(course.modules || []).flatMap(m => (m.lessons || []).flatMap(l => l.notes || []))
+    ];
+
+    for (const note of allNotes) {
+      if (note.cloudinaryPublicId || (note.fileUrl && note.fileUrl.includes('cloudinary.com'))) {
+        const resType = (note.fileType === 'pdf' || (note.fileName && note.fileName.endsWith('.pdf'))) ? 'raw' : 'image';
+        deleteCloudinaryAsset(note.cloudinaryPublicId || note.fileUrl, resType).catch(() => {});
+      } else if (note.fileUrl && note.fileUrl.includes('/uploads/resources/')) {
+        try {
+          const resPath = path.join(__dirname, '../uploads/resources', path.basename(note.fileUrl));
+          if (fs.existsSync(resPath)) fs.unlinkSync(resPath);
+        } catch (fErr) {}
+      }
+    }
+
+    // 3. Clean up Lesson Videos (Mux Assets and Local Videos)
+    for (const mod of course.modules || []) {
+      for (const lesson of mod.lessons || []) {
+        for (const item of lesson.items || []) {
+          if (item.video?.muxAssetId) {
+            deleteMuxAsset(item.video.muxAssetId).catch(() => {});
+          } else if (item.video?.videoUrl && item.video.videoUrl.includes('/uploads/videos/')) {
+            try {
+              const vidPath = path.join(__dirname, '../uploads/videos', path.basename(item.video.videoUrl));
+              if (fs.existsSync(vidPath)) fs.unlinkSync(vidPath);
+            } catch (fErr) {}
+          }
+        }
+      }
+    }
+
+    await Course.deleteOne({ _id: courseId });
     await Enrolment.deleteMany({ courseId });
     await AssessmentSubmission.deleteMany({ courseId });
     await CourseOverview.deleteMany({ courseId });
     await CourseQuestion.deleteMany({ courseId });
     await CourseView.deleteMany({ courseId });
     await Announcement.deleteMany({ courseId });
+    if (courseCache && courseCache.invalidateCourse) courseCache.invalidateCourse(courseId);
 
     return res.status(200).json({ success: true, message: 'Course and associated records deleted successfully.' });
   } catch (error) {
@@ -2112,9 +2165,11 @@ exports.updateCourseThumbnail = async (req, res) => {
         if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
         let ext = (req.file.mimetype || '').split('/')[1] || 'png';
         if (ext === 'jpeg') ext = 'jpg';
+        const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost:5000';
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
         const filename = `thumb_${id}_${Date.now()}.${ext}`;
         fs.writeFileSync(path.join(outDir, filename), req.file.buffer);
-        thumbnailUrl = `http://localhost:5000/uploads/thumbnails/${filename}`;
+        thumbnailUrl = `${protocol}://${host}/uploads/thumbnails/${filename}`;
       }
     } else if (req.body.thumbnailUrl && req.body.thumbnailUrl.trim()) {
       thumbnailUrl = req.body.thumbnailUrl.trim();
@@ -2122,6 +2177,19 @@ exports.updateCourseThumbnail = async (req, res) => {
     } else if (req.body.thumbnail && req.body.thumbnail.trim()) {
       thumbnailUrl = req.body.thumbnail.trim();
       thumbnailPublicId = req.body.thumbnailPublicId || '';
+    }
+
+    // Clean up previous thumbnail asset if replaced
+    if (course.thumbnail && course.thumbnail !== thumbnailUrl) {
+      if (course.thumbnail_public_id || course.thumbnail.includes('cloudinary.com')) {
+        deleteCloudinaryAsset(course.thumbnail_public_id || course.thumbnail, 'image').catch(() => {});
+      } else if (course.thumbnail.includes('/uploads/thumbnails/')) {
+        try {
+          const oldFile = path.basename(course.thumbnail);
+          const oldPath = path.join(__dirname, '../uploads/thumbnails', oldFile);
+          if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        } catch (fErr) {}
+      }
     }
 
     course.thumbnail = thumbnailUrl;

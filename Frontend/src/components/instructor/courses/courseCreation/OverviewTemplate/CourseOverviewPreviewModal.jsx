@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, ExternalLink } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { ArrowLeft, X, Eye } from 'lucide-react';
 import { CourseOverviewTemplate } from './CourseOverviewTemplate';
 import './CourseOverviewPreviewModal.css';
 
@@ -10,30 +10,69 @@ export const CourseOverviewPreviewModal = ({
   overview,
   user
 }) => {
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e) => {
+        if (e.key === 'Escape') onClose();
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.body.style.overflow = '';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="overview-modal-backdrop" onClick={onClose}>
-      <div className="overview-modal-wrapper" onClick={(e) => e.stopPropagation()}>
-        {/* Modal Header */}
-        <div className="overview-modal-header">
-          <div className="modal-title-group">
-            <span className="modal-live-tag">LIVE PREVIEW</span>
-            <h2>Learner Course Overview Preview</h2>
-            <p>This is exactly how prospective learners will see your course before enrolling.</p>
+    <div className="overview-fullpage-preview" role="dialog" aria-modal="true">
+      {/* Sticky Top Header Banner */}
+      <header className="overview-preview-sticky-bar">
+        <div className="preview-sticky-container">
+          <div className="preview-left-group">
+            <button
+              type="button"
+              className="btn-exit-preview-nav"
+              onClick={onClose}
+              title="Return to Course Creation"
+            >
+              <ArrowLeft size={18} />
+              <span>Exit Learner Preview</span>
+            </button>
+            <div className="preview-divider" />
+            <div className="preview-title-meta">
+              <span className="preview-mode-pill">
+                <Eye size={12} />
+                <span>LEARNER PREVIEW</span>
+              </span>
+              <span className="preview-course-title" title={course?.title}>
+                {course?.title || 'Untitled Course'}
+              </span>
+            </div>
           </div>
-          <button
-            type="button"
-            className="modal-close-icon-btn"
-            onClick={onClose}
-            aria-label="Close preview modal"
-          >
-            <X size={20} />
-          </button>
-        </div>
 
-        {/* Modal Scrollable Content */}
-        <div className="overview-modal-scroll-body">
+          <div className="preview-right-group">
+            <span className="preview-transient-notice">
+              Unpublished draft preview
+            </span>
+            <button
+              type="button"
+              className="btn-close-preview-circle"
+              onClick={onClose}
+              aria-label="Close preview"
+              title="Close Preview (Esc)"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Full Page Body */}
+      <main className="overview-preview-full-content">
+        <div className="overview-preview-body-container">
           <CourseOverviewTemplate
             course={course}
             overview={overview}
@@ -41,7 +80,7 @@ export const CourseOverviewPreviewModal = ({
               name: user?.fullName || 'UpSkillr Instructor',
               headline: user?.headline || 'Course Instructor',
               bio: user?.bio || '',
-              profilePhoto: user?.profilePhoto || ''
+              profilePhoto: user?.profilePhoto || user?.avatar || ''
             }}
             stats={{
               totalEnrolments: 0,
@@ -54,17 +93,7 @@ export const CourseOverviewPreviewModal = ({
             isPreviewMode={true}
           />
         </div>
-
-        {/* Modal Footer */}
-        <div className="overview-modal-footer">
-          <span className="modal-footer-note">
-            Preview is rendered purely from your transient form inputs. No draft record has been saved.
-          </span>
-          <button type="button" className="btn-modal-close" onClick={onClose}>
-            Close Preview
-          </button>
-        </div>
-      </div>
+      </main>
     </div>
   );
 };

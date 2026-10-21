@@ -1024,6 +1024,13 @@ exports.deleteNote = async (req, res) => {
     const note = course.notes.id(noteId);
     if (!note) return res.status(404).json({ success: false, message: 'Resource note not found.' });
 
+    // Clean up Cloudinary asset if stored in cloud
+    if (note.cloudinaryPublicId || (note.fileUrl && note.fileUrl.includes('cloudinary.com'))) {
+      const targetId = note.cloudinaryPublicId || note.fileUrl;
+      const resType = (note.fileType === 'pdf' || (note.fileName && note.fileName.endsWith('.pdf'))) ? 'raw' : 'image';
+      deleteCloudinaryAsset(targetId, resType).catch(e => console.warn('Could not clean up Cloudinary note:', e.message));
+    }
+
     // Clean up local disk resource if stored locally
     if (note.fileUrl && note.fileUrl.includes('/uploads/resources/')) {
       try {
@@ -1255,10 +1262,15 @@ exports.deleteAssessment = async (req, res) => {
 /**
  * Direct Upload Handlers for Curriculum
  */
-const { uploadBufferToCloudinary, getUploadCredentials } = require('./mediaController');
+const { uploadBufferToCloudinary, getUploadCredentials, deleteCloudinaryAsset, deleteMuxAsset } = require('./mediaController');
 
 exports.uploadVideoFromDevice = async (req, res) => {
   try {
+    const courseId = req.params.courseId;
+    if (courseId) {
+      await verifyCourse(courseId, req.user);
+    }
+
     // If client is requesting Mux credentials
     if (!req.file) {
       return getUploadCredentials(req, res);
@@ -1313,6 +1325,11 @@ exports.uploadVideoFromDevice = async (req, res) => {
 
 exports.uploadResourceFromDevice = async (req, res) => {
   try {
+    const courseId = req.params.courseId;
+    if (courseId) {
+      await verifyCourse(courseId, req.user);
+    }
+
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Please select a file to upload.' });
     }

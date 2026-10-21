@@ -71,6 +71,7 @@ exports.uploadBufferToCloudinary = async (fileBuffer, mimetype, originalname = '
       public_id: uploadRes.data.public_id,
       secure_url: uploadRes.data.secure_url,
       format: uploadRes.data.format,
+      resource_type: uploadRes.data.resource_type || 'image',
       bytes: uploadRes.data.bytes
     };
   } catch (err) {
@@ -98,6 +99,7 @@ exports.uploadBufferToCloudinary = async (fileBuffer, mimetype, originalname = '
           public_id: unsignedRes.data.public_id,
           secure_url: unsignedRes.data.secure_url,
           format: unsignedRes.data.format,
+          resource_type: unsignedRes.data.resource_type || 'image',
           bytes: unsignedRes.data.bytes
         };
       }
@@ -110,6 +112,7 @@ exports.uploadBufferToCloudinary = async (fileBuffer, mimetype, originalname = '
       public_id: '',
       secure_url: base64Data,
       format: mimetype.split('/')[1] || 'png',
+      resource_type: 'image',
       bytes: fileBuffer.length
     };
   }
@@ -118,7 +121,7 @@ exports.uploadBufferToCloudinary = async (fileBuffer, mimetype, originalname = '
 /**
  * Delete a Cloudinary asset by public_id or image URL if supported
  */
-exports.deleteCloudinaryAsset = async (imageUrlOrPublicId) => {
+exports.deleteCloudinaryAsset = async (imageUrlOrPublicId, resourceType = 'image') => {
   if (!imageUrlOrPublicId || typeof imageUrlOrPublicId !== 'string') return;
   try {
     const config = getCloudinaryConfig();
@@ -126,13 +129,13 @@ exports.deleteCloudinaryAsset = async (imageUrlOrPublicId) => {
 
     let publicId = imageUrlOrPublicId;
     if (imageUrlOrPublicId.includes('cloudinary.com')) {
-      const match = imageUrlOrPublicId.match(/\/upload\/(?:v\d+\/)?([^.]+)/);
+      const match = imageUrlOrPublicId.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.[^./?]+)?$/);
       if (match && match[1]) {
         publicId = match[1];
       }
     }
 
-    if (!publicId || publicId.startsWith('data:')) return;
+    if (!publicId || publicId.startsWith('data:') || publicId.startsWith('/uploads/')) return;
 
     const timestamp = Math.round(new Date().getTime() / 1000);
     const paramsToSign = `public_id=${publicId}&timestamp=${timestamp}${config.apiSecret}`;
@@ -144,13 +147,42 @@ exports.deleteCloudinaryAsset = async (imageUrlOrPublicId) => {
     params.append('timestamp', timestamp.toString());
     params.append('signature', signature);
 
-    await axios.post(
-      `https://api.cloudinary.com/v1_1/${config.cloudName}/image/destroy`,
+    const primaryType = resourceType === 'raw' ? 'raw' : 'image';
+    const res = await axios.post(
+      `https://api.cloudinary.com/v1_1/${config.cloudName}/${primaryType}/destroy`,
       params.toString(),
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 }
-    );
+    ).catch(() => null);
+
+    if (primaryType === 'image' && res?.data?.result === 'not found') {
+      await axios.post(
+        `https://api.cloudinary.com/v1_1/${config.cloudName}/raw/destroy`,
+        params.toString(),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 }
+      ).catch(() => null);
+    }
   } catch (err) {
     console.warn('Cloudinary asset deletion notice:', err.message || err);
+  }
+};
+
+/**
+ * Delete a Mux video asset by assetId
+ */
+exports.deleteMuxAsset = async (assetId) => {
+  if (!assetId || typeof assetId !== 'string' || assetId.startsWith('mock_') || assetId.startsWith('mux_mock_')) return;
+  try {
+    const tokenId = process.env.MUX_TOKEN_ID;
+    const tokenSecret = process.env.MUX_TOKEN_SECRET;
+    if (!tokenId || !tokenSecret) return;
+
+    await axios.delete(`https://api.mux.com/video/v1/assets/${assetId}`, {
+      auth: { username: tokenId, password: tokenSecret },
+      timeout: 10000
+    });
+    console.log(`[MUX] Successfully deleted asset ${assetId}`);
+  } catch (err) {
+    console.warn(`[MUX] Could not delete asset ${assetId}:`, err.response?.data || err.message);
   }
 };
 

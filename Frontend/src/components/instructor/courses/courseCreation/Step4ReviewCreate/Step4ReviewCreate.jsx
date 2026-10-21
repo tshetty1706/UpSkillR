@@ -101,7 +101,9 @@ export const Step4ReviewCreate = ({
             <div className="review-item-row-2">
               <div className="review-item">
                 <span className="review-item-label">Category</span>
-                <span className="review-item-val">{basicInfo.category || '—'}</span>
+                <span className="review-item-val">
+                  {(basicInfo.category === 'Other' && basicInfo.categoryOther?.trim()) ? basicInfo.categoryOther.trim() : (basicInfo.category || '—')}
+                </span>
               </div>
               <div className="review-item">
                 <span className="review-item-label">Level</span>

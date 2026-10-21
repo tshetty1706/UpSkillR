@@ -233,7 +233,7 @@ async function runForgotPasswordTestSuite() {
       'Valid OTP and password returns 200 OK success'
     );
 
-    // Verify Learner can log in with new password
+    // Verify Learner logs in directly with new password without duplicate OTP
     const loginRes = await axios.post(`${API_BASE}/login`, {
       email: learnerEmail,
       password: newLearnerPassword
@@ -241,7 +241,7 @@ async function runForgotPasswordTestSuite() {
 
     assert(
       loginRes.status === 200 && loginRes.data.success === true && loginRes.data.token,
-      'Learner successfully logs in using new password'
+      'Learner successfully logs in directly with new password and receives token without duplicate OTP'
     );
 
     // Verify old password fails
@@ -328,8 +328,8 @@ async function runForgotPasswordTestSuite() {
     });
 
     assert(
-      instLoginRes.status === 200 && instLoginRes.data.user.role === 'instructor',
-      'Instructor successfully logs in with new password'
+      instLoginRes.status === 200 && instLoginRes.data.success === true && instLoginRes.data.user.role === 'instructor' && instLoginRes.data.token,
+      'Instructor successfully logs in directly with new password without duplicate OTP'
     );
 
     // ----------------------------------------------------

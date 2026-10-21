@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Login_Page from '../../assets/illustrations/Login_Page.svg';
 import { useTheme } from '../../context/ThemeContext';
-import { useToast } from '../../context/ToastContext';
 import {
   Mail,
   Lock,
@@ -14,14 +13,14 @@ import {
   RotateCcw,
   TrendingUp,
   Smartphone,
-  BookOpen
+  BookOpen,
+  MailCheck
 } from 'lucide-react';
 
 const API_BASE_URL = 'http://localhost:5000/api/auth';
 
 export default function Login() {
   const { theme, toggleTheme } = useTheme();
-  const { toast } = useToast();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -30,18 +29,102 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Mandatory Login OTP Verification State
+  const [showOtpStep, setShowOtpStep] = useState(false);
+  const [otpEmail, setOtpEmail] = useState('');
+  const [otpChallengeId, setOtpChallengeId] = useState(null);
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
+  const [countdown, setCountdown] = useState(30);
+  const [canResend, setCanResend] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const otpInputsRef = useRef([]);
+
+  const dismissAlert = () => {
+    setAuthAlert(null);
+    sessionStorage.removeItem('upskillr_auth_error_code');
+    sessionStorage.removeItem('upskillr_auth_error_provider');
+    if (window.location.search) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  };
+
   const navigate = (path) => {
+    dismissAlert();
     window.history.pushState({}, '', path);
     window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
   };
 
-  // Handle URL search params on mount (for OAuth callbacks or errors)
+  const [authAlert, setAuthAlert] = useState(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const errorParam = urlParams.get('error');
+    const providerParam = urlParams.get('provider');
+    if (!errorParam) return null;
+
+    if (errorParam === 'no_account') {
+      const providerName = providerParam === 'github' ? 'GitHub' : 'Google';
+      return {
+        type: 'error',
+        message: `No account exists with this ${providerName} account. Please create an account first.`,
+        actionText: 'Create an account',
+        actionPath: '/signup'
+      };
+    }
+    if (errorParam === 'provider_not_linked') {
+      const providerName = providerParam === 'github' ? 'GitHub' : 'Google';
+      return {
+        type: 'warning',
+        message: `An account with this email already exists using email/password login. Please sign in with your password.`,
+        actionText: null,
+        actionPath: null
+      };
+    }
+    if (errorParam === 'account_exists') {
+      return {
+        type: 'info',
+        message: 'An account with this email already exists. Please sign in.',
+        actionText: null,
+        actionPath: null
+      };
+    }
+    if (errorParam === 'google_oauth_failed') {
+      return {
+        type: 'error',
+        message: 'Google OAuth authentication failed. Please try again.',
+        actionText: null,
+        actionPath: null
+      };
+    }
+    if (errorParam === 'github_oauth_failed' || errorParam === 'github_token_failed') {
+      return {
+        type: 'error',
+        message: 'GitHub OAuth authentication failed. Please try again.',
+        actionText: null,
+        actionPath: null
+      };
+    }
+    return {
+      type: 'error',
+      message: 'Authentication failed. Please try again.',
+      actionText: null,
+      actionPath: null
+    };
+  });
+
+  // Handle URL search params on mount & cleanup so errors don't linger on page transitions
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     const userParam = urlParams.get('user');
     const errorParam = urlParams.get('error');
-    const providerParam = urlParams.get('provider');
+
+    // Immediately clean URL search params so browser back/refresh won't re-trigger error state
+    if (token || userParam || errorParam) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    sessionStorage.removeItem('upskillr_auth_error_code');
+    sessionStorage.removeItem('upskillr_auth_error_provider');
 
     if (token && userParam) {
       try {
@@ -55,50 +138,136 @@ export default function Login() {
         sessionStorage.setItem('upskillr_user', JSON.stringify(user));
         localStorage.removeItem('upskillr_token');
         localStorage.removeItem('upskillr_user');
-        const welcomeMsg = `Successfully signed in via ${providerParam ? providerParam.toUpperCase() : 'OAuth'}! Welcome back, ${user.fullName}.`;
-        toast.success(welcomeMsg);
-        setTimeout(() => {
-          if (user.role === 'instructor') {
-            if (user.applicationStatus === 'submitted') {
-              navigate('/instructor/dashboard');
-            } else {
-              navigate('/instructor/application');
-            }
+
+        if (user.role === 'instructor') {
+          if (user.applicationStatus === 'submitted') {
+            navigate('/instructor/dashboard');
           } else {
-            navigate('/learner');
+            navigate('/instructor/application');
           }
-        }, 800);
+        } else {
+          navigate('/learner');
+        }
       } catch (e) {
         console.error('Failed to parse user data from OAuth callback', e);
       }
-    } else if (errorParam) {
-      let oauthError = 'Authentication failed. Please try again.';
-      if (errorParam === 'google_oauth_failed') {
-        oauthError = 'Google OAuth authentication failed. Please try again.';
-      } else if (errorParam === 'github_oauth_failed') {
-        oauthError = 'GitHub OAuth authentication failed. Please try again.';
-      } else if (errorParam === 'github_token_failed') {
-        oauthError = 'Failed to retrieve GitHub access token.';
-      }
-      toast.error(oauthError);
-      window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [toast]);
+
+    const handlePopState = () => {
+      dismissAlert();
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      sessionStorage.removeItem('upskillr_auth_error_code');
+      sessionStorage.removeItem('upskillr_auth_error_provider');
+    };
+  }, []);
+
+  // 30-Second Countdown Timer for Login OTP
+  useEffect(() => {
+    let timer;
+    if (showOtpStep && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [showOtpStep, countdown]);
 
   const handleInputChange = (e) => {
+    if (authAlert) setAuthAlert(null);
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Clean 6-digit input helpers
+  const handleOtpChange = (index, value) => {
+    if (authAlert) setAuthAlert(null);
+    const cleaned = value.replace(/\D/g, '');
+
+    if (!cleaned) {
+      const newDigits = [...otpDigits];
+      newDigits[index] = '';
+      setOtpDigits(newDigits);
+      return;
+    }
+
+    if (cleaned.length > 1) {
+      const chars = cleaned.slice(0, 6).split('');
+      const newDigits = [...otpDigits];
+      const startIdx = chars.length === 6 ? 0 : index;
+      chars.forEach((char, offset) => {
+        if (startIdx + offset < 6) {
+          newDigits[startIdx + offset] = char;
+        }
+      });
+      setOtpDigits(newDigits);
+      const nextIdx = Math.min(startIdx + chars.length, 5);
+      otpInputsRef.current[nextIdx]?.focus();
+      return;
+    }
+
+    const newDigits = [...otpDigits];
+    newDigits[index] = cleaned;
+    setOtpDigits(newDigits);
+
+    if (index < 5) {
+      otpInputsRef.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace') {
+      if (otpDigits[index]) {
+        const newDigits = [...otpDigits];
+        newDigits[index] = '';
+        setOtpDigits(newDigits);
+      } else if (index > 0) {
+        const newDigits = [...otpDigits];
+        newDigits[index - 1] = '';
+        setOtpDigits(newDigits);
+        otpInputsRef.current[index - 1]?.focus();
+      }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      otpInputsRef.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      otpInputsRef.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    if (authAlert) setAuthAlert(null);
+    const pastedData = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!pastedData) return;
+
+    const newDigits = ['', '', '', '', '', ''];
+    for (let i = 0; i < pastedData.length; i++) {
+      newDigits[i] = pastedData[i];
+    }
+    setOtpDigits(newDigits);
+    const focusIndex = Math.min(pastedData.length, 5);
+    otpInputsRef.current[focusIndex]?.focus();
   };
 
   const handleManualLogin = async (e) => {
     e.preventDefault();
 
     if (!formData.email.trim()) {
-      toast.error('Please enter your email address.');
+      setAuthAlert({ type: 'error', message: 'Please enter your email address.' });
       return;
     }
     if (!formData.password) {
-      toast.error('Please enter your password.');
+      setAuthAlert({ type: 'error', message: 'Please enter your password.' });
       return;
     }
 
@@ -118,7 +287,95 @@ export default function Login() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
+        if (data.isUnverified) {
+          setAuthAlert({
+            type: 'warning',
+            message: data.message || 'Please verify your email address before logging in.',
+            actionText: 'Verify Email (Sign Up)',
+            actionPath: '/signup'
+          });
+          return;
+        }
         throw new Error(data.message || 'Login failed. Please check your credentials.');
+      }
+
+      // Mandatory Login OTP Verification Trigger - Never completes login on credentials alone
+      if (data.requiresOtp) {
+        setShowOtpStep(true);
+        setOtpEmail(data.email || formData.email);
+        setOtpChallengeId(data.challengeId);
+        setCountdown(data.expiresInSeconds || 30);
+        setCanResend(false);
+        setOtpDigits(['', '', '', '', '', '']);
+        setAuthAlert({
+          type: 'info',
+          message: `Verification code sent to ${data.email || formData.email}. Enter the 6-digit code below to complete sign in.`
+        });
+        setTimeout(() => {
+          otpInputsRef.current[0]?.focus();
+        }, 100);
+        return;
+      }
+
+      // Fallback in case tokens were provided
+      if (data.token) {
+        sessionStorage.setItem('upskillr_token', data.token);
+        sessionStorage.setItem('upskillr_user', JSON.stringify(data.user));
+      }
+      localStorage.removeItem('upskillr_token');
+      localStorage.removeItem('upskillr_user');
+
+      const isInstructor = data.user?.role === 'instructor';
+      if (isInstructor) {
+        if (data.user?.applicationStatus === 'submitted') {
+          navigate('/instructor/dashboard');
+        } else {
+          navigate('/instructor/application');
+        }
+      } else {
+        const redirectPath = sessionStorage.getItem('upskillr_redirect_after_login');
+        if (redirectPath) {
+          sessionStorage.removeItem('upskillr_redirect_after_login');
+          navigate(redirectPath);
+        } else {
+          navigate('/learner');
+        }
+      }
+    } catch (err) {
+      const errorMsg = err.message || 'Could not complete login. Check backend connection.';
+      setAuthAlert({ type: 'error', message: errorMsg });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyLoginOtp = async (e) => {
+    e.preventDefault();
+
+    const fullOtp = otpDigits.join('');
+    if (fullOtp.length !== 6) {
+      setAuthAlert({ type: 'error', message: 'Please enter the complete 6-digit verification code.' });
+      return;
+    }
+
+    setOtpLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/verify-login-otp`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: otpEmail,
+          otp: fullOtp,
+          challengeId: otpChallengeId
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'OTP Verification failed.');
       }
 
       // Save token and user details to sessionStorage for active session only
@@ -130,44 +387,83 @@ export default function Login() {
       localStorage.removeItem('upskillr_user');
 
       const isInstructor = data.user?.role === 'instructor';
-      const successMsg = `Welcome back, ${data.user.fullName}! Opening ${isInstructor ? 'Instructor Studio' : 'Learner Dashboard'}...`;
-      toast.success(successMsg);
-
-      setTimeout(() => {
-        if (isInstructor) {
-          if (data.user?.applicationStatus === 'submitted') {
-            navigate('/instructor/dashboard');
-          } else {
-            navigate('/instructor/application');
-          }
+      if (isInstructor) {
+        if (data.user?.applicationStatus === 'submitted') {
+          navigate('/instructor/dashboard');
         } else {
-          const redirectPath = sessionStorage.getItem('upskillr_redirect_after_login');
-          if (redirectPath) {
-            sessionStorage.removeItem('upskillr_redirect_after_login');
-            navigate(redirectPath);
-          } else {
-            navigate('/learner');
-          }
+          navigate('/instructor/application');
         }
-      }, 800);
+      } else {
+        const redirectPath = sessionStorage.getItem('upskillr_redirect_after_login');
+        if (redirectPath) {
+          sessionStorage.removeItem('upskillr_redirect_after_login');
+          navigate(redirectPath);
+        } else {
+          navigate('/learner');
+        }
+      }
     } catch (err) {
-      const errorMsg = err.message || 'Could not complete login. Check backend connection.';
-      toast.error(errorMsg);
+      const otpErrorMsg = err.message || 'Invalid or expired verification code.';
+      setAuthAlert({ type: 'error', message: otpErrorMsg });
     } finally {
-      setLoading(false);
+      setOtpLoading(false);
     }
   };
 
+  const handleResendLoginOtp = async () => {
+    if (!canResend || resendLoading) return;
+
+    setResendLoading(true);
+    setOtpDigits(['', '', '', '', '', '']);
+    otpInputsRef.current[0]?.focus();
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: otpEmail, purpose: 'login' })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to resend code.');
+      }
+
+      setOtpChallengeId(data.challengeId);
+      setCountdown(data.expiresInSeconds || 30);
+      setCanResend(false);
+      setAuthAlert({
+        type: 'info',
+        message: 'A fresh 6-digit verification code has been sent to your email.'
+      });
+    } catch (err) {
+      setAuthAlert({ type: 'error', message: err.message || 'Failed to resend verification code.' });
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
+  const handleBackToLogin = () => {
+    setShowOtpStep(false);
+    setOtpDigits(['', '', '', '', '', '']);
+    setCountdown(30);
+    setCanResend(false);
+    dismissAlert();
+  };
+
   const handleGoogleOAuth = () => {
-    window.location.href = `${API_BASE_URL}/google`;
+    dismissAlert();
+    window.location.href = `${API_BASE_URL}/google?action=login`;
   };
 
   const handleGithubOAuth = () => {
-    window.location.href = `${API_BASE_URL}/github`;
+    dismissAlert();
+    window.location.href = `${API_BASE_URL}/github?action=login`;
   };
 
   const handleMicrosoftOAuth = () => {
-    toast.info('Microsoft OAuth login will be configured soon.');
+    setAuthAlert({ type: 'info', message: 'Microsoft OAuth login will be configured soon.' });
   };
 
   return (
@@ -272,11 +568,160 @@ export default function Login() {
         {/* Right Column: Login Form Card */}
         <section className="login-right">
           <div className="login-card">
-            <h2 className="card-title">Sign In</h2>
-            <p className="card-subtitle">Enter your credentials to access your account</p>
+            <h2 className="card-title">{showOtpStep ? 'Verify Sign In' : 'Sign In'}</h2>
+            <p className="card-subtitle">
+              {showOtpStep ? (
+                <>Enter the 6-digit code sent to <strong style={{ color: 'var(--text-primary)' }}>{otpEmail}</strong></>
+              ) : (
+                'Enter your credentials to access your account'
+              )}
+            </p>
 
-            {/* Manual Login Form */}
-            <form className="login-form" onSubmit={handleManualLogin}>
+            {/* In-page OAuth & Authentication Feedback Alert Banner */}
+            {authAlert && (
+              <div
+                className={`auth-status-banner ${authAlert.type}`}
+                role="alert"
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: '10px',
+                  marginBottom: '16px',
+                  fontSize: '0.86rem',
+                  lineHeight: '1.45',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  backgroundColor: authAlert.type === 'error' ? 'rgba(239, 68, 68, 0.12)' : (authAlert.type === 'warning' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(59, 130, 246, 0.12)'),
+                  border: `1px solid ${authAlert.type === 'error' ? 'rgba(239, 68, 68, 0.35)' : (authAlert.type === 'warning' ? 'rgba(245, 158, 11, 0.35)' : 'rgba(59, 130, 246, 0.35)')}`,
+                  color: authAlert.type === 'error' ? '#ef4444' : (authAlert.type === 'warning' ? '#f59e0b' : '#3b82f6')
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+                  <span style={{ fontWeight: 500 }}>{authAlert.message}</span>
+                  <button
+                    type="button"
+                    onClick={dismissAlert}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'inherit',
+                      cursor: 'pointer',
+                      padding: '0 2px',
+                      fontSize: '1rem',
+                      lineHeight: '1',
+                      opacity: 0.8
+                    }}
+                    aria-label="Dismiss alert"
+                  >
+                    ✕
+                  </button>
+                </div>
+                {authAlert.actionText && authAlert.actionPath && (
+                  <a
+                    href={authAlert.actionPath}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      dismissAlert();
+                      navigate(authAlert.actionPath);
+                    }}
+                    style={{
+                      color: 'inherit',
+                      fontWeight: 600,
+                      textDecoration: 'underline',
+                      alignSelf: 'flex-start'
+                    }}
+                  >
+                    {authAlert.actionText} →
+                  </a>
+                )}
+              </div>
+            )}
+
+            {/* MANDATORY LOGIN OTP STEP */}
+            {showOtpStep ? (
+              <div className="otp-box">
+                <div className="otp-icon-circle">
+                  <MailCheck size={24} />
+                </div>
+
+                <form className="login-form" onSubmit={handleVerifyLoginOtp} style={{ width: '100%', alignItems: 'center' }}>
+                  {/* 6-Digit Individual OTP Input Boxes */}
+                  <div
+                    className="otp-digit-group"
+                    onPaste={handleOtpPaste}
+                    style={{ margin: '0.4rem 0' }}
+                  >
+                    {otpDigits.map((digit, index) => (
+                      <input
+                        key={index}
+                        ref={(el) => (otpInputsRef.current[index] = el)}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={1}
+                        className="otp-digit-input"
+                        value={digit}
+                        onChange={(e) => handleOtpChange(index, e.target.value)}
+                        onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                        onFocus={(e) => e.target.select()}
+                        required
+                        autoFocus={index === 0}
+                        aria-label={`Digit ${index + 1} of 6`}
+                      />
+                    ))}
+                  </div>
+
+                  {/* 30-Second Countdown Timer Display */}
+                  <div style={{ marginTop: '0.4rem', fontSize: '0.85rem', color: countdown > 0 ? 'var(--text-secondary)' : '#ef4444', fontWeight: 500 }}>
+                    {countdown > 0 ? (
+                      <span>Code expires in <strong style={{ color: 'var(--brand-primary)' }}>00:{countdown < 10 ? `0${countdown}` : countdown}</strong></span>
+                    ) : (
+                      <span>Code expired. Please request a new code.</span>
+                    )}
+                  </div>
+
+                  {/* Submit Button */}
+                  <button type="submit" className="submit-btn" disabled={otpLoading} style={{ marginTop: '0.75rem' }}>
+                    {otpLoading ? (
+                      <span>Verifying Code...</span>
+                    ) : (
+                      <>
+                        <span>Verify & Sign In</span>
+                        <ArrowRight size={18} />
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                {/* Resend OTP Action */}
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.4rem' }}>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Didn't receive code?</span>
+                  <button
+                    type="button"
+                    className="resend-btn"
+                    onClick={handleResendLoginOtp}
+                    disabled={!canResend || resendLoading}
+                  >
+                    {resendLoading ? 'Sending...' : (canResend ? 'Resend Code' : `Resend in ${countdown}s`)}
+                  </button>
+                </div>
+
+                {/* Return to Password Form */}
+                <div style={{ marginTop: '0.85rem', textAlign: 'center' }}>
+                  <button
+                    type="button"
+                    className="signin-link"
+                    style={{ fontSize: '0.85rem', background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--brand-primary)' }}
+                    onClick={handleBackToLogin}
+                  >
+                    <ArrowLeft size={14} /> Back to Sign In
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Manual Login Form */}
+                <form className="login-form" onSubmit={handleManualLogin}>
               {/* Email Address */}
               <div className="form-group">
                 <label className="form-label">Email address</label>
@@ -389,7 +834,9 @@ export default function Login() {
               and{' '}
               <a href="/privacy" onClick={(e) => e.preventDefault()}>Privacy Policy</a>.
             </p>
-          </div>
+          </>
+        )}
+      </div>
         </section>
       </main>
     </div>

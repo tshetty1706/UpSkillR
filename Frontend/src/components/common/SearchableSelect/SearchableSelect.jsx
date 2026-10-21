@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ChevronDown, Search, X, Check } from 'lucide-react';
 import './SearchableSelect.css';
 
@@ -43,13 +43,17 @@ export const SearchableSelect = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [containerRef, searchTerm, value, allowCustom, onChange]);
 
-  // Filter options based on search query
-  const filteredOptions = options.filter((opt) => {
-    const label = getOptionLabel(opt);
-    const val = getOptionValue(opt);
-    const searchStr = (opt.searchStr || `${label} ${val}`).toLowerCase();
-    return searchStr.includes(searchTerm.toLowerCase());
-  });
+  // Filter options based on search query (optimized with useMemo for high performance and scalability)
+  const filteredOptions = useMemo(() => {
+    if (!searchTerm || !searchTerm.trim()) return options;
+    const term = searchTerm.toLowerCase();
+    return options.filter((opt) => {
+      const label = typeof opt === 'string' ? opt : opt.label || opt.name || '';
+      const val = typeof opt === 'string' ? opt : opt.value || opt.name || '';
+      const searchStr = (opt.searchStr || `${label} ${val}`).toLowerCase();
+      return searchStr.includes(term);
+    });
+  }, [options, searchTerm]);
 
   const handleSelectOption = (option) => {
     const val = getOptionValue(option);
@@ -160,30 +164,46 @@ export const SearchableSelect = ({
       {isOpen && (
         <div className="searchable-select-dropdown" role="listbox">
           {filteredOptions.length > 0 ? (
-            filteredOptions.map((opt, idx) => {
-              const val = getOptionValue(opt);
-              const label = getOptionLabel(opt);
-              const isSelected = value === val || value === label;
-              const isHighlighted = idx === highlightedIndex;
+            <>
+              {filteredOptions.slice(0, 60).map((opt, idx) => {
+                const val = getOptionValue(opt);
+                const label = getOptionLabel(opt);
+                const isSelected = value === val || value === label;
+                const isHighlighted = idx === highlightedIndex;
 
-              return (
-                <div
-                  key={idx}
-                  className={`searchable-select-option ${
-                    isSelected ? 'is-selected' : ''
-                  } ${isHighlighted ? 'is-highlighted' : ''}`}
-                  onClick={() => handleSelectOption(opt)}
-                  onMouseEnter={() => setHighlightedIndex(idx)}
-                  role="option"
-                  aria-selected={isSelected}
-                >
-                  <div className="option-content">
-                    {renderOption ? renderOption(opt) : label}
+                return (
+                  <div
+                    key={idx}
+                    className={`searchable-select-option ${
+                      isSelected ? 'is-selected' : ''
+                    } ${isHighlighted ? 'is-highlighted' : ''}`}
+                    onClick={() => handleSelectOption(opt)}
+                    onMouseEnter={() => setHighlightedIndex(idx)}
+                    role="option"
+                    aria-selected={isSelected}
+                  >
+                    <div className="option-content">
+                      {renderOption ? renderOption(opt) : label}
+                    </div>
+                    {isSelected && <Check size={16} className="option-check" />}
                   </div>
-                  {isSelected && <Check size={16} className="option-check" />}
+                );
+              })}
+              {filteredOptions.length > 60 && (
+                <div
+                  className="searchable-select-more-hint"
+                  style={{
+                    padding: '8px 12px',
+                    fontSize: '0.78rem',
+                    color: 'var(--text-muted, #94a3b8)',
+                    textAlign: 'center',
+                    borderTop: '1px solid var(--border, #22352e)'
+                  }}
+                >
+                  Type to refine search ({filteredOptions.length - 60} more matches)...
                 </div>
-              );
-            })
+              )}
+            </>
           ) : (
             <div className="searchable-select-empty">
               {allowCustom ? (

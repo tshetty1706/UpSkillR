@@ -23,7 +23,12 @@ import {
   Plus,
   X,
   Edit2,
-  Check
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  Loader2
 } from 'lucide-react';
 
 import { SearchableSelect } from '../../common/SearchableSelect/SearchableSelect';
@@ -41,33 +46,128 @@ const formatFileSize = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
 
-// Clean Predefined Options
+// Clean Predefined Options - Comprehensive, Scalable Modern Title Catalog
 const PROFESSIONAL_TITLE_OPTIONS = [
+  // Software Engineering & Architecture
   'Software Engineer',
-  'Software Developer',
   'Senior Software Engineer',
+  'Lead Software Engineer',
+  'Staff Software Engineer',
+  'Principal Software Engineer',
+  'Software Developer',
   'Full Stack Developer',
+  'Senior Full Stack Developer',
   'Frontend Developer',
+  'Senior Frontend Developer',
   'Backend Developer',
+  'Senior Backend Developer',
   'Web Developer',
+  'Software Architect',
+  'Solutions Architect',
+  'Enterprise Architect',
+  'System Architect',
+  'Systems Engineer',
+  'Embedded Systems Engineer',
+  'Firmware Engineer',
+
+  // Mobile, Game & Web3 Development
   'Mobile App Developer',
-  'Data Scientist',
-  'Data Analyst',
-  'Machine Learning Engineer',
+  'iOS Developer',
+  'Android Developer',
+  'React Native Developer',
+  'Flutter Developer',
+  'Game Developer',
+  'Unity / Unreal Developer',
+  'AR/VR Developer',
+  'Blockchain Developer',
+  'Web3 Engineer',
+
+  // AI, Machine Learning & Data
   'AI Engineer',
   'AI/ML Engineer',
-  'Cloud Engineer',
-  'DevOps Engineer',
-  'Cybersecurity Engineer',
+  'Machine Learning Engineer',
+  'Senior Machine Learning Engineer',
+  'Deep Learning Specialist',
+  'Computer Vision Engineer',
+  'NLP Engineer',
+  'Generative AI Specialist',
+  'Prompt Engineer',
+  'Data Scientist',
+  'Senior Data Scientist',
+  'Lead Data Scientist',
+  'Data Analyst',
+  'Senior Data Analyst',
   'Data Engineer',
+  'Senior Data Engineer',
+  'Big Data Engineer',
+  'Database Administrator (DBA)',
   'Database Engineer',
+  'Business Intelligence (BI) Developer',
+  'BI Analyst',
+
+  // Cloud, Infrastructure & DevOps
+  'Cloud Engineer',
+  'Cloud Architect',
+  'AWS Solutions Architect',
+  'Azure Solutions Architect',
+  'GCP Cloud Architect',
+  'DevOps Engineer',
+  'Senior DevOps Engineer',
+  'DevSecOps Engineer',
+  'Site Reliability Engineer (SRE)',
+  'Platform Engineer',
+  'Infrastructure Engineer',
+  'Kubernetes Administrator',
+
+  // Cybersecurity & Networks
+  'Cybersecurity Engineer',
+  'Information Security Analyst',
+  'Penetration Tester / Ethical Hacker',
+  'Security Architect',
+  'Network Engineer',
+  'Network Administrator',
+  'Systems Administrator',
+
+  // Quality, Testing & Technical Writing
+  'QA Engineer',
+  'QA Automation Engineer',
+  'Software Development Engineer in Test (SDET)',
+  'Technical Writer',
+  'Developer Advocate',
+  'Developer Relations (DevRel)',
+
+  // Product, Design & Leadership
   'UI/UX Designer',
+  'Senior UI/UX Designer',
+  'Product Designer',
+  'UX Researcher',
+  'Technical Product Manager',
+  'Product Manager',
+  'Engineering Manager',
+  'Director of Engineering',
+  'Chief Technology Officer (CTO)',
+  'Scrum Master',
+  'Agile Coach',
+
+  // Academia, Research & Education
+  'Professor',
+  'Associate Professor',
+  'Assistant Professor',
+  'Adjunct Professor',
+  'Lecturer',
+  'Senior Lecturer',
+  'Academic Instructor',
+  'Corporate Trainer',
   'Technical Trainer',
   'Technology Instructor',
-  'Professor',
-  'Assistant Professor',
-  'Lecturer',
+  'Coding Bootcamp Instructor',
   'Researcher',
+  'Research Scientist',
+  'Postdoctoral Researcher',
+  'Doctoral Researcher / PhD Scholar',
+
+  // Custom / Other
+  'Other (Specify Custom Title)',
   'Other'
 ];
 
@@ -122,10 +222,23 @@ const TEACHING_STYLE_OPTIONS = [
 const PRIMARY_CATEGORY_OPTIONS = [
   'Web Development',
   'Data Science & AI',
+  'Artificial Intelligence & Machine Learning',
   'Mobile Development',
   'Cloud Computing & DevOps',
-  'UI/UX Design',
   'Cybersecurity',
+  'UI/UX Design',
+  'Software Engineering & Architecture',
+  'Database Management & Data Engineering',
+  'Game Development & 3D Modeling',
+  'Blockchain & Web3',
+  'Product Management',
+  'Business & Entrepreneurship',
+  'Digital Marketing & SEO',
+  'Finance & Accounting',
+  'Graphic Design & Illustration',
+  'Video Editing & Animation',
+  'IT, Networking & Systems Administration',
+  'Personal Development & Leadership',
   'Other'
 ];
 
@@ -231,7 +344,11 @@ const getSectionMissingDetails = (formData) => {
   } else if (phoneDigits.length < selectedCountry.minLength || phoneDigits.length > selectedCountry.maxLength) {
     missing.personalInfo.push(`Phone Number (${selectedCountry.maxLength} digits required for ${selectedCountry.name})`);
   }
-  if (!pInfo.professionalTitle?.trim() || (pInfo.professionalTitle === 'Other' && !pInfo.professionalTitleOther?.trim())) {
+  const isOtherTitle =
+    pInfo.professionalTitle === 'Other' ||
+    pInfo.professionalTitle === 'Other (Specify Custom Title)' ||
+    pInfo.professionalTitle?.toLowerCase().startsWith('other');
+  if (!pInfo.professionalTitle?.trim() || (isOtherTitle && !pInfo.professionalTitleOther?.trim())) {
     missing.personalInfo.push('Professional Title');
   }
   if (!pInfo.bio?.trim()) missing.personalInfo.push('Short Instructor Bio');
@@ -288,6 +405,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
   const [submitting, setSubmitting] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [photoLoadError, setPhotoLoadError] = useState(false);
 
   // Native OS file picker refs
   const photoInputRef = useRef(null);
@@ -303,6 +421,22 @@ export const InstructorApplication = ({ user, onLogout }) => {
   const [editingCertIndex, setEditingCertIndex] = useState(null);
   const [certUploading, setCertUploading] = useState(false);
   const [certModalError, setCertModalError] = useState('');
+  // In-App Document / Certificate Viewer State (Pure Canvas / Image — Guarantees No File Downloads)
+  const [pdfPreview, setPdfPreview] = useState({
+    isOpen: false,
+    url: '',
+    title: '',
+    isPdf: false,
+    isImage: false
+  });
+  const [pdfNumPages, setPdfNumPages] = useState(1);
+  const [pdfPageNum, setPdfPageNum] = useState(1);
+  const [pdfScale, setPdfScale] = useState(1.15);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState('');
+  const pdfCanvasRef = useRef(null);
+  const pdfDocRef = useRef(null);
+  const renderTaskRef = useRef(null);
   const [certForm, setCertForm] = useState({
     name: '',
     issuingOrganization: '',
@@ -431,7 +565,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
           professionalInfo: {
             currentRole: app.professionalInfo?.currentRole || '',
             organization: app.professionalInfo?.organization || '',
-            yearsOfExperience: app.professionalInfo?.yearsOfExperience || '1 - 3 Years',
+            yearsOfExperience: app.professionalInfo?.yearsOfExperience,
             linkedinUrl: app.professionalInfo?.linkedinUrl || '',
             websiteUrl: app.professionalInfo?.websiteUrl || '',
             keySkills: parsedSkills
@@ -445,14 +579,14 @@ export const InstructorApplication = ({ user, onLogout }) => {
             graduationYear: app.education?.graduationYear || ''
           },
           teachingExperience: {
-            priorExperience: app.teachingExperience?.priorExperience || 'Yes, online & offline',
-            targetStudentLevel: app.teachingExperience?.targetStudentLevel || 'Beginner to Intermediate',
+            priorExperience: app.teachingExperience?.priorExperience,
+            targetStudentLevel: app.teachingExperience?.targetStudentLevel,
             primaryTeachingStyles: primStyles,
             primaryTeachingStyleOther: app.teachingExperience?.primaryTeachingStyleOther || '',
             sampleVideoUrl: app.teachingExperience?.sampleVideoUrl || ''
           },
           coursesExpertise: {
-            primaryCategory: app.coursesExpertise?.primaryCategory || 'Web Development',
+            primaryCategory: app.coursesExpertise?.primaryCategory,
             primaryCategoryOther: app.coursesExpertise?.primaryCategoryOther || '',
             certifications: Array.isArray(app.coursesExpertise?.certifications)
               ? app.coursesExpertise.certifications
@@ -644,6 +778,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
       const data = await response.json();
 
       if (data.success) {
+        setPhotoLoadError(false);
         const updated = {
           ...formData,
           personalInfo: {
@@ -661,7 +796,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
             u.avatar = data.photoUrl;
             sessionStorage.setItem('upskillr_user', JSON.stringify(u));
             window.dispatchEvent(new Event('upskillr_user_updated'));
-          } catch (err) {}
+          } catch (err) { }
         }
 
         setAutoSaveStatus('saved');
@@ -677,6 +812,8 @@ export const InstructorApplication = ({ user, onLogout }) => {
       console.error('Photo upload error:', err);
       toast.error('Network error while uploading photo.');
       setAutoSaveStatus('error');
+    } finally {
+      if (photoInputRef.current) photoInputRef.current.value = '';
     }
   };
 
@@ -692,6 +829,7 @@ export const InstructorApplication = ({ user, onLogout }) => {
       const data = await response.json();
 
       if (data.success) {
+        setPhotoLoadError(false);
         const updated = {
           ...formData,
           personalInfo: {
@@ -709,14 +847,18 @@ export const InstructorApplication = ({ user, onLogout }) => {
             u.avatar = '';
             sessionStorage.setItem('upskillr_user', JSON.stringify(u));
             window.dispatchEvent(new Event('upskillr_user_updated'));
-          } catch (err) {}
+          } catch (err) { }
         }
+        if (photoInputRef.current) photoInputRef.current.value = '';
 
         setAutoSaveStatus('saved');
         toast.success('Profile photo removed.');
         setTimeout(() => {
           setAutoSaveStatus('idle');
         }, 3000);
+      } else {
+        toast.error(data.message || 'Failed to remove photo.');
+        setAutoSaveStatus('error');
       }
     } catch (err) {
       toast.error('Failed to remove photo.');
@@ -859,11 +1001,199 @@ export const InstructorApplication = ({ user, onLogout }) => {
 
   // Remove Certificate File Handler
   const handleRemoveCertFile = () => {
+    const existingUrl = certForm.certificateFile?.url;
+    if (existingUrl) {
+      const token = sessionStorage.getItem('upskillr_token');
+      fetch(`${API_BASE_URL}/upload/certificate`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ url: existingUrl })
+      }).catch(err => console.warn('Certificate cleanup notice:', err));
+    }
     setCertForm((prev) => ({
       ...prev,
       certificateFile: { url: '', originalName: '', size: 0, mimeType: '' }
     }));
   };
+
+  // Universal In-App Document Preview Handler (Pure Canvas/Image — GUARANTEES NO DEVICE DOWNLOADS)
+  const handleViewPdf = (rawUrl, originalName = 'document.pdf') => {
+    if (!rawUrl) {
+      toast.error('No document file attached.');
+      return;
+    }
+
+    let url = rawUrl;
+    // Clean if URL was erroneously prefixed with backend origin
+    if (url.includes('data:application/pdf') || url.includes('data:application/octet-stream') || url.includes('data:image/')) {
+      const dataIdx = url.indexOf('data:');
+      url = url.substring(dataIdx);
+    } else if (!url.startsWith('http') && !url.startsWith('data:') && !url.startsWith('blob:')) {
+      url = `http://localhost:5000${url.startsWith('/') ? '' : '/'}${url}`;
+    }
+
+    const isImage = /\.(jpg|jpeg|png|webp|svg)($|\?)/i.test(originalName || '') ||
+                    url.startsWith('data:image/') ||
+                    /\.(jpg|jpeg|png|webp|svg)($|\?)/i.test(url);
+
+    if (renderTaskRef.current) {
+      try { renderTaskRef.current.cancel(); } catch (e) {}
+    }
+    pdfDocRef.current = null;
+    setPdfPageNum(1);
+    setPdfNumPages(1);
+    setPdfScale(1.15);
+    setPdfError('');
+    setPdfPreview({
+      isOpen: true,
+      url,
+      title: originalName || (isImage ? 'Certificate Image' : 'Certificate PDF Document'),
+      isPdf: !isImage,
+      isImage: isImage
+    });
+  };
+
+  const handleClosePdfPreview = () => {
+    if (renderTaskRef.current) {
+      try { renderTaskRef.current.cancel(); } catch (e) {}
+      renderTaskRef.current = null;
+    }
+    if (pdfDocRef.current) {
+      try { pdfDocRef.current.destroy(); } catch (e) {}
+      pdfDocRef.current = null;
+    }
+    if (pdfCanvasRef.current) {
+      try {
+        const ctx = pdfCanvasRef.current.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, pdfCanvasRef.current.width, pdfCanvasRef.current.height);
+      } catch (e) {}
+    }
+    setPdfPreview({ isOpen: false, url: '', title: '', isPdf: false, isImage: false });
+    setPdfError('');
+    setPdfLoading(false);
+  };
+
+  // Safe PDF.js Loader & Canvas Renderer
+  const loadPdfDocument = async (url) => {
+    setPdfLoading(true);
+    setPdfError('');
+    try {
+      let pdfjs = window.pdfjsLib;
+      if (!pdfjs) {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+          s.onload = () => {
+            if (window.pdfjsLib) {
+              window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+                'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+              resolve();
+            } else reject(new Error('PDF.js unavailable'));
+          };
+          s.onerror = () => reject(new Error('Failed to load PDF preview engine'));
+          document.head.appendChild(s);
+        });
+        pdfjs = window.pdfjsLib;
+      }
+
+      let rawData;
+      if (url.startsWith('data:')) {
+        const parts = url.split(';base64,');
+        const base64Content = parts[1] || '';
+        const binaryString = window.atob(base64Content);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        rawData = bytes;
+      } else {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('Direct fetch failed');
+          const buffer = await res.arrayBuffer();
+          rawData = new Uint8Array(buffer);
+        } catch (fetchErr) {
+          // If direct fetch fails (e.g. Cloudinary CORS), proxy via backend
+          const token = sessionStorage.getItem('upskillr_token');
+          const proxyRes = await fetch(`${API_BASE_URL}/preview-proxy?url=${encodeURIComponent(url)}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          });
+          if (!proxyRes.ok) throw new Error('Could not stream document preview');
+          const buffer = await proxyRes.arrayBuffer();
+          rawData = new Uint8Array(buffer);
+        }
+      }
+
+      const loadingTask = pdfjs.getDocument({ data: rawData });
+      const loadedDoc = await loadingTask.promise;
+      rawData = null; // Release binary array immediately to free browser RAM
+      pdfDocRef.current = loadedDoc;
+      setPdfNumPages(loadedDoc.numPages || 1);
+      setPdfPageNum(1);
+      setPdfLoading(false);
+    } catch (err) {
+      console.error('PDF preview error:', err);
+      setPdfError('Could not render document preview. Format may be unsupported.');
+      setPdfLoading(false);
+    }
+  };
+
+  const renderCurrentPage = async () => {
+    if (!pdfDocRef.current || !pdfCanvasRef.current) return;
+    try {
+      if (renderTaskRef.current) {
+        try { renderTaskRef.current.cancel(); } catch (e) {}
+      }
+      const page = await pdfDocRef.current.getPage(pdfPageNum);
+      const viewport = page.getViewport({ scale: pdfScale });
+      const canvas = pdfCanvasRef.current;
+      if (!canvas) return;
+      const context = canvas.getContext('2d');
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      const renderContext = {
+        canvasContext: context,
+        viewport: viewport
+      };
+      const renderTask = page.render(renderContext);
+      renderTaskRef.current = renderTask;
+      await renderTask.promise;
+    } catch (err) {
+      if (err.name !== 'RenderingCancelledException') {
+        console.error('Page render error:', err);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (pdfPreview.isOpen && pdfPreview.isPdf && pdfPreview.url) {
+      loadPdfDocument(pdfPreview.url);
+    }
+  }, [pdfPreview.isOpen, pdfPreview.url, pdfPreview.isPdf]);
+
+  useEffect(() => {
+    if (pdfDocRef.current && pdfPreview.isOpen && pdfPreview.isPdf && !pdfLoading) {
+      renderCurrentPage();
+    }
+  }, [pdfPageNum, pdfScale, pdfLoading, pdfPreview.isOpen, pdfPreview.isPdf]);
+
+  // Cleanup all in-memory preview buffers when component unmounts
+  useEffect(() => {
+    return () => {
+      if (renderTaskRef.current) {
+        try { renderTaskRef.current.cancel(); } catch (e) {}
+        renderTaskRef.current = null;
+      }
+      if (pdfDocRef.current) {
+        try { pdfDocRef.current.destroy(); } catch (e) {}
+        pdfDocRef.current = null;
+      }
+    };
+  }, []);
 
   // Skill Tag Handlers
   const handleAddSkill = (skillText) => {
@@ -947,9 +1277,12 @@ export const InstructorApplication = ({ user, onLogout }) => {
 
   const handleSaveCert = () => {
     if (!certForm.name.trim() || !certForm.issuingOrganization.trim()) {
+      setCertModalError('Certification Name and Issuing Organization are required.');
       toast.error('Please fill in all required certificate details.');
       return;
     }
+
+    setCertModalError('');
 
     const currentCerts = [...(formData.coursesExpertise.certifications || [])];
     if (editingCertIndex !== null) {
@@ -1035,6 +1368,9 @@ export const InstructorApplication = ({ user, onLogout }) => {
 
       const data = await response.json();
       if (data.success) {
+        // Destroy and purge all temporary document preview memory buffers
+        handleClosePdfPreview();
+
         if (data.user) {
           localStorage.removeItem('upskillr_user');
           sessionStorage.setItem('upskillr_user', JSON.stringify(data.user));
@@ -1074,11 +1410,21 @@ export const InstructorApplication = ({ user, onLogout }) => {
     { id: 7, name: 'Review & Submit', icon: CheckCircle2 }
   ];
 
-  const photoFullUrl = formData.personalInfo.photoUrl
-    ? formData.personalInfo.photoUrl.startsWith('http')
-      ? formData.personalInfo.photoUrl
-      : `http://localhost:5000${formData.personalInfo.photoUrl}`
-    : '';
+  const getFullAssetUrl = (url) => {
+    if (!url) return '';
+    if (
+      url.startsWith('data:') ||
+      url.startsWith('blob:') ||
+      url.startsWith('http://') ||
+      url.startsWith('https://')
+    ) {
+      return url;
+    }
+    const cleanPath = url.startsWith('/') ? url : `/${url}`;
+    return `http://localhost:5000${cleanPath}`;
+  };
+
+  const photoFullUrl = getFullAssetUrl(formData.personalInfo.photoUrl);
 
   const currentSelectedCountry = findCountryByNameOrCode(
     formData.personalInfo.country,
@@ -1208,8 +1554,13 @@ export const InstructorApplication = ({ user, onLogout }) => {
               {/* Profile Photo Uploader Card with Default Profile Icon */}
               <div className="photo-uploader-card">
                 <div className="profile-avatar-wrapper">
-                  {photoFullUrl ? (
-                    <img src={photoFullUrl} alt="Instructor Profile" className="profile-avatar-img" />
+                  {photoFullUrl && !photoLoadError ? (
+                    <img
+                      src={photoFullUrl}
+                      alt="Instructor Profile"
+                      className="profile-avatar-img"
+                      onError={() => setPhotoLoadError(true)}
+                    />
                   ) : (
                     <User size={40} />
                   )}
@@ -1332,16 +1683,58 @@ export const InstructorApplication = ({ user, onLogout }) => {
                 </div>
               </div>
 
-              {/* Professional Title Searchable Select + Specify Other */}
+              {/* Professional Title Searchable Select + Specify Other / Custom */}
               <div className="form-group-field" style={{ marginTop: '1rem' }}>
-                <label className="field-label">Professional Title <span className="required-star">*</span></label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <label className="field-label" style={{ margin: 0 }}>
+                    Professional Title <span className="required-star">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const isCurrentlyOther =
+                        formData.personalInfo.professionalTitle === 'Other' ||
+                        formData.personalInfo.professionalTitle === 'Other (Specify Custom Title)' ||
+                        formData.personalInfo.professionalTitle?.toLowerCase().startsWith('other');
+                      const nextVal = isCurrentlyOther ? '' : 'Other (Specify Custom Title)';
+                      const updatedPersonalInfo = {
+                        ...formData.personalInfo,
+                        professionalTitle: nextVal,
+                        professionalTitleOther: isCurrentlyOther ? '' : formData.personalInfo.professionalTitleOther
+                      };
+                      const updated = { ...formData, personalInfo: updatedPersonalInfo };
+                      setFormData(updated);
+                      saveToServer(updated, activeStep);
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      fontSize: '0.82rem',
+                      color: 'var(--brand-primary, #10b981)',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    {formData.personalInfo.professionalTitle === 'Other' ||
+                      formData.personalInfo.professionalTitle === 'Other (Specify Custom Title)' ||
+                      formData.personalInfo.professionalTitle?.toLowerCase().startsWith('other')
+                      ? 'Choose from predefined list'
+                      : 'or enter custom title'}
+                  </button>
+                </div>
                 <SearchableSelect
                   value={formData.personalInfo.professionalTitle}
                   onChange={(val) => {
+                    const isOther =
+                      val === 'Other' ||
+                      val === 'Other (Specify Custom Title)' ||
+                      val.toLowerCase().startsWith('other');
                     const updatedPersonalInfo = {
                       ...formData.personalInfo,
                       professionalTitle: val,
-                      professionalTitleOther: val === 'Other' ? formData.personalInfo.professionalTitleOther : ''
+                      professionalTitleOther: isOther ? formData.personalInfo.professionalTitleOther : ''
                     };
                     const updated = { ...formData, personalInfo: updatedPersonalInfo };
                     setFormData(updated);
@@ -1349,22 +1742,25 @@ export const InstructorApplication = ({ user, onLogout }) => {
                   }}
                   options={PROFESSIONAL_TITLE_OPTIONS}
                   placeholder="Select Professional Title..."
-                  allowCustom={false}
+                  allowCustom={true}
                 />
               </div>
 
-              {formData.personalInfo.professionalTitle === 'Other' && (
-                <div className="form-group-field" style={{ marginTop: '0.75rem' }}>
-                  <label className="field-label">Please specify:</label>
-                  <input
-                    type="text"
-                    className="field-input"
-                    placeholder="e.g. Blockchain Research Specialist"
-                    value={formData.personalInfo.professionalTitleOther}
-                    onChange={(e) => handleInputChange('personalInfo', 'professionalTitleOther', e.target.value)}
-                  />
-                </div>
-              )}
+              {(formData.personalInfo.professionalTitle === 'Other' ||
+                formData.personalInfo.professionalTitle === 'Other (Specify Custom Title)' ||
+                formData.personalInfo.professionalTitle?.toLowerCase().startsWith('other')) && (
+                  <div className="form-group-field" style={{ marginTop: '0.75rem' }}>
+                    <label className="field-label">Custom Professional Title <span className="required-star">*</span></label>
+                    <input
+                      type="text"
+                      className="field-input"
+                      placeholder="e.g. Lead AI Systems Architect"
+                      value={formData.personalInfo.professionalTitleOther}
+                      onChange={(e) => handleInputChange('personalInfo', 'professionalTitleOther', e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
 
               <div className="form-group-field" style={{ marginTop: '1rem' }}>
                 <label className="field-label">Short Instructor Bio <span className="required-star">*</span></label>
@@ -1774,8 +2170,8 @@ export const InstructorApplication = ({ user, onLogout }) => {
                           {cert.doesNotExpire
                             ? ' · No expiration'
                             : cert.expirationDate
-                            ? ` · Expires ${cert.expirationDate}`
-                            : ''}
+                              ? ` · Expires ${cert.expirationDate}`
+                              : ''}
                         </span>
                         {cert.credentialId && (
                           <span className="cert-dates" style={{ marginTop: '0.15rem' }}>
@@ -1801,24 +2197,23 @@ export const InstructorApplication = ({ user, onLogout }) => {
                             <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                               {cert.certificateFile.originalName || 'Certificate Document'}
                             </span>
-                            <a
-                              href={
-                                cert.certificateFile.url.startsWith('http')
-                                  ? cert.certificateFile.url
-                                  : `http://localhost:5000${cert.certificateFile.url}`
-                              }
-                              target="_blank"
-                              rel="noreferrer"
+                            <button
+                              type="button"
+                              onClick={() => handleViewPdf(cert.certificateFile.url, cert.certificateFile.originalName)}
                               style={{
                                 marginLeft: 'auto',
                                 fontSize: '0.8rem',
                                 color: 'var(--brand-primary)',
                                 textDecoration: 'underline',
-                                fontWeight: 600
+                                fontWeight: 600,
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: 0
                               }}
                             >
                               View Certificate
-                            </a>
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1896,20 +2291,15 @@ export const InstructorApplication = ({ user, onLogout }) => {
                     </div>
 
                     <div className="resume-actions-group">
-                      <a
-                        href={
-                          formData.documents.resume.url.startsWith('http')
-                            ? formData.documents.resume.url
-                            : `http://localhost:5000${formData.documents.resume.url}`
-                        }
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => handleViewPdf(formData.documents.resume.url, formData.documents.resume.originalName)}
                         className="btn-upload-action"
-                        style={{ padding: '0.4rem 0.75rem', fontSize: '0.825rem', textDecoration: 'none' }}
+                        style={{ padding: '0.4rem 0.75rem', fontSize: '0.825rem' }}
                       >
                         <ExternalLink size={14} />
                         <span>View</span>
-                      </a>
+                      </button>
 
                       <button
                         type="button"
@@ -2021,16 +2411,25 @@ export const InstructorApplication = ({ user, onLogout }) => {
                     <div className="review-field-item">
                       <span className="review-field-label">Professional Title</span>
                       <span className="review-field-val">
-                        {formData.personalInfo.professionalTitle === 'Other'
+                        {formData.personalInfo.professionalTitle === 'Other' ||
+                          formData.personalInfo.professionalTitle === 'Other (Specify Custom Title)' ||
+                          formData.personalInfo.professionalTitle?.toLowerCase().startsWith('other')
                           ? formData.personalInfo.professionalTitleOther || 'Not specified'
                           : formData.personalInfo.professionalTitle || 'Not provided'}
                       </span>
                     </div>
                     <div className="review-field-item">
                       <span className="review-field-label">Profile Photo</span>
-                      <span className="review-field-val">
-                        {formData.personalInfo.photoUrl ? (
-                          <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>Uploaded</span>
+                      <span className="review-field-val" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {photoFullUrl && !photoLoadError ? (
+                          <>
+                            <img
+                              src={photoFullUrl}
+                              alt="Profile"
+                              style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border)' }}
+                            />
+                            <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>Uploaded</span>
+                          </>
                         ) : (
                           <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Optional / Default Avatar</span>
                         )}
@@ -2294,201 +2693,198 @@ export const InstructorApplication = ({ user, onLogout }) => {
               </button>
             </div>
 
-            {/* In-place Modal Validation Warning */}
-            {certModalError && (
-              <div className="cert-modal-warning">
-                <AlertCircle size={14} />
-                <span>{certModalError}</span>
-              </div>
-            )}
-
-            <div className="form-group-field">
-              <label className="field-label">Certification Name <span className="required-star">*</span></label>
-              <input
-                type="text"
-                className="field-input"
-                placeholder="e.g. AWS Certified Developer"
-                value={certForm.name}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setCertForm({ ...certForm, name: val });
-                  if (val.trim() && certForm.issuingOrganization.trim()) {
-                    setCertModalError('');
-                  }
-                }}
-                required
-              />
-            </div>
-
-            <div className="form-group-field">
-              <label className="field-label">Issuing Organization <span className="required-star">*</span></label>
-              <input
-                type="text"
-                className="field-input"
-                placeholder="e.g. Amazon Web Services"
-                value={certForm.issuingOrganization}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setCertForm({ ...certForm, issuingOrganization: val });
-                  if (val.trim() && certForm.name.trim()) {
-                    setCertModalError('');
-                  }
-                }}
-                required
-              />
-            </div>
-
-            <div className="form-grid-2col">
-              <div className="form-group-field">
-                <label className="field-label">Issue Date</label>
-                <input
-                  type="date"
-                  className="field-input"
-                  value={certForm.issueDate}
-                  onChange={(e) => setCertForm({ ...certForm, issueDate: e.target.value })}
-                />
-              </div>
-
-              {!certForm.doesNotExpire && (
-                <div className="form-group-field">
-                  <label className="field-label">Expiration Date</label>
-                  <input
-                    type="date"
-                    className="field-input"
-                    value={certForm.expirationDate}
-                    onChange={(e) => setCertForm({ ...certForm, expirationDate: e.target.value })}
-                  />
+            <div className="cert-modal-body">
+              {/* In-place Modal Validation Warning */}
+              {certModalError && (
+                <div className="cert-modal-warning">
+                  <AlertCircle size={14} />
+                  <span>{certModalError}</span>
                 </div>
               )}
-            </div>
 
-            <label className="checkbox-label-row">
-              <input
-                type="checkbox"
-                checked={certForm.doesNotExpire}
-                onChange={(e) =>
-                  setCertForm({
-                    ...certForm,
-                    doesNotExpire: e.target.checked,
-                    expirationDate: e.target.checked ? '' : certForm.expirationDate
-                  })
-                }
-              />
-              <span>This credential does not expire</span>
-            </label>
-
-            <div className="form-grid-2col" style={{ marginTop: '0.85rem' }}>
               <div className="form-group-field">
-                <label className="field-label">Credential ID</label>
+                <label className="field-label">Certification Name <span className="required-star">*</span></label>
                 <input
                   type="text"
                   className="field-input"
-                  placeholder="e.g. ABC123456"
-                  value={certForm.credentialId}
-                  onChange={(e) => setCertForm({ ...certForm, credentialId: e.target.value })}
+                  placeholder="e.g. AWS Certified Developer"
+                  value={certForm.name}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCertForm({ ...certForm, name: val });
+                    if (val.trim() && certForm.issuingOrganization.trim()) {
+                      setCertModalError('');
+                    }
+                  }}
+                  required
                 />
               </div>
 
               <div className="form-group-field">
-                <label className="field-label">Credential URL</label>
+                <label className="field-label">Issuing Organization <span className="required-star">*</span></label>
                 <input
-                  type="url"
+                  type="text"
                   className="field-input"
-                  placeholder="https://example.com/verify/ABC123456"
-                  value={certForm.credentialUrl}
-                  onChange={(e) => setCertForm({ ...certForm, credentialUrl: e.target.value })}
+                  placeholder="e.g. Amazon Web Services"
+                  value={certForm.issuingOrganization}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCertForm({ ...certForm, issuingOrganization: val });
+                    if (val.trim() && certForm.name.trim()) {
+                      setCertModalError('');
+                    }
+                  }}
+                  required
                 />
+              </div>
+
+              <div className="form-grid-2col">
+                <div className="form-group-field">
+                  <label className="field-label">Issue Date</label>
+                  <input
+                    type="date"
+                    className="field-input"
+                    value={certForm.issueDate}
+                    onChange={(e) => setCertForm({ ...certForm, issueDate: e.target.value })}
+                  />
+                </div>
+
+                {!certForm.doesNotExpire && (
+                  <div className="form-group-field">
+                    <label className="field-label">Expiration Date</label>
+                    <input
+                      type="date"
+                      className="field-input"
+                      value={certForm.expirationDate}
+                      onChange={(e) => setCertForm({ ...certForm, expirationDate: e.target.value })}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <label className="checkbox-label-row">
+                <input
+                  type="checkbox"
+                  checked={certForm.doesNotExpire}
+                  onChange={(e) =>
+                    setCertForm({
+                      ...certForm,
+                      doesNotExpire: e.target.checked,
+                      expirationDate: e.target.checked ? '' : certForm.expirationDate
+                    })
+                  }
+                />
+                <span>This credential does not expire</span>
+              </label>
+
+              <div className="form-grid-2col">
+                <div className="form-group-field">
+                  <label className="field-label">Credential ID</label>
+                  <input
+                    type="text"
+                    className="field-input"
+                    placeholder="e.g. ABC123456"
+                    value={certForm.credentialId}
+                    onChange={(e) => setCertForm({ ...certForm, credentialId: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group-field">
+                  <label className="field-label">Credential URL</label>
+                  <input
+                    type="url"
+                    className="field-input"
+                    placeholder="https://example.com/verify/ABC123456"
+                    value={certForm.credentialUrl}
+                    onChange={(e) => setCertForm({ ...certForm, credentialUrl: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Native Certificate File Upload Field */}
+              <div className="form-group-field">
+                <label className="field-label">Certificate File (.pdf format only)</label>
+                <input
+                  type="file"
+                  ref={certFileInputRef}
+                  accept=".pdf,application/pdf"
+                  style={{ display: 'none' }}
+                  onChange={handleCertFileUpload}
+                />
+
+                {certForm.certificateFile?.url ? (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      backgroundColor: 'var(--background)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md, 8px)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                      <FileText size={18} style={{ color: 'var(--brand-primary)', flexShrink: 0 }} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {certForm.certificateFile.originalName || 'Certificate Document'}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          {formatFileSize(certForm.certificateFile.size)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        className="btn-upload-action"
+                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem' }}
+                        onClick={() => handleViewPdf(certForm.certificateFile.url, certForm.certificateFile.originalName)}
+                      >
+                        <ExternalLink size={13} />
+                        <span>View</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn-upload-action"
+                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem' }}
+                        onClick={() => certFileInputRef.current?.click()}
+                        disabled={certUploading}
+                      >
+                        <Upload size={13} />
+                        <span>Replace</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn-remove-action"
+                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem' }}
+                        onClick={handleRemoveCertFile}
+                      >
+                        <Trash2 size={13} />
+                        <span>Remove</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-upload-action"
+                    style={{ width: '100%', justifyContent: 'center', padding: '9px 12px' }}
+                    onClick={() => certFileInputRef.current?.click()}
+                    disabled={certUploading}
+                  >
+                    <Upload size={15} />
+                    <span>{certUploading ? 'Uploading Certificate...' : 'Upload Certificate'}</span>
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Native Certificate File Upload Field */}
-            <div className="form-group-field" style={{ marginTop: '1rem' }}>
-              <label className="field-label">Certificate File (.pdf format only)</label>
-              <input
-                type="file"
-                ref={certFileInputRef}
-                accept=".pdf,application/pdf"
-                style={{ display: 'none' }}
-                onChange={handleCertFileUpload}
-              />
-
-              {certForm.certificateFile?.url ? (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    backgroundColor: 'var(--background)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md, 8px)'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <FileText size={20} style={{ color: 'var(--brand-primary)' }} />
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-                        {certForm.certificateFile.originalName || 'Certificate Document'}
-                      </div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        {formatFileSize(certForm.certificateFile.size)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <a
-                      href={
-                        certForm.certificateFile.url.startsWith('http')
-                          ? certForm.certificateFile.url
-                          : `http://localhost:5000${certForm.certificateFile.url}`
-                      }
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn-upload-action"
-                      style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem', textDecoration: 'none' }}
-                    >
-                      <ExternalLink size={13} />
-                      <span>View</span>
-                    </a>
-
-                    <button
-                      type="button"
-                      className="btn-upload-action"
-                      style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem' }}
-                      onClick={() => certFileInputRef.current?.click()}
-                      disabled={certUploading}
-                    >
-                      <Upload size={13} />
-                      <span>Replace</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="btn-remove-action"
-                      style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem' }}
-                      onClick={handleRemoveCertFile}
-                    >
-                      <Trash2 size={13} />
-                      <span>Remove</span>
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className="btn-upload-action"
-                  style={{ width: '100%', justifyContent: 'center', padding: '10px' }}
-                  onClick={() => certFileInputRef.current?.click()}
-                  disabled={certUploading}
-                >
-                  <Upload size={16} />
-                  <span>{certUploading ? 'Uploading Certificate...' : 'Upload Certificate'}</span>
-                </button>
-              )}
-            </div>
-
-            <div className="form-actions-bar" style={{ marginTop: '1.5rem', paddingTop: '1rem' }}>
+            <div className="cert-modal-footer">
               <button
                 type="button"
                 className="btn-secondary-prev"
@@ -2503,6 +2899,162 @@ export const InstructorApplication = ({ user, onLogout }) => {
               >
                 Save Certification
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* In-App Document / Certificate Canvas Viewer Modal (GUARANTEES ZERO DEVICE DOWNLOADS) */}
+      {pdfPreview.isOpen && (
+        <div
+          className="cert-modal-backdrop"
+          onClick={handleClosePdfPreview}
+          style={{ zIndex: 1200 }}
+        >
+          <div
+            className="cert-modal-dialog"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '920px',
+              width: '95%',
+              height: '88vh',
+              maxHeight: '88vh',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: 0,
+              overflow: 'hidden',
+              borderRadius: '12px'
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              className="cert-modal-header"
+              style={{
+                padding: '0.85rem 1.25rem',
+                borderBottom: '1px solid var(--border-color)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                flexWrap: 'wrap'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: '1 1 200px' }}>
+                <FileText size={18} style={{ color: 'var(--brand-primary)', flexShrink: 0 }} />
+                <h3
+                  className="cert-modal-title"
+                  style={{
+                    fontSize: '1rem',
+                    margin: 0,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}
+                >
+                  {pdfPreview.title || 'Document Preview'}
+                </h3>
+              </div>
+
+              {/* PDF Toolbar: Pagination and Zoom Controls */}
+              {pdfPreview.isPdf && !pdfLoading && !pdfError && (
+                <div className="pdf-modal-toolbar">
+                  {/* Pagination */}
+                  {pdfNumPages > 1 && (
+                    <div className="pdf-toolbar-group">
+                      <button
+                        type="button"
+                        className="pdf-toolbar-btn"
+                        onClick={() => setPdfPageNum((prev) => Math.max(prev - 1, 1))}
+                        disabled={pdfPageNum <= 1}
+                        title="Previous Page"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <span className="pdf-toolbar-page-info">
+                        Page {pdfPageNum} of {pdfNumPages}
+                      </span>
+                      <button
+                        type="button"
+                        className="pdf-toolbar-btn"
+                        onClick={() => setPdfPageNum((prev) => Math.min(prev + 1, pdfNumPages))}
+                        disabled={pdfPageNum >= pdfNumPages}
+                        title="Next Page"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Zoom */}
+                  <div className="pdf-toolbar-group">
+                    <button
+                      type="button"
+                      className="pdf-toolbar-btn"
+                      onClick={() => setPdfScale((prev) => Math.max(prev - 0.2, 0.6))}
+                      disabled={pdfScale <= 0.65}
+                      title="Zoom Out"
+                    >
+                      <ZoomOut size={16} />
+                    </button>
+                    <span className="pdf-toolbar-page-info" style={{ minWidth: '42px', textAlign: 'center' }}>
+                      {Math.round(pdfScale * 100)}%
+                    </span>
+                    <button
+                      type="button"
+                      className="pdf-toolbar-btn"
+                      onClick={() => setPdfScale((prev) => Math.min(prev + 0.2, 2.2))}
+                      disabled={pdfScale >= 2.15}
+                      title="Zoom In"
+                    >
+                      <ZoomIn size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Close Button */}
+              <button
+                type="button"
+                className="skill-tag-remove-btn"
+                style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0 }}
+                onClick={handleClosePdfPreview}
+                aria-label="Close preview"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body: Pure Canvas or Image (Never downloads) */}
+            <div className="pdf-preview-canvas-container">
+              {pdfLoading && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', margin: 'auto' }}>
+                  <Loader2 size={32} className="spin-animation" style={{ color: 'var(--brand-primary)' }} />
+                  <span style={{ fontSize: '0.9rem', color: '#cbd5e1' }}>Rendering document preview...</span>
+                </div>
+              )}
+
+              {pdfError && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', margin: 'auto', textAlign: 'center', maxWidth: '400px' }}>
+                  <AlertCircle size={32} style={{ color: '#ef4444' }} />
+                  <span style={{ fontSize: '0.9rem', color: '#f87171' }}>{pdfError}</span>
+                </div>
+              )}
+
+              {pdfPreview.isPdf && (
+                <canvas
+                  ref={pdfCanvasRef}
+                  className="pdf-canvas-element"
+                  style={{ display: pdfLoading || pdfError ? 'none' : 'block' }}
+                />
+              )}
+
+              {pdfPreview.isImage && (
+                <img
+                  src={pdfPreview.url}
+                  alt={pdfPreview.title || 'Certificate Preview'}
+                  className="pdf-image-element"
+                />
+              )}
             </div>
           </div>
         </div>
