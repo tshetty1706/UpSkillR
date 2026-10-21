@@ -1623,11 +1623,15 @@ export const InstructorApplication = ({ user, onLogout }) => {
                   <label className="field-label">Email Address <span className="required-star">*</span></label>
                   <input
                     type="email"
-                    className="field-input"
+                    className="field-input read-only-input"
                     value={formData.personalInfo.email}
-                    onChange={(e) => handleInputChange('personalInfo', 'email', e.target.value)}
-                    required
+                    disabled
+                    readOnly
+                    title="Email address is linked to your account and cannot be modified."
                   />
+                  <span className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #64748b)', marginTop: '4px', display: 'block' }}>
+                    Email is linked to your account and cannot be modified.
+                  </span>
                 </div>
               </div>
 

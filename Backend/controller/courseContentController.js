@@ -248,8 +248,8 @@ exports.createModule = async (req, res) => {
     const lastMod = modules[modules.length - 1];
     const sortKey = generateSortKey(lastMod ? lastMod.sortKey : null, null);
 
-    // Rule A.2.4: 0 lessons -> cannot be published immediately upon creation
-    const finalState = state === 'published' && canPublishModule({ lessons: [] }) ? 'published' : 'draft';
+    // Modules are always created in 'draft' state by default
+    const finalState = 'draft';
 
     const newModule = {
       _id: new mongoose.Types.ObjectId(),

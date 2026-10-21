@@ -55,6 +55,8 @@ const isSameDay = (d1, d2 = new Date()) => {
   if (!d1 || !d2) return false;
   return getDateString(d1) === getDateString(d2);
 };
+exports.isSameDay = isSameDay;
+exports.isConsecutiveDay = isConsecutiveDay;
 
 // ─── Helper: process daily login streak (+1 point) ───
 const processDailyLoginStreak = async (learner) => {
@@ -75,7 +77,7 @@ const processDailyLoginStreak = async (learner) => {
       points: 1,
       type: 'DAILY_CHECKIN',
       referenceId: `checkin_${todayStr}`,
-      description: 'Daily Login (+1 point)'
+      description: 'Daily Learning Streak (+1 point)'
     });
   } catch (e) {
     // Duplicate safe — compound unique index guards this
@@ -85,13 +87,12 @@ const processDailyLoginStreak = async (learner) => {
 exports.processDailyLoginStreak = processDailyLoginStreak;
 
 // ─── 1. GET /api/learners/me — Profile + Stats ───
+// Idempotent read: Never creates transactions or alters streaks on passive profile fetch
 exports.getLearnerProfileAndStats = async (req, res) => {
   try {
     const learnerId = req.user.id;
     let learner = await Learner.findById(learnerId).select('-password');
     if (!learner) return res.status(404).json({ success: false, message: 'Learner not found' });
-
-    await processDailyLoginStreak(learner);
 
     const enrolments = await Enrolment.find({ learnerId });
     const coursesEnrolled = enrolments.length;
@@ -318,9 +319,14 @@ exports.updateLearnerProfile = async (req, res) => {
 // ─── 5. Daily Check-in / Login Streak ───
 exports.performDailyCheckin = async (req, res) => {
   try {
+    if (!req.user || req.user.role !== 'learner') {
+      return res.status(403).json({ success: false, message: 'Access denied. Daily streak check-in is restricted to learners only.' });
+    }
     const learnerId = req.user.id;
     let learner = await Learner.findById(learnerId);
-    if (!learner) return res.status(404).json({ success: false, message: 'Learner not found' });
+    if (!learner || learner.role !== 'learner') {
+      return res.status(404).json({ success: false, message: 'Learner record not found.' });
+    }
 
     const alreadyDone = isSameDay(learner.lastCheckInDate);
     if (!alreadyDone) await processDailyLoginStreak(learner);
@@ -342,8 +348,13 @@ exports.performDailyCheckin = async (req, res) => {
 // ─── 6. Get Points & Streak ───
 exports.getPoints = async (req, res) => {
   try {
-    const learner = await Learner.findById(req.user.id).select('points currentStreak longestStreak lastCheckInDate');
-    if (!learner) return res.status(404).json({ success: false, message: 'Learner not found' });
+    if (!req.user || req.user.role !== 'learner') {
+      return res.status(403).json({ success: false, message: 'Access denied. Points are restricted to learners only.' });
+    }
+    const learner = await Learner.findById(req.user.id).select('points currentStreak longestStreak lastCheckInDate role');
+    if (!learner || learner.role !== 'learner') {
+      return res.status(404).json({ success: false, message: 'Learner record not found.' });
+    }
     return res.status(200).json({
       success: true,
       points: learner.points || 0,
@@ -359,9 +370,20 @@ exports.getPoints = async (req, res) => {
 // ─── 7. Get Point History ───
 exports.getPointHistory = async (req, res) => {
   try {
-    const transactions = await PointTransaction.find({ learnerId: req.user.id })
+    if (!req.user || req.user.role !== 'learner') {
+      return res.status(403).json({ success: false, message: 'Access denied. Point history is restricted to learners only.' });
+    }
+
+    // Only count genuine, valid learner activity types
+    const VALID_TYPES = ['MODULE_COMPLETION', 'QUIZ_COMPLETION', 'COURSE_COMPLETION', 'DAILY_CHECKIN'];
+
+    const transactions = await PointTransaction.find({
+      learnerId: req.user.id,
+      type: { $in: VALID_TYPES }
+    })
       .sort({ createdAt: -1 })
       .limit(50);
+
     return res.status(200).json({
       success: true,
       transactions: transactions.map(t => ({
@@ -408,16 +430,23 @@ exports.getLearnerReviews = async (req, res) => {
   }
 };
 
-// ─── 9. GET /api/learners/me/activity — Heatmap data from PointTransaction ───
+// ─── 9. GET /api/learners/me/activity — Heatmap data from PointTransaction (Valid activities only) ───
 exports.getLearnerActivity = async (req, res) => {
   try {
+    if (!req.user || req.user.role !== 'learner') {
+      return res.status(403).json({ success: false, message: 'Access denied. Learner role required.' });
+    }
     const learnerId = req.user.id;
     const now = new Date();
     const oneYearAgo = new Date(now);
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
+    // Only count genuine, valid learner activity types
+    const VALID_TYPES = ['MODULE_COMPLETION', 'QUIZ_COMPLETION', 'COURSE_COMPLETION', 'DAILY_CHECKIN'];
+
     const transactions = await PointTransaction.find({
       learnerId,
+      type: { $in: VALID_TYPES },
       createdAt: { $gte: oneYearAgo }
     }).sort({ createdAt: 1 });
 

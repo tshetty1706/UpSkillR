@@ -36,6 +36,17 @@ function App() {
     const checkAuthStatus = async () => {
       // 1. Support legacy / direct URL params if present (session-only)
       const urlParams = new URLSearchParams(window.location.search);
+
+      // If an error query parameter is present (e.g. no_account, invalid_oauth_state),
+      // strictly clear any stale session tokens and do NOT auto-redirect to dashboard.
+      if (urlParams.has('error')) {
+        sessionStorage.removeItem('upskillr_token');
+        sessionStorage.removeItem('upskillr_user');
+        setCurrentUser(null);
+        setAuthChecking(false);
+        return;
+      }
+
       const token = urlParams.get('token');
       const userParam = urlParams.get('user');
 

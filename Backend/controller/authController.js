@@ -793,9 +793,9 @@ exports.manualLogin = async (req, res) => {
         isVerified: user.isVerified,
         avatar: user.avatar,
         username: user.username || '',
-        points: user.points || 0,
-        currentStreak: user.currentStreak || 0,
-        longestStreak: user.longestStreak || 0,
+        points: user.role === 'learner' ? (user.points || 0) : undefined,
+        currentStreak: user.role === 'learner' ? (user.currentStreak || 0) : undefined,
+        longestStreak: user.role === 'learner' ? (user.longestStreak || 0) : undefined,
         applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
       }
     });
@@ -938,9 +938,9 @@ exports.verifyLoginOtp = async (req, res) => {
         isVerified: user.isVerified,
         avatar: user.avatar,
         username: user.username || '',
-        points: user.points || 0,
-        currentStreak: user.currentStreak || 0,
-        longestStreak: user.longestStreak || 0,
+        points: user.role === 'learner' ? (user.points || 0) : undefined,
+        currentStreak: user.role === 'learner' ? (user.currentStreak || 0) : undefined,
+        longestStreak: user.role === 'learner' ? (user.longestStreak || 0) : undefined,
         applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
       }
     });
@@ -1213,9 +1213,58 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
-// In-memory sets to prevent duplicate authorization code exchanges (TTL: 2 minutes)
-const processedOAuthCodes = new Set();
+// In-memory map to prevent duplicate authorization code exchanges (cleanCode -> redirectUrl) (TTL: 2 minutes)
+const processedOAuthCodes = new Map();
 const inflightOAuthExchanges = new Map();
+
+// Cryptographically signed HMAC-SHA256 OAuth State to prevent CSRF, Replay, and Intent Tampering
+const generateOAuthState = (data) => {
+  const secret = JWT_SECRET;
+  const payload = Buffer.from(
+    JSON.stringify({
+      ...data,
+      nonce: crypto.randomBytes(16).toString('hex'),
+      timestamp: Date.now()
+    })
+  ).toString('base64url');
+  const signature = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+};
+
+const verifyOAuthState = (stateStr) => {
+  if (!stateStr || typeof stateStr !== 'string') return null;
+  const parts = stateStr.split('.');
+  if (parts.length === 2) {
+    const [payload, signature] = parts;
+    const secret = JWT_SECRET;
+    const expectedSig = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+    try {
+      const bufA = Buffer.from(signature);
+      const bufB = Buffer.from(expectedSig);
+      if (bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB)) {
+        const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+        // 15-minute maximum TTL for OAuth state
+        if (Date.now() - decoded.timestamp > 15 * 60 * 1000) {
+          return null;
+        }
+        return decoded;
+      }
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Graceful fallback for unencoded or legacy JSON state (e.g. tests or external clients)
+  try {
+    return JSON.parse(decodeURIComponent(stateStr));
+  } catch (e) {
+    try {
+      return JSON.parse(stateStr);
+    } catch (e2) {
+      return null;
+    }
+  }
+};
 
 // 5. Google OAuth Redirect
 exports.googleOAuthRedirect = (req, res) => {
@@ -1226,7 +1275,7 @@ exports.googleOAuthRedirect = (req, res) => {
 
   const role = req.query.role === 'instructor' ? 'instructor' : 'learner';
   const action = req.query.action === 'signup' ? 'signup' : 'login';
-  const state = JSON.stringify({ role, action });
+  const state = generateOAuthState({ role, action });
 
   const authParams = new URLSearchParams({
     client_id: googleClientId,
@@ -1248,19 +1297,24 @@ exports.googleOAuthCallback = async (req, res) => {
 
   if (oauthError) {
     console.warn('Google OAuth returned error in callback query:', oauthError);
+    res.clearCookie('token', { path: '/' });
+    res.clearCookie('upskillr_token', { path: '/' });
     return res.redirect(`${FRONTEND_URL}/login?error=google_oauth_failed`);
   }
 
   if (!code) {
+    res.clearCookie('token', { path: '/' });
+    res.clearCookie('upskillr_token', { path: '/' });
     return res.redirect(`${FRONTEND_URL}/login?error=google_oauth_failed`);
   }
 
   const cleanCode = String(code).trim();
 
-  // If this code was already exchanged, do NOT exchange again (prevents invalid_grant)
+  // If this code was already exchanged, replay the EXACT original redirect URL (prevents invalid_grant and bypass)
   if (processedOAuthCodes.has(cleanCode)) {
-    console.log('[Google OAuth] Authorization code has already been exchanged. Redirecting cleanly.');
-    return res.redirect(`${FRONTEND_URL}/dashboard`);
+    const cachedRedirect = processedOAuthCodes.get(cleanCode);
+    console.log('[Google OAuth] Authorization code has already been exchanged. Redirecting cleanly to cached destination:', cachedRedirect);
+    return res.redirect(cachedRedirect || `${FRONTEND_URL}/login`);
   }
 
   // If this code is currently being exchanged in an in-flight request, await that existing exchange
@@ -1283,21 +1337,21 @@ exports.googleOAuthCallback = async (req, res) => {
   inflightOAuthExchanges.set(cleanCode, exchangePromise);
 
   try {
-    let role = 'learner';
-    let action = 'login';
-    if (state) {
-      try {
-        const parsedState = JSON.parse(decodeURIComponent(state));
-        if (parsedState.role) role = parsedState.role;
-        if (parsedState.action) action = parsedState.action;
-      } catch (e) {
-        try {
-          const parsedState = JSON.parse(state);
-          if (parsedState.role) role = parsedState.role;
-          if (parsedState.action) action = parsedState.action;
-        } catch (e2) {}
-      }
+    const parsedState = verifyOAuthState(state);
+    if (!parsedState) {
+      console.warn('[Google OAuth] Missing, invalid, or tampered OAuth state parameter.');
+      res.clearCookie('token', { path: '/' });
+      res.clearCookie('upskillr_token', { path: '/' });
+      const redirectUrl = `${FRONTEND_URL}/login?error=invalid_oauth_state&provider=google`;
+      processedOAuthCodes.set(cleanCode, redirectUrl);
+      inflightOAuthExchanges.delete(cleanCode);
+      setTimeout(() => processedOAuthCodes.delete(cleanCode), 120000).unref();
+      resolveExchange(redirectUrl);
+      return res.redirect(redirectUrl);
     }
+
+    const role = parsedState.role === 'instructor' ? 'instructor' : 'learner';
+    const action = parsedState.action === 'signup' ? 'signup' : 'login';
 
     const googleParams = new URLSearchParams({
       client_id: process.env.GOOGLE_CLIENT_ID.trim(),
@@ -1359,13 +1413,19 @@ exports.googleOAuthCallback = async (req, res) => {
     // Branch: Login Flow vs Explicit Signup Flow
     if (action === 'login') {
       if (!user) {
-        // User does NOT exist or provider is not linked
+        // STRICT LOGIN ENFORCEMENT:
+        // A Google identity that does not correspond to an eligible existing UpSkillR account
+        // must never receive a successful login or cause an UpSkillR account to be created.
+        res.clearCookie('token', { path: '/' });
+        res.clearCookie('upskillr_token', { path: '/' });
+
+        // Check if an account exists under local credentials
         const existingLocal = await findUserByEmail(normalizedEmail);
         const redirectUrl = existingLocal
           ? `${FRONTEND_URL}/login?error=provider_not_linked&provider=google`
           : `${FRONTEND_URL}/login?error=no_account&provider=google`;
 
-        processedOAuthCodes.add(cleanCode);
+        processedOAuthCodes.set(cleanCode, redirectUrl);
         inflightOAuthExchanges.delete(cleanCode);
         setTimeout(() => processedOAuthCodes.delete(cleanCode), 120000).unref();
 
@@ -1382,8 +1442,10 @@ exports.googleOAuthCallback = async (req, res) => {
       // action === 'signup'
       const existingUser = await findUserByEmail(normalizedEmail);
       if (existingUser) {
+        res.clearCookie('token', { path: '/' });
+        res.clearCookie('upskillr_token', { path: '/' });
         const redirectUrl = `${FRONTEND_URL}/login?error=account_exists&provider=google`;
-        processedOAuthCodes.add(cleanCode);
+        processedOAuthCodes.set(cleanCode, redirectUrl);
         inflightOAuthExchanges.delete(cleanCode);
         setTimeout(() => processedOAuthCodes.delete(cleanCode), 120000).unref();
 
@@ -1424,7 +1486,7 @@ exports.googleOAuthCallback = async (req, res) => {
 
     const redirectUrl = `${FRONTEND_URL}/dashboard`;
 
-    processedOAuthCodes.add(cleanCode);
+    processedOAuthCodes.set(cleanCode, redirectUrl);
     inflightOAuthExchanges.delete(cleanCode);
     setTimeout(() => processedOAuthCodes.delete(cleanCode), 120000).unref();
 
@@ -1434,6 +1496,8 @@ exports.googleOAuthCallback = async (req, res) => {
     inflightOAuthExchanges.delete(cleanCode);
     rejectExchange(error);
     console.error('Google OAuth Callback Error:', error?.response?.data || error.message);
+    res.clearCookie('token', { path: '/' });
+    res.clearCookie('upskillr_token', { path: '/' });
     return res.redirect(`${FRONTEND_URL}/login?error=google_oauth_failed`);
   }
 };
@@ -1448,7 +1512,7 @@ exports.githubOAuthRedirect = (req, res) => {
   const role = req.query.role === 'instructor' ? 'instructor' : 'learner';
   const action = req.query.action === 'signup' ? 'signup' : 'login';
   const redirectUri = encodeURIComponent(GITHUB_CALLBACK_URL);
-  const state = encodeURIComponent(JSON.stringify({ role, action }));
+  const state = encodeURIComponent(generateOAuthState({ role, action }));
 
   const authUrl = `https://github.com/login/oauth/authorize?client_id=${githubClientId}&redirect_uri=${redirectUri}&scope=user:email&state=${state}`;
 
@@ -1460,24 +1524,21 @@ exports.githubOAuthCallback = async (req, res) => {
   try {
     const { code, state } = req.query;
     if (!code) {
-      return res.status(400).send('OAuth code missing.');
+      res.clearCookie('token', { path: '/' });
+      res.clearCookie('upskillr_token', { path: '/' });
+      return res.redirect(`${FRONTEND_URL}/login?error=github_oauth_failed`);
     }
 
-    let role = 'learner';
-    let action = 'login';
-    if (state) {
-      try {
-        const parsedState = JSON.parse(decodeURIComponent(state));
-        if (parsedState.role) role = parsedState.role;
-        if (parsedState.action) action = parsedState.action;
-      } catch (e) {
-        try {
-          const parsedState = JSON.parse(state);
-          if (parsedState.role) role = parsedState.role;
-          if (parsedState.action) action = parsedState.action;
-        } catch (e2) {}
-      }
+    const parsedState = verifyOAuthState(state);
+    if (!parsedState) {
+      console.warn('[GitHub OAuth] Missing, invalid, or tampered OAuth state parameter.');
+      res.clearCookie('token', { path: '/' });
+      res.clearCookie('upskillr_token', { path: '/' });
+      return res.redirect(`${FRONTEND_URL}/login?error=invalid_oauth_state&provider=github`);
     }
+
+    const role = parsedState.role === 'instructor' ? 'instructor' : 'learner';
+    const action = parsedState.action === 'signup' ? 'signup' : 'login';
 
     const githubParams = new URLSearchParams({
       client_id: process.env.GITHUB_CLIENT_ID,
@@ -1499,6 +1560,8 @@ exports.githubOAuthCallback = async (req, res) => {
 
     const { access_token } = tokenResponse.data;
     if (!access_token) {
+      res.clearCookie('token', { path: '/' });
+      res.clearCookie('upskillr_token', { path: '/' });
       return res.redirect(`${FRONTEND_URL}/login?error=github_token_failed`);
     }
 
@@ -1547,6 +1610,8 @@ exports.githubOAuthCallback = async (req, res) => {
     // Branch: Login Flow vs Explicit Signup Flow
     if (action === 'login') {
       if (!user) {
+        res.clearCookie('token', { path: '/' });
+        res.clearCookie('upskillr_token', { path: '/' });
         const existingLocal = await findUserByEmail(normalizedEmail);
         const redirectUrl = existingLocal
           ? `${FRONTEND_URL}/login?error=provider_not_linked&provider=github`
@@ -1562,6 +1627,8 @@ exports.githubOAuthCallback = async (req, res) => {
       // action === 'signup'
       const existingUser = await findUserByEmail(normalizedEmail);
       if (existingUser) {
+        res.clearCookie('token', { path: '/' });
+        res.clearCookie('upskillr_token', { path: '/' });
         return res.redirect(`${FRONTEND_URL}/login?error=account_exists&provider=github`);
       }
 
@@ -1619,12 +1686,19 @@ exports.getCurrentUser = async (req, res) => {
     delete userObj.password;
 
     if (user.role === 'instructor') {
+      delete userObj.points;
+      delete userObj.currentStreak;
+      delete userObj.longestStreak;
+      delete userObj.lastCheckInDate;
       const InstructorApplication = require('../model/InstructorApplication');
       const application = await InstructorApplication.findOne({ instructorId: user._id });
-      if (application) {
-        userObj.bio = application.personalInfo?.bio || '';
-        userObj.specialization = application.personalInfo?.professionalTitle || '';
-      }
+      // Instructor model is authoritative for live profile; fall back to application snapshot if empty
+      userObj.designation = user.designation || application?.personalInfo?.professionalTitle || '';
+      userObj.specialization = userObj.designation; // maintain backward compatibility
+      userObj.bio = user.bio || application?.personalInfo?.bio || '';
+      userObj.keySkills = (user.keySkills && user.keySkills.length > 0)
+        ? user.keySkills
+        : (application?.professionalInfo?.keySkills || []);
     }
 
     return res.status(200).json({
@@ -1844,28 +1918,33 @@ exports.updateProfile = async (req, res) => {
         { new: true }
       ).select('-password');
     } else if (role === 'instructor') {
+      const resolvedDesignation = (req.body.designation !== undefined)
+        ? req.body.designation
+        : (specialization !== undefined ? specialization : '');
+
+      const instructorUpdate = {
+        fullName: fullName.trim(),
+        bio: typeof bio === 'string' ? bio.trim().slice(0, 2500) : '',
+        designation: typeof resolvedDesignation === 'string' ? resolvedDesignation.trim().slice(0, 150) : ''
+      };
+
+      if (req.body.keySkills !== undefined) {
+        let skills = [];
+        if (Array.isArray(req.body.keySkills)) {
+          skills = req.body.keySkills.map(s => String(s).trim()).filter(Boolean);
+        } else if (typeof req.body.keySkills === 'string') {
+          skills = req.body.keySkills.split(',').map(s => s.trim()).filter(Boolean);
+        }
+        instructorUpdate.keySkills = skills.slice(0, 30);
+      }
+
       updatedUser = await Instructor.findByIdAndUpdate(
         userId,
-        { 
-          fullName: fullName.trim(),
-          bio: bio || '',
-          designation: specialization || ''
-        },
+        instructorUpdate,
         { new: true }
-      ).select('-password');
-
-      // Also update matching field in InstructorApplication if it exists
-      const InstructorApplication = require('../model/InstructorApplication');
-      const application = await InstructorApplication.findOne({ instructorId: userId });
-      if (application) {
-        application.personalInfo = {
-          ...application.personalInfo.toObject(),
-          fullName: fullName.trim(),
-          bio: bio || application.personalInfo.bio || '',
-          professionalTitle: specialization || application.personalInfo.professionalTitle || ''
-        };
-        await application.save();
-      }
+      ).select('-password -verificationOtp -resetPasswordOtp');
+      // NOTE: InstructorApplication is intentionally NOT mutated here.
+      // Routine active profile updates must not overwrite the immutable application snapshot for admin review.
     }
 
     if (!updatedUser) {
@@ -1874,8 +1953,7 @@ exports.updateProfile = async (req, res) => {
 
     const userObj = updatedUser.toObject();
     if (role === 'instructor') {
-      userObj.bio = bio || '';
-      userObj.specialization = specialization || '';
+      userObj.specialization = userObj.designation || '';
     }
 
     return res.status(200).json({
@@ -1922,9 +2000,9 @@ exports.uploadProfilePhoto = async (req, res) => {
         { new: true }
       ).select('-password');
 
-      // Also update in InstructorApplication if it exists
+      // Only update InstructorApplication if still in draft/not_started (onboarding)
       const application = await InstructorApplication.findOne({ instructorId: userId });
-      if (application) {
+      if (application && application.applicationStatus !== 'submitted') {
         application.personalInfo = {
           ...application.personalInfo.toObject(),
           photoUrl
@@ -1940,10 +2018,12 @@ exports.uploadProfilePhoto = async (req, res) => {
     const userObj = updatedUser.toObject();
     if (role === 'instructor') {
       const application = await InstructorApplication.findOne({ instructorId: userId });
-      if (application) {
-        userObj.bio = application.personalInfo?.bio || '';
-        userObj.specialization = application.personalInfo?.professionalTitle || '';
-      }
+      userObj.designation = updatedUser.designation || application?.personalInfo?.professionalTitle || '';
+      userObj.specialization = userObj.designation;
+      userObj.bio = updatedUser.bio || application?.personalInfo?.bio || '';
+      userObj.keySkills = (updatedUser.keySkills && updatedUser.keySkills.length > 0)
+        ? updatedUser.keySkills
+        : (application?.professionalInfo?.keySkills || []);
     }
 
     return res.status(200).json({
@@ -1986,9 +2066,9 @@ exports.removeProfilePhoto = async (req, res) => {
         { new: true }
       ).select('-password');
 
-      // Also remove from InstructorApplication photoUrl if it exists
+      // Only remove from InstructorApplication photoUrl if still in draft/not_started (onboarding)
       const application = await InstructorApplication.findOne({ instructorId: userId });
-      if (application) {
+      if (application && application.applicationStatus !== 'submitted') {
         application.personalInfo = {
           ...(application.personalInfo ? application.personalInfo.toObject() : {}),
           photoUrl: ''
@@ -2006,10 +2086,12 @@ exports.removeProfilePhoto = async (req, res) => {
 
     if (role === 'instructor') {
       const application = await InstructorApplication.findOne({ instructorId: userId });
-      if (application) {
-        userObj.bio = application.personalInfo?.bio || '';
-        userObj.specialization = application.personalInfo?.professionalTitle || '';
-      }
+      userObj.designation = updatedUser.designation || application?.personalInfo?.professionalTitle || '';
+      userObj.specialization = userObj.designation;
+      userObj.bio = updatedUser.bio || application?.personalInfo?.bio || '';
+      userObj.keySkills = (updatedUser.keySkills && updatedUser.keySkills.length > 0)
+        ? updatedUser.keySkills
+        : (application?.professionalInfo?.keySkills || []);
     }
 
     return res.status(200).json({
@@ -2028,5 +2110,189 @@ exports.logout = (req, res) => {
   res.clearCookie('token', { path: '/' });
   res.clearCookie('upskillr_token', { path: '/' });
   return res.status(200).json({ success: true, message: 'Logged out successfully.' });
+};
+
+// 16. Combined Instructor Profile & Application Details
+exports.getInstructorProfileAndApplication = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const instructor = await Instructor.findById(userId).select('-password -verificationOtp -resetPasswordOtp');
+    if (!instructor) {
+      return res.status(404).json({ success: false, message: 'Instructor not found.' });
+    }
+
+    let application = await InstructorApplication.findOne({ instructorId: userId });
+    if (!application) {
+      application = await InstructorApplication.findOneAndUpdate(
+        { instructorId: userId },
+        {
+          $setOnInsert: {
+            instructorId: userId,
+            applicationStatus: instructor.applicationStatus || 'submitted',
+            currentSection: 6,
+            'personalInfo.fullName': instructor.fullName,
+            'personalInfo.email': instructor.email,
+            'personalInfo.photoUrl': instructor.avatar || ''
+          }
+        },
+        { new: true, upsert: true }
+      );
+    }
+
+    const profileData = {
+      _id: instructor._id,
+      id: instructor._id,
+      fullName: instructor.fullName,
+      email: instructor.email,
+      avatar: instructor.avatar || '',
+      designation: instructor.designation || application?.personalInfo?.professionalTitle || '',
+      specialization: instructor.designation || application?.personalInfo?.professionalTitle || '',
+      bio: instructor.bio || application?.personalInfo?.bio || '',
+      keySkills: (instructor.keySkills && instructor.keySkills.length > 0)
+        ? instructor.keySkills
+        : (application?.professionalInfo?.keySkills || []),
+      role: instructor.role,
+      authProvider: instructor.authProvider,
+      isVerified: instructor.isVerified,
+      applicationStatus: instructor.applicationStatus,
+      passwordChangedAt: instructor.passwordChangedAt,
+      createdAt: instructor.createdAt
+    };
+
+    let applicationData = null;
+    if (application) {
+      applicationData = {
+        _id: application._id,
+        applicationStatus: application.applicationStatus,
+        currentSection: application.currentSection,
+        submittedAt: application.submittedAt,
+        personalInfo: {
+          fullName: application.personalInfo?.fullName || '',
+          email: application.personalInfo?.email || '',
+          phone: application.personalInfo?.phone || '',
+          country: application.personalInfo?.country || '',
+          countryCode: application.personalInfo?.countryCode || '',
+          professionalTitle: application.personalInfo?.professionalTitle || '',
+          professionalTitleOther: application.personalInfo?.professionalTitleOther || '',
+          bio: application.personalInfo?.bio || '',
+          location: application.personalInfo?.location || '',
+          photoUrl: application.personalInfo?.photoUrl || ''
+        },
+        professionalInfo: {
+          currentRole: application.professionalInfo?.currentRole || '',
+          organization: application.professionalInfo?.organization || '',
+          yearsOfExperience: application.professionalInfo?.yearsOfExperience || '',
+          linkedinUrl: application.professionalInfo?.linkedinUrl || '',
+          websiteUrl: application.professionalInfo?.websiteUrl || '',
+          keySkills: application.professionalInfo?.keySkills || []
+        },
+        education: {
+          degree: application.education?.degree || '',
+          degreeOther: application.education?.degreeOther || '',
+          fieldOfStudy: application.education?.fieldOfStudy || '',
+          fieldOfStudyOther: application.education?.fieldOfStudyOther || '',
+          institution: application.education?.institution || '',
+          graduationYear: application.education?.graduationYear || ''
+        },
+        teachingExperience: {
+          priorExperience: application.teachingExperience?.priorExperience || '',
+          targetStudentLevel: application.teachingExperience?.targetStudentLevel || '',
+          preferredTeachingStyle: application.teachingExperience?.preferredTeachingStyle || '',
+          preferredTeachingStyles: application.teachingExperience?.preferredTeachingStyles || [],
+          primaryTeachingStyle: application.teachingExperience?.primaryTeachingStyle || '',
+          primaryTeachingStyles: application.teachingExperience?.primaryTeachingStyles || [],
+          sampleVideoUrl: application.teachingExperience?.sampleVideoUrl || ''
+        },
+        coursesExpertise: {
+          primaryCategory: application.coursesExpertise?.primaryCategory || '',
+          primaryCategoryOther: application.coursesExpertise?.primaryCategoryOther || '',
+          proposedCourseTitle: application.coursesExpertise?.proposedCourseTitle || '',
+          proposedCourseDesc: application.coursesExpertise?.proposedCourseDesc || '',
+          targetAudience: application.coursesExpertise?.targetAudience || '',
+          certifications: application.coursesExpertise?.certifications || []
+        },
+        documents: {
+          resume: application.documents?.resume || null
+        }
+      };
+    }
+
+    return res.status(200).json({
+      success: true,
+      profile: profileData,
+      application: applicationData
+    });
+  } catch (error) {
+    console.error('getInstructorProfileAndApplication error:', error);
+    return res.status(500).json({ success: false, message: 'Server error fetching instructor profile and application.' });
+  }
+};
+
+// 17. Authenticated Password Change
+exports.changePassword = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    let user = await Learner.findById(userId);
+    if (!user) user = await Instructor.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    if (user.authProvider !== 'local') {
+      return res.status(400).json({
+        success: false,
+        message: `Password change is not available for accounts managed via ${user.authProvider} single sign-on.`
+      });
+    }
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password, new password, and confirmation password are all required.'
+      });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: 'Current password does not match.' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 8 characters long.'
+      });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password and confirmation password do not match.'
+      });
+    }
+
+    const isSameAsCurrent = await bcrypt.compare(newPassword, user.password);
+    if (isSameAsCurrent) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password cannot be the same as your current password.'
+      });
+    }
+
+    const salt = await bcrypt.genSalt(12);
+    user.password = await bcrypt.hash(newPassword, salt);
+    user.passwordChangedAt = new Date();
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password updated successfully.'
+    });
+  } catch (error) {
+    console.error('Change Password Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update password.' });
+  }
 };
 

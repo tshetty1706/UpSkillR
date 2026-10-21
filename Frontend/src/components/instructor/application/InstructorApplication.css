@@ -359,6 +359,16 @@
   box-shadow: 0 0 0 3px var(--brand-emerald-glow);
 }
 
+.field-input:disabled,
+.field-input[readonly],
+.field-input.read-only-input {
+  background-color: var(--surface-muted, var(--background)) !important;
+  color: var(--text-secondary) !important;
+  cursor: not-allowed !important;
+  border-color: var(--border) !important;
+  opacity: 0.85;
+}
+
 .field-textarea {
   min-height: 100px;
   resize: vertical;

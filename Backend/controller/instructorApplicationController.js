@@ -85,7 +85,11 @@ exports.updateApplication = async (req, res) => {
     }
 
     if (personalInfo) {
-      application.personalInfo = { ...application.personalInfo.toObject(), ...personalInfo };
+      const safePersonalInfo = { ...personalInfo };
+      // Enforce: Email address cannot be edited anywhere in instructor application
+      delete safePersonalInfo.email;
+      safePersonalInfo.email = instructor.email;
+      application.personalInfo = { ...application.personalInfo.toObject(), ...safePersonalInfo };
       if (personalInfo.photoUrl !== undefined) {
         instructor.avatar = personalInfo.photoUrl || '';
       }
@@ -122,11 +126,24 @@ exports.updateApplication = async (req, res) => {
     }
 
     if (coursesExpertise) {
-      application.coursesExpertise = { ...application.coursesExpertise.toObject(), ...coursesExpertise };
+      const currentCoursesExpertise = application.coursesExpertise ? application.coursesExpertise.toObject() : {};
+      application.coursesExpertise = { ...currentCoursesExpertise, ...coursesExpertise };
+      if (coursesExpertise.certifications) {
+        application.coursesExpertise.certifications = coursesExpertise.certifications;
+      }
+      application.markModified('coursesExpertise');
     }
 
     if (documents) {
-      application.documents = { ...application.documents.toObject(), ...documents };
+      const currentDocuments = application.documents ? application.documents.toObject() : {};
+      application.documents = { ...currentDocuments, ...documents };
+      if (documents.resume) {
+        application.documents.resume = documents.resume;
+      }
+      if (documents.idDocumentRef !== undefined) {
+        application.documents.idDocumentRef = documents.idDocumentRef;
+      }
+      application.markModified('documents');
     }
 
     if (currentSection) {
@@ -311,6 +328,7 @@ exports.uploadResume = async (req, res) => {
       ...application.documents.toObject(),
       resume: resumeObj
     };
+    application.markModified('documents');
     if (application.applicationStatus === 'not_started') {
       application.applicationStatus = 'draft';
       const instructor = await Instructor.findById(instructorId);
@@ -347,6 +365,7 @@ exports.removeResume = async (req, res) => {
         ...application.documents.toObject(),
         resume: { url: '', originalName: '', size: 0, mimeType: '' }
       };
+      application.markModified('documents');
       await application.save();
     }
 
@@ -557,15 +576,54 @@ exports.previewProxy = async (req, res) => {
       return res.status(400).json({ success: false, message: 'File URL is required.' });
     }
 
-    const axios = require('axios');
-    const response = await axios.get(fileUrl, {
-      responseType: 'arraybuffer',
-      timeout: 20000
-    });
+    // SSRF security check: Only allow approved Cloudinary media
+    const isCloudinary = fileUrl.startsWith('https://res.cloudinary.com/') || fileUrl.startsWith('http://res.cloudinary.com/');
+    if (!isCloudinary) {
+      return res.status(403).json({ success: false, message: 'Invalid or unauthorized document source.' });
+    }
 
-    const contentType = response.headers['content-type'] || 'application/pdf';
+    const axios = require('axios');
+    let response;
+    let contentType;
+    const isPdf = /\.pdf(\?.*)?$/i.test(fileUrl);
+
+    // If it's a Cloudinary image-pipeline PDF, fetch its auto-rendered high-res PNG image directly
+    if (isPdf && fileUrl.includes('/image/upload/')) {
+      const pngUrl = fileUrl.replace(/\.pdf(\?.*)?$/i, '.png$1');
+      try {
+        response = await axios.get(pngUrl, {
+          responseType: 'arraybuffer',
+          timeout: 25000
+        });
+        contentType = 'image/png';
+      } catch (pngErr) {
+        // Fall back to direct fetch below if png transformation was not available
+      }
+    }
+
+    if (!response) {
+      try {
+        response = await axios.get(fileUrl, {
+          responseType: 'arraybuffer',
+          timeout: 25000
+        });
+        contentType = response.headers['content-type'] || (isPdf ? 'application/pdf' : 'application/octet-stream');
+      } catch (directErr) {
+        if (isPdf) {
+          const pngUrl = fileUrl.replace(/\.pdf(\?.*)?$/i, '.png$1');
+          response = await axios.get(pngUrl, {
+            responseType: 'arraybuffer',
+            timeout: 25000
+          });
+          contentType = 'image/png';
+        } else {
+          throw directErr;
+        }
+      }
+    }
+
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', 'inline; filename="document.pdf"');
+    res.setHeader('Content-Disposition', 'inline; filename="preview"');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     return res.send(Buffer.from(response.data));
   } catch (error) {

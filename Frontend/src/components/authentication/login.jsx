@@ -65,9 +65,17 @@ export default function Login() {
       const providerName = providerParam === 'github' ? 'GitHub' : 'Google';
       return {
         type: 'error',
-        message: `No account exists with this ${providerName} account. Please create an account first.`,
+        message: `No UpSkillR account exists for this ${providerName} account. Please create an account first.`,
         actionText: 'Create an account',
         actionPath: '/signup'
+      };
+    }
+    if (errorParam === 'invalid_oauth_state') {
+      return {
+        type: 'error',
+        message: 'OAuth session expired or invalid. Please try signing in again.',
+        actionText: null,
+        actionPath: null
       };
     }
     if (errorParam === 'provider_not_linked') {

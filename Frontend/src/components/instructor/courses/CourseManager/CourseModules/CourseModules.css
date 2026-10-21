@@ -1982,6 +1982,77 @@
   line-height: 1.35;
 }
 
+/* Module Creation Draft Default Callout */
+.module-create-draft-callout {
+  padding: 14px 16px;
+  background: var(--surface-muted);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md, 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.draft-callout-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.draft-callout-icon {
+  color: var(--text-secondary);
+}
+
+.draft-callout-badge {
+  font-size: 0.825rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.draft-callout-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.draft-callout-desc strong {
+  color: var(--text-primary);
+}
+
+/* Status Locked Warning when editing an empty module */
+.status-locked-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.785rem;
+  color: #d97706;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: var(--radius-sm, 6px);
+  padding: 7px 12px;
+  margin-bottom: 10px;
+}
+
+.status-select-card.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: var(--surface-muted);
+  border-color: var(--border);
+}
+
+.status-select-card.is-disabled:hover {
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+.btn-node-state-toggle.is-publish-locked {
+  opacity: 0.75;
+}
+
 /* Video Streaming Modal */
 .curriculum-modal-backdrop {
   position: fixed;

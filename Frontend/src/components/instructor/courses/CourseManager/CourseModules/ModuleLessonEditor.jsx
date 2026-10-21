@@ -76,34 +76,25 @@ export const ModuleLessonEditor = ({
   // 'lesson' | 'module_settings'
   const [activePaneView, setActivePaneView] = useState('lesson');
 
-  // Expanded modules in the left tree
-  const [expandedModules, setExpandedModules] = useState(() => {
-    const initial = {};
-    if (modules.length > 0) initial[modules[0]._id] = true;
-    return initial;
-  });
+  // Expanded modules in the left tree - closed by default, open only when instructor clicks
+  const [expandedModules, setExpandedModules] = useState({});
 
   const toggleModuleAccordion = (moduleId, e) => {
     if (e) e.stopPropagation();
+    setSelectedModuleId(moduleId);
     setExpandedModules(prev => {
-      const isCurrentlyExpanded = prev[moduleId] ?? (moduleId === selectedModuleId);
+      const isCurrentlyExpanded = Boolean(prev[moduleId]);
       return { ...prev, [moduleId]: !isCurrentlyExpanded };
     });
   };
 
-  // Expanded lessons in the left tree (showing content items leaf list)
-  const [expandedLessons, setExpandedLessons] = useState(() => {
-    const initial = {};
-    if (modules.length > 0 && modules[0].lessons && modules[0].lessons.length > 0) {
-      initial[modules[0].lessons[0]._id] = true;
-    }
-    return initial;
-  });
+  // Expanded lessons in the left tree - closed by default, open only when instructor clicks
+  const [expandedLessons, setExpandedLessons] = useState({});
 
   const toggleLessonAccordion = (lessonId, e) => {
     if (e) e.stopPropagation();
     setExpandedLessons(prev => {
-      const isCurrentlyExpanded = prev[lessonId] ?? (lessonId === selectedLessonId);
+      const isCurrentlyExpanded = Boolean(prev[lessonId]);
       return { ...prev, [lessonId]: !isCurrentlyExpanded };
     });
   };
@@ -132,11 +123,16 @@ export const ModuleLessonEditor = ({
     return () => document.removeEventListener('click', handleOutsideClick);
   }, []);
 
-  // Active modal/drawer form state
-  // null | { type: 'module' | 'lesson' | 'video' | 'quiz', isEdit: boolean, data: {} }
   const [activeForm, setActiveForm] = useState(null);
   const [isReplacingVideo, setIsReplacingVideo] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Check if current module in activeForm has lessons added
+  const activeModuleHasLessons = useMemo(() => {
+    if (!activeForm || activeForm.type !== 'module' || !activeForm.isEdit) return false;
+    const target = modules.find(m => m._id === activeForm.data?.id);
+    return Boolean(target && Array.isArray(target.lessons) && target.lessons.length > 0);
+  }, [activeForm, modules]);
 
   // Video playback modal and status checking
   const [previewingVideo, setPreviewingVideo] = useState(null);
@@ -208,6 +204,15 @@ export const ModuleLessonEditor = ({
 
   // Module State Toggle
   const handleToggleModuleState = async (moduleId) => {
+    const targetModule = modules.find(m => m._id === moduleId);
+    const hasLessons = targetModule && Array.isArray(targetModule.lessons) && targetModule.lessons.length > 0;
+    const currentState = targetModule?.state || targetModule?.status || 'draft';
+
+    if (currentState === 'draft' && !hasLessons) {
+      toast.error('Cannot publish module: Please add lessons and learning content before publishing this module.');
+      return;
+    }
+
     try {
       const res = await fetch(`${apiBase}/courses/${courseId}/curriculum/modules/${moduleId}/toggle-state`, {
         method: 'PATCH',
@@ -413,10 +418,15 @@ export const ModuleLessonEditor = ({
         url = isEdit
           ? `${apiBase}/courses/${courseId}/curriculum/modules/${data.id}`
           : `${apiBase}/courses/${courseId}/curriculum/modules`;
+
+        const modHasLessons = isEdit
+          ? modules.some(m => m._id === data.id && Array.isArray(m.lessons) && m.lessons.length > 0)
+          : false;
+
         payload = {
           title: data.title.trim(),
           description: (data.description || '').trim(),
-          state: data.state || 'draft'
+          state: (isEdit && modHasLessons) ? (data.state || 'draft') : 'draft'
         };
       } else if (type === 'lesson') {
         url = isEdit
@@ -425,7 +435,7 @@ export const ModuleLessonEditor = ({
         payload = {
           title: data.title.trim(),
           description: (data.description || '').trim(),
-          state: data.state || 'draft'
+          state: isEdit ? (data.state || 'draft') : 'draft'
         };
       } else if (type === 'video') {
         url = isEdit
@@ -489,17 +499,15 @@ export const ModuleLessonEditor = ({
         setActiveForm(null);
         setIsReplacingVideo(false);
 
-        // Immediately select and expand newly created entities
+        // Immediately select newly created entities
         if (type === 'module' && !isEdit && resData.module?._id) {
           setSelectedModuleId(resData.module._id);
-          setExpandedModules(prev => ({ ...prev, [resData.module._id]: true }));
           setSelectedLessonId(null);
           setActivePaneView('module_settings');
         } else if (type === 'lesson' && !isEdit && resData.lesson?._id) {
           setSelectedModuleId(data.moduleId);
           setSelectedLessonId(resData.lesson._id);
           setActivePaneView('lesson');
-          setExpandedModules(prev => ({ ...prev, [data.moduleId]: true }));
         }
 
         if (onCurriculumUpdated) onCurriculumUpdated();
@@ -674,7 +682,7 @@ export const ModuleLessonEditor = ({
             <div className="hierarchy-modules-tree">
               {modules.map((module, modIndex) => {
                 const isActiveModule = module._id === selectedModuleId;
-                const isExpanded = expandedModules[module._id] ?? isActiveModule;
+                const isExpanded = Boolean(expandedModules[module._id]);
                 const isModuleDraft = (module.state || module.status || 'draft') === 'draft';
                 const lessons = module.lessons || [];
                 const moduleItemsCount = lessons.reduce(
@@ -836,7 +844,7 @@ export const ModuleLessonEditor = ({
                                 setActiveForm({
                                   type: 'lesson',
                                   isEdit: false,
-                                  data: { moduleId: module._id, title: '', description: '' }
+                                  data: { moduleId: module._id, title: '', description: '', state: 'draft' }
                                 });
                               }}
                             >
@@ -865,7 +873,7 @@ export const ModuleLessonEditor = ({
                               setActiveForm({
                                 type: 'lesson',
                                 isEdit: false,
-                                data: { moduleId: module._id, title: '', description: '' }
+                                data: { moduleId: module._id, title: '', description: '', state: 'draft' }
                               });
                             }}
                           >
@@ -890,7 +898,7 @@ export const ModuleLessonEditor = ({
                               const contentItems = lesson.items || [];
                               const noteItems = lesson.notes || [];
                               const allItems = [...contentItems, ...noteItems];
-                              const isLessonExpanded = expandedLessons[lesson._id] ?? isSelected;
+                              const isLessonExpanded = Boolean(expandedLessons[lesson._id]);
 
                               return (
                                 <div
@@ -904,7 +912,6 @@ export const ModuleLessonEditor = ({
                                       setSelectedLessonId(lesson._id);
                                       setActivePaneView('lesson');
                                       setIsMobileTreeOpen(false);
-                                      setExpandedLessons(prev => ({ ...prev, [lesson._id]: true }));
                                     }}
                                     role="button"
                                     tabIndex={0}
@@ -917,7 +924,6 @@ export const ModuleLessonEditor = ({
                                         setSelectedLessonId(lesson._id);
                                         setActivePaneView('lesson');
                                         setIsMobileTreeOpen(false);
-                                        setExpandedLessons(prev => ({ ...prev, [lesson._id]: true }));
                                       }
                                     }}
                                   >
@@ -1452,9 +1458,13 @@ export const ModuleLessonEditor = ({
                   <div className="node-actions-right">
                     <button
                       type="button"
-                      className={`btn-node-state-toggle state-${activeModule.state}`}
+                      className={`btn-node-state-toggle state-${activeModule.state} ${(!activeModule.lessons || activeModule.lessons.length === 0) && activeModule.state === 'draft' ? 'is-publish-locked' : ''}`}
                       onClick={() => handleToggleModuleState(activeModule._id)}
-                      title="There's no delete in this system — switch to Draft to hide something from learners."
+                      title={
+                        (!activeModule.lessons || activeModule.lessons.length === 0) && activeModule.state === 'draft'
+                          ? "Add lessons and learning content before publishing this module"
+                          : "Switch between Draft and Published"
+                      }
                     >
                       {activeModule.state === 'draft' ? <EyeOff size={14} /> : <CheckCircle2 size={14} />}
                       <span>{activeModule.state === 'draft' ? 'Draft' : 'Published'}</span>
@@ -1531,7 +1541,7 @@ export const ModuleLessonEditor = ({
                           setActiveForm({
                             type: 'lesson',
                             isEdit: false,
-                            data: { moduleId: activeModule._id, title: '', description: '' }
+                            data: { moduleId: activeModule._id, title: '', description: '', state: 'draft' }
                           });
                         }}
                       >
@@ -1637,45 +1647,77 @@ export const ModuleLessonEditor = ({
                     />
                   </div>
 
-                  {/* Publishing Status Selector */}
-                  <div className="form-field-group">
-                    <label className="field-label">Publishing Status</label>
-                    <div className="status-selector-grid">
-                      <button
-                        type="button"
-                        className={`status-select-card ${(activeForm.data.state || 'draft') === 'draft' ? 'is-selected is-draft' : ''}`}
-                        onClick={() =>
-                          setActiveForm(prev => ({
-                            ...prev,
-                            data: { ...prev.data, state: 'draft' }
-                          }))
-                        }
-                      >
-                        <div className="status-card-header">
-                          <EyeOff size={16} />
-                          <span className="status-card-title">Draft</span>
-                        </div>
-                        <p className="status-card-desc">Hidden from learners while under preparation</p>
-                      </button>
-
-                      <button
-                        type="button"
-                        className={`status-select-card ${activeForm.data.state === 'published' ? 'is-selected is-published' : ''}`}
-                        onClick={() =>
-                          setActiveForm(prev => ({
-                            ...prev,
-                            data: { ...prev.data, state: 'published' }
-                          }))
-                        }
-                      >
-                        <div className="status-card-header">
-                          <CheckCircle2 size={16} />
-                          <span className="status-card-title">Published</span>
-                        </div>
-                        <p className="status-card-desc">Visible to enrolled learners</p>
-                      </button>
+                  {/* Status Handling: When creating a module or lesson, remove Draft/Published toggle and make it Draft by default */}
+                  {((activeForm.type === 'module' || activeForm.type === 'lesson') && !activeForm.isEdit) ? (
+                    <div className="module-create-draft-callout">
+                      <div className="draft-callout-header">
+                        <EyeOff size={15} className="draft-callout-icon" />
+                        <span className="draft-callout-badge">Default Status: Draft</span>
+                      </div>
+                      <p className="draft-callout-desc">
+                        {activeForm.type === 'module' ? (
+                          <>New modules are created in <strong>Draft</strong> mode by default. Once you add lessons and content, you can publish the module when you are ready.</>
+                        ) : (
+                          <>New lessons are created in <strong>Draft</strong> mode by default. Once you add learning content (video lectures, quizzes, etc.), you can publish the lesson.</>
+                        )}
+                      </p>
                     </div>
-                  </div>
+                  ) : (
+                    /* Publishing Status Selector (for editing modules, or lessons) */
+                    <div className="form-field-group">
+                      <label className="field-label">Publishing Status</label>
+                      {activeForm.type === 'module' && activeForm.isEdit && !activeModuleHasLessons && (
+                        <div className="status-locked-warning">
+                          <AlertCircle size={14} />
+                          <span>This module requires at least one lesson before it can be published.</span>
+                        </div>
+                      )}
+                      <div className="status-selector-grid">
+                        <button
+                          type="button"
+                          className={`status-select-card ${(activeForm.data.state || 'draft') === 'draft' ? 'is-selected is-draft' : ''}`}
+                          onClick={() =>
+                            setActiveForm(prev => ({
+                              ...prev,
+                              data: { ...prev.data, state: 'draft' }
+                            }))
+                          }
+                        >
+                          <div className="status-card-header">
+                            <EyeOff size={16} />
+                            <span className="status-card-title">Draft</span>
+                          </div>
+                          <p className="status-card-desc">Hidden from learners while under preparation</p>
+                        </button>
+
+                        <button
+                          type="button"
+                          className={`status-select-card ${activeForm.data.state === 'published' ? 'is-selected is-published' : ''} ${activeForm.type === 'module' && activeForm.isEdit && !activeModuleHasLessons ? 'is-disabled' : ''}`}
+                          disabled={activeForm.type === 'module' && activeForm.isEdit && !activeModuleHasLessons}
+                          onClick={() => {
+                            if (activeForm.type === 'module' && activeForm.isEdit && !activeModuleHasLessons) {
+                              toast.info('Cannot publish: Please add lessons and content before publishing this module.');
+                              return;
+                            }
+                            setActiveForm(prev => ({
+                              ...prev,
+                              data: { ...prev.data, state: 'published' }
+                            }));
+                          }}
+                        >
+                          <div className="status-card-header">
+                            <CheckCircle2 size={16} />
+                            <span className="status-card-title">Published</span>
+                          </div>
+                          <p className="status-card-desc">
+                            {activeForm.type === 'module' && activeForm.isEdit && !activeModuleHasLessons
+                              ? 'Disabled: Add lessons first to publish'
+                              : 'Visible to enrolled learners'}
+                          </p>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 

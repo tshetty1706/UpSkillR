@@ -158,10 +158,39 @@
   background-color: transparent;
 }
 
+button.sidebar-user-card,
 .sidebar-user-card {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+button.sidebar-user-card:hover,
+.sidebar-user-card:hover {
+  background-color: var(--brand-green-tint, rgba(16, 185, 129, 0.08));
+  border-color: var(--border-subtle);
+}
+
+button.sidebar-user-card.active,
+.sidebar-user-card.active {
+  background-color: var(--brand-green-tint, rgba(16, 185, 129, 0.12));
+  border-color: var(--brand-primary);
+}
+
+button.sidebar-user-card:focus-visible,
+.sidebar-user-card:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
 }
 
 .sidebar-avatar {

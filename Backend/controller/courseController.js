@@ -1718,39 +1718,84 @@ exports.updateLessonProgress = async (req, res) => {
     await enrolment.save();
 
     let pointsAwarded = 0;
-    if (newlyCompleted) {
+    if (newlyCompleted && req.user && req.user.role === 'learner') {
       const PointTransaction = require('../model/PointTransaction');
-      const referenceId = req.body.quizId
+      const isQuiz = Boolean(req.body.quizId);
+      const referenceId = isQuiz
         ? `${courseId}_quiz_${req.body.quizId}`
         : `${courseId}_mod_${lessonKey}`;
+      const txType = isQuiz ? 'QUIZ_COMPLETION' : 'MODULE_COMPLETION';
 
       const existingTx = await PointTransaction.findOne({
         learnerId: req.user.id,
-        type: 'MODULE_COMPLETION',
+        type: txType,
         referenceId
       });
 
       if (!existingTx) {
         const learner = await Learner.findById(req.user.id);
-        if (learner) {
-          learner.points = (learner.points || 0) + 5;
+        if (learner && learner.role === 'learner') {
+          const modulePts = 5;
+          learner.points = (learner.points || 0) + modulePts;
+          pointsAwarded += modulePts;
+
+          // Maintain daily learning streak since valid learning activity occurred
+          const { isSameDay, isConsecutiveDay } = require('./learnerController');
+          if (typeof isSameDay === 'function' && !isSameDay(learner.lastCheckInDate)) {
+            const isConsecutive = typeof isConsecutiveDay === 'function' && isConsecutiveDay(learner.lastCheckInDate);
+            learner.currentStreak = isConsecutive ? (learner.currentStreak || 0) + 1 : 1;
+            learner.longestStreak = Math.max(learner.longestStreak || 0, learner.currentStreak);
+            learner.lastCheckInDate = new Date();
+          }
+
           await learner.save();
-          pointsAwarded = 5;
 
           try {
-            const desc = req.body.quizTitle
-              ? `Passed quiz: "${req.body.quizTitle}" in ${course.title} (+5 points)`
-              : `Completed module in ${course.title} (+5 points)`;
+            const desc = isQuiz
+              ? `Passed quiz: "${req.body.quizTitle || 'Quiz'}" in ${course.title} (+${modulePts} points)`
+              : `Completed module in ${course.title} (+${modulePts} points)`;
 
             await PointTransaction.create({
               learnerId: req.user.id,
-              points: 5,
-              type: 'MODULE_COMPLETION',
+              points: modulePts,
+              type: txType,
               referenceId,
               description: desc
             });
           } catch (txErr) {
             console.error('PointTransaction creation error:', txErr);
+          }
+        }
+      }
+
+      // Check if course is 100% completed and award COURSE_COMPLETION points (+20)
+      if (newPercentage === 100) {
+        const courseCompletionRef = `${courseId}_completed`;
+        const existingCourseTx = await PointTransaction.findOne({
+          learnerId: req.user.id,
+          type: 'COURSE_COMPLETION',
+          referenceId: courseCompletionRef
+        });
+
+        if (!existingCourseTx) {
+          const learner = await Learner.findById(req.user.id);
+          if (learner && learner.role === 'learner') {
+            const completionPts = 20;
+            learner.points = (learner.points || 0) + completionPts;
+            await learner.save();
+            pointsAwarded += completionPts;
+
+            try {
+              await PointTransaction.create({
+                learnerId: req.user.id,
+                points: completionPts,
+                type: 'COURSE_COMPLETION',
+                referenceId: courseCompletionRef,
+                description: `Completed 100% of course: "${course.title}" (+${completionPts} points)`
+              });
+            } catch (courseTxErr) {
+              console.error('Course completion PointTransaction error:', courseTxErr);
+            }
           }
         }
       }
@@ -1761,7 +1806,7 @@ exports.updateLessonProgress = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: newlyCompleted
-        ? `Module completed! ${pointsAwarded > 0 ? '+5 points awarded 🎉' : ''}`
+        ? `Module completed! ${pointsAwarded > 0 ? `+${pointsAwarded} points awarded 🎉` : ''}`
         : 'Module marked as incomplete.',
       enrolment,
       pointsAwarded,

@@ -117,13 +117,19 @@ export const InstructorSidebar = ({ activeTab, setActiveTab, user, onLogout }) =
 
       {/* Footer Profile, Theme Toggle & Logout */}
       <div className="sidebar-footer">
-        <div className="sidebar-user-card">
+        <button
+          type="button"
+          className={`sidebar-user-card ${activeTab === 'profile' ? 'active' : ''}`}
+          onClick={() => setActiveTab('profile')}
+          title="Open Profile & Settings"
+          aria-label="Open Profile & Settings"
+        >
           <Avatar image={user?.avatar} name={user?.fullName} size="small" className="sidebar-avatar-override" />
           <div className="sidebar-user-info">
             <span className="sidebar-user-name">{user?.fullName || 'Instructor'}</span>
             <span className="sidebar-user-email">{user?.email || 'instructor@upskillr.com'}</span>
           </div>
-        </div>
+        </button>
 
         <div className="sidebar-actions-row">
           <button 

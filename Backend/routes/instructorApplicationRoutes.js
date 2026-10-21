@@ -59,7 +59,10 @@ const certificateUpload = multer({
   }
 });
 
-// All routes require authentication & instructor role
+// Stream/Proxy document for in-app preview (open for approved Cloudinary documents so browser <img> and links can display without 401)
+router.get('/preview-proxy', previewProxy);
+
+// All subsequent routes require authentication & instructor role
 router.use(protect, requireInstructor);
 
 router.get('/', getApplication);
@@ -70,7 +73,6 @@ router.post('/upload/resume', resumeUpload.single('file'), uploadResume);
 router.delete('/upload/resume', removeResume);
 router.post('/upload/certificate', certificateUpload.single('file'), uploadCertificate);
 router.delete('/upload/certificate', removeCertificate);
-router.get('/preview-proxy', previewProxy);
 router.post('/submit', submitApplication);
 
 module.exports = router;

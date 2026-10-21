@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const authController = require('../controller/authController');
-const { protect } = require('../middleware/authMiddleware');
+const { protect, requireInstructor } = require('../middleware/authMiddleware');
 
 // Multer Storage Setup for Profile Photos (In-Memory Buffer, Zero Local Disk Storage)
 const photoUpload = multer({
@@ -41,9 +41,11 @@ router.get('/google/callback', authController.googleOAuthCallback);
 router.get('/github', authController.githubOAuthRedirect);
 router.get('/github/callback', authController.githubOAuthCallback);
 
-// User Profile Routes
+// User Profile & Account Settings Routes
 router.get('/me', protect, authController.getCurrentUser);
+router.get('/instructor/profile', protect, requireInstructor, authController.getInstructorProfileAndApplication);
 router.put('/profile', protect, authController.updateProfile);
+router.post('/change-password', protect, authController.changePassword);
 router.post('/profile/upload/photo', protect, photoUpload.single('file'), authController.uploadProfilePhoto);
 router.delete('/profile/upload/photo', protect, authController.removeProfilePhoto);
 
