@@ -1584,7 +1584,76 @@
   min-width: 0;
   min-height: calc(100vh - 64px);
   padding: 24px 32px 48px;
-  background: var(--surface-subtle, #f8faf9);
+  background: var(--surface-muted, #f8faf9);
+  color: var(--text-primary, #121c16);
+}
+
+.dark .curriculum-main-editor-pane,
+[data-theme="dark"] .curriculum-main-editor-pane {
+  background: var(--background, #090f13);
+  color: var(--text-primary, #f5f7f6);
+}
+
+.curriculum-main-editor-pane.editor-pane-fullscreen-fit {
+  height: calc(100vh - 64px);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 24px;
+  gap: 0;
+  box-sizing: border-box;
+}
+
+.curriculum-main-editor-pane.editor-pane-upload-fit {
+  min-height: calc(100vh - 64px);
+  height: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px 32px 64px;
+  box-sizing: border-box;
+}
+
+.curriculum-main-editor-pane.editor-pane-quiz-fit {
+  height: calc(100vh - 64px);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 20px;
+  gap: 0;
+  box-sizing: border-box;
+}
+
+.curriculum-main-editor-pane.editor-pane-article-fit {
+  height: calc(100vh - 64px);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 20px;
+  gap: 0;
+  box-sizing: border-box;
+}
+
+.dark .curriculum-main-editor-pane.editor-pane-fullscreen-fit,
+[data-theme="dark"] .curriculum-main-editor-pane.editor-pane-fullscreen-fit,
+.dark .curriculum-main-editor-pane.editor-pane-upload-fit,
+[data-theme="dark"] .curriculum-main-editor-pane.editor-pane-upload-fit,
+.dark .curriculum-main-editor-pane.editor-pane-quiz-fit,
+[data-theme="dark"] .curriculum-main-editor-pane.editor-pane-quiz-fit,
+.dark .curriculum-main-editor-pane.editor-pane-article-fit,
+[data-theme="dark"] .curriculum-main-editor-pane.editor-pane-article-fit {
+  background: var(--background, #090f13);
+}
+
+@media (max-width: 1023px) {
+  .curriculum-main-editor-pane.editor-pane-fullscreen-fit,
+  .curriculum-main-editor-pane.editor-pane-upload-fit,
+  .curriculum-main-editor-pane.editor-pane-quiz-fit,
+  .curriculum-main-editor-pane.editor-pane-article-fit {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 16px;
+  }
 }
 
 .lesson-editor-view,

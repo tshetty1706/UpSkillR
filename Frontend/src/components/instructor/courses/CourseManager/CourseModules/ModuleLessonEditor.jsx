@@ -48,8 +48,11 @@ import {
 import { InstructorTip } from './Common/InstructorTip';
 import { DeviceFileUploader } from './Common/DeviceFileUploader';
 import { renderLessonReadmeToHTML } from './Common/MarkdownEditor';
+import { DedicatedVideoUpload } from './DedicatedEditor/DedicatedVideoUpload';
 import { DedicatedVideoEditor } from './DedicatedEditor/DedicatedVideoEditor';
 import { DedicatedQuizEditor } from './DedicatedEditor/DedicatedQuizEditor';
+import { DedicatedArticleEditor } from './DedicatedEditor/DedicatedArticleEditor';
+import { DedicatedDocumentEditor } from './DedicatedEditor/DedicatedDocumentEditor';
 import { DedicatedNoteEditor } from './DedicatedEditor/DedicatedNoteEditor';
 
 export const formatDurationDisplay = (seconds) => {
@@ -90,10 +93,12 @@ export const ModuleLessonEditor = ({
     return null;
   });
 
-  // 'lesson' | 'module_settings' | 'video_editor' | 'quiz_editor' | 'note_editor'
+  // 'lesson' | 'module_settings' | 'video_editor' | 'quiz_editor' | 'article_editor' | 'document_editor' | 'note_editor'
   const [activePaneView, setActivePaneView] = useState('lesson');
   const [editingVideoItem, setEditingVideoItem] = useState(null);
   const [editingQuizItem, setEditingQuizItem] = useState(null);
+  const [editingArticleItem, setEditingArticleItem] = useState(null);
+  const [editingDocumentItem, setEditingDocumentItem] = useState(null);
   const [editingNoteItem, setEditingNoteItem] = useState(null);
 
   // Ref for auto-scrolling active module in collapsed dock
@@ -433,10 +438,14 @@ export const ModuleLessonEditor = ({
           if (
             editingVideoItem?._id === deleteTarget.id ||
             editingQuizItem?._id === deleteTarget.id ||
+            editingArticleItem?._id === deleteTarget.id ||
+            editingDocumentItem?._id === deleteTarget.id ||
             editingNoteItem?._id === deleteTarget.id
           ) {
             setEditingVideoItem(null);
             setEditingQuizItem(null);
+            setEditingArticleItem(null);
+            setEditingDocumentItem(null);
             setEditingNoteItem(null);
             setActivePaneView('lesson');
           }
@@ -501,22 +510,32 @@ export const ModuleLessonEditor = ({
         }
       });
       setActivePaneView('quiz_editor');
-    } else if (isNote || isDoc) {
-      setEditingNoteItem({
+    } else if (isNote) {
+      setEditingArticleItem({
         _id: item._id,
         itemId: item._id,
         lessonId: activeLesson._id,
         title: item.title,
         description: item.description || '',
         state: item.state || 'draft',
-        type: item.type,
-        markdownContent: item.markdownContent || item.content || item.bodyMarkdown || '',
+        type: item.type || 'article_md',
+        markdownContent: item.markdownContent || item.content || item.bodyMarkdown || ''
+      });
+      setActivePaneView('article_editor');
+    } else if (isDoc) {
+      setEditingDocumentItem({
+        _id: item._id,
+        itemId: item._id,
+        lessonId: activeLesson._id,
+        title: item.title,
+        description: item.description || '',
+        state: item.state || 'draft',
+        type: item.type || 'pdf',
         fileUrl: item.fileUrl || item.mediaUrl || '',
         fileName: item.fileName || '',
-        fileSize: item.fileSize || 0,
-        initialTab: isDoc ? 'upload' : 'markdown'
+        fileSize: item.fileSize || 0
       });
-      setActivePaneView('note_editor');
+      setActivePaneView('document_editor');
     } else {
       setActiveForm({
         type: item.type,
@@ -1660,7 +1679,15 @@ export const ModuleLessonEditor = ({
                             ) : (
                               lessons.map((lesson, lesIndex) => {
                                 const isSelected =
-                                  lesson._id === selectedLessonId && (activePaneView === 'lesson' || activePaneView === 'video_editor' || activePaneView === 'quiz_editor' || activePaneView === 'note_editor');
+                                  lesson._id === selectedLessonId && (
+                                    activePaneView === 'lesson' ||
+                                    activePaneView === 'video_upload' ||
+                                    activePaneView === 'video_editor' ||
+                                    activePaneView === 'quiz_editor' ||
+                                    activePaneView === 'article_editor' ||
+                                    activePaneView === 'document_editor' ||
+                                    activePaneView === 'note_editor'
+                                  );
                                 const isLessonDraft =
                                   (lesson.state || lesson.status || 'draft') === 'draft';
                                 const isDraggingThisLesson =
@@ -1770,8 +1797,36 @@ export const ModuleLessonEditor = ({
           {/* ══════════════════════════════════════════════════════════
               MAIN EDITOR PANE
               ══════════════════════════════════════════════════════════ */}
-          <main className="curriculum-main-editor-pane">
-            {activePaneView === 'video_editor' ? (
+          <main className={`curriculum-main-editor-pane ${
+            activePaneView === 'video_editor'
+              ? 'editor-pane-fullscreen-fit'
+              : activePaneView === 'video_upload'
+                ? 'editor-pane-upload-fit'
+                : activePaneView === 'quiz_editor'
+                  ? 'editor-pane-quiz-fit'
+                  : activePaneView === 'article_editor' || activePaneView === 'document_editor' || activePaneView === 'note_editor'
+                    ? 'editor-pane-article-fit'
+                    : ''
+          }`}>
+            {activePaneView === 'video_upload' ? (
+              <DedicatedVideoUpload
+                courseId={courseId}
+                course={course}
+                activeModule={activeModule}
+                activeLesson={activeLesson}
+                onBack={() => {
+                  setActivePaneView('lesson');
+                  setEditingVideoItem(null);
+                }}
+                onUploadSuccess={(unsavedItem) => {
+                  setEditingVideoItem(unsavedItem);
+                  setActivePaneView('video_editor');
+                }}
+                apiBase={apiBase}
+                getAuthHeader={getAuthHeader}
+                toast={toast}
+              />
+            ) : activePaneView === 'video_editor' ? (
               <DedicatedVideoEditor
                 courseId={courseId}
                 course={course}
@@ -1806,6 +1861,46 @@ export const ModuleLessonEditor = ({
                 onSaveSuccess={(savedItem) => {
                   if (onCurriculumUpdated) onCurriculumUpdated();
                   setEditingQuizItem(savedItem);
+                }}
+                onToggleSidebar={() => setIsSidebarOpen(true)}
+                apiBase={apiBase}
+                getAuthHeader={getAuthHeader}
+                toast={toast}
+              />
+            ) : activePaneView === 'article_editor' ? (
+              <DedicatedArticleEditor
+                courseId={courseId}
+                course={course}
+                activeModule={activeModule}
+                activeLesson={activeLesson}
+                initialItem={editingArticleItem}
+                onBack={() => {
+                  setActivePaneView('lesson');
+                  setEditingArticleItem(null);
+                }}
+                onSaveSuccess={(savedItem) => {
+                  if (onCurriculumUpdated) onCurriculumUpdated();
+                  setEditingArticleItem(savedItem);
+                }}
+                onToggleSidebar={() => setIsSidebarOpen(true)}
+                apiBase={apiBase}
+                getAuthHeader={getAuthHeader}
+                toast={toast}
+              />
+            ) : activePaneView === 'document_editor' ? (
+              <DedicatedDocumentEditor
+                courseId={courseId}
+                course={course}
+                activeModule={activeModule}
+                activeLesson={activeLesson}
+                initialItem={editingDocumentItem}
+                onBack={() => {
+                  setActivePaneView('lesson');
+                  setEditingDocumentItem(null);
+                }}
+                onSaveSuccess={(savedItem) => {
+                  if (onCurriculumUpdated) onCurriculumUpdated();
+                  setEditingDocumentItem(savedItem);
                 }}
                 onToggleSidebar={() => setIsSidebarOpen(true)}
                 apiBase={apiBase}
@@ -2000,24 +2095,8 @@ export const ModuleLessonEditor = ({
                               className="dropdown-item-option"
                               onClick={() => {
                                 setIsAddContentMenuOpen(false);
-                                setEditingVideoItem({
-                                  _id: null,
-                                  lessonId: activeLesson._id,
-                                  title: '',
-                                  description: '',
-                                  state: 'draft',
-                                  video: {
-                                    muxAssetId: '',
-                                    muxPlaybackId: '',
-                                    videoUrl: '',
-                                    duration: 0,
-                                    allowFreePreview: false,
-                                    addToLessonNotes: false,
-                                    thumbnailUrl: '',
-                                    fileName: ''
-                                  }
-                                });
-                                setActivePaneView('video_editor');
+                                setEditingVideoItem(null);
+                                setActivePaneView('video_upload');
                               }}
                             >
                               <Video size={16} className="dropdown-opt-icon icon-video" />
@@ -2071,7 +2150,7 @@ export const ModuleLessonEditor = ({
                               <div className="dropdown-opt-info">
                                 <span className="opt-title">Lesson Quiz</span>
                                 <span className="opt-desc">
-                                  Dedicated quiz builder with question scoring & timer
+                                  Dedicated quiz builder with question scoring & marks
                                 </span>
                               </div>
                             </button>
@@ -2081,19 +2160,16 @@ export const ModuleLessonEditor = ({
                               className="dropdown-item-option"
                               onClick={() => {
                                 setIsAddContentMenuOpen(false);
-                                setEditingNoteItem({
+                                setEditingArticleItem({
                                   _id: null,
                                   lessonId: activeLesson._id,
                                   title: `${activeLesson.title || 'Lesson'} Notes`,
                                   description: '',
                                   state: 'draft',
                                   type: 'article_md',
-                                  markdownContent: `# ${activeLesson.title || 'Lesson Notes'}\n\nWrite your note content here using Markdown...\n`,
-                                  fileUrl: '',
-                                  fileName: '',
-                                  fileSize: 0
+                                  markdownContent: `# ${activeLesson.title || 'Lesson Notes'}\n\nWrite your note content here using Markdown...\n`
                                 });
-                                setActivePaneView('note_editor');
+                                setActivePaneView('article_editor');
                               }}
                             >
                               <FileText size={16} className="dropdown-opt-icon icon-note" />
@@ -2110,20 +2186,18 @@ export const ModuleLessonEditor = ({
                               className="dropdown-item-option"
                               onClick={() => {
                                 setIsAddContentMenuOpen(false);
-                                setEditingNoteItem({
+                                setEditingDocumentItem({
                                   _id: null,
                                   lessonId: activeLesson._id,
                                   title: `${activeLesson.title || 'Lesson'} Reference Document`,
                                   description: '',
                                   state: 'draft',
                                   type: 'pdf',
-                                  markdownContent: '',
                                   fileUrl: '',
                                   fileName: '',
-                                  fileSize: 0,
-                                  initialTab: 'upload'
+                                  fileSize: 0
                                 });
-                                setActivePaneView('note_editor');
+                                setActivePaneView('document_editor');
                               }}
                             >
                               <BookOpen size={16} className="dropdown-opt-icon icon-doc" />
@@ -2271,7 +2345,7 @@ export const ModuleLessonEditor = ({
                                         {item.quiz?.questions?.length || 0} questions
                                       </span>
                                       <span className="badge-meta">
-                                        ⏱ {item.quiz?.timeLimit || 10} min
+                                        {item.quiz?.questions?.reduce((acc, q) => acc + (q.marks || 1), 0) || item.quiz?.totalMarks || 0} marks
                                       </span>
                                     </>
                                   )}

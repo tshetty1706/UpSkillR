@@ -3,8 +3,11 @@ import {
   ArrowLeft,
   ChevronRight,
   CheckCircle2,
-  FileText
+  FileText,
+  Sun,
+  Moon
 } from 'lucide-react';
+import { useTheme } from '../../../../../../context/ThemeContext';
 import { InstructorTip } from '../Common/InstructorTip';
 import './DedicatedEditor.css';
 
@@ -19,6 +22,8 @@ export const DedicatedEditorLayout = ({
   fullBleed = false,
   children
 }) => {
+  const { theme, toggleTheme } = useTheme();
+
   return (
     <div className="dedicated-editor-root">
       {/* ── Top Dedicated App Bar ── */}
@@ -58,6 +63,17 @@ export const DedicatedEditorLayout = ({
         </div>
 
         <div className="appbar-right-group">
+          {/* Theme Toggle Button */}
+          <button
+            type="button"
+            className="btn-theme-toggle-appbar"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+
           {/* Course Status Pill */}
           <span className={`status-pill status-${courseStatus}`}>
             <span className="status-dot" />

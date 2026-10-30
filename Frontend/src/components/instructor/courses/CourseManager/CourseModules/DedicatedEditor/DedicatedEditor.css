@@ -129,6 +129,40 @@
   gap: 12px;
 }
 
+.btn-theme-toggle-appbar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--surface-muted, #f3f6f4);
+  border: 1px solid var(--border, #c6d3cb);
+  color: var(--text-secondary, #35443b);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-theme-toggle-appbar:hover {
+  background: var(--surface-elevated, #ffffff);
+  border-color: var(--brand-primary, #116830);
+  color: var(--brand-primary, #116830);
+}
+
+.dark .btn-theme-toggle-appbar,
+[data-theme="dark"] .btn-theme-toggle-appbar {
+  background: #14231e;
+  border-color: #1d3329;
+  color: #a7b3ad;
+}
+
+.dark .btn-theme-toggle-appbar:hover,
+[data-theme="dark"] .btn-theme-toggle-appbar:hover {
+  background: #1d3329;
+  border-color: var(--brand-primary, #39d95f);
+  color: var(--brand-primary, #39d95f);
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;

@@ -640,14 +640,30 @@ const sanitizeAndValidateQuizQuestions = (rawQuestions) => {
       cleanType = 'mcq';
     }
 
-    let options = Array.isArray(q.options)
-      ? q.options.map(o => String(o || '').trim()).filter(Boolean)
-      : [];
+    let options = [];
+    let optionImages = [];
+
+    if (Array.isArray(q.options)) {
+      q.options.forEach((opt, oIdx) => {
+        if (typeof opt === 'object' && opt !== null) {
+          options.push(String(opt.text || '').trim());
+          optionImages.push(String(opt.image || opt.imageUrl || '').trim());
+        } else {
+          options.push(String(opt || '').trim());
+          const img = Array.isArray(q.optionImages) ? String(q.optionImages[oIdx] || '').trim() : '';
+          optionImages.push(img);
+        }
+      });
+    }
 
     if (cleanType === 'true_false') {
       options = ['True', 'False'];
+      optionImages = ['', ''];
     } else if (options.length < 2) {
       options = options.concat(['Option A', 'Option B']).slice(0, Math.max(2, options.length));
+      while (optionImages.length < options.length) {
+        optionImages.push('');
+      }
     }
 
     let correctAnswerIndex = Number(q.correctAnswerIndex);
@@ -675,6 +691,7 @@ const sanitizeAndValidateQuizQuestions = (rawQuestions) => {
       questionText: (q.questionText || `Question ${idx + 1}`).trim(),
       type: cleanType,
       options,
+      optionImages,
       correctAnswerIndex,
       correctOptionIndexes,
       correctAnswer: cleanType === 'multiple_response' ? correctOptionIndexes : (options[correctAnswerIndex] || ''),

@@ -8,6 +8,7 @@ const questionSchema = new mongoose.Schema({
     default: 'mcq'
   },
   options: [{ type: String }],
+  optionImages: [{ type: String, default: '' }],
   correctAnswer: { type: mongoose.Schema.Types.Mixed, default: '' },
   correctAnswerIndex: { type: Number, default: 0 },
   correctOptionIndexes: [{ type: Number }],

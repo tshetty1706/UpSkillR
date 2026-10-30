@@ -23,15 +23,14 @@ import {
   Strikethrough,
   List,
   ListOrdered,
-  Scissors,
-  RotateCcw,
-  RotateCw,
   ZoomIn,
   ZoomOut,
   Eye,
   Link as LinkIcon,
   Code,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ChevronRight,
+  AlertCircle
 } from 'lucide-react';
 import { API_BASE } from '../../../../../../config/api';
 import { renderMarkdownToHTML } from '../Common/MarkdownEditor';
@@ -50,8 +49,8 @@ export const DedicatedVideoEditor = ({
   toast
 }) => {
   // ── Form State ──
-  const isEditingExisting = Boolean(initialItem?._id || initialItem?.itemId || initialItem?.id);
-  const itemId = initialItem?._id || initialItem?.itemId || initialItem?.id || null;
+  const isEditingExisting = Boolean((initialItem?._id || initialItem?.itemId || initialItem?.id) && !initialItem?.isNewUnsaved);
+  const itemId = (!initialItem?.isNewUnsaved) ? (initialItem?._id || initialItem?.itemId || initialItem?.id || null) : null;
 
   const [title, setTitle] = useState(() => initialItem?.title || activeLesson?.title || 'Setting Up Python, Jupyter Notebook & Libraries');
   const [description, setDescription] = useState(() => {
@@ -67,14 +66,37 @@ export const DedicatedVideoEditor = ({
   // Video media state
   const [muxAssetId, setMuxAssetId] = useState(() => vidMeta.muxAssetId || '');
   const [muxPlaybackId, setMuxPlaybackId] = useState(() => vidMeta.muxPlaybackId || '');
-  const [externalUrl, setExternalUrl] = useState(() => vidMeta.videoUrl || vidMeta.url || '');
+  const [externalUrl, setExternalUrl] = useState(() => vidMeta.videoUrl || vidMeta.url || vidMeta.fileUrl || '');
   const [duration, setDuration] = useState(() => Number(vidMeta.duration || vidMeta.durationSeconds) || 564); // 9m 24s default
   const [fileName, setFileName] = useState(() => vidMeta.fileName || 'lecture-video.mp4');
   const [fileSizeDisplay, setFileSizeDisplay] = useState(() => vidMeta.fileSize || '142.4 MB • Uploaded');
   const [thumbnailUrl, setThumbnailUrl] = useState(() => {
     if (vidMeta.thumbnailUrl) return vidMeta.thumbnailUrl;
-    if (vidMeta.muxPlaybackId) return `https://image.mux.com/${vidMeta.muxPlaybackId}/thumbnail.jpg?time=2`;
+    if (vidMeta.thumbnails && Array.isArray(vidMeta.thumbnails) && vidMeta.thumbnails[0]) return vidMeta.thumbnails[0];
+    if (vidMeta.muxPlaybackId && !vidMeta.muxPlaybackId.startsWith('mock_')) return `https://image.mux.com/${vidMeta.muxPlaybackId}/thumbnail.jpg?time=2`;
     return 'https://images.unsplash.com/photo-1534972195531-a756b1126f24?w=600&auto=format&fit=crop&q=80';
+  });
+
+  // Thumbnail options (accepting 3 extracted real frames)
+  const [thumbnailOptions, setThumbnailOptions] = useState(() => {
+    if (vidMeta.thumbnails && Array.isArray(vidMeta.thumbnails) && vidMeta.thumbnails.length > 0) {
+      return vidMeta.thumbnails;
+    }
+    if (vidMeta.thumbnailUrl) {
+      return [vidMeta.thumbnailUrl];
+    }
+    if (vidMeta.muxPlaybackId && !vidMeta.muxPlaybackId.startsWith('mock_') && !vidMeta.muxPlaybackId.startsWith('stream_')) {
+      return [
+        `https://image.mux.com/${vidMeta.muxPlaybackId}/thumbnail.jpg?time=2`,
+        `https://image.mux.com/${vidMeta.muxPlaybackId}/thumbnail.jpg?time=15`,
+        `https://image.mux.com/${vidMeta.muxPlaybackId}/thumbnail.jpg?time=30`
+      ];
+    }
+    return [
+      'https://images.unsplash.com/photo-1534972195531-a756b1126f24?w=600&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=600&auto=format&fit=crop&q=80'
+    ];
   });
 
   // Upload progress & processing status
@@ -86,7 +108,10 @@ export const DedicatedVideoEditor = ({
 
   // Saving state
   const [isSaving, setIsSaving] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(() => {
+    return Boolean(initialItem?.isNewUnsaved || !initialItem?._id);
+  });
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
 
   // Video Player state
   const videoRef = useRef(null);
@@ -98,13 +123,8 @@ export const DedicatedVideoEditor = ({
   const [selectedQuality, setSelectedQuality] = useState('1080p HD');
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
 
-  // Timeline & Editing state (Trim, Undo, Redo, Zoom)
-  const [timelineZoom, setTimelineZoom] = useState(1); // 1x to 2x zoom
-  const [trimStart, setTrimStart] = useState(() => Number(vidMeta.trimStart) || 0);
-  const [trimEnd, setTrimEnd] = useState(() => Number(vidMeta.trimEnd) || (duration || 564));
-  const [isTrimActive, setIsTrimActive] = useState(true);
-  const [historyStack, setHistoryStack] = useState([]);
-  const [futureStack, setFutureStack] = useState([]);
+  // Timeline Zoom state (1x to 2.5x)
+  const [timelineZoom, setTimelineZoom] = useState(1);
 
   // Description Write / Preview state
   const [descMode, setDescMode] = useState('write'); // 'write' | 'preview'
@@ -115,6 +135,54 @@ export const DedicatedVideoEditor = ({
 
   // Mark changes
   const markDirty = () => setHasUnsavedChanges(true);
+
+  // Sync initialItem changes
+  useEffect(() => {
+    if (initialItem) {
+      const v = initialItem.video || initialItem.videoDetails || {};
+      if (v.thumbnails && Array.isArray(v.thumbnails) && v.thumbnails.length > 0) {
+        setThumbnailOptions(v.thumbnails);
+        setThumbnailUrl(v.thumbnailUrl || v.thumbnails[0]);
+      } else if (v.thumbnailUrl) {
+        setThumbnailUrl(v.thumbnailUrl);
+        setThumbnailOptions([v.thumbnailUrl]);
+      }
+      if (v.videoUrl || v.url || v.fileUrl) {
+        setExternalUrl(v.videoUrl || v.url || v.fileUrl);
+      }
+      if (v.duration) {
+        setDuration(Number(v.duration));
+      }
+      if (v.fileName) {
+        setFileName(v.fileName);
+      }
+      if (v.fileSize) {
+        setFileSizeDisplay(`${v.fileSize} • Uploaded`);
+      }
+      if (initialItem.title) {
+        setTitle(initialItem.title);
+      }
+      if (initialItem.description) {
+        setDescription(initialItem.description);
+      }
+      if (initialItem.isNewUnsaved || !initialItem._id) {
+        setHasUnsavedChanges(true);
+      }
+    }
+  }, [initialItem]);
+
+  // Window beforeunload confirmation if unsaved changes exist
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
 
   // Format seconds to mm:ss (e.g. 0:00 / 09:24)
   const formatTime = (totalSecs) => {
@@ -154,14 +222,56 @@ export const DedicatedVideoEditor = ({
     }
   };
 
+  // Extract canvas frame thumbnails from video element
+  const extractFramesFromVideoElement = async (videoEl) => {
+    try {
+      const dur = videoEl.duration;
+      if (!dur || isNaN(dur) || dur < 0.5) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = 480;
+      canvas.height = 270;
+      const ctx = canvas.getContext('2d');
+      const times = [dur * 0.15, dur * 0.5, dur * 0.85];
+      const thumbs = [];
+
+      for (const t of times) {
+        const thumb = await new Promise((res) => {
+          const timeout = setTimeout(() => res(null), 1200);
+          const onSeek = () => {
+            clearTimeout(timeout);
+            videoEl.removeEventListener('seeked', onSeek);
+            try {
+              ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+              res(canvas.toDataURL('image/jpeg', 0.85));
+            } catch (err) {
+              res(null);
+            }
+          };
+          videoEl.addEventListener('seeked', onSeek);
+          videoEl.currentTime = t;
+        });
+        if (thumb) thumbs.push(thumb);
+      }
+
+      if (thumbs.length > 0) {
+        setThumbnailOptions(thumbs);
+        if (!thumbnailUrl || thumbnailUrl.includes('unsplash.com')) {
+          setThumbnailUrl(thumbs[0]);
+        }
+      }
+    } catch (e) {
+      console.warn('Frame extraction warning:', e);
+    }
+  };
+
   const handleLoadedMetadata = () => {
     if (videoRef.current && videoRef.current.duration) {
       const dur = Math.round(videoRef.current.duration);
       if (dur > 0) {
         setDuration(dur);
-        if (!trimEnd || trimEnd === 564) {
-          setTrimEnd(dur);
-        }
+      }
+      if (!thumbnailOptions || thumbnailOptions.length === 0 || thumbnailOptions[0].includes('unsplash.com')) {
+        extractFramesFromVideoElement(videoRef.current);
       }
     }
   };
@@ -212,35 +322,6 @@ export const DedicatedVideoEditor = ({
     const pct = Math.max(0, Math.min(1, clickX / rect.width));
     const targetTime = pct * (duration || 564);
     handleSeek(targetTime);
-  };
-
-  // ── Undo / Redo for Trim ──
-  const handleTrimChange = (newStart, newEnd) => {
-    setHistoryStack((prev) => [...prev, { trimStart, trimEnd }]);
-    setFutureStack([]);
-    setTrimStart(newStart);
-    setTrimEnd(newEnd);
-    markDirty();
-  };
-
-  const handleUndo = () => {
-    if (historyStack.length === 0) return;
-    const last = historyStack[historyStack.length - 1];
-    setFutureStack((prev) => [...prev, { trimStart, trimEnd }]);
-    setHistoryStack((prev) => prev.slice(0, -1));
-    setTrimStart(last.trimStart);
-    setTrimEnd(last.trimEnd);
-    markDirty();
-  };
-
-  const handleRedo = () => {
-    if (futureStack.length === 0) return;
-    const next = futureStack[futureStack.length - 1];
-    setHistoryStack((prev) => [...prev, { trimStart, trimEnd }]);
-    setFutureStack((prev) => prev.slice(0, -1));
-    setTrimStart(next.trimStart);
-    setTrimEnd(next.trimEnd);
-    markDirty();
   };
 
   // ── Video Upload & Replacement (Mux Direct Upload with Mock Fallback) ──
@@ -439,11 +520,10 @@ export const DedicatedVideoEditor = ({
           url: externalUrl || (muxPlaybackId ? `https://stream.mux.com/${muxPlaybackId}.m3u8` : ''),
           fileUrl: externalUrl || (muxPlaybackId ? `https://stream.mux.com/${muxPlaybackId}.m3u8` : ''),
           duration: Number(duration) || 564,
-          trimStart: Number(trimStart) || 0,
-          trimEnd: Number(trimEnd) || (duration || 564),
           allowFreePreview: Boolean(allowFreePreview),
           addToLessonNotes: Boolean(addToLessonNotes),
           thumbnailUrl: thumbnailUrl || '',
+          thumbnails: thumbnailOptions || [],
           fileName: fileName || '',
           status: 'ready'
         }
@@ -491,25 +571,18 @@ export const DedicatedVideoEditor = ({
   // Back Navigation with dirty check
   const handleBack = () => {
     if (hasUnsavedChanges) {
-      if (!window.confirm('You have unsaved video changes. Are you sure you want to go back?')) {
-        return;
-      }
+      setShowUnsavedModal(true);
+      return;
     }
     if (onBack) onBack();
   };
 
-  // Frame Thumbnail Options (Matching Reference Design)
-  const thumbnailOptions = [
-    muxPlaybackId
-      ? `https://image.mux.com/${muxPlaybackId}/thumbnail.jpg?time=2`
-      : 'https://images.unsplash.com/photo-1534972195531-a756b1126f24?w=600&auto=format&fit=crop&q=80',
-    muxPlaybackId
-      ? `https://image.mux.com/${muxPlaybackId}/thumbnail.jpg?time=15`
-      : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80',
-    muxPlaybackId
-      ? `https://image.mux.com/${muxPlaybackId}/thumbnail.jpg?time=30`
-      : 'https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=600&auto=format&fit=crop&q=80'
-  ];
+  // Determine playable video stream source (prefer local blob/uploaded file)
+  const activeVideoSrc = (externalUrl && (externalUrl.startsWith('blob:') || (externalUrl.startsWith('http') && !externalUrl.includes('stream.mux.com'))))
+    ? externalUrl
+    : (muxPlaybackId && !muxPlaybackId.startsWith('mock_') && !muxPlaybackId.startsWith('stream_') && !muxPlaybackId.startsWith('asset_') && !muxPlaybackId.startsWith('upload_'))
+      ? `https://stream.mux.com/${muxPlaybackId}/capped-1080p.mp4`
+      : externalUrl || '';
 
   // Ruler tick intervals
   const totalDuration = duration || 564;
@@ -519,19 +592,38 @@ export const DedicatedVideoEditor = ({
     return formatTime(sec);
   });
 
-  // Calculate percentage positions for playhead & trim handles
+  // Calculate percentage positions for playhead
   const playheadPercent = Math.max(0, Math.min(100, (currentTime / totalDuration) * 100));
-  const trimStartPercent = Math.max(0, Math.min(100, (trimStart / totalDuration) * 100));
-  const trimEndPercent = Math.max(0, Math.min(100, (trimEnd / totalDuration) * 100));
 
   return (
     <div className="dedicated-video-editor-container">
-      {/* ── Top Header Actions Bar ── */}
-      <div className="dve-top-header">
+      {/* ── Top Header Actions Bar (Matching Image 2 Reference) ── */}
+      <header className="dve-top-header">
+        <div className="dve-header-left-cluster">
+          {/* Circular Back-arrow button */}
+          <button
+            type="button"
+            className="dve-btn-back-circle"
+            onClick={handleBack}
+            title="Return to Lesson"
+            aria-label="Return to Lesson"
+          >
+            <ArrowLeft size={18} />
+          </button>
 
-        <div className="dve-header-actions">
+          <div className="dve-header-titles">
+
+            <div className="dve-title-desc-wrap">
+              <h1 className="dve-main-title">Video Editor</h1>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Actions: Status Pill + Save Changes Button */}
+        <div className="dve-header-actions-right">
           <span className={`dve-status-pill ${publicationStatus === 'published' ? 'published' : 'draft'}`}>
-            • {publicationStatus === 'published' ? 'Published' : 'Draft'}
+            <span className="dve-status-dot" />
+            <span>{publicationStatus === 'published' ? 'Published' : 'Draft'}</span>
           </span>
 
           <button
@@ -539,12 +631,13 @@ export const DedicatedVideoEditor = ({
             className="dve-btn-save-changes"
             onClick={handleSaveVideo}
             disabled={isSaving}
+            title="Save changes to this video"
           >
             {isSaving ? <RefreshCw size={15} className="spinner-rotate" /> : <Check size={15} />}
             <span>{isSaving ? 'Saving...' : 'Save Changes'}</span>
           </button>
         </div>
-      </div>
+      </header>
 
       {/* ── Main 2-Column Split Workspace (Matches Screenshot Exactly) ── */}
       <div className="dve-two-column-layout">
@@ -554,18 +647,6 @@ export const DedicatedVideoEditor = ({
         <div className="dve-left-editor-column">
           {/* Section Header: Icon + Title + Replace Video Button */}
           <div className="dve-section-header-row">
-            <div className="dve-header-title-group">
-              <div className="dve-icon-badge-green">
-                <Scissors size={20} />
-              </div>
-              <div className="dve-header-text-block">
-                <h2 className="dve-section-title">Video Editor</h2>
-                <p className="dve-section-subtitle">
-                  Upload, trim, cut, add chapters and customize your video.
-                </p>
-              </div>
-            </div>
-
             <button
               type="button"
               className="dve-btn-replace-outline"
@@ -593,30 +674,14 @@ export const DedicatedVideoEditor = ({
           {/* Video Player Card */}
           <div className="dve-player-card">
             <div className="dve-player-viewport" onClick={() => setShowSettingsMenu(false)}>
-              {muxPlaybackId ? (
+              {activeVideoSrc ? (
                 <video
                   ref={videoRef}
                   className="dve-main-video-el"
                   poster={thumbnailUrl}
-                  src={`https://stream.mux.com/${muxPlaybackId}/capped-1080p.mp4`}
-                  onTimeUpdate={handleTimeUpdate}
-                  onLoadedMetadata={handleLoadedMetadata}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    togglePlayPause();
-                  }}
-                >
-                  <source
-                    src={`https://stream.mux.com/${muxPlaybackId}.m3u8`}
-                    type="application/x-mpegURL"
-                  />
-                </video>
-              ) : externalUrl && !externalUrl.includes('youtube.com') && !externalUrl.includes('youtu.be') ? (
-                <video
-                  ref={videoRef}
-                  className="dve-main-video-el"
-                  poster={thumbnailUrl}
-                  src={externalUrl}
+                  src={activeVideoSrc}
+                  preload="metadata"
+                  playsInline
                   onTimeUpdate={handleTimeUpdate}
                   onLoadedMetadata={handleLoadedMetadata}
                   onClick={(e) => {
@@ -633,7 +698,7 @@ export const DedicatedVideoEditor = ({
                   onClick={togglePlayPause}
                 >
                   <div className="dve-video-on-screen-overlay">
-                    <span className="dve-overlay-lesson-tag">Lesson 2:</span>
+                    <span className="dve-overlay-lesson-tag">Lesson:</span>
                     <h3 className="dve-overlay-lesson-heading">{title}</h3>
                   </div>
                 </div>
@@ -755,168 +820,6 @@ export const DedicatedVideoEditor = ({
               >
                 <Maximize size={18} />
               </button>
-            </div>
-          </div>
-
-          {/* ── Editing Toolbar (Trim, Undo, Redo, Zoom) — Cut, Split, Min/Max Removed ── */}
-          <div className="dve-editing-toolbar">
-            <div className="dve-toolbar-left-actions">
-              <button
-                type="button"
-                className={`dve-btn-tool-pill ${isTrimActive ? 'active' : ''}`}
-                onClick={() => setIsTrimActive(!isTrimActive)}
-                title="Toggle Trim Mode"
-              >
-                <Scissors size={15} />
-                <span>Trim</span>
-              </button>
-
-              <button
-                type="button"
-                className="dve-btn-tool-subtle"
-                onClick={handleUndo}
-                disabled={historyStack.length === 0}
-                title="Undo trim edit"
-              >
-                <RotateCcw size={15} />
-                <span>Undo</span>
-              </button>
-
-              <button
-                type="button"
-                className="dve-btn-tool-subtle"
-                onClick={handleRedo}
-                disabled={futureStack.length === 0}
-                title="Redo trim edit"
-              >
-                <RotateCw size={15} />
-                <span>Redo</span>
-              </button>
-            </div>
-
-            <div className="dve-toolbar-center-time">
-              <span className="dve-toolbar-clock">
-                {formatTime(currentTime)} / {formatTime(totalDuration)}
-              </span>
-            </div>
-
-            {/* Timeline Zoom Slider Controls */}
-            <div className="dve-toolbar-right-zoom">
-              <button
-                type="button"
-                className="dve-btn-zoom-step"
-                onClick={() => setTimelineZoom((z) => Math.max(1, z - 0.25))}
-                title="Zoom Out Timeline"
-              >
-                <ZoomOut size={16} />
-              </button>
-              <input
-                type="range"
-                min="1"
-                max="2.5"
-                step="0.1"
-                value={timelineZoom}
-                onChange={(e) => setTimelineZoom(parseFloat(e.target.value))}
-                className="dve-zoom-range-input"
-                title="Timeline Zoom"
-              />
-              <button
-                type="button"
-                className="dve-btn-zoom-step"
-                onClick={() => setTimelineZoom((z) => Math.min(2.5, z + 0.25))}
-                title="Zoom In Timeline"
-              >
-                <ZoomIn size={16} />
-              </button>
-            </div>
-          </div>
-
-          {/* ── Video Timeline & Filmstrip Workspace ── */}
-          <div className="dve-timeline-workspace-card">
-            <div className="dve-timeline-scroll-container">
-              <div
-                className="dve-timeline-track-canvas"
-                style={{ width: `${timelineZoom * 100}%` }}
-                onClick={handleTimelineScrub}
-              >
-                {/* Time Ruler Ticks */}
-                <div className="dve-time-ruler">
-                  {ticks.map((t, idx) => (
-                    <div key={idx} className="dve-ruler-tick">
-                      <div className="dve-tick-mark" />
-                      <span className="dve-tick-time">{t}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Filmstrip Thumbnails Row */}
-                <div className="dve-filmstrip-strip">
-                  {Array.from({ length: 8 }).map((_, fIdx) => (
-                    <div
-                      key={fIdx}
-                      className="dve-filmstrip-cell"
-                      style={{
-                        backgroundImage: `url(${thumbnailOptions[fIdx % thumbnailOptions.length]})`
-                      }}
-                    />
-                  ))}
-                </div>
-
-                {/* Audio Waveform Row */}
-                <div className="dve-waveform-strip">
-                  <svg className="dve-waveform-svg" viewBox="0 0 800 32" preserveAspectRatio="none">
-                    {Array.from({ length: 100 }).map((_, wIdx) => {
-                      const h = Math.sin(wIdx * 0.25) * 8 + Math.cos(wIdx * 0.4) * 6 + 12;
-                      const x = wIdx * 8;
-                      const isPast = (x / 800) * 100 <= playheadPercent;
-                      return (
-                        <rect
-                          key={wIdx}
-                          x={x}
-                          y={16 - h / 2}
-                          width="3.5"
-                          height={Math.max(4, h)}
-                          rx="1.5"
-                          className={isPast ? 'dve-wave-bar-played' : 'dve-wave-bar-remaining'}
-                        />
-                      );
-                    })}
-                  </svg>
-                </div>
-
-                {/* Active Trim Range Highlight & Handles */}
-                <div
-                  className="dve-trim-highlight-range"
-                  style={{
-                    left: `${trimStartPercent}%`,
-                    width: `${Math.max(0, trimEndPercent - trimStartPercent)}%`
-                  }}
-                >
-                  <div
-                    className="dve-trim-handle left"
-                    title={`Trim start: ${formatTime(trimStart)}`}
-                  >
-                    <div className="dve-handle-grip" />
-                  </div>
-                  <div
-                    className="dve-trim-handle right"
-                    title={`Trim end: ${formatTime(trimEnd)}`}
-                  >
-                    <div className="dve-handle-grip" />
-                  </div>
-                </div>
-
-                {/* Draggable Playhead Needle */}
-                <div
-                  className="dve-playhead-needle"
-                  style={{ left: `${playheadPercent}%` }}
-                >
-                  <div className="dve-playhead-marker">
-                    <span>▼ {formatTime(currentTime)}</span>
-                  </div>
-                  <div className="dve-playhead-line" />
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -1199,21 +1102,77 @@ export const DedicatedVideoEditor = ({
               </div>
             </div>
 
-            {/* 5. Video Processed Success Banner (Matching Reference Design) */}
+            {/* 5. Video Processed Success Banner (Matching Reference Design Image 2) */}
             <div className="dve-processed-success-banner">
-              <CheckCircle2 size={20} className="dve-success-icon" />
-              <div className="dve-success-text-group">
-                <h4 className="dve-success-title">
-                  {muxPlaybackId || externalUrl ? 'Video processed successfully' : 'Video ready'}
-                </h4>
-                <p className="dve-success-meta">
-                  Duration: {formatSecondsLong(duration)} | Resolution: 1080p (Full HD)
-                </p>
+              <div className="dve-success-left-group">
+                <CheckCircle2 size={20} className="dve-success-icon" />
+                <div className="dve-success-text-group">
+                  <h4 className="dve-success-title">
+                    {muxPlaybackId || externalUrl ? 'Video processed successfully' : 'Video ready'}
+                  </h4>
+                  <p className="dve-success-meta">
+                    Duration: {formatSecondsLong(duration)} | Resolution: 1080p (Full HD)
+                  </p>
+                </div>
               </div>
+
+              <button
+                type="button"
+                className="dve-btn-banner-replace"
+                onClick={() => fileInputRef.current?.click()}
+                title="Replace or upload a new video file"
+              >
+                Replace Video
+              </button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* ── Unsaved Changes Confirmation Modal ── */}
+      {showUnsavedModal && (
+        <div className="dve-modal-overlay" onClick={() => setShowUnsavedModal(false)}>
+          <div className="dve-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="dve-modal-icon-wrap">
+              <AlertCircle size={32} className="dve-modal-alert-icon" />
+            </div>
+            <h3 className="dve-modal-title">Discard Unsaved Changes?</h3>
+            <p className="dve-modal-message">
+              You have unsaved changes to this video lecture. If you leave now, your video and details will not be saved.
+            </p>
+            <div className="dve-modal-actions">
+              <button
+                type="button"
+                className="dve-btn-modal-cancel"
+                onClick={() => setShowUnsavedModal(false)}
+              >
+                Keep Editing
+              </button>
+              <button
+                type="button"
+                className="dve-btn-modal-discard"
+                onClick={() => {
+                  setShowUnsavedModal(false);
+                  setHasUnsavedChanges(false);
+                  if (onBack) onBack();
+                }}
+              >
+                Discard & Leave
+              </button>
+              <button
+                type="button"
+                className="dve-btn-modal-save"
+                onClick={async () => {
+                  setShowUnsavedModal(false);
+                  await handleSaveVideo();
+                }}
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
