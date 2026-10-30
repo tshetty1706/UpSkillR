@@ -294,25 +294,6 @@ export const DedicatedDocumentEditor = ({
             <ArrowLeft size={17} />
           </button>
           <div className="dde-header-title-cluster">
-            {/* Breadcrumb Navigation */}
-            <div className="dde-breadcrumb-row">
-              <span className="dde-breadcrumb-item">Courses</span>
-              <span className="dde-breadcrumb-sep">/</span>
-              <span className="dde-breadcrumb-item" title={course?.title}>
-                {course?.title ? (course.title.length > 20 ? course.title.slice(0, 20) + '...' : course.title) : 'Course'}
-              </span>
-              <span className="dde-breadcrumb-sep">/</span>
-              <span className="dde-breadcrumb-item" title={activeModule?.title}>
-                {activeModule?.title ? (activeModule.title.length > 20 ? activeModule.title.slice(0, 20) + '...' : activeModule.title) : 'Module'}
-              </span>
-              <span className="dde-breadcrumb-sep">/</span>
-              <span className="dde-breadcrumb-item" title={activeLesson?.title}>
-                {activeLesson?.title ? (activeLesson.title.length > 20 ? activeLesson.title.slice(0, 20) + '...' : activeLesson.title) : 'Lesson'}
-              </span>
-              <span className="dde-breadcrumb-sep">/</span>
-              <span className="dde-breadcrumb-current">Document Editor</span>
-            </div>
-
             <div className="dde-heading-badge-row">
               <h1 className="dde-main-title">PDF / Document Editor</h1>
               {activeLesson?.title && (

@@ -615,6 +615,11 @@ export const DedicatedVideoEditor = ({
 
             <div className="dve-title-desc-wrap">
               <h1 className="dve-main-title">Video Editor</h1>
+              {activeLesson?.title && (
+                <span className="dae-lesson-badge" title={activeLesson.title}>
+                  Lesson: {activeLesson.title}
+                </span>
+              )}
             </div>
           </div>
         </div>

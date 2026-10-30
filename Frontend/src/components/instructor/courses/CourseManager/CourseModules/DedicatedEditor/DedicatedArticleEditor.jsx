@@ -422,24 +422,6 @@ export const DedicatedArticleEditor = ({
             <ArrowLeft size={17} />
           </button>
           <div className="dae-header-title-cluster">
-            {/* Breadcrumb Navigation */}
-            <div className="dae-breadcrumb-row">
-              <span className="dae-breadcrumb-item">Courses</span>
-              <span className="dae-breadcrumb-sep">/</span>
-              <span className="dae-breadcrumb-item" title={course?.title}>
-                {course?.title ? (course.title.length > 20 ? course.title.slice(0, 20) + '...' : course.title) : 'Course'}
-              </span>
-              <span className="dae-breadcrumb-sep">/</span>
-              <span className="dae-breadcrumb-item" title={activeModule?.title}>
-                {activeModule?.title ? (activeModule.title.length > 20 ? activeModule.title.slice(0, 20) + '...' : activeModule.title) : 'Module'}
-              </span>
-              <span className="dae-breadcrumb-sep">/</span>
-              <span className="dae-breadcrumb-item" title={activeLesson?.title}>
-                {activeLesson?.title ? (activeLesson.title.length > 20 ? activeLesson.title.slice(0, 20) + '...' : activeLesson.title) : 'Lesson'}
-              </span>
-              <span className="dae-breadcrumb-sep">/</span>
-              <span className="dae-breadcrumb-current">Article Editor</span>
-            </div>
 
             <div className="dae-heading-badge-row">
               <h1 className="dae-main-title">Article Editor</h1>
