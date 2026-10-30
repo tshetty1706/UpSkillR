@@ -62,7 +62,7 @@ const canPublishModule = (mod) => {
 
 const canPublishLesson = (lesson) => {
   const items = lesson.items || [];
-  return Array.isArray(items) && items.some(i => i.type?.toLowerCase() === 'video' || i.type?.toLowerCase() === 'quiz');
+  return Array.isArray(items) && items.length > 0;
 };
 
 const canPublishItem = (item) => {
@@ -82,6 +82,12 @@ const canPublishItem = (item) => {
       item.url ||
       item.fileUrl
     );
+  }
+  if (['article', 'article_md', 'note'].includes(itemType)) {
+    return Boolean((item.markdownContent || item.content || item.bodyMarkdown || '').trim());
+  }
+  if (['pdf', 'document', 'image', 'resource'].includes(itemType)) {
+    return Boolean(item.fileUrl || item.mediaUrl || item.cloudinaryUrl);
   }
   return true;
 };
@@ -165,7 +171,7 @@ exports.getCurriculumTree = async (req, res) => {
           .map(lesson => {
             const lessonCanPub = canPublishLesson(lesson);
             const items = lesson.items || lesson.contentItems || [];
-            
+
             // Sort items by sortKey
             const sortedItems = (items || [])
               .slice()
@@ -404,6 +410,41 @@ exports.reorderModule = async (req, res) => {
   }
 };
 
+exports.deleteModule = async (req, res) => {
+  try {
+    const { courseId, moduleId } = req.params;
+    const course = await verifyCourse(courseId, req.user);
+
+    const mod = course.modules.id(moduleId);
+    if (!mod) {
+      return res.status(404).json({ success: false, message: 'Module not found.' });
+    }
+
+    course.modules.pull(moduleId);
+
+    // Also remove from any courseAssessment requiredModuleIds
+    if (Array.isArray(course.courseAssessments)) {
+      course.courseAssessments.forEach(ca => {
+        if (Array.isArray(ca.requiredModuleIds)) {
+          ca.requiredModuleIds = ca.requiredModuleIds.filter(id => id.toString() !== moduleId.toString());
+        }
+      });
+    }
+
+    recomputeEffectiveVisibility(course);
+    await course.save();
+    if (courseCache && courseCache.invalidateCourse) courseCache.invalidateCourse(courseId);
+
+    res.json({
+      success: true,
+      message: 'Module deleted successfully.',
+      courseId: course._id
+    });
+  } catch (err) {
+    res.status(err.status || 500).json({ success: false, message: err.message });
+  }
+};
+
 /**
  * LESSON MUTATIONS
  */
@@ -482,7 +523,7 @@ exports.updateLesson = async (req, res) => {
         if (!canPublishLesson(lesson)) {
           return res.status(400).json({
             success: false,
-            message: 'Cannot publish lesson: A lesson requires at least one Video or Quiz item before it can be published.'
+            message: 'Cannot publish lesson: A lesson requires at least on item before it can be published.'
           });
         }
         lesson.state = 'published';
@@ -516,7 +557,7 @@ exports.toggleLessonState = async (req, res) => {
       if (!canPublishLesson(lesson)) {
         return res.status(400).json({
           success: false,
-          message: 'Cannot publish lesson: A lesson requires at least one Video or Quiz item before it can be published.'
+          message: 'Cannot publish lesson: A lesson requires at least one item before it can be published.'
         });
       }
       lesson.state = 'published';
@@ -564,6 +605,87 @@ exports.reorderLesson = async (req, res) => {
   }
 };
 
+exports.deleteLesson = async (req, res) => {
+  try {
+    const { courseId, moduleId, lessonId } = req.params;
+    const course = await verifyCourse(courseId, req.user);
+
+    const mod = course.modules.id(moduleId);
+    if (!mod) return res.status(404).json({ success: false, message: 'Module not found.' });
+
+    const lesson = mod.lessons.id(lessonId);
+    if (!lesson) return res.status(404).json({ success: false, message: 'Lesson not found.' });
+
+    mod.lessons.pull(lessonId);
+    if (!canPublishModule(mod)) {
+      mod.state = 'draft';
+    }
+
+    recomputeEffectiveVisibility(course);
+    await course.save();
+    if (courseCache && courseCache.invalidateCourse) courseCache.invalidateCourse(courseId);
+
+    res.json({ success: true, message: 'Lesson deleted successfully.' });
+  } catch (err) {
+    res.status(err.status || 500).json({ success: false, message: err.message });
+  }
+};
+
+const sanitizeAndValidateQuizQuestions = (rawQuestions) => {
+  if (!Array.isArray(rawQuestions)) return [];
+  return rawQuestions.map((q, idx) => {
+    let cleanType = (q.type || 'mcq').toLowerCase();
+    if (cleanType === 'multiple_choice') cleanType = 'mcq';
+    if (!['mcq', 'multiple_response', 'true_false'].includes(cleanType)) {
+      cleanType = 'mcq';
+    }
+
+    let options = Array.isArray(q.options)
+      ? q.options.map(o => String(o || '').trim()).filter(Boolean)
+      : [];
+
+    if (cleanType === 'true_false') {
+      options = ['True', 'False'];
+    } else if (options.length < 2) {
+      options = options.concat(['Option A', 'Option B']).slice(0, Math.max(2, options.length));
+    }
+
+    let correctAnswerIndex = Number(q.correctAnswerIndex);
+    if (isNaN(correctAnswerIndex) || correctAnswerIndex < 0 || correctAnswerIndex >= options.length) {
+      correctAnswerIndex = 0;
+    }
+
+    let correctOptionIndexes = [];
+    if (cleanType === 'multiple_response') {
+      if (Array.isArray(q.correctOptionIndexes)) {
+        correctOptionIndexes = q.correctOptionIndexes
+          .map(Number)
+          .filter(n => !isNaN(n) && n >= 0 && n < options.length);
+      }
+      if (correctOptionIndexes.length === 0) {
+        correctOptionIndexes = [correctAnswerIndex];
+      }
+    }
+
+    const marks = Math.max(1, Math.round(Number(q.marks) || 1));
+    const explanation = (q.explanation || q.evaluationInstructions || '').trim();
+
+    return {
+      _id: q._id || new mongoose.Types.ObjectId(),
+      questionText: (q.questionText || `Question ${idx + 1}`).trim(),
+      type: cleanType,
+      options,
+      correctAnswerIndex,
+      correctOptionIndexes,
+      correctAnswer: cleanType === 'multiple_response' ? correctOptionIndexes : (options[correctAnswerIndex] || ''),
+      marks,
+      explanation,
+      evaluationInstructions: explanation,
+      order: q.order || idx + 1
+    };
+  });
+};
+
 /**
  * CONTENT ITEM MUTATIONS (VIDEO & QUIZ)
  */
@@ -582,8 +704,9 @@ exports.createContentItem = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Content item title is required.' });
     }
     const cleanType = (type || '').toLowerCase();
-    if (!['video', 'quiz'].includes(cleanType)) {
-      return res.status(400).json({ success: false, message: 'Invalid content type. Allowed: video, quiz.' });
+    const allowedTypes = ['video', 'quiz', 'article', 'article_md', 'note', 'pdf', 'document', 'image', 'resource'];
+    if (!allowedTypes.includes(cleanType)) {
+      return res.status(400).json({ success: false, message: `Invalid content type. Allowed: ${allowedTypes.join(', ')}.` });
     }
 
     const course = await verifyCourse(courseId, req.user);
@@ -603,15 +726,29 @@ exports.createContentItem = async (req, res) => {
     const lastItem = items[items.length - 1];
     const sortKey = generateSortKey(lastItem ? lastItem.sortKey : null, null);
 
+    const sanitizedQuestions = cleanType === 'quiz' ? sanitizeAndValidateQuizQuestions(quiz.questions) : [];
+    const totalQuestions = sanitizedQuestions.length;
+    const totalMarks = sanitizedQuestions.reduce((sum, q) => sum + q.marks, 0);
+    const hasTimeLimit = Boolean(quiz.hasTimeLimit && Number(quiz.timeLimit) > 0);
+    const timeLimitVal = hasTimeLimit ? Number(quiz.timeLimit) : null;
+
     const newItem = {
       _id: new mongoose.Types.ObjectId(),
       title: title.trim(),
+      description: (req.body.description !== undefined ? req.body.description : (video.description || quiz.instructions || '')).trim(),
       type: cleanType,
-      state: 'draft',
+      state: req.body.state === 'published' ? 'published' : 'draft',
       effective_visible: false,
       sortKey,
       version: 1, // Rule A.6.1: Only Content Items are versioned
       role: role === 'practice' ? 'practice' : 'lesson_check',
+      markdownContent: req.body.markdownContent || req.body.content || req.body.bodyMarkdown || '',
+      content: req.body.content || req.body.markdownContent || req.body.bodyMarkdown || '',
+      bodyMarkdown: req.body.bodyMarkdown || req.body.markdownContent || req.body.content || '',
+      fileUrl: req.body.fileUrl || req.body.mediaUrl || '',
+      mediaUrl: req.body.mediaUrl || req.body.fileUrl || '',
+      fileName: req.body.fileName || '',
+      fileSize: Number(req.body.fileSize) || 0,
       video: {
         muxAssetId: video.muxAssetId || '',
         muxPlaybackId: video.muxPlaybackId || '',
@@ -621,7 +758,11 @@ exports.createContentItem = async (req, res) => {
         duration: Number(video.duration) || 0,
         watchedThresholdPercent: Number(video.watchedThresholdPercent) || 90,
         allowScrubAhead: video.allowScrubAhead !== false,
-        status: (video.muxPlaybackId || video.videoUrl || video.url || video.fileUrl) ? 'ready' : (video.status || 'processing')
+        status: (video.muxPlaybackId || video.videoUrl || video.url || video.fileUrl) ? 'ready' : (video.status || 'processing'),
+        allowFreePreview: Boolean(video.allowFreePreview),
+        addToLessonNotes: Boolean(video.addToLessonNotes),
+        thumbnailUrl: video.thumbnailUrl || '',
+        fileName: video.fileName || ''
       },
       videoDetails: {
         muxAssetId: video.muxAssetId || '',
@@ -632,23 +773,37 @@ exports.createContentItem = async (req, res) => {
         duration: video.duration ? `${video.duration} min` : '10 min',
         durationSeconds: Number(video.duration) || 0,
         watchedPctThreshold: Number(video.watchedThresholdPercent) || 90,
-        allowScrubAhead: video.allowScrubAhead !== false
+        allowScrubAhead: video.allowScrubAhead !== false,
+        allowFreePreview: Boolean(video.allowFreePreview),
+        addToLessonNotes: Boolean(video.addToLessonNotes),
+        thumbnailUrl: video.thumbnailUrl || '',
+        fileName: video.fileName || ''
       },
       quiz: {
         instructions: quiz.instructions || '',
         passThresholdPercent: Number(quiz.passThresholdPercent) || 70,
         maxAttempts: Number(quiz.maxAttempts) || 3,
         cooldownHours: Number(quiz.cooldownHours) || 6,
+        timeLimit: timeLimitVal,
+        durationMinutes: timeLimitVal,
+        hasTimeLimit,
+        totalQuestions,
+        totalMarks,
         role: role === 'practice' ? 'practice' : 'lesson_check',
-        questions: Array.isArray(quiz.questions) ? quiz.questions : []
+        questions: sanitizedQuestions
       },
       quizDetails: {
         instructions: quiz.instructions || '',
         passThreshold: Number(quiz.passThresholdPercent) || 70,
         maxAttempts: Number(quiz.maxAttempts) || 3,
         cooldownHours: Number(quiz.cooldownHours) || 6,
+        timeLimit: timeLimitVal,
+        durationMinutes: timeLimitVal,
+        hasTimeLimit,
+        totalQuestions,
+        totalMarks,
         role: role === 'practice' ? 'practice' : 'lesson_check',
-        questions: Array.isArray(quiz.questions) ? quiz.questions : []
+        questions: sanitizedQuestions
       }
     };
 
@@ -659,9 +814,17 @@ exports.createContentItem = async (req, res) => {
     await course.save();
     if (courseCache && courseCache.invalidateCourse) courseCache.invalidateCourse(courseId);
 
+    const typeLabel = cleanType === 'video'
+      ? 'Video'
+      : cleanType === 'quiz'
+        ? 'Quiz'
+        : ['article', 'article_md', 'note'].includes(cleanType)
+          ? 'Note'
+          : 'Document';
+
     res.status(201).json({
       success: true,
-      message: `${cleanType === 'video' ? 'Video' : 'Quiz'} item created in draft state.`,
+      message: `${typeLabel} item created in draft state.`,
       item: newItem
     });
   } catch (err) {
@@ -672,7 +835,7 @@ exports.createContentItem = async (req, res) => {
 exports.updateContentItem = async (req, res) => {
   try {
     const { courseId, lessonId, itemId } = req.params;
-    const { title, video, quiz, role } = req.body;
+    const { title, description, state, video, quiz, role } = req.body;
 
     const course = await verifyCourse(courseId, req.user);
     let targetLesson = null;
@@ -692,6 +855,10 @@ exports.updateContentItem = async (req, res) => {
     }
 
     if (title && title.trim()) targetItem.title = title.trim();
+    if (description !== undefined) targetItem.description = description.trim();
+    if (state !== undefined) {
+      targetItem.state = state === 'published' ? 'published' : 'draft';
+    }
     if (role !== undefined) targetItem.role = role === 'practice' ? 'practice' : 'lesson_check';
 
     let versionBumped = false;
@@ -712,33 +879,82 @@ exports.updateContentItem = async (req, res) => {
         duration: Number(video.duration) || targetItem.video?.duration || 0,
         watchedThresholdPercent: Number(video.watchedThresholdPercent) || targetItem.video?.watchedThresholdPercent || 90,
         allowScrubAhead: video.allowScrubAhead !== undefined ? video.allowScrubAhead : true,
-        status: (video.muxPlaybackId || video.videoUrl || video.url || targetItem.video?.muxPlaybackId || targetItem.video?.videoUrl) ? 'ready' : (targetItem.video?.status || 'ready')
+        status: (video.muxPlaybackId || video.videoUrl || video.url || targetItem.video?.muxPlaybackId || targetItem.video?.videoUrl) ? 'ready' : (targetItem.video?.status || 'ready'),
+        allowFreePreview: video.allowFreePreview !== undefined ? Boolean(video.allowFreePreview) : Boolean(targetItem.video?.allowFreePreview),
+        addToLessonNotes: video.addToLessonNotes !== undefined ? Boolean(video.addToLessonNotes) : Boolean(targetItem.video?.addToLessonNotes),
+        thumbnailUrl: video.thumbnailUrl !== undefined ? video.thumbnailUrl : (targetItem.video?.thumbnailUrl || ''),
+        fileName: video.fileName !== undefined ? video.fileName : (targetItem.video?.fileName || '')
       };
       targetItem.videoDetails = {
         ...targetItem.video,
         watchedPctThreshold: targetItem.video.watchedThresholdPercent
       };
     } else if (targetItem.type === 'quiz' && quiz) {
+      const sanitizedQuestions = sanitizeAndValidateQuizQuestions(quiz.questions || targetItem.quiz?.questions || []);
+      const totalQuestions = sanitizedQuestions.length;
+      const totalMarks = sanitizedQuestions.reduce((sum, q) => sum + q.marks, 0);
+
+      const hasTimeLimit = quiz.hasTimeLimit !== undefined
+        ? Boolean(quiz.hasTimeLimit && Number(quiz.timeLimit) > 0)
+        : Boolean(targetItem.quiz?.hasTimeLimit);
+      const timeLimitVal = hasTimeLimit
+        ? (Number(quiz.timeLimit) || targetItem.quiz?.timeLimit || 20)
+        : null;
+
       // If quiz questions were modified, increment version
       const oldQuestionsStr = JSON.stringify(targetItem.quiz?.questions || []);
-      const newQuestionsStr = JSON.stringify(quiz.questions || []);
-      if (quiz.questions && oldQuestionsStr !== newQuestionsStr) {
+      const newQuestionsStr = JSON.stringify(sanitizedQuestions);
+      if (oldQuestionsStr !== newQuestionsStr) {
         targetItem.version = (targetItem.version || 1) + 1;
         versionBumped = true;
       }
-      // Config changes (threshold, attempts, cooldown) DO NOT increment version
+      // Config changes DO NOT increment version
       targetItem.quiz = {
         instructions: quiz.instructions !== undefined ? quiz.instructions : (targetItem.quiz?.instructions || ''),
-        passThresholdPercent: Number(quiz.passThresholdPercent) || targetItem.quiz?.passThresholdPercent || 70,
-        maxAttempts: Number(quiz.maxAttempts) || targetItem.quiz?.maxAttempts || 3,
-        cooldownHours: Number(quiz.cooldownHours) || targetItem.quiz?.cooldownHours || 6,
+        passThresholdPercent: targetItem.quiz?.passThresholdPercent || 70,
+        maxAttempts: targetItem.quiz?.maxAttempts || 3,
+        cooldownHours: targetItem.quiz?.cooldownHours || 6,
+        timeLimit: timeLimitVal,
+        durationMinutes: timeLimitVal,
+        hasTimeLimit,
+        totalQuestions,
+        totalMarks,
         role: targetItem.role,
-        questions: Array.isArray(quiz.questions) ? quiz.questions : (targetItem.quiz?.questions || [])
+        questions: sanitizedQuestions
       };
       targetItem.quizDetails = {
         ...targetItem.quiz,
         passThreshold: targetItem.quiz.passThresholdPercent
       };
+    } else if (['article', 'article_md', 'note'].includes(targetItem.type)) {
+      const newMarkdown = req.body.markdownContent !== undefined
+        ? req.body.markdownContent
+        : (req.body.content !== undefined ? req.body.content : req.body.bodyMarkdown);
+      if (newMarkdown !== undefined) {
+        if ((targetItem.markdownContent || '') !== newMarkdown) {
+          targetItem.version = (targetItem.version || 1) + 1;
+          versionBumped = true;
+        }
+        targetItem.markdownContent = newMarkdown;
+        targetItem.content = newMarkdown;
+        targetItem.bodyMarkdown = newMarkdown;
+      }
+      if (req.body.fileUrl !== undefined) targetItem.fileUrl = req.body.fileUrl;
+      if (req.body.mediaUrl !== undefined) targetItem.mediaUrl = req.body.mediaUrl;
+      if (req.body.fileName !== undefined) targetItem.fileName = req.body.fileName;
+      if (req.body.fileSize !== undefined) targetItem.fileSize = Number(req.body.fileSize) || 0;
+    } else if (['pdf', 'document', 'image', 'resource'].includes(targetItem.type)) {
+      const newFileUrl = req.body.fileUrl !== undefined ? req.body.fileUrl : req.body.mediaUrl;
+      if (newFileUrl !== undefined) {
+        if ((targetItem.fileUrl || '') !== newFileUrl) {
+          targetItem.version = (targetItem.version || 1) + 1;
+          versionBumped = true;
+        }
+        targetItem.fileUrl = newFileUrl;
+        targetItem.mediaUrl = newFileUrl;
+      }
+      if (req.body.fileName !== undefined) targetItem.fileName = req.body.fileName;
+      if (req.body.fileSize !== undefined) targetItem.fileSize = Number(req.body.fileSize) || 0;
     }
 
     recomputeEffectiveVisibility(course);
@@ -787,6 +1003,18 @@ exports.toggleContentItemState = async (req, res) => {
           return res.status(400).json({
             success: false,
             message: 'Cannot publish video: Please upload a valid video before publishing.'
+          });
+        }
+        if (['article', 'article_md', 'note'].includes(targetItem.type)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Cannot publish note: Please provide markdown content before publishing.'
+          });
+        }
+        if (['pdf', 'document', 'image', 'resource'].includes(targetItem.type)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Cannot publish document: Please upload a document file before publishing.'
           });
         }
       }
@@ -841,6 +1069,46 @@ exports.reorderContentItem = async (req, res) => {
 
     await course.save();
     res.json({ success: true, message: 'Content item reordered.', sortKey: targetItem.sortKey });
+  } catch (err) {
+    res.status(err.status || 500).json({ success: false, message: err.message });
+  }
+};
+
+exports.deleteContentItem = async (req, res) => {
+  try {
+    const { courseId, lessonId, itemId } = req.params;
+    const course = await verifyCourse(courseId, req.user);
+
+    let targetLesson = null;
+    let targetItem = null;
+
+    for (const mod of course.modules || []) {
+      const les = mod.lessons.id(lessonId);
+      if (les) {
+        targetLesson = les;
+        targetItem = les.items.id(itemId);
+        break;
+      }
+    }
+
+    if (!targetLesson || !targetItem) {
+      return res.status(404).json({ success: false, message: 'Content item not found.' });
+    }
+
+    targetLesson.items.pull(itemId);
+    if (targetLesson.contentItems) {
+      targetLesson.contentItems.pull(itemId);
+    }
+
+    if (!canPublishLesson(targetLesson)) {
+      targetLesson.state = 'draft';
+    }
+
+    recomputeEffectiveVisibility(course);
+    await course.save();
+    if (courseCache && courseCache.invalidateCourse) courseCache.invalidateCourse(courseId);
+
+    res.json({ success: true, message: 'Content item deleted successfully.' });
   } catch (err) {
     res.status(err.status || 500).json({ success: false, message: err.message });
   }

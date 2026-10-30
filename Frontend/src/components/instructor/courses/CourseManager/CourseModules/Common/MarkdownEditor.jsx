@@ -129,6 +129,120 @@ export const renderMarkdownToHTML = (markdown = '') => {
   return formattedLines.join('\n');
 };
 
+/**
+ * Strict README Markdown to HTML renderer for lesson descriptions
+ * Explicitly excludes and sanitizes images (both ![alt](url) markdown and <img src=...> HTML)
+ */
+export const renderLessonReadmeToHTML = (markdown = '') => {
+  if (!markdown) return '';
+
+  // 1. Strip markdown image syntax completely: ![alt](url) -> ""
+  let sanitized = markdown.replace(/!\[([^\]]*)\]\([^)]*\)/g, '');
+
+  // 2. Escape HTML tags to prevent XSS and eliminate raw <img> tags
+  let html = sanitized
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // 3. Fenced code blocks (```lang ... ```)
+  html = html.replace(/```([a-z0-9_-]*)\s*([\s\S]*?)```/gim, (match, lang, code) => {
+    return `<pre class="md-pre"><code class="language-${lang || 'text'}">${code.trim()}</code></pre>`;
+  });
+
+  // 4. Inline code (`code`)
+  html = html.replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>');
+
+  // 5. Headings
+  html = html.replace(/^### (.*$)/gim, '<h3 class="md-h3">$1</h3>');
+  html = html.replace(/^## (.*$)/gim, '<h2 class="md-h2">$1</h2>');
+  html = html.replace(/^# (.*$)/gim, '<h1 class="md-h1">$1</h1>');
+
+  // 6. Blockquotes
+  html = html.replace(/^\> (.*$)/gim, '<blockquote class="md-blockquote">$1</blockquote>');
+
+  // 7. Bold and Italic
+  html = html.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  html = html.replace(/~~(.*?)~~/g, '<del>$1</del>');
+
+  // 8. Horizontal Rule
+  html = html.replace(/^---$/gim, '<hr class="md-hr" />');
+
+  // 9. Links [text](url) - ensure only http/https links
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>');
+
+  // 10. Tables
+  const tableRegex = /((?:\|.+?\|\r?\n)+)/g;
+  html = html.replace(tableRegex, (match) => {
+    const rows = match.trim().split('\n').filter(r => r.trim());
+    if (rows.length < 2) return match;
+
+    let tableHtml = '<div class="md-table-wrap"><table class="md-table">';
+    let isHeader = true;
+
+    rows.forEach((row, i) => {
+      if (row.replace(/[\s|:-]/g, '').length === 0) {
+        isHeader = false;
+        return;
+      }
+      const cells = row.split('|').slice(1, -1);
+      if (isHeader && i === 0) {
+        tableHtml += '<thead><tr>';
+        cells.forEach(cell => {
+          tableHtml += `<th>${cell.trim()}</th>`;
+        });
+        tableHtml += '</tr></thead><tbody>';
+      } else {
+        tableHtml += '<tr>';
+        cells.forEach(cell => {
+          tableHtml += `<td>${cell.trim()}</td>`;
+        });
+        tableHtml += '</tr>';
+      }
+    });
+
+    tableHtml += '</tbody></table></div>';
+    return tableHtml;
+  });
+
+  // 11. Unordered lists (- item)
+  html = html.replace(/^\s*-\s+(.*$)/gim, '<li class="md-li">$1</li>');
+  html = html.replace(/(<li class="md-li">[\s\S]*?<\/li>)/gm, '<ul class="md-ul">$1</ul>');
+  html = html.replace(/<\/ul>\s*<ul class="md-ul">/g, '');
+
+  // 12. Ordered lists (1. item)
+  html = html.replace(/^\s*\d+\.\s+(.*$)/gim, '<li class="md-oli">$1</li>');
+  html = html.replace(/(<li class="md-oli">[\s\S]*?<\/li>)/gm, '<ol class="md-ol">$1</ol>');
+  html = html.replace(/<\/ol>\s*<ol class="md-ol">/g, '');
+
+  // 13. Paragraphs
+  const lines = html.split('\n');
+  const formattedLines = lines.map(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return '';
+    if (
+      trimmed.startsWith('<h1') ||
+      trimmed.startsWith('<h2') ||
+      trimmed.startsWith('<h3') ||
+      trimmed.startsWith('<blockquote') ||
+      trimmed.startsWith('<pre') ||
+      trimmed.startsWith('<ul') ||
+      trimmed.startsWith('<ol') ||
+      trimmed.startsWith('<li') ||
+      trimmed.startsWith('<div') ||
+      trimmed.startsWith('<table') ||
+      trimmed.startsWith('<hr')
+    ) {
+      return line;
+    }
+    return `<p class="md-p">${trimmed}</p>`;
+  });
+
+  return formattedLines.join('\n');
+};
+
 export const MarkdownEditor = ({
   value = '',
   onChange,

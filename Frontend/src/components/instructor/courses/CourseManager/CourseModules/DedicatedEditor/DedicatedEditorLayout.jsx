@@ -2,8 +2,6 @@ import React from 'react';
 import {
   ArrowLeft,
   ChevronRight,
-  Eye,
-  EyeOff,
   CheckCircle2,
   FileText
 } from 'lucide-react';
@@ -18,9 +16,7 @@ export const DedicatedEditorLayout = ({
   guidanceTitle = 'Instructor Guidance',
   guidanceType = 'tip',
   onBackToWorkspace,
-  onTogglePreview,
-  previewMode = false,
-  showPreviewAction = true,
+  fullBleed = false,
   children
 }) => {
   return (
@@ -67,27 +63,14 @@ export const DedicatedEditorLayout = ({
             <span className="status-dot" />
             <span>{courseStatus === 'published' ? 'Published' : 'Draft'}</span>
           </span>
-
-          {/* Preview as Learner Toggle */}
-          {showPreviewAction && (
-            <button
-              type="button"
-              className={`btn-preview-learner-appbar ${previewMode ? 'active' : ''}`}
-              onClick={onTogglePreview}
-              title={previewMode ? 'Exit simulation mode' : 'Preview progression as learner'}
-            >
-              {previewMode ? <EyeOff size={15} /> : <Eye size={15} />}
-              <span>{previewMode ? 'Exit Preview' : 'Preview as Learner'}</span>
-            </button>
-          )}
         </div>
       </header>
 
       {/* ── Main Focused Content Workspace ── */}
-      <main className="dedicated-editor-main-container">
+      <main className={`dedicated-editor-main-container ${fullBleed ? 'full-bleed-workspace' : ''}`}>
         {/* Editor Guidance Banner */}
         {/* Dedicated Page Body */}
-        <div className="dedicated-editor-content-card">
+        <div className={`dedicated-editor-content-card ${fullBleed ? 'full-bleed-content' : ''}`}>
           {children}
         </div>
       </main>

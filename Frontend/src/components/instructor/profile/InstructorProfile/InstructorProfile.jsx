@@ -2028,15 +2028,6 @@ export const InstructorProfile = ({ user }) => {
                   </div>
 
                   <div className="meta-box">
-                    <span className="meta-box-label">Sign-In Method</span>
-                    <span className="meta-box-val">
-                      {profile.authProvider === 'google' && 'Google Single Sign-On'}
-                      {profile.authProvider === 'github' && 'GitHub Single Sign-On'}
-                      {profile.authProvider === 'local' && 'Email & Password'}
-                    </span>
-                  </div>
-
-                  <div className="meta-box">
                     <span className="meta-box-label">Account Role</span>
                     <span className="meta-box-val role-instructor">Instructor Studio</span>
                   </div>
@@ -2044,11 +2035,6 @@ export const InstructorProfile = ({ user }) => {
                   <div className="meta-box">
                     <span className="meta-box-label">Member Since</span>
                     <span className="meta-box-val">{formatDate(profile.createdAt)}</span>
-                  </div>
-
-                  <div className="meta-box">
-                    <span className="meta-box-label">Password Last Changed</span>
-                    <span className="meta-box-val">{formatDate(profile.passwordChangedAt)}</span>
                   </div>
                 </div>
               </div>

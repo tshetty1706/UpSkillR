@@ -19,6 +19,7 @@ import {
   Clock
 } from 'lucide-react';
 import { InstructorTip } from './Common/InstructorTip';
+import { renderLessonReadmeToHTML } from './Common/MarkdownEditor';
 
 export const LearnerPreview = ({
   modules = [],
@@ -114,6 +115,16 @@ export const LearnerPreview = ({
   const handleSimulatePassAssessment = (assId, title) => {
     setCompletedAssessments(prev => ({ ...prev, [assId]: true }));
     toast.success(`Simulated: Passed assessment "${title}" (92% score)!`);
+  };
+
+  const handleSimulateReadNote = (itemId, title) => {
+    setCompletedItems(prev => ({ ...prev, [itemId]: true }));
+    toast.success(`Simulated: Completed reading note "${title}"!`);
+  };
+
+  const handleSimulateCompleteDocument = (itemId, title) => {
+    setCompletedItems(prev => ({ ...prev, [itemId]: true }));
+    toast.success(`Simulated: Completed reviewing document "${title}"!`);
   };
 
   const handleResetSimulation = () => {
@@ -281,6 +292,15 @@ export const LearnerPreview = ({
                                   ) : null}
                                 </div>
 
+                                {lesson.description && lesson.description.trim() && (
+                                  <div className="preview-lesson-readme-container">
+                                    <div
+                                      className="preview-readme-rendered"
+                                      dangerouslySetInnerHTML={{ __html: renderLessonReadmeToHTML(lesson.description) }}
+                                    />
+                                  </div>
+                                )}
+
                                 <div className="preview-items-list">
                                   {items.map((item) => {
                                     const isItemComplete = !!completedItems[item._id];
@@ -294,15 +314,23 @@ export const LearnerPreview = ({
                                         <div className="item-info-left">
                                           {item.type === 'video' ? (
                                             <Video size={16} className="item-icon video" />
-                                          ) : (
+                                          ) : item.type === 'quiz' ? (
                                             <HelpCircle size={16} className="item-icon quiz" />
+                                          ) : ['pdf', 'document'].includes(item.type) ? (
+                                            <BookOpen size={16} className="item-icon doc" />
+                                          ) : (
+                                            <FileText size={16} className="item-icon note" />
                                           )}
                                           <div className="item-meta">
                                             <span className="item-name">{item.title}</span>
                                             <span className="item-requirement">
                                               {item.type === 'video'
                                                 ? `Gating: Requires ${item.video?.watchedThresholdPercent || 90}% watch`
-                                                : `Gating: Requires ${item.quiz?.passThresholdPercent || 70}% pass score`}
+                                                : item.type === 'quiz'
+                                                ? `Gating: Requires ${item.quiz?.passThresholdPercent || 70}% pass score`
+                                                : ['pdf', 'document'].includes(item.type)
+                                                ? 'Gating: Document View / Completion'
+                                                : 'Gating: Reading / Article Completion'}
                                             </span>
                                           </div>
                                         </div>
@@ -325,7 +353,7 @@ export const LearnerPreview = ({
                                               <Play size={13} />
                                               <span>Simulate 90% Watched</span>
                                             </button>
-                                          ) : (
+                                          ) : item.type === 'quiz' ? (
                                             <button
                                               type="button"
                                               className="btn-simulate-action btn-sim-quiz"
@@ -333,6 +361,38 @@ export const LearnerPreview = ({
                                             >
                                               <Award size={13} />
                                               <span>Simulate Pass Quiz</span>
+                                            </button>
+                                          ) : ['pdf', 'document'].includes(item.type) ? (
+                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                              {item.fileUrl && (
+                                                <a
+                                                  href={item.fileUrl}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="btn-simulate-action"
+                                                  style={{ textDecoration: 'none', background: '#f1f5f9', color: '#334155' }}
+                                                >
+                                                  <ExternalLink size={12} />
+                                                  <span>View Doc</span>
+                                                </a>
+                                              )}
+                                              <button
+                                                type="button"
+                                                className="btn-simulate-action btn-sim-doc"
+                                                onClick={() => handleSimulateCompleteDocument(item._id, item.title)}
+                                              >
+                                                <CheckCircle2 size={13} />
+                                                <span>Simulate Complete Doc</span>
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              className="btn-simulate-action btn-sim-note"
+                                              onClick={() => handleSimulateReadNote(item._id, item.title)}
+                                            >
+                                              <CheckCircle2 size={13} />
+                                              <span>Simulate Mark as Read</span>
                                             </button>
                                           )}
                                         </div>
@@ -412,46 +472,59 @@ export const LearnerPreview = ({
           </div>
         </div>
 
-        {/* ── Supplementary Resources Sidebar (Non-Gating) ── */}
+        {/* ── Progress Breakdown Sidebar ── */}
         <div className="preview-resources-sidebar">
           <div className="sidebar-header">
-            <BookOpen size={18} />
-            <h4>Supplementary Resources</h4>
+            <CheckCircle2 size={18} />
+            <h4>Progress & Completion</h4>
           </div>
           <p className="sidebar-hint">
-            Always accessible. Non-gating materials do not restrict sequential module progression.
+            All published video lectures, quizzes, notes, articles, and documents participate directly in course completion.
           </p>
 
-          {publishedNotes.length === 0 ? (
-            <div className="empty-resources-prompt">
-              <span>No published resources yet.</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Overall Progress</span>
+              <span style={{ fontWeight: 700, color: 'var(--brand-primary)' }}>{progressPercent}%</span>
             </div>
-          ) : (
-            <div className="preview-resources-list">
-              {publishedNotes.map((note) => (
-                <div key={note._id} className="preview-resource-pill">
-                  <div className="pill-type-icon">
-                    {(note.type === 'article' || note.type === 'article_md') && <FileText size={15} />}
-                    {note.type === 'pdf' && <BookOpen size={15} />}
-                    {note.type === 'image' && <Sparkles size={15} />}
+            <div style={{ width: '100%', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+              <div style={{ width: `${progressPercent}%`, height: '100%', background: '#10b981', transition: 'width 0.3s ease' }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              <span>{completedCount} of {allGatingItems.length} items completed</span>
+              <span>{allGatingItems.length - completedCount} remaining</span>
+            </div>
+          </div>
+
+          {publishedNotes.length > 0 && (
+            <div style={{ marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+              <h5 style={{ margin: '0 0 8px 0', fontSize: '0.82rem', fontWeight: 600 }}>Legacy Notes</h5>
+              <div className="preview-resources-list">
+                {publishedNotes.map((note) => (
+                  <div key={note._id} className="preview-resource-pill">
+                    <div className="pill-type-icon">
+                      {(note.type === 'article' || note.type === 'article_md') && <FileText size={15} />}
+                      {note.type === 'pdf' && <BookOpen size={15} />}
+                      {note.type === 'image' && <Sparkles size={15} />}
+                    </div>
+                    <div className="pill-info">
+                      <span className="pill-title">{note.title}</span>
+                      <span className="pill-scope">{note.scope.toUpperCase()} LEVEL</span>
+                    </div>
+                    {(note.mediaUrl || note.fileUrl) && (
+                      <a
+                        href={note.mediaUrl || note.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="pill-link"
+                        title="Open attached media"
+                      >
+                        <ExternalLink size={13} />
+                      </a>
+                    )}
                   </div>
-                  <div className="pill-info">
-                    <span className="pill-title">{note.title}</span>
-                    <span className="pill-scope">{note.scope.toUpperCase()} LEVEL</span>
-                  </div>
-                  {(note.mediaUrl || note.fileUrl) && (
-                    <a
-                      href={note.mediaUrl || note.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="pill-link"
-                      title="Open attached media"
-                    >
-                      <ExternalLink size={13} />
-                    </a>
-                  )}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>

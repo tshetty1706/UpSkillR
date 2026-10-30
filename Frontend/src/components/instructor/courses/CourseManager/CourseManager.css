@@ -342,6 +342,20 @@
   width: 100%;
 }
 
+/* Full-bleed viewport fitting for Module & Lesson Editor in Workspace */
+.workspace-content-card:has(.modules-editor-panel) {
+  padding: 0;
+  overflow: hidden;
+}
+
+.workspace-panel-section.modules-editor-panel {
+  gap: 0;
+  height: calc(100vh - 190px);
+  max-height: calc(100vh - 190px);
+  min-height: 540px;
+  overflow: hidden;
+}
+
 .section-toolbar-row {
   display: flex;
   align-items: flex-start;
@@ -1156,6 +1170,18 @@
   line-height: 1.55;
   color: var(--text-secondary);
   margin: 0;
+}
+
+.workspace-instructor-quote {
+  margin: 12px 0 0 0;
+  padding: 14px 18px;
+  background-color: var(--surface-muted);
+  border-left: 3px solid var(--brand-primary, #10b981);
+  border-radius: 0 var(--radius-sm, 6px) var(--radius-sm, 6px) 0;
+  font-style: italic;
+  color: var(--text-primary);
+  line-height: 1.65;
+  font-size: 0.95rem;
 }
 
 /* Edit Overview Mode Form */

@@ -19,13 +19,13 @@ export const InstructorDashboard = ({ user, onLogout }) => {
     const path = window.location.pathname;
 
     // Dedicated Content Editor standalone routes
-    const modulesMatch = path.match(/\/instructor\/courses\/([a-f0-9]{24})\/content\/modules/i);
+    const modulesMatch = path.match(/\/instructor\/courses\/([a-f0-9]{24})\/content(?:\/modules)?/i);
     if (modulesMatch) {
       return { tab: 'content-modules', courseId: modulesMatch[1] };
     }
     const resourcesMatch = path.match(/\/instructor\/courses\/([a-f0-9]{24})\/content\/resources/i);
     if (resourcesMatch) {
-      return { tab: 'content-resources', courseId: resourcesMatch[1] };
+      return { tab: 'content-modules', courseId: resourcesMatch[1] };
     }
     const assessmentsMatch = path.match(/\/instructor\/courses\/([a-f0-9]{24})\/content\/assessments/i);
     if (assessmentsMatch) {

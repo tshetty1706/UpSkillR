@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DedicatedEditorLayout } from './DedicatedEditorLayout';
 import { ModuleLessonEditor } from '../ModuleLessonEditor';
-import { NotesResourcesEditor } from '../NotesResourcesEditor';
 import { AssessmentEditor } from '../AssessmentEditor';
-import { LearnerPreview } from '../LearnerPreview';
 import { useToast } from '../../../../../../context/ToastContext';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { API_BASE } from '../../../../../../config/api';
@@ -22,7 +20,6 @@ export const DedicatedContentEditorPage = ({
   const [courseAssessments, setCourseAssessments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
-  const [previewMode, setPreviewMode] = useState(false);
 
   const getAuthHeader = () => {
     const token = sessionStorage.getItem('upskillr_token');
@@ -157,47 +154,23 @@ export const DedicatedContentEditorPage = ({
       guidanceTitle={currentConfig.guidanceTitle}
       guidanceType={currentConfig.guidanceType}
       onBackToWorkspace={onBackToWorkspace}
-      onTogglePreview={() => setPreviewMode(!previewMode)}
-      previewMode={previewMode}
-      showPreviewAction={true}
+      fullBleed={editorType === 'content-modules' || editorType === 'content-resources'}
     >
-      {/* ── Preview Simulation Mode ── */}
-      {previewMode ? (
-        <LearnerPreview
-          modules={modules}
-          notes={notes}
-          courseAssessments={courseAssessments}
-          onExitPreview={() => setPreviewMode(false)}
-          toast={toast}
-        />
-      ) : (
-        <>
-          {/* ── 1. MODULE & LESSONS EDITOR ── */}
-          {editorType === 'content-modules' && (
-            <ModuleLessonEditor
-              courseId={courseId}
-              modules={modules}
-              onBack={onBackToWorkspace}
-              onCurriculumUpdated={refreshCurriculum}
-              apiBase={API_BASE}
-              getAuthHeader={getAuthHeader}
-              toast={toast}
-            />
-          )}
-
-          {/* ── 2. NOTES & RESOURCES EDITOR ── */}
-          {editorType === 'content-resources' && (
-            <NotesResourcesEditor
-              courseId={courseId}
-              modules={modules}
-              notes={notes}
-              onBack={onBackToWorkspace}
-              onCurriculumUpdated={refreshCurriculum}
-              apiBase={API_BASE}
-              getAuthHeader={getAuthHeader}
-              toast={toast}
-            />
-          )}
+      <>
+        {/* ── 1. MODULE & LESSONS EDITOR (Includes Notes, Articles, and Documents) ── */}
+        {(editorType === 'content-modules' || editorType === 'content-resources') && (
+          <ModuleLessonEditor
+            courseId={courseId}
+            course={course}
+            modules={modules}
+            notes={notes}
+            onBack={onBackToWorkspace}
+            onCurriculumUpdated={refreshCurriculum}
+            apiBase={API_BASE}
+            getAuthHeader={getAuthHeader}
+            toast={toast}
+          />
+        )}
 
           {/* ── 3. ASSESSMENT EDITOR ── */}
           {editorType === 'content-assessments' && (
@@ -218,7 +191,6 @@ export const DedicatedContentEditorPage = ({
             />
           )}
         </>
-      )}
     </DedicatedEditorLayout>
   );
 };

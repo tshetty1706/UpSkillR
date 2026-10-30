@@ -6,7 +6,7 @@
 .dedicated-editor-root {
   min-height: 100vh;
   width: 100%;
-  background-color: var(--background, #f3f6f4);
+  background-color: var(--surface, #ffffff);
   color: var(--text-primary, #0f1a13);
   display: flex;
   flex-direction: column;
@@ -17,14 +17,16 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.85rem 2rem;
+  padding: 0 2rem;
+  height: 64px;
+  min-height: 64px;
+  box-sizing: border-box;
   background-color: var(--surface, #ffffff);
   border-bottom: 1px solid var(--border, #c6d3cb);
   position: sticky;
   top: 0;
   z-index: 100;
   gap: 16px;
-  flex-wrap: wrap;
 }
 
 .appbar-left-group {
@@ -193,15 +195,15 @@
   border-color: var(--brand-primary, #116830);
 }
 
-/* ── Main Container (Centered, Max 1440px per AGENTS.md) ── */
+/* ── Main Container (Fluid, Full Content Width per Reference Design) ── */
 .dedicated-editor-main-container {
   width: 100%;
-  max-width: 1440px;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 32px 32px 64px 32px;
+  padding: 24px 32px 48px 32px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
   flex: 1;
 }
 
@@ -210,11 +212,36 @@
 }
 
 .dedicated-editor-content-card {
-  background-color: var(--surface, #ffffff);
-  border: 1px solid var(--border, #c6d3cb);
-  border-radius: var(--radius-lg, 12px);
-  padding: 32px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  background-color: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Full-Bleed Fluid Workspace (Curriculum Editor with Far-Left Sidebar) ── */
+.dedicated-editor-main-container.full-bleed-workspace {
+  max-width: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 64px);
+}
+
+.dedicated-editor-content-card.full-bleed-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 64px);
+  width: 100%;
+  padding: 0;
 }
 
 /* Loading & Error States */
@@ -255,6 +282,11 @@
     padding: 24px;
   }
 
+  .dedicated-editor-main-container.full-bleed-workspace,
+  .dedicated-editor-content-card.full-bleed-content {
+    padding: 0;
+  }
+
   .crumb-course-name {
     max-width: 160px;
   }
@@ -272,6 +304,14 @@
 
   .dedicated-editor-content-card {
     padding: 16px;
+  }
+
+  .dedicated-editor-main-container.full-bleed-workspace,
+  .dedicated-editor-content-card.full-bleed-content {
+    padding: 0;
+    height: auto;
+    min-height: auto;
+    overflow: visible;
   }
 
   .appbar-vertical-divider,

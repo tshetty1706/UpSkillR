@@ -24,7 +24,8 @@ import {
   Zap,
   Plus,
   Bell,
-  Eye
+  Eye,
+  MessageSquare
 } from 'lucide-react';
 import './CourseManager.css';
 import { useToast } from '../../../../context/ToastContext';
@@ -97,6 +98,7 @@ export const CourseManager = ({
     skills: [],
     techStack: [],
     certificate: true,
+    instructorMessage: '',
     faqs: []
   });
 
@@ -192,6 +194,7 @@ export const CourseManager = ({
           skills: Array.isArray(fetchedOverview.skills) ? fetchedOverview.skills : (fetchedCourse.skills || []),
           techStack: Array.isArray(fetchedOverview.techStack) ? fetchedOverview.techStack : [],
           certificate: fetchedOverview.certificate !== undefined ? fetchedOverview.certificate : true,
+          instructorMessage: fetchedOverview.instructorMessage || '',
           faqs: Array.isArray(fetchedOverview.faqs) ? fetchedOverview.faqs : []
         });
       } else {
@@ -204,6 +207,7 @@ export const CourseManager = ({
           skills: Array.isArray(fetchedCourse.skills) ? fetchedCourse.skills : [],
           techStack: [],
           certificate: true,
+          instructorMessage: '',
           faqs: []
         };
         setOverview(fallbackOverview);
@@ -437,6 +441,7 @@ export const CourseManager = ({
       prerequisites: overviewForm.prerequisites || [],
       techStack: overviewForm.techStack || [],
       certificate: overviewForm.certificate !== false,
+      instructorMessage: overviewForm.instructorMessage || '',
       faqs: overviewForm.faqs || []
     }
     : (overview || {
@@ -446,6 +451,7 @@ export const CourseManager = ({
       prerequisites: course?.prerequisites || [],
       techStack: course?.techStack || [],
       certificate: course?.certificate !== false,
+      instructorMessage: '',
       faqs: []
     });
 
@@ -1127,6 +1133,23 @@ export const CourseManager = ({
                   </div>
                 </div>
 
+                {/* Personal Message to Learner */}
+                <div className="workspace-info-card">
+                  <div className="title-with-icon">
+                    <MessageSquare size={18} className="accent-green" />
+                    <h3 className="card-inner-heading" style={{ margin: 0 }}>
+                      Personal Message to Learner
+                    </h3>
+                  </div>
+                  {overview?.instructorMessage ? (
+                    <blockquote className="workspace-instructor-quote">
+                      "{overview.instructorMessage}"
+                    </blockquote>
+                  ) : (
+                    <p className="text-muted-italic">No personal message set yet. Click Edit Overview to add one.</p>
+                  )}
+                </div>
+
                 {/* FAQs */}
                 {Array.isArray(overview?.faqs) && overview.faqs.length > 0 && (
                   <div className="workspace-info-card">
@@ -1249,6 +1272,30 @@ export const CourseManager = ({
                   </div>
                 </div>
 
+                {/* Personal Message to Learner */}
+                <div className="form-group">
+                  <div className="label-row">
+                    <label className="form-label" htmlFor="overview-instructor-message">
+                      Personal Message to Learner
+                    </label>
+                    <span className="char-count">
+                      {overviewForm.instructorMessage?.length || 0}/1000
+                    </span>
+                  </div>
+                  <p className="field-subnote">
+                    A personal greeting, encouragement, or advice to welcome prospective learners to this course.
+                  </p>
+                  <textarea
+                    id="overview-instructor-message"
+                    rows={3}
+                    maxLength={1000}
+                    className="form-textarea workspace-no-resize"
+                    placeholder="e.g. Welcome to this course! I designed this curriculum to guide you through..."
+                    value={overviewForm.instructorMessage || ''}
+                    onChange={(e) => setOverviewForm({ ...overviewForm, instructorMessage: e.target.value })}
+                  />
+                </div>
+
                 {/* FAQs Builder */}
                 <div className="form-group faqs-edit-box">
                   <label className="form-label">Frequently Asked Questions (FAQs)</label>
@@ -1308,13 +1355,14 @@ export const CourseManager = ({
                     disabled={savingOverview}
                     onClick={() => {
                       setOverviewForm({
-                        fullDescription: overview.fullDescription || '',
-                        prerequisites: overview.prerequisites || [],
-                        learningOutcomes: overview.learningOutcomes || [],
-                        skills: overview.skills || [],
-                        techStack: overview.techStack || [],
-                        certificate: overview.certificate !== false,
-                        faqs: overview.faqs || []
+                        fullDescription: overview?.fullDescription || '',
+                        prerequisites: overview?.prerequisites || [],
+                        learningOutcomes: overview?.learningOutcomes || [],
+                        skills: overview?.skills || [],
+                        techStack: overview?.techStack || [],
+                        certificate: overview?.certificate !== false,
+                        instructorMessage: overview?.instructorMessage || '',
+                        faqs: overview?.faqs || []
                       });
                       setIsEditingOverview(false);
                     }}

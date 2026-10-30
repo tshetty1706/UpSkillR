@@ -116,12 +116,15 @@ router.post('/:courseId/curriculum/modules', protect, requireSubmittedInstructor
 router.patch('/:courseId/curriculum/modules/:moduleId', protect, requireSubmittedInstructor, courseContentController.updateModule);
 router.patch('/:courseId/curriculum/modules/:moduleId/toggle-state', protect, requireSubmittedInstructor, courseContentController.toggleModuleState);
 router.patch('/:courseId/curriculum/modules/:moduleId/reorder', protect, requireSubmittedInstructor, courseContentController.reorderModule);
+router.delete('/:courseId/curriculum/modules/:moduleId', protect, requireSubmittedInstructor, courseContentController.deleteModule);
 router.post('/:courseId/curriculum/modules/:moduleId/lessons', protect, requireSubmittedInstructor, courseContentController.createLesson);
 router.patch('/:courseId/curriculum/modules/:moduleId/lessons/:lessonId', protect, requireSubmittedInstructor, courseContentController.updateLesson);
+router.delete('/:courseId/curriculum/modules/:moduleId/lessons/:lessonId', protect, requireSubmittedInstructor, courseContentController.deleteLesson);
 router.patch('/:courseId/curriculum/modules/:moduleId/lessons/:lessonId/toggle-state', protect, requireSubmittedInstructor, courseContentController.toggleLessonState);
 router.patch('/:courseId/curriculum/modules/:moduleId/lessons/:lessonId/reorder', protect, requireSubmittedInstructor, courseContentController.reorderLesson);
 router.post('/:courseId/curriculum/lessons/:lessonId/items', protect, requireSubmittedInstructor, courseContentController.createContentItem);
 router.patch('/:courseId/curriculum/lessons/:lessonId/items/:itemId', protect, requireSubmittedInstructor, courseContentController.updateContentItem);
+router.delete('/:courseId/curriculum/lessons/:lessonId/items/:itemId', protect, requireSubmittedInstructor, courseContentController.deleteContentItem);
 router.patch('/:courseId/curriculum/lessons/:lessonId/items/:itemId/toggle-state', protect, requireSubmittedInstructor, courseContentController.toggleContentItemState);
 router.patch('/:courseId/curriculum/lessons/:lessonId/items/:itemId/reorder', protect, requireSubmittedInstructor, courseContentController.reorderContentItem);
 router.post('/:courseId/curriculum/notes', protect, requireSubmittedInstructor, courseContentController.attachNote);

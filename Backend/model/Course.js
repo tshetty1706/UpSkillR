@@ -4,13 +4,15 @@ const questionSchema = new mongoose.Schema({
   questionText: { type: String, required: true, trim: true },
   type: {
     type: String,
-    enum: ['mcq', 'true_false', 'short_answer', 'long_answer'],
+    enum: ['mcq', 'multiple_choice', 'multiple_response', 'true_false', 'short_answer', 'long_answer'],
     default: 'mcq'
   },
   options: [{ type: String }],
   correctAnswer: { type: mongoose.Schema.Types.Mixed, default: '' },
   correctAnswerIndex: { type: Number, default: 0 },
+  correctOptionIndexes: [{ type: Number }],
   marks: { type: Number, default: 1 },
+  explanation: { type: String, default: '' },
   evaluationInstructions: { type: String, default: '' },
   order: { type: Number, default: 1 }
 });
@@ -42,7 +44,8 @@ const notesSchema = new mongoose.Schema({
 
 const contentItemSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
-  type: { type: String, required: true, lowercase: true, enum: ['video', 'quiz', 'Video', 'Quiz', 'article', 'article_md', 'pdf', 'image', 'resource'] },
+  description: { type: String, default: '' },
+  type: { type: String, required: true, lowercase: true, enum: ['video', 'quiz', 'Video', 'Quiz', 'article', 'article_md', 'note', 'pdf', 'document', 'image', 'resource'] },
   state: { type: String, enum: ['draft', 'published'], default: 'draft' },
   effective_visible: { type: Boolean, default: false },
   sortKey: { type: String, default: 'a0' },
@@ -57,17 +60,29 @@ const contentItemSchema = new mongoose.Schema({
     duration: { type: Number, default: 0 },
     watchedThresholdPercent: { type: Number, default: 90 },
     allowScrubAhead: { type: Boolean, default: true },
-    status: { type: String, default: 'ready' }
+    status: { type: String, default: 'ready' },
+    allowFreePreview: { type: Boolean, default: false },
+    addToLessonNotes: { type: Boolean, default: false },
+    thumbnailUrl: { type: String, default: '' },
+    fileName: { type: String, default: '' }
   },
   fileUrl: { type: String, default: '' },
   mediaUrl: { type: String, default: '' },
+  fileName: { type: String, default: '' },
+  fileSize: { type: String, default: '' },
   content: { type: String, default: '' },
   markdownContent: { type: String, default: '' },
+  bodyMarkdown: { type: String, default: '' },
   quiz: {
     instructions: { type: String, default: '' },
     passThresholdPercent: { type: Number, default: 70 },
     maxAttempts: { type: Number, default: 3 },
     cooldownHours: { type: Number, default: 6 },
+    timeLimit: { type: Number, default: null },
+    durationMinutes: { type: Number, default: null },
+    hasTimeLimit: { type: Boolean, default: false },
+    totalQuestions: { type: Number, default: 0 },
+    totalMarks: { type: Number, default: 0 },
     role: { type: String, enum: ['lesson_check', 'practice'], default: 'lesson_check' },
     questions: [questionSchema]
   },

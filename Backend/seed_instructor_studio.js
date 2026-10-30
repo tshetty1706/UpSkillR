@@ -27,6 +27,7 @@ const seed = async () => {
       learner = await Learner.create({
         fullName: 'Devon Vance',
         email: 'devon.vance@example.com',
+        password: 'Password@123',
         authProvider: 'local'
       });
     }

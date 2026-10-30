@@ -7,7 +7,8 @@ import {
   XCircle,
   RotateCcw,
   Sparkles,
-  Check
+  Check,
+  Clock
 } from 'lucide-react';
 import './QuizPlayerModal.css';
 import { useToast } from '../../../context/ToastContext';
@@ -39,51 +40,127 @@ export const QuizPlayerModal = ({
   const questions = quiz.questions || [];
   const passThreshold = quiz.passThresholdPercent || 70;
 
-  const handleSelectOption = (qIndex, optionIndex) => {
-    if (submitted) return; // Prevent changing after submit
-    setSelectedAnswers(prev => ({
-      ...prev,
-      [qIndex]: optionIndex
-    }));
+  // Time Limit Countdown Timer
+  const timeLimitVal = quiz.hasTimeLimit
+    ? (Number(quiz.timeLimit || quiz.durationMinutes) || 0)
+    : 0;
+  const [timeLeftSeconds, setTimeLeftSeconds] = React.useState(timeLimitVal > 0 ? timeLimitVal * 60 : null);
+
+  React.useEffect(() => {
+    if (!timeLeftSeconds || timeLeftSeconds <= 0 || submitted) return;
+
+    const timer = setInterval(() => {
+      setTimeLeftSeconds(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleSubmit(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [timeLeftSeconds, submitted]);
+
+  const formatTimerDisplay = (seconds) => {
+    if (!seconds || seconds <= 0) return '00:00';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const handleSubmit = async () => {
+  const handleSelectOption = (qIndex, optionIndex) => {
+    if (submitted) return; // Prevent changing after submit
+    const q = questions[qIndex];
+    const isMulti = q?.type === 'multiple_response';
+
+    if (isMulti) {
+      setSelectedAnswers(prev => {
+        const currentArr = Array.isArray(prev[qIndex]) ? prev[qIndex] : (prev[qIndex] !== undefined ? [prev[qIndex]] : []);
+        const nextArr = currentArr.includes(optionIndex)
+          ? currentArr.filter(i => i !== optionIndex)
+          : [...currentArr, optionIndex];
+        return {
+          ...prev,
+          [qIndex]: nextArr
+        };
+      });
+    } else {
+      setSelectedAnswers(prev => ({
+        ...prev,
+        [qIndex]: optionIndex
+      }));
+    }
+  };
+
+  const handleSubmit = async (autoSubmitDueToTime = false) => {
     if (questions.length === 0) {
       toast.info('This quiz has no questions.');
       onClose();
       return;
     }
 
-    // Check if all questions answered
-    const answeredCount = Object.keys(selectedAnswers).length;
-    if (answeredCount < questions.length) {
-      toast.warning(`Please answer all ${questions.length} questions before submitting.`);
-      return;
+    // Check if all questions answered (unless timer expired)
+    if (!autoSubmitDueToTime) {
+      const answeredCount = Object.keys(selectedAnswers).filter(k => {
+        const val = selectedAnswers[k];
+        return Array.isArray(val) ? val.length > 0 : val !== undefined;
+      }).length;
+
+      if (answeredCount < questions.length) {
+        toast.warning(`Please answer all ${questions.length} questions before submitting.`);
+        return;
+      }
+    } else {
+      toast.warning('Time limit expired! Submitting answers automatically.');
     }
 
     setSubmitting(true);
 
-    // Calculate score
+    // Calculate score based on marks for each question
+    let earnedMarks = 0;
+    let totalMarks = 0;
     let correctCount = 0;
+
     questions.forEach((q, idx) => {
+      const qMarks = Math.max(1, Math.round(Number(q.marks) || 1));
+      totalMarks += qMarks;
+
       const selected = selectedAnswers[idx];
-      const correctIdx = q.correctAnswerIndex !== undefined
-        ? Number(q.correctAnswerIndex)
-        : 0;
+      const isMulti = q.type === 'multiple_response';
 
-      // Also check string match fallback
-      const isMatch = selected === correctIdx ||
-        (q.correctAnswer && String(q.options?.[selected]).trim().toLowerCase() === String(q.correctAnswer).trim().toLowerCase());
+      if (isMulti) {
+        const correctMulti = Array.isArray(q.correctOptionIndexes) && q.correctOptionIndexes.length > 0
+          ? q.correctOptionIndexes.map(Number)
+          : [Number(q.correctAnswerIndex ?? 0)];
+        const selectedArr = (Array.isArray(selected) ? selected : (selected !== undefined ? [selected] : [])).map(Number);
+        
+        const sortedCorrect = [...correctMulti].sort((a, b) => a - b).join(',');
+        const sortedSelected = [...selectedArr].sort((a, b) => a - b).join(',');
 
-      if (isMatch) {
-        correctCount++;
+        if (sortedCorrect === sortedSelected) {
+          earnedMarks += qMarks;
+          correctCount++;
+        }
+      } else {
+        const correctIdx = q.correctAnswerIndex !== undefined ? Number(q.correctAnswerIndex) : 0;
+        const isMatch = selected === correctIdx ||
+          (q.correctAnswer && String(q.options?.[selected]).trim().toLowerCase() === String(q.correctAnswer).trim().toLowerCase());
+
+        if (isMatch) {
+          earnedMarks += qMarks;
+          correctCount++;
+        }
       }
     });
 
-    const percent = Math.round((correctCount / questions.length) * 100);
+    const percent = totalMarks > 0 ? Math.round((earnedMarks / totalMarks) * 100) : 100;
     const passed = percent >= passThreshold;
 
     setScoreData({
+      earnedMarks,
+      totalMarks,
       correctCount,
       totalCount: questions.length,
       percentage: percent,
@@ -139,6 +216,9 @@ export const QuizPlayerModal = ({
     setSelectedAnswers({});
     setSubmitted(false);
     setScoreData(null);
+    if (timeLimitVal > 0) {
+      setTimeLeftSeconds(timeLimitVal * 60);
+    }
   };
 
   return (
@@ -151,11 +231,32 @@ export const QuizPlayerModal = ({
               <HelpCircle size={20} />
             </div>
             <div>
-              <h2 className="quiz-title">Quiz: {quizItem.title || 'Lesson Quiz'}</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <h2 className="quiz-title">Quiz: {quizItem.title || 'Lesson Quiz'}</h2>
+                {timeLeftSeconds !== null && (
+                  <span
+                    className="quiz-timer-badge"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      color: '#ef4444',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      fontSize: '0.8rem',
+                      fontWeight: 700
+                    }}
+                  >
+                    <Clock size={14} />
+                    <span>{formatTimerDisplay(timeLeftSeconds)}</span>
+                  </span>
+                )}
+              </div>
               <span className="quiz-submeta">
                 {moduleTitle ? `${moduleTitle} • ` : ''}
                 {lessonTitle ? `${lessonTitle} • ` : ''}
-                {questions.length} {questions.length === 1 ? 'Question' : 'Questions'} • Pass mark: {passThreshold}%
+                {questions.length} {questions.length === 1 ? 'Question' : 'Questions'}
               </span>
             </div>
           </div>
@@ -196,14 +297,14 @@ export const QuizPlayerModal = ({
                 {scoreData.passed ? 'Quiz Passed Successfully! 🎉' : 'Needs Practice'}
               </h3>
               <p className="result-score-text">
-                Your Score: <strong>{scoreData.percentage}%</strong> ({scoreData.correctCount} of {scoreData.totalCount} correct)
+                Your Score: <strong>{scoreData.percentage}%</strong> ({scoreData.earnedMarks ?? scoreData.correctCount} of {scoreData.totalMarks ?? scoreData.totalCount} marks)
               </p>
               <p className="result-desc">
                 {scoreData.passed
                   ? isEnrolled
                     ? 'Your quiz progress has been recorded and points have been credited to your learning stats!'
                     : 'Great work! You scored high enough to master this quiz.'
-                  : `You need at least ${passThreshold}% to pass this quiz. You can review the questions below and retake it.`}
+                  : `You scored ${scoreData.percentage}%. Review the explanations below and try again!`}
               </p>
 
               <div className="result-actions-row">
@@ -233,28 +334,40 @@ export const QuizPlayerModal = ({
           <div className="quiz-questions-container">
             {questions.map((q, qIndex) => {
               const selectedOption = selectedAnswers[qIndex];
+              const isMulti = q.type === 'multiple_response';
               const correctIdx = q.correctAnswerIndex !== undefined ? Number(q.correctAnswerIndex) : 0;
-              const isCorrectAnswer = selectedOption === correctIdx;
+              const correctMulti = Array.isArray(q.correctOptionIndexes) && q.correctOptionIndexes.length > 0
+                ? q.correctOptionIndexes.map(Number)
+                : [correctIdx];
 
               return (
                 <div key={q._id || qIndex} className="quiz-question-block">
                   <div className="question-header-row">
-                    <span className="question-num-tag">Question {qIndex + 1} of {questions.length}</span>
-                    <span className="question-marks-tag">{q.marks || 1} mark</span>
+                    <span className="question-num-tag">
+                      Question {qIndex + 1} of {questions.length} ({isMulti ? 'Multiple Response' : q.type === 'true_false' ? 'True / False' : 'Multiple Choice'})
+                    </span>
+                    <span className="question-marks-tag">{q.marks || 1} {q.marks === 1 ? 'mark' : 'marks'}</span>
                   </div>
 
                   <h3 className="question-text">{q.questionText}</h3>
 
                   <div className="question-options-list">
                     {(q.options || []).map((opt, oIndex) => {
-                      const isSelected = selectedOption === oIndex;
+                      const isSelected = isMulti
+                        ? (Array.isArray(selectedOption) && selectedOption.includes(oIndex))
+                        : selectedOption === oIndex;
+
                       let optionClass = 'quiz-option-card';
                       if (isSelected) optionClass += ' selected';
 
+                      const isOptionCorrect = isMulti
+                        ? correctMulti.includes(oIndex)
+                        : oIndex === correctIdx;
+
                       if (submitted) {
-                        if (oIndex === correctIdx) {
+                        if (isOptionCorrect) {
                           optionClass += ' correct-answer';
-                        } else if (isSelected && !isCorrectAnswer) {
+                        } else if (isSelected && !isOptionCorrect) {
                           optionClass += ' wrong-answer';
                         }
                       }
@@ -269,7 +382,7 @@ export const QuizPlayerModal = ({
                         >
                           <div className="option-radio-circle">
                             {submitted ? (
-                              oIndex === correctIdx ? (
+                              isOptionCorrect ? (
                                 <CheckCircle2 size={16} className="text-success" />
                               ) : isSelected ? (
                                 <XCircle size={16} className="text-danger" />
@@ -277,7 +390,11 @@ export const QuizPlayerModal = ({
                                 <span className="option-letter">{String.fromCharCode(65 + oIndex)}</span>
                               )
                             ) : (
-                              isSelected ? <div className="radio-dot" /> : <span className="option-letter">{String.fromCharCode(65 + oIndex)}</span>
+                              isSelected ? (
+                                isMulti ? <Check size={14} className="text-success" /> : <div className="radio-dot" />
+                              ) : (
+                                <span className="option-letter">{String.fromCharCode(65 + oIndex)}</span>
+                              )
                             )}
                           </div>
                           <span className="option-text">{opt}</span>
@@ -286,9 +403,9 @@ export const QuizPlayerModal = ({
                     })}
                   </div>
 
-                  {submitted && q.evaluationInstructions && (
+                  {submitted && (q.explanation || q.evaluationInstructions) && (
                     <div className="question-explanation-box">
-                      <strong>Explanation:</strong> {q.evaluationInstructions}
+                      <strong>Explanation:</strong> {q.explanation || q.evaluationInstructions}
                     </div>
                   )}
                 </div>

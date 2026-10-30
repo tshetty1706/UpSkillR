@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '../../../../../context/ToastContext';
 import { CourseContentLanding } from './CourseContentLanding';
 import { ModuleLessonEditor } from './ModuleLessonEditor';
-import { NotesResourcesEditor } from './NotesResourcesEditor';
 import { AssessmentEditor } from './AssessmentEditor';
-import { LearnerPreview } from './LearnerPreview';
 import './CourseModules.css';
 import { API_BASE } from '../../../../../config/api';
 
@@ -17,7 +15,7 @@ export const CourseModules = ({ courseId, course, onCurriculumUpdated, onNavigat
   const [notes, setNotes] = useState([]);
   const [courseAssessments, setCourseAssessments] = useState([]);
 
-  // Sub-view navigation: 'landing' | 'modules' | 'resources' | 'assessments' | 'preview'
+  // Sub-view navigation: 'landing' | 'modules' | 'resources' | 'assessments'
   const [contentSubView, setContentSubView] = useState('landing');
 
   // Auth token helper
@@ -87,30 +85,14 @@ export const CourseModules = ({ courseId, course, onCurriculumUpdated, onNavigat
               setContentSubView(subView);
             }
           }}
-          onEnterPreview={() => setContentSubView('preview')}
         />
       )}
 
       {/* ── Sub-view 2: Module & Lessons Dedicated Editor ── */}
-      {contentSubView === 'modules' && (
+      {(contentSubView === 'modules' || contentSubView === 'resources') && (
         <ModuleLessonEditor
           courseId={courseId}
           course={course}
-          modules={modules}
-          notes={notes}
-          onBack={() => setContentSubView('landing')}
-          onCurriculumUpdated={handleCurriculumUpdated}
-          onEnterPreview={() => setContentSubView('preview')}
-          apiBase={API_BASE}
-          getAuthHeader={getAuthHeader}
-          toast={toast}
-        />
-      )}
-
-      {/* ── Sub-view 3: Notes & Resources Dedicated Editor ── */}
-      {contentSubView === 'resources' && (
-        <NotesResourcesEditor
-          courseId={courseId}
           modules={modules}
           notes={notes}
           onBack={() => setContentSubView('landing')}
@@ -132,17 +114,6 @@ export const CourseModules = ({ courseId, course, onCurriculumUpdated, onNavigat
           onCurriculumUpdated={handleCurriculumUpdated}
           apiBase={API_BASE}
           getAuthHeader={getAuthHeader}
-          toast={toast}
-        />
-      )}
-
-      {/* ── Sub-view 5: Learner Preview Simulation ── */}
-      {contentSubView === 'preview' && (
-        <LearnerPreview
-          modules={modules}
-          notes={notes}
-          courseAssessments={courseAssessments}
-          onExitPreview={() => setContentSubView('landing')}
           toast={toast}
         />
       )}

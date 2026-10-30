@@ -1582,25 +1582,46 @@ exports.getLearnerEnrolments = async (req, res) => {
       if (eObj.courseId) {
         eObj.courseId = sanitizeCourseForLearner(eObj.courseId);
 
-        const totalItems = (eObj.courseId.lessons && eObj.courseId.lessons.length > 0)
-          ? eObj.courseId.lessons.length
-          : (eObj.courseId.modules || []).length;
-
-        if (totalItems > 0) {
-          const validCompleted = new Set();
-          (eObj.completedLessons || []).forEach(k => {
-            const num = Number(k);
-            if (!isNaN(num) && num >= 0 && num < totalItems) {
-              validCompleted.add(num);
-            }
+        const pubModules = (eObj.courseId.modules || []).filter(m => m.state === 'published' || m.status === 'published');
+        const pubItemIds = new Set();
+        pubModules.forEach(m => {
+          (m.lessons || []).filter(l => l.state === 'published' || l.status === 'published').forEach(l => {
+            (l.items || l.contentItems || []).filter(i => i.state === 'published' || i.status === 'published').forEach(i => {
+              pubItemIds.add(String(i._id));
+            });
           });
-          const completedCount = validCompleted.size;
-          const actualPercentage = Math.min(Math.round((completedCount / totalItems) * 100), 100);
+        });
+
+        if (pubItemIds.size > 0) {
+          const completedCount = (eObj.completedLessons || []).filter(k => pubItemIds.has(String(k))).length;
+          const actualPercentage = Math.min(Math.round((completedCount / pubItemIds.size) * 100), 100);
           eObj.progressPercentage = actualPercentage;
           if (actualPercentage < 100) {
             eObj.status = completedCount > 0 ? 'in_progress' : 'active';
           } else {
             eObj.status = 'completed';
+          }
+        } else {
+          const totalItems = (eObj.courseId.lessons && eObj.courseId.lessons.length > 0)
+            ? eObj.courseId.lessons.length
+            : (eObj.courseId.modules || []).length;
+
+          if (totalItems > 0) {
+            const validCompleted = new Set();
+            (eObj.completedLessons || []).forEach(k => {
+              const num = Number(k);
+              if (!isNaN(num) && num >= 0 && num < totalItems) {
+                validCompleted.add(num);
+              }
+            });
+            const completedCount = validCompleted.size;
+            const actualPercentage = Math.min(Math.round((completedCount / totalItems) * 100), 100);
+            eObj.progressPercentage = actualPercentage;
+            if (actualPercentage < 100) {
+              eObj.status = completedCount > 0 ? 'in_progress' : 'active';
+            } else {
+              eObj.status = 'completed';
+            }
           }
         }
       }
@@ -1631,12 +1652,28 @@ exports.updateLessonProgress = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Course not found.' });
     }
 
+    // Determine published items and lessons across published modules
+    const pubModules = (course.modules || []).filter(m => m.state === 'published' || m.status === 'published');
+    const pubItemIds = new Set();
+    const lessonToItemsMap = new Map();
+    let publishedLessonsCount = 0;
+
+    pubModules.forEach((m, mIdx) => {
+      (m.lessons || []).filter(l => l.state === 'published' || l.status === 'published').forEach((l, lIdx) => {
+        publishedLessonsCount++;
+        const lIdStr = String(l._id);
+        const lItems = (l.items || l.contentItems || []).filter(i => i.state === 'published' || i.status === 'published');
+        const itemIds = lItems.map(i => String(i._id));
+        lessonToItemsMap.set(lIdStr, itemIds);
+        lessonToItemsMap.set(String(mIdx), itemIds); // Also support numeric module index
+        itemIds.forEach(id => pubItemIds.add(id));
+      });
+    });
+
     const totalLessons = Math.max(
-      (course.lessons && course.lessons.length > 0)
-        ? course.lessons.length
-        : (course.modules && course.modules.length > 0)
-        ? course.modules.length
-        : 1,
+      pubItemIds.size > 0
+        ? pubItemIds.size
+        : (publishedLessonsCount > 0 ? publishedLessonsCount : (course.modules?.length || course.lessons?.length || 1)),
       1
     );
 
@@ -1644,31 +1681,35 @@ exports.updateLessonProgress = async (req, res) => {
     const isNum = !isNaN(idx) && String(idx) === String(lessonIndex).trim();
     const lessonKey = isNum ? idx : String(lessonIndex);
 
-    // 3. Verify module belongs to course
+    // Verify identifier belongs to course
     let moduleBelongs = false;
     if (isNum && idx >= 0) {
-      if (idx < totalLessons || (course.modules && idx < course.modules.length)) {
+      if (idx < (course.modules?.length || 1) || idx < (course.lessons?.length || 1)) {
         moduleBelongs = true;
       }
     } else {
       const targetStr = String(lessonIndex);
-      const inModules = (course.modules || []).some(m =>
-        m._id?.toString() === targetStr ||
-        (m.lessons || []).some(l => l._id?.toString() === targetStr) ||
-        (m.lessons || []).some(l => (l.items || l.contentItems || []).some(i => i._id?.toString() === targetStr))
-      );
-      const inLessons = (course.lessons || []).some(l => l._id?.toString() === targetStr);
-      if (inModules || inLessons) {
+      if (pubItemIds.has(targetStr)) {
         moduleBelongs = true;
+      } else {
+        const inModules = (course.modules || []).some(m =>
+          m._id?.toString() === targetStr ||
+          (m.lessons || []).some(l => l._id?.toString() === targetStr) ||
+          (m.lessons || []).some(l => (l.items || l.contentItems || []).some(i => i._id?.toString() === targetStr))
+        );
+        const inLessons = (course.lessons || []).some(l => l._id?.toString() === targetStr);
+        if (inModules || inLessons) {
+          moduleBelongs = true;
+        }
       }
     }
 
     if (!moduleBelongs && totalLessons > 1) {
-      return res.status(400).json({ success: false, message: 'Module does not belong to this course.' });
+      return res.status(400).json({ success: false, message: 'Module/Item does not belong to this course.' });
     }
 
-    // 4. Check if already completed
-    const isAlreadyCompleted = enrolment.completedLessons.some(i => String(i) === String(lessonKey));
+    // Check if already completed
+    const isAlreadyCompleted = (enrolment.completedLessons || []).some(i => String(i) === String(lessonKey));
     let newlyCompleted = false;
 
     // Idempotent check for /complete endpoint
@@ -1678,7 +1719,7 @@ exports.updateLessonProgress = async (req, res) => {
       if (isCompleteEndpoint) {
         return res.status(200).json({
           success: true,
-          message: 'Module is already completed.',
+          message: 'Item/Module is already completed.',
           enrolment,
           pointsAwarded: 0,
           isCompleted: true
@@ -1688,23 +1729,45 @@ exports.updateLessonProgress = async (req, res) => {
         enrolment.completedLessons = enrolment.completedLessons.filter(i => String(i) !== String(lessonKey));
       }
     } else {
-      // 5. Save module completion
+      // If a lesson ID was passed and has items, also mark its items
+      if (lessonToItemsMap.has(String(lessonKey))) {
+        const relatedItems = lessonToItemsMap.get(String(lessonKey)) || [];
+        relatedItems.forEach(itemId => {
+          if (!enrolment.completedLessons.some(i => String(i) === String(itemId))) {
+            enrolment.completedLessons.push(itemId);
+          }
+        });
+      }
       enrolment.completedLessons.push(lessonKey);
       newlyCompleted = true;
     }
 
-    // Sanitize and deduplicate completedLessons so only valid distinct module indices remain
+    // Sanitize and deduplicate completedLessons
     const uniqueValid = new Set();
     (enrolment.completedLessons || []).forEach(i => {
-      const n = Number(i);
-      if (!isNaN(n) && n >= 0 && n < totalLessons) {
-        uniqueValid.add(n);
+      const strVal = String(i);
+      if (pubItemIds.has(strVal)) {
+        uniqueValid.add(strVal);
+      } else {
+        const n = Number(i);
+        if (!isNaN(n) && n >= 0 && n < (course.modules?.length || totalLessons)) {
+          uniqueValid.add(n);
+        } else if (lessonToItemsMap.has(strVal)) {
+          uniqueValid.add(strVal);
+        }
       }
     });
     enrolment.completedLessons = Array.from(uniqueValid);
 
-    // 8. Recalculate course progress
-    const newPercentage = Math.min(Math.round((enrolment.completedLessons.length / totalLessons) * 100), 100);
+    // Recalculate course progress
+    let newPercentage = 0;
+    if (pubItemIds.size > 0) {
+      const completedItemsCount = enrolment.completedLessons.filter(i => pubItemIds.has(String(i))).length;
+      newPercentage = Math.min(Math.round((completedItemsCount / pubItemIds.size) * 100), 100);
+    } else {
+      newPercentage = Math.min(Math.round((enrolment.completedLessons.length / totalLessons) * 100), 100);
+    }
+
     enrolment.progressPercentage = newPercentage;
     enrolment.lastAccessedAt = Date.now();
 
@@ -2316,6 +2379,10 @@ exports.updateCourseOverview = async (req, res) => {
 
     await overview.save();
     await course.save();
+
+    if (courseCache && courseCache.invalidateCourse) {
+      courseCache.invalidateCourse(id);
+    }
 
     return res.status(200).json({ success: true, message: 'Course overview updated!', overview, course });
   } catch (error) {
