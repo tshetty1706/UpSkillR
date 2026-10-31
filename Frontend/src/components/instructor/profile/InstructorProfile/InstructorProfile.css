@@ -1727,6 +1727,72 @@
   background: #ffffff;
 }
 
+.doc-preview-iframe {
+  width: 100%;
+  height: 75vh;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.doc-preview-office-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2.5rem 1.5rem;
+  gap: 10px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.doc-preview-office-card .office-card-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-md, 12px);
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.dark .doc-preview-office-card .office-card-icon {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+.doc-preview-office-card h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.doc-preview-office-card .office-doc-name {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.doc-preview-office-card .office-doc-desc {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0 0 8px 0;
+}
+
+.doc-preview-office-card .office-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

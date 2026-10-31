@@ -621,35 +621,39 @@ export const CourseManager = ({
                     <h3 className="card-inner-heading">Core Information</h3>
 
                     <div className="info-data-table">
-                      <div className="data-row">
+                      {/* Course Title (Full Width) */}
+                      <div className="data-field-item field-full-width">
                         <span className="data-label">Course Title</span>
-                        <span className="data-val font-semibold">{course.title}</span>
+                        <div className="data-val font-semibold">{course.title || 'Untitled Course'}</div>
                       </div>
 
-                      <div className="data-row-two-col">
-                        <div className="data-col">
-                          <span className="data-label">Category</span>
-                          <span className="data-val">{course.category}</span>
-                        </div>
-                        <div className="data-col">
-                          <span className="data-label">Skill Level</span>
-                          <span className="data-val">{course.skillLevel}</span>
-                        </div>
+                      {/* Category (Col 1) & Skill Level (Col 2) */}
+                      <div className="data-field-item">
+                        <span className="data-label">Category</span>
+                        <div className="data-val">{course.category || 'Not specified'}</div>
                       </div>
 
-                      <div className="data-row">
+                      <div className="data-field-item">
+                        <span className="data-label">Skill Level</span>
+                        <div className="data-val">{course.skillLevel || 'All Levels'}</div>
+                      </div>
+
+                      {/* Language (Full Width) */}
+                      <div className="data-field-item field-full-width">
                         <span className="data-label">Language</span>
-                        <span className="data-val">{course.language || 'English'}</span>
+                        <div className="data-val">{course.language || 'English'}</div>
                       </div>
 
-                      <div className="data-row">
+                      {/* Short Description (Full Width) */}
+                      <div className="data-field-item field-full-width">
                         <span className="data-label">Short Description</span>
                         <p className="data-val-desc">
                           {course.shortDescription || course.description || 'No short description provided.'}
                         </p>
                       </div>
 
-                      <div className="data-row">
+                      {/* Tags & Keywords (Full Width) */}
+                      <div className="data-field-item field-full-width">
                         <span className="data-label">Tags & Keywords</span>
                         <div className="data-chips-wrap">
                           {Array.isArray(course.tags) && course.tags.length > 0 ? (
@@ -664,18 +668,21 @@ export const CourseManager = ({
                         </div>
                       </div>
 
-                      <div className="data-row-two-col meta-dates-row">
-                        <div className="data-col">
-                          <span className="data-label">Created</span>
-                          <span className="data-val-sm">
-                            {new Date(course.createdAt).toLocaleDateString()}
-                          </span>
+                      {/* Metadata Divider */}
+                      <div className="field-divider-row" />
+
+                      {/* Created (Col 1) & Last Updated (Col 2) */}
+                      <div className="data-field-item">
+                        <span className="data-label">Created</span>
+                        <div className="data-val-sm">
+                          {course.createdAt ? new Date(course.createdAt).toLocaleDateString() : 'Recently'}
                         </div>
-                        <div className="data-col">
-                          <span className="data-label">Last Updated</span>
-                          <span className="data-val-sm">
-                            {new Date(course.updatedAt).toLocaleDateString()}
-                          </span>
+                      </div>
+
+                      <div className="data-field-item">
+                        <span className="data-label">Last Updated</span>
+                        <div className="data-val-sm">
+                          {course.updatedAt ? new Date(course.updatedAt).toLocaleDateString() : 'Recently'}
                         </div>
                       </div>
                     </div>
