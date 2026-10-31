@@ -20,9 +20,11 @@ import {
   Sparkles,
   BookOpen,
   CheckCircle2,
-  X
+  X,
+  Lock
 } from 'lucide-react';
 import { AssessmentStepper, ASSESSMENT_STEPS } from './AssessmentStepper';
+import { DedicatedQuizEditor } from '../DedicatedEditor/DedicatedQuizEditor';
 
 const QUESTION_TYPES = [
   { value: 'mcq', label: 'Multiple Choice (Single Answer)', shortBadge: 'MCQ' },
@@ -53,6 +55,7 @@ export const AssessmentCreationWizard = ({
     }
     return [];
   });
+  const [moduleSearchQuery, setModuleSearchQuery] = useState('');
 
   // ── Step 2: Assessment Details State ──
   const [title, setTitle] = useState(() => initialAssessment?.title || '');
@@ -68,7 +71,7 @@ export const AssessmentCreationWizard = ({
     correctAnswerIndex: 0,
     correctOptionIndexes: [0],
     marks: 2,
-    explanation: 'useState() is the primary hook in React for local state management.'
+    explanation: ''
   };
 
   const [questions, setQuestions] = useState(() => {
@@ -101,7 +104,7 @@ export const AssessmentCreationWizard = ({
           correctAnswerIndex: correctIdx,
           correctOptionIndexes: correctMulti,
           marks: Math.max(1, Math.round(Number(q.marks) || Number(q.points) || 1)),
-          explanation: q.explanation || ''
+          explanation: ''
         };
       });
     }
@@ -125,9 +128,35 @@ export const AssessmentCreationWizard = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
+  const [viewingQuestion, setViewingQuestion] = useState(null);
 
   // Track active question
   const currentQuestion = questions[activeQuestionIndex] || questions[0] || defaultInitialQuestion;
+
+  // Duration calculation helper
+  const getModuleDuration = (mod) => {
+    if (mod?.durationMinutes) return `${mod.durationMinutes} min`;
+    const lessons = mod?.lessons || [];
+    let totalMin = 0;
+    lessons.forEach(l => {
+      if (l?.duration) {
+        const parsed = parseInt(l.duration, 10);
+        if (!isNaN(parsed)) totalMin += parsed;
+      }
+    });
+    if (totalMin > 0) return `${totalMin} min`;
+    return `${Math.max(15, lessons.length * 15)} min`;
+  };
+
+  // Filtered modules in Step 1
+  const filteredModules = useMemo(() => {
+    if (!moduleSearchQuery.trim()) return modules;
+    const q = moduleSearchQuery.toLowerCase();
+    return modules.filter(m =>
+      (m.title || '').toLowerCase().includes(q) ||
+      (m.description || '').toLowerCase().includes(q)
+    );
+  }, [modules, moduleSearchQuery]);
 
   // Live Auto-Calculations
   const totalQuestions = questions.length;
@@ -138,6 +167,7 @@ export const AssessmentCreationWizard = ({
 
   // Mark dirty
   const markDirty = () => setHasUnsavedChanges(true);
+
 
   // Step 1: Module Selection Handlers
   const toggleModuleSelection = (moduleId) => {
@@ -158,158 +188,8 @@ export const AssessmentCreationWizard = ({
     setSelectedModuleIds([]);
   };
 
-  // Step 3: Question Creation Handlers
-  const handleAddQuestion = () => {
-    markDirty();
-    const newQ = {
-      _id: `q_${Date.now()}`,
-      questionText: '',
-      type: 'mcq',
-      options: ['Option 1', 'Option 2', 'Option 3', 'Option 4'],
-      optionImages: ['', '', '', ''],
-      correctAnswerIndex: 0,
-      correctOptionIndexes: [0],
-      marks: 2,
-      explanation: ''
-    };
-    setQuestions(prev => [...prev, newQ]);
-    setActiveQuestionIndex(questions.length);
-  };
-
-  const handleUpdateCurrentQuestion = (field, value) => {
-    markDirty();
-    setQuestions(prev => {
-      const updated = [...prev];
-      const q = { ...updated[activeQuestionIndex] };
-
-      if (field === 'type') {
-        const nextType = value;
-        q.type = nextType;
-        if (nextType === 'true_false') {
-          q.options = ['True', 'False'];
-          q.optionImages = ['', ''];
-          q.correctAnswerIndex = 0;
-          q.correctOptionIndexes = [0];
-        } else if (q.options.length < 2) {
-          q.options = ['Option A', 'Option B'];
-          q.optionImages = ['', ''];
-        }
-      } else {
-        q[field] = value;
-      }
-
-      updated[activeQuestionIndex] = q;
-      return updated;
-    });
-  };
-
-  const handleOptionTextChange = (optIdx, text) => {
-    markDirty();
-    setQuestions(prev => {
-      const updated = [...prev];
-      const q = { ...updated[activeQuestionIndex] };
-      const newOpts = [...q.options];
-      newOpts[optIdx] = text;
-      q.options = newOpts;
-      updated[activeQuestionIndex] = q;
-      return updated;
-    });
-  };
-
-  const handleSetCorrectAnswer = (optIdx) => {
-    markDirty();
-    setQuestions(prev => {
-      const updated = [...prev];
-      const q = { ...updated[activeQuestionIndex] };
-      if (q.type === 'multiple_response') {
-        const cur = Array.isArray(q.correctOptionIndexes) ? [...q.correctOptionIndexes] : [];
-        const pos = cur.indexOf(optIdx);
-        if (pos > -1) {
-          if (cur.length > 1) cur.splice(pos, 1);
-        } else {
-          cur.push(optIdx);
-        }
-        q.correctOptionIndexes = cur;
-        q.correctAnswerIndex = cur[0] || 0;
-      } else {
-        q.correctAnswerIndex = optIdx;
-        q.correctOptionIndexes = [optIdx];
-      }
-      updated[activeQuestionIndex] = q;
-      return updated;
-    });
-  };
-
-  const handleAddOption = () => {
-    markDirty();
-    setQuestions(prev => {
-      const updated = [...prev];
-      const q = { ...updated[activeQuestionIndex] };
-      if (q.options.length >= 6) return prev;
-      q.options = [...q.options, `Option ${q.options.length + 1}`];
-      q.optionImages = [...(q.optionImages || []), ''];
-      updated[activeQuestionIndex] = q;
-      return updated;
-    });
-  };
-
-  const handleRemoveOption = (optIdx) => {
-    markDirty();
-    setQuestions(prev => {
-      const updated = [...prev];
-      const q = { ...updated[activeQuestionIndex] };
-      if (q.options.length <= 2) return prev;
-      const newOpts = q.options.filter((_, i) => i !== optIdx);
-      const newImgs = (q.optionImages || []).filter((_, i) => i !== optIdx);
-      q.options = newOpts;
-      q.optionImages = newImgs;
-
-      if (q.correctAnswerIndex >= newOpts.length) {
-        q.correctAnswerIndex = 0;
-      }
-      q.correctOptionIndexes = (q.correctOptionIndexes || [])
-        .filter(i => i !== optIdx)
-        .map(i => (i > optIdx ? i - 1 : i));
-      if (q.correctOptionIndexes.length === 0) {
-        q.correctOptionIndexes = [0];
-      }
-
-      updated[activeQuestionIndex] = q;
-      return updated;
-    });
-  };
-
-  const handleDeleteQuestion = (delIdx, e) => {
-    if (e) e.stopPropagation();
-    if (questions.length <= 1) {
-      toast?.error?.('An assessment must have at least one question.');
-      return;
-    }
-    markDirty();
-    setQuestions(prev => prev.filter((_, i) => i !== delIdx));
-    if (activeQuestionIndex >= delIdx) {
-      setActiveQuestionIndex(Math.max(0, activeQuestionIndex - 1));
-    }
-  };
-
-  const handleMoveQuestion = (idx, direction, e) => {
-    if (e) e.stopPropagation();
-    markDirty();
-    setQuestions(prev => {
-      const updated = [...prev];
-      const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
-      if (targetIdx < 0 || targetIdx >= updated.length) return prev;
-      const temp = updated[idx];
-      updated[idx] = updated[targetIdx];
-      updated[targetIdx] = temp;
-      return updated;
-    });
-    if (activeQuestionIndex === idx) {
-      setActiveQuestionIndex(direction === 'up' ? idx - 1 : idx + 1);
-    }
-  };
-
   // Step Validation logic
+
   const validateCurrentStep = (stepNum) => {
     if (stepNum === 1) {
       // Module selection is optional if course has 0 modules, but if course has modules, warn if none selected
@@ -499,9 +379,19 @@ export const AssessmentCreationWizard = ({
             <ArrowLeft size={16} />
           </button>
           <div className="as-wizard-title-badge">
-            {isEditing ? `Edit Assessment: ${title || 'Milestone'}` : 'New Assessment'}
+            {isEditing ? `Edit Assessment` : 'New Assessment'}
           </div>
         </div>
+
+        {currentStep > 0 && (
+          <div className="as-wizard-topbar-center">
+            <AssessmentStepper
+              currentStep={currentStep}
+              onStepClick={handleStepClick}
+              maxVisitedStep={maxVisitedStep}
+            />
+          </div>
+        )}
 
         <div className="as-wizard-topbar-right">
           {currentStep > 0 && (
@@ -517,17 +407,6 @@ export const AssessmentCreationWizard = ({
           )}
         </div>
       </header>
-
-      {/* ── Progress Stepper Bar (Only when past Intro Step) ── */}
-      {currentStep > 0 && (
-        <div className="as-wizard-stepper-wrap">
-          <AssessmentStepper
-            currentStep={currentStep}
-            onStepClick={handleStepClick}
-            maxVisitedStep={maxVisitedStep}
-          />
-        </div>
-      )}
 
       {/* ── Wizard Main Body ── */}
       <main className="as-wizard-body">
@@ -600,52 +479,72 @@ export const AssessmentCreationWizard = ({
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
-            STEP 1: MODULE SELECTION (PREREQUISITE GATING)
+            STEP 1: MODULE SELECTION (PREREQUISITE GATING) - Screenshot 1
             ══════════════════════════════════════════════════════════════════ */}
         {currentStep === 1 && (
           <div className="as-step-card">
-            <div className="as-step-header">
-              <h3 className="as-step-question">
-                Which modules should learners complete before unlocking this assessment?
-              </h3>
-              <p className="as-step-subtext">
-                Selected modules determine when learners can access this assessment. Learners must complete every selected module before the assessment becomes available.
-              </p>
+            {/* Header with green icon badge */}
+            <div className="as-step-header-with-badge">
+              <div className="as-header-icon-badge">
+                <Layers size={22} />
+              </div>
+              <div className="as-step-header-titles">
+                <h3 className="as-step-heading">
+                  Which modules should learners complete before unlocking this assessment?
+                </h3>
+                <p className="as-step-subtext">
+                  Selected modules determine when learners can access this assessment. Learners must complete every selected module before the assessment becomes available.
+                </p>
+              </div>
             </div>
 
-            <div className="as-gating-callout">
-              <Sparkles size={18} className="text-brand flex-shrink-0" />
+            {/* Gating Rule Banner */}
+            <div className="as-gating-rule-banner">
+              <div className="as-rule-icon">
+                <Sparkles size={18} />
+              </div>
               <span>
-                <strong>Rule:</strong> When learners progress through the course, this assessment remains permanently locked until 100% of the lessons in all selected prerequisite modules are completed.
+                <strong>Prerequisite Rule:</strong> Learners must achieve 100% completion in all selected modules before this assessment is unlocked.
               </span>
             </div>
 
-            <div className="as-modules-toolbar">
-              <span className="as-selected-count-pill">
-                <Layers size={14} />
-                <span>{selectedModuleIds.length} {selectedModuleIds.length === 1 ? 'Module Selected' : 'Modules Selected'}</span>
-              </span>
+            {/* Modules Toolbar Row */}
+            <div className="as-modules-toolbar-row">
+              <div className="as-modules-search-input-wrap">
+                <Search size={16} className="as-search-input-icon" />
+                <input
+                  type="text"
+                  className="as-modules-search-input"
+                  placeholder="Search modules..."
+                  value={moduleSearchQuery}
+                  onChange={(e) => setModuleSearchQuery(e.target.value)}
+                />
+              </div>
 
-              {modules.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="btn-as-action btn-as-action-secondary"
-                    onClick={selectAllModules}
-                  >
-                    Select All
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-as-action btn-as-action-secondary"
-                    onClick={clearAllModules}
-                  >
-                    Clear Selection
-                  </button>
-                </div>
-              )}
+              <div className="as-modules-toolbar-actions">
+                <span className="as-modules-count-pill">
+                  {selectedModuleIds.length} of {modules.length} modules selected
+                </span>
+                <button
+                  type="button"
+                  className="btn-as-pill-action"
+                  onClick={selectAllModules}
+                  disabled={selectedModuleIds.length === modules.length || modules.length === 0}
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  className="btn-as-pill-action"
+                  onClick={clearAllModules}
+                  disabled={selectedModuleIds.length === 0}
+                >
+                  Clear Selection
+                </button>
+              </div>
             </div>
 
+            {/* Full-width Module Cards Grid */}
             {modules.length === 0 ? (
               <div className="p-8 text-center border rounded-xl bg-surface-subtle">
                 <BookOpen size={36} className="mx-auto mb-2 text-muted" />
@@ -654,17 +553,27 @@ export const AssessmentCreationWizard = ({
                   You can proceed without prerequisite modules now, or create modules first in the Module & Lesson editor.
                 </p>
               </div>
+            ) : filteredModules.length === 0 ? (
+              <div className="p-8 text-center border rounded-xl bg-surface-subtle">
+                <Search size={32} className="mx-auto mb-2 text-muted" />
+                <h4 className="font-bold text-primary">No Matching Modules</h4>
+                <p className="text-secondary text-sm max-w-md mx-auto mt-1">
+                  No modules match your search term "{moduleSearchQuery}".
+                </p>
+              </div>
             ) : (
-              <div className="as-modules-select-grid">
-                {modules.map((mod, idx) => {
+              <div className="as-module-cards-grid">
+                {filteredModules.map((mod, idx) => {
                   const mId = String(mod._id);
                   const isSelected = selectedModuleIds.includes(mId);
                   const lessonCount = (mod.lessons || []).length;
+                  const originalIndex = modules.findIndex(m => String(m._id) === mId);
+                  const displayIndex = originalIndex >= 0 ? originalIndex : idx;
 
                   return (
                     <div
                       key={mId}
-                      className={`as-module-select-card ${isSelected ? 'is-selected' : ''}`}
+                      className={`as-module-card-item ${isSelected ? 'is-selected' : ''}`}
                       onClick={() => toggleModuleSelection(mId)}
                       role="checkbox"
                       aria-checked={isSelected}
@@ -676,29 +585,50 @@ export const AssessmentCreationWizard = ({
                         }
                       }}
                     >
-                      <div className="as-checkbox-indicator">
-                        <Check size={14} strokeWidth={3} />
+                      <div className={`as-card-checkbox ${isSelected ? 'checked' : ''}`}>
+                        {isSelected && <Check size={12} strokeWidth={3} />}
                       </div>
 
-                      <div className="as-module-info-col">
-                        <div className="flex items-center gap-2">
-                          <span className="as-module-id-badge">M{idx + 1}</span>
-                          <h4 className="as-module-card-title">{mod.title || `Module ${idx + 1}`}</h4>
+                      <div className="as-module-card-body">
+                        <div className="as-module-card-top">
+                          <span className={`as-module-code-badge mod-badge-color-${(displayIndex % 5) + 1}`}>
+                            M{displayIndex + 1}
+                          </span>
+                          <div className="as-module-title-desc">
+                            <h4 className="as-module-card-title">{mod.title || `Module ${displayIndex + 1}`}</h4>
+                            <p className="as-module-card-desc">
+                              {mod.description || 'No description provided for this module.'}
+                            </p>
+                          </div>
                         </div>
-                        {mod.description && (
-                          <p className="text-secondary text-xs line-clamp-2 mt-1">
-                            {mod.description}
-                          </p>
-                        )}
-                        <span className="as-module-card-meta mt-2">
-                          {lessonCount} {lessonCount === 1 ? 'Lesson' : 'Lessons'}
-                        </span>
+
+                        <div className="as-module-card-meta-row">
+                          <span className="as-meta-pill">
+                            <BookOpen size={12} />
+                            <span>{lessonCount} {lessonCount === 1 ? 'Lesson' : 'Lessons'}</span>
+                          </span>
+                          <span className="as-meta-pill">
+                            <Clock size={12} />
+                            <span>{getModuleDuration(mod)}</span>
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
             )}
+
+            {/* Informational Note at Bottom */}
+            <div className="as-info-note-banner">
+              <AlertCircle size={18} className="as-info-note-icon" />
+              <div className="as-info-note-text">
+                <strong>Note:</strong>
+                <p>
+                  Learners who have not completed all prerequisite modules will see this assessment in a locked state with a list of remaining requirements.
+                </p>
+              </div>
+            </div>
 
             <div className="as-wizard-nav-footer">
               <div className="as-nav-left" />
@@ -717,76 +647,138 @@ export const AssessmentCreationWizard = ({
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
-            STEP 2: ASSESSMENT DETAILS
+            STEP 2: ASSESSMENT DETAILS - Screenshot 2
             ══════════════════════════════════════════════════════════════════ */}
         {currentStep === 2 && (
-          <div className="as-step-card max-w-3xl mx-auto">
-            <div className="as-step-header">
-              <h3 className="as-step-question">Assessment Details</h3>
-              <p className="as-step-subtext">
-                Provide clear, descriptive information so learners understand what concepts this assessment will evaluate.
-              </p>
-            </div>
-
-            <div className="as-form-group">
-              <label className="as-form-label">
-                Assessment Title <span className="required-star">*</span>
-              </label>
-              <input
-                type="text"
-                className="as-form-input"
-                placeholder="e.g. React Fundamentals — Comprehensive Assessment"
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  markDirty();
-                }}
-                maxLength={120}
-              />
-              <span className="text-xs text-muted text-right">{title.length} / 120 characters</span>
-            </div>
-
-            <div className="as-form-group">
-              <label className="as-form-label">Assessment Description (Optional)</label>
-              <textarea
-                className="as-form-textarea"
-                rows={4}
-                placeholder="Describe the topics and skills evaluated by this assessment..."
-                value={description}
-                onChange={(e) => {
-                  setDescription(e.target.value);
-                  markDirty();
-                }}
-                maxLength={500}
-              />
-              <span className="text-xs text-muted text-right">{description.length} / 500 characters</span>
-            </div>
-
-            {/* Selected Prerequisite Modules Summary Card */}
-            <div className="p-4 rounded-xl border bg-surface-subtle flex flex-col gap-2">
-              <span className="text-xs font-bold text-muted uppercase tracking-wider">
-                Prerequisite Summary
-              </span>
-              {selectedModuleIds.length === 0 ? (
-                <p className="text-sm text-secondary">
-                  No prerequisite modules selected. This assessment will be available immediately to enrolled learners.
+          <div className="as-step2-container">
+            {/* Header with icon badge */}
+            <div className="as-step-header-with-badge">
+              <div className="as-header-icon-badge">
+                <FileText size={22} />
+              </div>
+              <div className="as-step-header-titles">
+                <h3 className="as-step-heading">Assessment Details</h3>
+                <p className="as-step-subtext">
+                  Provide clear, descriptive information so learners understand what concepts this assessment will evaluate.
                 </p>
+              </div>
+            </div>
+
+            {/* Card 1: Assessment Details */}
+            <div className="as-review-card">
+              <h4 className="text-base font-bold text-primary">Assessment Details</h4>
+              <p className="text-xs text-secondary -mt-2">
+                Configure the title and an optional summary of the assessment scope.
+              </p>
+
+              <div className="as-form-group">
+                <label className="as-form-label">
+                  Assessment Title <span className="required-star">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="as-form-input"
+                  placeholder="e.g. Full-Stack Development Milestone Assessment"
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    markDirty();
+                  }}
+                  maxLength={120}
+                />
+                <span className="as-field-counter">{title.length} / 120 characters</span>
+              </div>
+
+              <div className="as-form-group">
+                <label className="as-form-label">Assessment Description (Optional)</label>
+                <textarea
+                  className="as-form-textarea"
+                  rows={4}
+                  placeholder="Describe the topics and skills evaluated by this assessment..."
+                  value={description}
+                  onChange={(e) => {
+                    setDescription(e.target.value);
+                    markDirty();
+                  }}
+                  maxLength={500}
+                />
+                <span className="as-field-counter">{description.length} / 500 characters</span>
+              </div>
+            </div>
+
+            {/* Card 2: Coverage & Prerequisites */}
+            <div className="as-review-card">
+              <div className="flex flex-col gap-1">
+                <h4 className="text-base font-bold text-primary">Coverage & Prerequisites</h4>
+                <p className="text-xs text-secondary">
+                  Learners will be tested on the content from these modules. These modules must be completed before the assessment unlocks.
+                </p>
+              </div>
+
+              {/* Access Rule Banner */}
+              <div className="as-access-rule-banner">
+                <Lock size={15} className="as-lock-icon" />
+                <span>
+                  <strong>Access Rule:</strong> Learners must achieve 100% completion in all selected modules before this assessment is unlocked.
+                </span>
+              </div>
+
+              {/* Toolbar Row */}
+              <div className="as-coverage-toolbar-row">
+                <span className="as-selected-modules-label">
+                  Selected modules ({selectedModuleIds.length})
+                </span>
+                <button
+                  type="button"
+                  className="btn-as-add-modules-pill"
+                  onClick={() => setCurrentStep(1)}
+                >
+                  <Plus size={14} />
+                  <span>Select Modules</span>
+                </button>
+              </div>
+
+              {/* Selected Module Chip Cards Grid */}
+              {selectedModuleIds.length === 0 ? (
+                <div className="p-4 rounded-lg border border-dashed text-center bg-surface-subtle">
+                  <p className="text-xs text-secondary">
+                    No prerequisite modules selected. Learners will be able to access this assessment immediately upon enrollment.
+                  </p>
+                </div>
               ) : (
-                <div className="flex flex-wrap items-center gap-2 mt-1">
-                  {selectedModuleIds.map(mId => {
+                <div className="as-selected-modules-grid">
+                  {selectedModuleIds.map((mId) => {
                     const mObj = modules.find(m => String(m._id) === mId);
                     const idx = modules.findIndex(m => String(m._id) === mId);
+                    const lessonCount = (mObj?.lessons || []).length;
+
                     return (
-                      <span key={mId} className="inline-flex items-center gap-1.5 px-3 py-1 bg-surface border rounded-md text-xs font-semibold text-primary">
-                        <span className="text-brand font-bold">M{idx + 1}:</span>
-                        <span>{mObj?.title || 'Module'}</span>
-                      </span>
+                      <div key={mId} className="as-selected-module-chip-card">
+                        <span className={`as-module-code-badge mod-badge-color-${((idx >= 0 ? idx : 0) % 5) + 1}`}>
+                          M{idx >= 0 ? idx + 1 : 1}
+                        </span>
+                        <div className="as-selected-chip-info">
+                          <h5 className="as-selected-chip-title">{mObj?.title || 'Selected Module'}</h5>
+                          <span className="as-selected-chip-meta">
+                            {lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'} • {getModuleDuration(mObj)}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="as-btn-remove-chip"
+                          onClick={() => toggleModuleSelection(mId)}
+                          title="Remove prerequisite module"
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
               )}
             </div>
 
+            {/* Bottom Navigation Footer */}
             <div className="as-wizard-nav-footer">
               <div className="as-nav-left">
                 <button
@@ -817,264 +809,31 @@ export const AssessmentCreationWizard = ({
             ══════════════════════════════════════════════════════════════════ */}
         {currentStep === 3 && (
           <div className="flex flex-col gap-4">
-            <div className="as-questions-3col-layout">
-              {/* Panel 1: Questions List */}
-              <div className="as-q-list-col">
-                <div className="as-q-list-header">
-                  <h4 className="as-q-list-heading">Questions ({totalQuestions})</h4>
-                  <button
-                    type="button"
-                    className="btn-add-q-inline"
-                    onClick={handleAddQuestion}
-                  >
-                    <Plus size={13} />
-                    <span>Add</span>
-                  </button>
-                </div>
+            <DedicatedQuizEditor
+              courseId={courseId}
+              mode="assessment"
+              hideExplanation={true}
+              isWizardStep={true}
+              initialQuestions={questions}
+              onChangeQuestions={(newQuestions) => {
+                setQuestions(newQuestions);
+                markDirty();
+              }}
+              activeQuestionIndexControlled={activeQuestionIndex}
+              onSelectQuestionIndex={(newIdx) => setActiveQuestionIndex(newIdx)}
+              assessmentContext={{
+                title: title || 'Untitled Assessment',
+                description: description || 'No description provided.',
+                status: isEditing ? (initialAssessment?.status || 'draft') : 'draft',
+                currentQuestionIndex: activeQuestionIndex,
+                totalQuestions: questions.length,
+                totalMarks: totalMarks,
+                currentQuestionMarks: questions[activeQuestionIndex]?.marks || 1
+              }}
+              toast={toast}
+            />
 
-                <div className="p-2 border-b">
-                  <div className="as-sidebar-search-wrap">
-                    <Search size={13} className="as-sidebar-search-icon" />
-                    <input
-                      type="text"
-                      className="as-sidebar-search-input"
-                      placeholder="Search questions..."
-                      value={questionSearchQuery}
-                      onChange={(e) => setQuestionSearchQuery(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="as-q-list-scroll">
-                  {filteredQuestions.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-muted">
-                      No questions match "{questionSearchQuery}"
-                    </div>
-                  ) : (
-                    filteredQuestions.map((q) => {
-                      const origIdx = q.originalIndex;
-                      const isActive = origIdx === activeQuestionIndex;
-
-                      return (
-                        <div
-                          key={q._id || origIdx}
-                          className={`as-q-item-card ${isActive ? 'is-active' : ''}`}
-                          onClick={() => setActiveQuestionIndex(origIdx)}
-                        >
-                          <div className="as-q-num-pill">
-                            {origIdx + 1}
-                          </div>
-
-                          <div className="as-q-item-info">
-                            <span className="as-q-item-prompt" title={q.questionText}>
-                              {q.questionText || `Question ${origIdx + 1}`}
-                            </span>
-                            <div className="as-q-item-meta">
-                              <span className="as-q-type-badge">
-                                {QUESTION_TYPES.find(t => t.value === q.type)?.shortBadge || 'MCQ'}
-                              </span>
-                              <span>•</span>
-                              <span>{q.marks || 1} {q.marks === 1 ? 'mark' : 'marks'}</span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              className="btn-remove-option"
-                              disabled={origIdx === 0}
-                              onClick={(e) => handleMoveQuestion(origIdx, 'up', e)}
-                              title="Move Up"
-                            >
-                              <ArrowUp size={13} />
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-remove-option"
-                              disabled={origIdx === questions.length - 1}
-                              onClick={(e) => handleMoveQuestion(origIdx, 'down', e)}
-                              title="Move Down"
-                            >
-                              <ArrowDown size={13} />
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-remove-option"
-                              onClick={(e) => handleDeleteQuestion(origIdx, e)}
-                              title="Delete Question"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              {/* Panel 2: Center Question Editor */}
-              <div className="as-q-editor-col">
-                <div className="as-editor-top-row">
-                  <div className="as-type-select-wrap">
-                    <label className="text-xs font-bold text-muted uppercase">Question Type:</label>
-                    <select
-                      className="as-form-input text-xs font-semibold py-1.5 px-3 rounded-md w-auto"
-                      value={currentQuestion.type || 'mcq'}
-                      onChange={(e) => handleUpdateCurrentQuestion('type', e.target.value)}
-                    >
-                      {QUESTION_TYPES.map(t => (
-                        <option key={t.value} value={t.value}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="as-marks-input-wrap">
-                    <label className="text-xs font-bold text-muted uppercase">Marks:</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      className="as-marks-number-input"
-                      value={currentQuestion.marks || 1}
-                      onChange={(e) => handleUpdateCurrentQuestion('marks', Math.max(1, parseInt(e.target.value, 10) || 1))}
-                    />
-                  </div>
-                </div>
-
-                <div className="as-form-group">
-                  <label className="as-form-label">
-                    Question Prompt ({activeQuestionIndex + 1} of {totalQuestions}) <span className="required-star">*</span>
-                  </label>
-                  <textarea
-                    className="as-form-textarea"
-                    rows={3}
-                    placeholder="Enter the question text clearly..."
-                    value={currentQuestion.questionText || ''}
-                    onChange={(e) => handleUpdateCurrentQuestion('questionText', e.target.value)}
-                  />
-                </div>
-
-                {/* Options List */}
-                <div className="as-form-group">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="as-form-label">
-                      Answer Options & Correct Answer
-                    </label>
-                    <span className="text-xs text-muted">
-                      {currentQuestion.type === 'multiple_response'
-                        ? 'Check all options that are correct'
-                        : 'Select the radio button for the correct option'}
-                    </span>
-                  </div>
-
-                  <div className="as-options-list">
-                    {(currentQuestion.options || []).map((opt, optIdx) => {
-                      const isCorrect = currentQuestion.type === 'multiple_response'
-                        ? (currentQuestion.correctOptionIndexes || []).includes(optIdx)
-                        : currentQuestion.correctAnswerIndex === optIdx;
-
-                      return (
-                        <div key={optIdx} className="as-option-row">
-                          <button
-                            type="button"
-                            className={`as-option-correct-btn ${isCorrect ? 'is-correct' : ''}`}
-                            onClick={() => handleSetCorrectAnswer(optIdx)}
-                            title={isCorrect ? 'Marked as correct' : 'Click to mark as correct'}
-                          >
-                            <Check size={16} strokeWidth={3} />
-                          </button>
-
-                          <input
-                            type="text"
-                            className="as-option-input"
-                            placeholder={`Option ${optIdx + 1}...`}
-                            value={opt}
-                            disabled={currentQuestion.type === 'true_false'}
-                            onChange={(e) => handleOptionTextChange(optIdx, e.target.value)}
-                          />
-
-                          {currentQuestion.type !== 'true_false' && (currentQuestion.options || []).length > 2 && (
-                            <button
-                              type="button"
-                              className="btn-remove-option"
-                              onClick={() => handleRemoveOption(optIdx)}
-                              title="Delete option"
-                            >
-                              <X size={15} />
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {currentQuestion.type !== 'true_false' && (currentQuestion.options || []).length < 6 && (
-                    <button
-                      type="button"
-                      className="btn-add-option-row mt-2"
-                      onClick={handleAddOption}
-                    >
-                      <Plus size={14} />
-                      <span>Add Option</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* Explanation */}
-                <div className="as-form-group">
-                  <label className="as-form-label">Explanation / Solution Note (Optional)</label>
-                  <textarea
-                    className="as-form-textarea"
-                    rows={2}
-                    placeholder="Provide explanatory feedback for learners after completion..."
-                    value={currentQuestion.explanation || ''}
-                    onChange={(e) => handleUpdateCurrentQuestion('explanation', e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* Panel 3: Assessment Summary */}
-              <div className="as-q-summary-col">
-                <h4 className="text-sm font-bold text-primary border-b pb-2">
-                  Assessment Summary
-                </h4>
-
-                <div className="as-summary-stat-box">
-                  <span className="as-stat-label">Total Questions</span>
-                  <span className="as-stat-number">{totalQuestions}</span>
-                </div>
-
-                <div className="as-summary-stat-box">
-                  <span className="as-stat-label">Total Marks</span>
-                  <span className="as-stat-number">{totalMarks}</span>
-                </div>
-
-                <div className="as-summary-stat-box">
-                  <span className="as-stat-label">Avg Marks/Q</span>
-                  <span className="as-stat-number">{avgMarksPerQuestion}</span>
-                </div>
-
-                <div className="p-3 bg-surface-subtle border rounded-lg flex flex-col gap-1.5 text-xs">
-                  <span className="font-bold text-muted uppercase">Prerequisite Gating</span>
-                  <span className="text-secondary">
-                    {selectedModuleIds.length} {selectedModuleIds.length === 1 ? 'module required' : 'modules required'}
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  className="btn-as-action btn-as-action-primary w-full justify-center"
-                  onClick={handleAddQuestion}
-                >
-                  <Plus size={14} />
-                  <span>Add Next Question</span>
-                </button>
-              </div>
-            </div>
-
+            {/* Bottom Navigation Footer */}
             <div className="as-wizard-nav-footer">
               <div className="as-nav-left">
                 <button
@@ -1101,155 +860,91 @@ export const AssessmentCreationWizard = ({
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
-            STEP 4: ASSESSMENT SETTINGS
+            STEP 4: ASSESSMENT SETTINGS (TIMING, BEHAVIOR & INSTRUCTIONS)
             ══════════════════════════════════════════════════════════════════ */}
         {currentStep === 4 && (
-          <div className="as-step-card max-w-3xl mx-auto">
-            <div className="as-step-header">
-              <h3 className="as-step-question">Assessment Settings & Timing</h3>
-              <p className="as-step-subtext">
-                Configure timing, randomization, and display rules for this assessment.
-              </p>
-            </div>
-
-            {/* A. Assessment Summary */}
-            <div className="as-metrics-grid">
-              <div className="as-metric-pill-card">
-                <span className="as-metric-label">Total Questions</span>
-                <span className="as-metric-value">{totalQuestions}</span>
+          <div className="as-step4-container">
+            {/* Header with icon badge */}
+            <div className="as-step-header-with-badge">
+              <div className="as-header-icon-badge">
+                <Clock size={22} />
               </div>
-              <div className="as-metric-pill-card">
-                <span className="as-metric-label">Total Marks</span>
-                <span className="as-metric-value">{totalMarks}</span>
-              </div>
-              <div className="as-metric-pill-card">
-                <span className="as-metric-label">Prerequisite Modules</span>
-                <span className="as-metric-value">{selectedModuleIds.length}</span>
+              <div className="as-step-header-titles">
+                <h3 className="as-step-heading">Assessment Settings</h3>
+                <p className="as-step-subtext">
+                  Configure duration, exam integrity options, and learner instructions.
+                </p>
               </div>
             </div>
 
-            {/* B. Time Limit */}
-            <div className="as-form-group">
-              <label className="as-form-label">
-                Time Limit (Minutes) <span className="required-star">*</span>
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  min={5}
-                  max={300}
-                  step={5}
-                  className="as-form-input w-36 font-bold text-center text-lg text-brand"
-                  value={timeLimit}
-                  onChange={(e) => {
-                    setTimeLimit(Math.max(5, parseInt(e.target.value, 10) || 45));
-                    markDirty();
-                  }}
-                />
-                <span className="text-secondary font-medium">Minutes</span>
-                <span className="as-duration-badge ml-auto">
-                  Recommended: 45–60 min
-                </span>
-              </div>
-              <p className="text-xs text-muted mt-1">
-                The timer starts when the learner begins the assessment and persists across page refreshes. When time expires, answers are automatically evaluated.
-              </p>
-            </div>
-
-            {/* C. Additional Assessment Controls */}
-            <div className="border-t pt-4 flex flex-col gap-4">
-              <h4 className="text-sm font-bold text-primary">Assessment Controls & Behavior</h4>
-
-              {/* 1. Question Order */}
-              <label className="flex items-start gap-3 cursor-pointer p-3 border rounded-xl hover:bg-surface-subtle transition-colors">
-                <input
-                  type="checkbox"
-                  className="mt-1 accent-brand"
-                  checked={shuffleQuestions}
-                  onChange={(e) => {
-                    setShuffleQuestions(e.target.checked);
-                    markDirty();
-                  }}
-                />
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-semibold text-primary">Shuffle Question Order</span>
-                  <span className="text-xs text-secondary">
-                    Randomizes the sequence of questions for each learner attempt.
-                  </span>
+            <div className="as-settings-grid">
+              {/* Card 1: Timing & Time Limits */}
+              <div className="as-review-card as-settings-card">
+                <div className="as-settings-section-head">
+                  <div className="as-settings-section-icon">
+                    <Clock size={16} />
+                  </div>
+                  <div>
+                    <h4 className="as-settings-section-title">Timing & Time Limit</h4>
+                    <p className="as-settings-section-desc">
+                      Set how long learners have to complete the assessment once started.
+                    </p>
+                  </div>
                 </div>
-              </label>
 
-              {/* 2. Answer Option Order */}
-              <label className="flex items-start gap-3 cursor-pointer p-3 border rounded-xl hover:bg-surface-subtle transition-colors">
-                <input
-                  type="checkbox"
-                  className="mt-1 accent-brand"
-                  checked={shuffleOptions}
-                  onChange={(e) => {
-                    setShuffleOptions(e.target.checked);
-                    markDirty();
-                  }}
-                />
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-semibold text-primary">Shuffle Answer Options</span>
-                  <span className="text-xs text-secondary">
-                    Randomizes the option choices for multiple choice questions.
-                  </span>
-                </div>
-              </label>
+                <div className="as-timing-config-card">
+                  <div className="as-timing-input-group">
+                    <label className="as-form-label">
+                      Time Limit (Minutes) <span className="required-star">*</span>
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        min={5}
+                        max={300}
+                        step={5}
+                        className="as-timing-numeric-input"
+                        value={timeLimit}
+                        onChange={(e) => {
+                          setTimeLimit(Math.max(5, parseInt(e.target.value, 10) || 45));
+                          markDirty();
+                        }}
+                      />
+                      <span className="text-sm font-semibold text-secondary"> Minutes</span>
+                    </div>
 
-              {/* 3. Result Visibility */}
-              <div className="flex flex-col gap-2 p-3 border rounded-xl">
-                <span className="text-sm font-semibold text-primary">Result Visibility</span>
-                <div className="flex items-center gap-6 mt-1">
-                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-secondary">
-                    <input
-                      type="radio"
-                      name="resultVisibility"
-                      value="immediate"
-                      checked={resultVisibility === 'immediate'}
-                      onChange={() => {
-                        setResultVisibility('immediate');
-                        markDirty();
-                      }}
-                      className="accent-brand"
-                    />
-                    <span>Immediately After Submission</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-secondary">
-                    <input
-                      type="radio"
-                      name="resultVisibility"
-                      value="after_review"
-                      checked={resultVisibility === 'after_review'}
-                      onChange={() => {
-                        setResultVisibility('after_review');
-                        markDirty();
-                      }}
-                      className="accent-brand"
-                    />
-                    <span>After Instructor Review</span>
-                  </label>
+                    {/* Quick Preset Buttons */}
+                    <div className="as-time-presets-row">
+                      {[15, 30, 45, 60, 90].map((mins) => (
+                        <button
+                          key={mins}
+                          type="button"
+                          className={`btn-as-time-preset ${Number(timeLimit) === mins ? 'active' : ''}`}
+                          onClick={() => {
+                            setTimeLimit(mins);
+                            markDirty();
+                          }}
+                        >
+                          {mins} min
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="as-recommended-callout-card">
+                    <Clock size={20} className="as-rec-icon" />
+                    <div className="as-rec-content">
+                      <span className="as-rec-title">Recommended: 45–60 minutes</span>
+                      <span className="as-rec-subtitle">
+                        Gives learners sufficient time to reflect on complex problems without cognitive fatigue.
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              {/* 4. Assessment Instructions */}
-              <div className="as-form-group">
-                <label className="as-form-label">Learner Instructions (Optional)</label>
-                <textarea
-                  className="as-form-textarea"
-                  rows={3}
-                  placeholder="Instructions displayed to learners on the start screen before the timer begins..."
-                  value={instructions}
-                  onChange={(e) => {
-                    setInstructions(e.target.value);
-                    markDirty();
-                  }}
-                  maxLength={500}
-                />
-              </div>
             </div>
 
+            {/* Bottom Navigation Footer */}
             <div className="as-wizard-nav-footer">
               <div className="as-nav-left">
                 <button
@@ -1276,61 +971,88 @@ export const AssessmentCreationWizard = ({
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
-            STEP 5: REVIEW & PUBLISH
+            STEP 5: REVIEW & PUBLISH - Screenshot 4
             ══════════════════════════════════════════════════════════════════ */}
         {currentStep === 5 && (
-          <div className="as-step-card max-w-4xl mx-auto">
-            <div className="as-step-header">
-              <h3 className="as-step-question">Review & Publish Assessment</h3>
-              <p className="as-step-subtext">
-                Verify all assessment configurations before saving. You can save as a draft to edit later or publish immediately.
-              </p>
+          <div className="as-step5-container">
+            {/* Header with icon badge */}
+            <div className="as-step-header-with-badge">
+              <div className="as-header-icon-badge">
+                <CheckCircle2 size={22} />
+              </div>
+              <div className="as-step-header-titles">
+                <h3 className="as-step-heading">Review & Publish Assessment</h3>
+                <p className="as-step-subtext">
+                  Verify all assessment configurations before saving. You can save as a draft to edit later or publish immediately.
+                </p>
+              </div>
             </div>
 
-            {/* Assessment Overview Section */}
-            <div className="as-card-section">
-              <div className="as-card-section-header">
-                <span className="font-bold text-primary">Assessment Overview</span>
+            {/* 1. Assessment Overview Card */}
+            <div className="as-review-card">
+              <div className="as-review-card-header">
+                <h4 className="text-base font-bold text-primary">Assessment Overview</h4>
                 <button
                   type="button"
-                  className="text-xs text-brand font-semibold hover:underline"
+                  className="btn-as-review-edit"
                   onClick={() => setCurrentStep(2)}
                 >
-                  Edit Details
+                  <FileText size={14} />
+                  <span>Edit Details</span>
                 </button>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <h4 className="text-lg font-bold text-primary">{title || 'Untitled Assessment'}</h4>
-                {description && <p className="text-sm text-secondary">{description}</p>}
-              </div>
+              <div className="as-review-overview-body">
+                <div className="as-overview-title-block">
+                  <div className="as-overview-doc-icon">
+                    <FileText size={22} />
+                  </div>
+                  <div className="as-overview-text">
+                    <div className="as-overview-title-row">
+                      <h4 className="as-overview-title">{title || 'Untitled Assessment'}</h4>
+                      <span className="as-status-badge draft">Draft</span>
+                    </div>
+                    <p className="as-overview-desc">{description || 'No description provided.'}</p>
+                  </div>
+                </div>
 
-              <div className="as-metrics-grid mt-2">
-                <div className="as-metric-pill-card">
-                  <span className="as-metric-label">Duration</span>
-                  <span className="as-metric-value">{timeLimit} min</span>
-                </div>
-                <div className="as-metric-pill-card">
-                  <span className="as-metric-label">Questions</span>
-                  <span className="as-metric-value">{totalQuestions}</span>
-                </div>
-                <div className="as-metric-pill-card">
-                  <span className="as-metric-label">Total Marks</span>
-                  <span className="as-metric-value">{totalMarks}</span>
+                <div className="as-review-metrics-grid">
+                  <div className="as-review-metric-pill">
+                    <Clock size={20} className="as-metric-icon" />
+                    <div className="as-metric-text-col">
+                      <span className="as-metric-label">Duration</span>
+                      <span className="as-metric-val">{timeLimit} minutes</span>
+                    </div>
+                  </div>
+                  <div className="as-review-metric-pill">
+                    <HelpCircle size={20} className="as-metric-icon" />
+                    <div className="as-metric-text-col">
+                      <span className="as-metric-label">Questions</span>
+                      <span className="as-metric-val">{totalQuestions}</span>
+                    </div>
+                  </div>
+                  <div className="as-review-metric-pill">
+                    <Award size={20} className="as-metric-icon" />
+                    <div className="as-metric-text-col">
+                      <span className="as-metric-label">Total Marks</span>
+                      <span className="as-metric-val">{totalMarks} points</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Prerequisite Modules Section */}
-            <div className="as-card-section">
-              <div className="as-card-section-header">
-                <span className="font-bold text-primary">Prerequisite Module Gating</span>
+            {/* 2. Prerequisite Module Gating Card */}
+            <div className="as-review-card">
+              <div className="as-review-card-header">
+                <h4 className="text-base font-bold text-primary">Prerequisite Module Gating</h4>
                 <button
                   type="button"
-                  className="text-xs text-brand font-semibold hover:underline"
+                  className="btn-as-review-edit"
                   onClick={() => setCurrentStep(1)}
                 >
-                  Edit Modules
+                  <Layers size={14} />
+                  <span>Edit Modules</span>
                 </button>
               </div>
 
@@ -1339,17 +1061,21 @@ export const AssessmentCreationWizard = ({
                   No prerequisite modules selected. This assessment will be immediately accessible to all enrolled learners.
                 </p>
               ) : (
-                <div className="as-prereq-modules-grid">
-                  {selectedModuleIds.map(mId => {
+                <div className="as-review-modules-grid">
+                  {selectedModuleIds.map((mId) => {
                     const mObj = modules.find(m => String(m._id) === mId);
                     const idx = modules.findIndex(m => String(m._id) === mId);
+                    const lessonCount = (mObj?.lessons || []).length;
+
                     return (
-                      <div key={mId} className="as-prereq-module-card">
-                        <span className="as-module-id-badge">M{idx + 1}</span>
-                        <div className="as-module-info-col">
-                          <span className="as-module-card-title">{mObj?.title || 'Module'}</span>
-                          <span className="as-module-card-meta">
-                            {(mObj?.lessons || []).length} lessons
+                      <div key={mId} className="as-review-module-card">
+                        <span className={`as-module-code-badge mod-badge-color-${((idx >= 0 ? idx : 0) % 5) + 1}`}>
+                          M{idx >= 0 ? idx + 1 : 1}
+                        </span>
+                        <div className="as-review-mod-info">
+                          <h5 className="as-review-mod-title">{mObj?.title || 'Selected Module'}</h5>
+                          <span className="as-review-mod-meta">
+                            {lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'} • {getModuleDuration(mObj)}
                           </span>
                         </div>
                       </div>
@@ -1359,21 +1085,22 @@ export const AssessmentCreationWizard = ({
               )}
             </div>
 
-            {/* Questions Table Overview */}
-            <div className="as-card-section">
-              <div className="as-card-section-header">
-                <span className="font-bold text-primary">Questions ({totalQuestions})</span>
+            {/* 3. Questions Summary Card (NO Difficulty column) */}
+            <div className="as-review-card">
+              <div className="as-review-card-header">
+                <h4 className="text-base font-bold text-primary">Questions Summary ({totalQuestions})</h4>
                 <button
                   type="button"
-                  className="text-xs text-brand font-semibold hover:underline"
+                  className="btn-as-review-edit"
                   onClick={() => setCurrentStep(3)}
                 >
-                  Edit Questions
+                  <HelpCircle size={14} />
+                  <span>Edit Questions</span>
                 </button>
               </div>
 
-              <div className="as-questions-table-wrap">
-                <table className="as-questions-table">
+              <div className="as-review-table-container">
+                <table className="as-review-questions-table">
                   <thead>
                     <tr>
                       <th style={{ width: '60px' }}>#</th>
@@ -1381,24 +1108,52 @@ export const AssessmentCreationWizard = ({
                       <th style={{ width: '130px' }}>Type</th>
                       <th style={{ width: '90px' }}>Marks</th>
                       <th style={{ width: '90px' }}>Status</th>
+                      <th style={{ width: '130px', textAlign: 'right' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {questions.map((q, idx) => (
-                      <tr key={idx}>
-                        <td className="font-bold text-muted">Q{idx + 1}</td>
-                        <td className="font-medium text-primary line-clamp-1">{q.questionText}</td>
+                      <tr key={q._id || idx}>
+                        <td className="as-table-q-num">Q{idx + 1}</td>
+                        <td className="as-table-q-prompt">
+                          <span className="line-clamp-1">{q.questionText || 'Empty Question Prompt'}</span>
+                        </td>
                         <td>
-                          <span className="as-q-type-badge">
+                          <span className={`as-table-type-badge ${q.type}`}>
                             {QUESTION_TYPES.find(t => t.value === q.type)?.shortBadge || 'MCQ'}
                           </span>
                         </td>
-                        <td className="font-semibold text-brand">{q.marks} pts</td>
+                        <td className="as-table-marks">{q.marks} pts</td>
                         <td>
-                          <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-semibold">
-                            <CheckCircle2 size={12} />
-                            Valid
+                          <span className="as-table-status-valid">
+                            <CheckCircle2 size={13} />
+                            <span>Valid</span>
                           </span>
+                        </td>
+                        <td>
+                          <div className="as-table-actions-cluster">
+                            <button
+                              type="button"
+                              className="btn-as-table-view"
+                              onClick={() => setViewingQuestion(q)}
+                              title="Preview question and answer choices"
+                            >
+                              <Eye size={13} />
+                              <span>View</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-as-table-edit"
+                              onClick={() => {
+                                setActiveQuestionIndex(idx);
+                                setCurrentStep(3);
+                              }}
+                              title="Edit this question in Question Editor"
+                            >
+                              <ChevronRight size={13} />
+                              <span>Edit</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1407,7 +1162,7 @@ export const AssessmentCreationWizard = ({
               </div>
             </div>
 
-            {/* Final Actions */}
+            {/* Final Actions Footer */}
             <div className="as-wizard-nav-footer">
               <div className="as-nav-left">
                 <button
@@ -1445,6 +1200,74 @@ export const AssessmentCreationWizard = ({
           </div>
         )}
       </main>
+
+      {/* ── Question View Preview Modal ── */}
+      {viewingQuestion && (
+        <div className="as-modal-backdrop" onClick={() => setViewingQuestion(null)}>
+          <div className="as-modal-card as-question-view-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="as-review-card-header">
+              <div className="flex items-center gap-2">
+                <span className={`as-table-type-badge ${viewingQuestion.type}`}>
+                  {QUESTION_TYPES.find(t => t.value === viewingQuestion.type)?.shortBadge || 'MCQ'}
+                </span>
+                <span className="text-xs font-bold text-muted">
+                  {viewingQuestion.marks} {Number(viewingQuestion.marks) === 1 ? 'point' : 'points'}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="as-btn-remove-chip"
+                onClick={() => setViewingQuestion(null)}
+                title="Close preview"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="as-view-modal-body">
+              <div className="as-view-modal-prompt">
+                {viewingQuestion.questionText || 'No question prompt specified.'}
+              </div>
+
+              <div className="as-view-modal-options-list">
+                {(viewingQuestion.options || []).map((opt, oIdx) => {
+                  const isCorrect = viewingQuestion.type === 'multiple_response'
+                    ? (viewingQuestion.correctOptionIndexes || []).includes(oIdx)
+                    : viewingQuestion.correctAnswerIndex === oIdx;
+
+                  const optLetter = String.fromCharCode(65 + oIdx);
+
+                  return (
+                    <div
+                      key={oIdx}
+                      className={`as-view-modal-option-row ${isCorrect ? 'is-correct' : ''}`}
+                    >
+                      <div className={`as-view-opt-indicator ${isCorrect ? 'checked' : ''}`}>
+                        {isCorrect ? <Check size={11} strokeWidth={3} /> : <span className="as-view-opt-letter">{optLetter}</span>}
+                      </div>
+                      <span className="as-view-opt-text">{opt}</span>
+                      {isCorrect && (
+                        <span className="as-view-correct-badge">Correct Answer</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="as-modal-actions">
+              <button
+                type="button"
+                className="btn-as-action btn-as-action-secondary"
+                onClick={() => setViewingQuestion(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* ── Unsaved Changes Exit Confirmation Modal ── */}
       {showExitConfirmModal && (

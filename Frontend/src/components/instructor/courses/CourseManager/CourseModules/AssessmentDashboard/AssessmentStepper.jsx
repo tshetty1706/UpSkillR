@@ -11,44 +11,47 @@ export const ASSESSMENT_STEPS = [
 
 export const AssessmentStepper = ({ currentStep, onStepClick, maxVisitedStep = 1 }) => {
   return (
-    <nav className="cc-stepper-nav as-stepper-nav" aria-label="Assessment creation progress">
-      <div className="cc-stepper-inner">
-        <ol className="cc-stepper-list">
-          {ASSESSMENT_STEPS.map((step, idx) => {
-            const isCompleted = step.num < currentStep;
-            const isActive = step.num === currentStep;
-            const isClickable = step.num <= maxVisitedStep;
+    <nav className="as-stepper-nav" aria-label="Assessment creation progress">
+      <ol className="as-stepper-list">
+        {ASSESSMENT_STEPS.map((step, idx) => {
+          const isCompleted = step.num < currentStep;
+          const isActive = step.num === currentStep;
+          const isClickable = step.num <= maxVisitedStep;
 
-            return (
+          return (
+            <React.Fragment key={step.num}>
               <li
-                key={step.num}
-                className={`cc-stepper-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${isClickable ? 'clickable' : ''}`}
+                className={`as-stepper-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${isClickable ? 'clickable' : ''}`}
               >
                 <button
                   type="button"
-                  className="cc-stepper-btn"
+                  className="as-stepper-btn"
                   onClick={() => isClickable && onStepClick(step.num)}
                   disabled={!isClickable}
                   aria-current={isActive ? 'step' : undefined}
+                  title={isClickable ? `Go to Step ${step.num}: ${step.label}` : `Step ${step.num}: ${step.label}`}
                 >
-                  <div className="cc-stepper-circle">
+                  <div className="as-stepper-circle">
                     {isCompleted ? (
-                      <Check size={16} strokeWidth={3} className="cc-stepper-check" />
+                      <Check size={13} strokeWidth={3} className="as-stepper-check" />
                     ) : (
-                      <span className="cc-stepper-num">{step.num}</span>
+                      <span className="as-stepper-num">{step.num}</span>
                     )}
                   </div>
-                  <span className="cc-stepper-label">{step.label}</span>
+                  <span className="as-stepper-label">{step.label}</span>
                 </button>
-
-                {idx < ASSESSMENT_STEPS.length - 1 && (
-                  <div className={`cc-stepper-connector ${step.num < currentStep ? 'completed' : ''}`} />
-                )}
               </li>
-            );
-          })}
-        </ol>
-      </div>
+
+              {idx < ASSESSMENT_STEPS.length - 1 && (
+                <li
+                  className={`as-stepper-connector ${step.num < currentStep ? 'completed' : ''}`}
+                  aria-hidden="true"
+                />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </ol>
     </nav>
   );
 };

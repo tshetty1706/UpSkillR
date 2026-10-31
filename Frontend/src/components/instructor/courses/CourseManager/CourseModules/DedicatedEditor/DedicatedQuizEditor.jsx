@@ -49,7 +49,16 @@ export const DedicatedQuizEditor = ({
   onToggleSidebar,
   apiBase = API_BASE,
   getAuthHeader = () => ({}),
-  toast
+  toast,
+  // ── Assessment Mode & Shared Configuration ──
+  mode = 'quiz', // 'quiz' | 'assessment'
+  hideExplanation = mode === 'assessment',
+  assessmentContext = null, // { title, description, publicationStatus, ... }
+  initialQuestions = null,
+  onChangeQuestions = null,
+  isWizardStep = false,
+  activeQuestionIndexControlled = null,
+  onSelectQuestionIndex = null
 }) => {
   // Existing item tracking
   const [currentId, setCurrentId] = useState(() => initialItem?._id || initialItem?.itemId || null);
@@ -96,6 +105,9 @@ export const DedicatedQuizEditor = ({
 
   // Questions State
   const [questions, setQuestions] = useState(() => {
+    if (Array.isArray(initialQuestions) && initialQuestions.length > 0) {
+      return initialQuestions;
+    }
     if (initialItem?.quiz?.questions && Array.isArray(initialItem.quiz.questions) && initialItem.quiz.questions.length > 0) {
       return initialItem.quiz.questions.map((q, idx) => {
         let cleanType = (q.type || 'mcq').toLowerCase();
@@ -148,8 +160,38 @@ export const DedicatedQuizEditor = ({
     return defaultInitialQuestions;
   });
 
+  // Sync questions from parent when initialQuestions changes externally
+  const prevInitialQuestionsRef = useRef(initialQuestions);
+  useEffect(() => {
+    if (Array.isArray(initialQuestions) && initialQuestions !== prevInitialQuestionsRef.current) {
+      prevInitialQuestionsRef.current = initialQuestions;
+      setQuestions(initialQuestions);
+    }
+  }, [initialQuestions]);
+
+  // Synchronized state updater that notifies parent in assessment/wizard mode
+  const setQuestionsAndSync = (updater) => {
+    setQuestions(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (onChangeQuestions) {
+        onChangeQuestions(next);
+      }
+      return next;
+    });
+  };
+
   // Selected Active Question Index
-  const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
+  const [internalActiveIndex, setInternalActiveIndex] = useState(0);
+  const activeQuestionIndex = (activeQuestionIndexControlled !== null && activeQuestionIndexControlled !== undefined)
+    ? activeQuestionIndexControlled
+    : internalActiveIndex;
+
+  const setActiveQuestionIndex = (idx) => {
+    setInternalActiveIndex(idx);
+    if (onSelectQuestionIndex) {
+      onSelectQuestionIndex(idx);
+    }
+  };
 
   // Save status & Unsaved Changes Protection
   const [isSavedOnce, setIsSavedOnce] = useState(() => isEditingExisting);
@@ -174,6 +216,38 @@ export const DedicatedQuizEditor = ({
   const explanationTextareaRef = useRef(null);
   const instructionsTextareaRef = useRef(null);
   const activeQuestionCardRef = useRef(null);
+  const editorCardRef = useRef(null);
+  const [editorHeight, setEditorHeight] = useState(null);
+
+  // Sync sidebar and settings heights to match the center question editor component exactly
+  useEffect(() => {
+    const el = editorCardRef.current;
+    if (!el) return;
+
+    const syncHeight = () => {
+      const h = el.offsetHeight;
+      if (h > 0) {
+        setEditorHeight(h);
+      }
+    };
+
+    syncHeight();
+
+    let resizeObserver;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        syncHeight();
+      });
+      resizeObserver.observe(el);
+    }
+
+    window.addEventListener('resize', syncHeight);
+
+    return () => {
+      if (resizeObserver) resizeObserver.disconnect();
+      window.removeEventListener('resize', syncHeight);
+    };
+  }, [activeQuestionIndex, hideExplanation]);
 
   // Dirty Tracking
   const markDirty = () => setHasUnsavedChanges(true);
@@ -242,7 +316,7 @@ export const DedicatedQuizEditor = ({
       marks: 1,
       explanation: ''
     };
-    setQuestions(prev => [...prev, newQ]);
+    setQuestionsAndSync(prev => [...prev, newQ]);
     setActiveQuestionIndex(questions.length);
     markDirty();
     toast?.info?.('New question added.');
@@ -262,7 +336,7 @@ export const DedicatedQuizEditor = ({
     };
     const nextQuestions = [...questions];
     nextQuestions.splice(index + 1, 0, duplicated);
-    setQuestions(nextQuestions);
+    setQuestionsAndSync(nextQuestions);
     setActiveQuestionIndex(index + 1);
     markDirty();
     toast?.info?.('Question duplicated.');
@@ -277,7 +351,7 @@ export const DedicatedQuizEditor = ({
     }
     if (!window.confirm(`Delete Question ${indexToRemove + 1}?`)) return;
 
-    setQuestions(prev => prev.filter((_, idx) => idx !== indexToRemove));
+    setQuestionsAndSync(prev => prev.filter((_, idx) => idx !== indexToRemove));
     if (activeQuestionIndex >= indexToRemove && activeQuestionIndex > 0) {
       setActiveQuestionIndex(activeQuestionIndex - 1);
     }
@@ -291,7 +365,7 @@ export const DedicatedQuizEditor = ({
     if (direction === 'down' && index === questions.length - 1) return;
 
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    setQuestions(prev => {
+    setQuestionsAndSync(prev => {
       const copy = [...prev];
       const temp = copy[index];
       copy[index] = copy[targetIndex];
@@ -317,7 +391,7 @@ export const DedicatedQuizEditor = ({
 
   // ── Question Field Updates ──
   const updateActiveQuestion = (field, value) => {
-    setQuestions(prev => {
+    setQuestionsAndSync(prev => {
       const copy = [...prev];
       copy[activeQuestionIndex] = {
         ...copy[activeQuestionIndex],
@@ -355,7 +429,7 @@ export const DedicatedQuizEditor = ({
       updatedCorrectIdx = updatedMulti[0] ?? 0;
     }
 
-    setQuestions(prev => {
+    setQuestionsAndSync(prev => {
       const copy = [...prev];
       copy[activeQuestionIndex] = {
         ...copy[activeQuestionIndex],
@@ -381,7 +455,7 @@ export const DedicatedQuizEditor = ({
     const updatedOptions = [...currentQ.options, `Option ${nextLetter}`];
     const updatedImages = [...(currentQ.optionImages || currentQ.options.map(() => '')), ''];
 
-    setQuestions(prev => {
+    setQuestionsAndSync(prev => {
       const copy = [...prev];
       copy[activeQuestionIndex] = {
         ...copy[activeQuestionIndex],
@@ -417,7 +491,7 @@ export const DedicatedQuizEditor = ({
       .map(idx => (idx > optIndex ? idx - 1 : idx));
     if (updatedMulti.length === 0) updatedMulti = [0];
 
-    setQuestions(prev => {
+    setQuestionsAndSync(prev => {
       const copy = [...prev];
       copy[activeQuestionIndex] = {
         ...copy[activeQuestionIndex],
@@ -441,7 +515,7 @@ export const DedicatedQuizEditor = ({
   const handleToggleCorrectOption = (optIndex) => {
     const currentQ = questions[activeQuestionIndex];
     if (currentQ.type === 'mcq' || currentQ.type === 'true_false') {
-      setQuestions(prev => {
+      setQuestionsAndSync(prev => {
         const copy = [...prev];
         copy[activeQuestionIndex] = {
           ...copy[activeQuestionIndex],
@@ -463,7 +537,7 @@ export const DedicatedQuizEditor = ({
       } else {
         nextMulti = [...currentMulti, optIndex].sort((a, b) => a - b);
       }
-      setQuestions(prev => {
+      setQuestionsAndSync(prev => {
         const copy = [...prev];
         copy[activeQuestionIndex] = {
           ...copy[activeQuestionIndex],
@@ -499,7 +573,7 @@ export const DedicatedQuizEditor = ({
       .map(oldIdx => paired.findIndex(p => p.idx === oldIdx))
       .filter(idx => idx !== -1);
 
-    setQuestions(prev => {
+    setQuestionsAndSync(prev => {
       const copy = [...prev];
       copy[activeQuestionIndex] = {
         ...copy[activeQuestionIndex],
@@ -567,7 +641,7 @@ export const DedicatedQuizEditor = ({
         finalUrl = URL.createObjectURL(file);
       }
 
-      setQuestions(prev => {
+      setQuestionsAndSync(prev => {
         const copy = [...prev];
         const currentQ = copy[activeQuestionIndex];
         const updatedImages = [...(currentQ.optionImages || currentQ.options.map(() => ''))];
@@ -593,7 +667,7 @@ export const DedicatedQuizEditor = ({
 
   const handleRemoveOptionImage = (optIndex, e) => {
     if (e) e.stopPropagation();
-    setQuestions(prev => {
+    setQuestionsAndSync(prev => {
       const copy = [...prev];
       const currentQ = copy[activeQuestionIndex];
       const updatedImages = [...(currentQ.optionImages || currentQ.options.map(() => ''))];
@@ -697,7 +771,7 @@ export const DedicatedQuizEditor = ({
         correctAnswerIndex: q.type === 'multiple_response' ? (q.correctOptionIndexes?.[0] ?? 0) : q.correctAnswerIndex,
         correctOptionIndexes: q.type === 'multiple_response' ? q.correctOptionIndexes : [q.correctAnswerIndex],
         marks: Math.max(1, Math.round(Number(q.marks) || 1)),
-        explanation: (q.explanation || '').trim(),
+        explanation: hideExplanation ? '' : (q.explanation || '').trim(),
         order: idx + 1
       }));
 
@@ -783,82 +857,83 @@ export const DedicatedQuizEditor = ({
 
   return (
     <div className="dedicated-quiz-editor-container">
-      {/* Hidden file input for option images */}
-      <input
-        ref={optionFileInputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/webp,image/gif"
-        style={{ display: 'none' }}
-        onChange={handleOptionFileChange}
-      />
+      {/* ── Unified Top Header (Hidden when integrated as Wizard Step) ── */}
+      {!isWizardStep && (
+        <header className="dqe-unified-header">
+          <div className="dqe-header-left">
+            <button
+              type="button"
+              className="dqe-btn-back-circle"
+              onClick={handleBack}
+              title="Back"
+            >
+              <ArrowLeft size={17} />
+            </button>
+            <div className="dqe-header-title-cluster">
+              <h1 className="dqe-main-title">
+                {mode === 'assessment' ? 'Assessment Question Editor' : 'Quiz Editor'}
+              </h1>
+              {activeLesson?.title && mode !== 'assessment' && (
+                <span className="dqe-lesson-badge" title={activeLesson.title}>
+                  Lesson: {activeLesson.title}
+                </span>
+              )}
+            </div>
+          </div>
 
-      {/* ── Unified Top Header ── */}
-      <header className="dqe-unified-header">
-        <div className="dqe-header-left">
-          <button
-            type="button"
-            className="dqe-btn-back-circle"
-            onClick={handleBack}
-            title="Back to Lesson Workspace"
-          >
-            <ArrowLeft size={17} />
-          </button>
-          <div className="dqe-header-title-cluster">
-            <h1 className="dqe-main-title">Quiz Editor</h1>
-            {activeLesson?.title && (
-              <span className="dqe-lesson-badge" title={activeLesson.title}>
-                Lesson: {activeLesson.title}
+          <div className="dqe-header-right">
+            <div
+              className={`dqe-status-pill ${publicationStatus}`}
+              onClick={() => {
+                const nextStatus = publicationStatus === 'published' ? 'draft' : 'published';
+                setPublicationStatus(nextStatus);
+                markDirty();
+                toast?.info?.(`Marked as ${nextStatus}. Remember to save.`);
+              }}
+              title="Click to toggle publication status"
+            >
+              <span className="dqe-status-dot" />
+              <span className="dqe-status-label">
+                {publicationStatus === 'published' ? 'Published' : 'Draft'}
               </span>
-            )}
-          </div>
-        </div>
+            </div>
 
-        <div className="dqe-header-right">
-          <div
-            className={`dqe-status-pill ${publicationStatus}`}
-            onClick={() => {
-              const nextStatus = publicationStatus === 'published' ? 'draft' : 'published';
-              setPublicationStatus(nextStatus);
-              markDirty();
-              toast?.info?.(`Quiz marked as ${nextStatus}. Remember to save.`);
-            }}
-            title="Click to toggle publication status"
-          >
-            <span className="dqe-status-dot" />
-            <span className="dqe-status-label">
-              {publicationStatus === 'published' ? 'Published' : 'Draft'}
-            </span>
+            <button
+              type="button"
+              className="dqe-btn-save-quiz"
+              onClick={handleSaveQuiz}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <span>Saving...</span>
+              ) : (
+                <>
+                  <Check size={15} />
+                  <span>{mode === 'assessment' ? 'Save Changes' : 'Save Quiz'}</span>
+                </>
+              )}
+            </button>
           </div>
-
-          <button
-            type="button"
-            className="dqe-btn-save-quiz"
-            onClick={handleSaveQuiz}
-            disabled={isSaving}
-          >
-            {isSaving ? (
-              <span>Saving...</span>
-            ) : (
-              <>
-                <Check size={15} />
-                <span>Save Quiz</span>
-              </>
-            )}
-          </button>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* ── 3-Column Layout Workspace ── */}
       <div className="dqe-layout-grid">
         {/* ════════════════════════════════════════════════════════════
-            COLUMN 1: QUESTIONS LIST (~23% width) - Fixed Height & Scrollable
+            COLUMN 1: QUESTIONS LIST (260px width) - Height locked to Quiz Editor
             ════════════════════════════════════════════════════════════ */}
-        <div className="dqe-question-list-column">
-          <div className="dqe-column-card dqe-questions-card">
+        <div
+          className="dqe-question-list-column"
+          style={editorHeight ? { height: `${editorHeight}px`, maxHeight: `${editorHeight}px` } : undefined}
+        >
+          <div
+            className="dqe-column-card dqe-questions-card"
+            style={editorHeight ? { height: '100%', maxHeight: `${editorHeight}px` } : undefined}
+          >
             {/* Header: Title with Count + Add Question Button */}
             <div className="dqe-questions-header">
               <h2 className="dqe-questions-heading">
-                Questions ({totalQuestions})
+                {mode === 'assessment' ? 'Assessment Questions' : 'Questions'} ({totalQuestions})
               </h2>
               <button
                 type="button"
@@ -993,7 +1068,7 @@ export const DedicatedQuizEditor = ({
             COLUMN 2: QUESTION EDITOR (~50% width)
             ════════════════════════════════════════════════════════════ */}
         <div className="dqe-question-editor-column">
-          <div className="dqe-column-card dqe-editor-card">
+          <div className="dqe-column-card dqe-editor-card" ref={editorCardRef}>
             {/* Card Header: Green Icon + Title + Pagination + Delete Question Button */}
             <div className="dqe-editor-header-bar">
               <div className="dqe-editor-header-left">
@@ -1175,14 +1250,6 @@ export const DedicatedQuizEditor = ({
                   >
                     <Code size={12} />
                   </button>
-                  <button
-                    type="button"
-                    className="dqe-tool-btn"
-                    onClick={() => insertFormatting('prompt', '![Image](', ')', 'https://')}
-                    title="Insert Image"
-                  >
-                    <ImageIcon size={12} />
-                  </button>
                 </div>
 
                 <textarea
@@ -1307,21 +1374,6 @@ export const DedicatedQuizEditor = ({
                           )}
                         </div>
 
-                        {/* Image Upload Button */}
-                        <button
-                          type="button"
-                          className={`dqe-btn-option-icon ${optImage ? 'has-image' : ''}`}
-                          title={optImage ? "Replace image" : "Attach image to option"}
-                          disabled={isUploadingThis}
-                          onClick={() => handleTriggerOptionImageUpload(optIndex)}
-                        >
-                          {isUploadingThis ? (
-                            <RefreshCw size={14} className="dqe-spin-icon" />
-                          ) : (
-                            <ImageIcon size={14} />
-                          )}
-                        </button>
-
                         {/* Delete Option Icon */}
                         <button
                           type="button"
@@ -1395,213 +1447,272 @@ export const DedicatedQuizEditor = ({
               </div>
             )}
 
-            {/* Explanation Field with Compact Toolbar */}
-            <div className="dqe-form-group">
-              <label className="dqe-form-label">
-                Explanation (Optional)
-              </label>
+            {/* Explanation Field with Compact Toolbar (Hidden in Assessment Mode) */}
+            {!hideExplanation && (
+              <div className="dqe-form-group">
+                <label className="dqe-form-label">
+                  Explanation (Optional)
+                </label>
 
-              <div className="dqe-rich-editor-box">
-                <div className="dqe-compact-toolbar">
-                  <button
-                    type="button"
-                    className="dqe-tool-btn"
-                    onClick={() => insertFormatting('explanation', '**', '**', 'bold')}
-                    title="Bold"
-                  >
-                    <Bold size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    className="dqe-tool-btn"
-                    onClick={() => insertFormatting('explanation', '*', '*', 'italic')}
-                    title="Italic"
-                  >
-                    <Italic size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    className="dqe-tool-btn"
-                    onClick={() => insertFormatting('explanation', '<u>', '</u>', 'underline')}
-                    title="Underline"
-                  >
-                    <Underline size={12} />
-                  </button>
-                  <div className="dqe-tool-divider" />
-                  <button
-                    type="button"
-                    className="dqe-tool-btn"
-                    onClick={() => insertFormatting('explanation', '\n- ', '', 'List item')}
-                    title="Bullet List"
-                  >
-                    <List size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    className="dqe-tool-btn"
-                    onClick={() => insertFormatting('explanation', '\n1. ', '', 'Item')}
-                    title="Numbered List"
-                  >
-                    <ListOrdered size={12} />
-                  </button>
-                  <div className="dqe-tool-divider" />
-                  <button
-                    type="button"
-                    className="dqe-tool-btn"
-                    onClick={() => insertFormatting('explanation', '[', '](https://)', 'Link')}
-                    title="Insert Link"
-                  >
-                    <LinkIcon size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    className="dqe-tool-btn"
-                    onClick={() => insertFormatting('explanation', '`', '`', 'code')}
-                    title="Inline Code"
-                  >
-                    <Code size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    className="dqe-tool-btn"
-                    onClick={() => insertFormatting('explanation', '![Image](', ')', 'https://')}
-                    title="Insert Image"
-                  >
-                    <ImageIcon size={12} />
-                  </button>
+                <div className="dqe-rich-editor-box">
+                  <div className="dqe-compact-toolbar">
+                    <button
+                      type="button"
+                      className="dqe-tool-btn"
+                      onClick={() => insertFormatting('explanation', '**', '**', 'bold')}
+                      title="Bold"
+                    >
+                      <Bold size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="dqe-tool-btn"
+                      onClick={() => insertFormatting('explanation', '*', '*', 'italic')}
+                      title="Italic"
+                    >
+                      <Italic size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="dqe-tool-btn"
+                      onClick={() => insertFormatting('explanation', '<u>', '</u>', 'underline')}
+                      title="Underline"
+                    >
+                      <Underline size={12} />
+                    </button>
+                    <div className="dqe-tool-divider" />
+                    <button
+                      type="button"
+                      className="dqe-tool-btn"
+                      onClick={() => insertFormatting('explanation', '\n- ', '', 'List item')}
+                      title="Bullet List"
+                    >
+                      <List size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="dqe-tool-btn"
+                      onClick={() => insertFormatting('explanation', '\n1. ', '', 'Item')}
+                      title="Numbered List"
+                    >
+                      <ListOrdered size={12} />
+                    </button>
+                    <div className="dqe-tool-divider" />
+                    <button
+                      type="button"
+                      className="dqe-tool-btn"
+                      onClick={() => insertFormatting('explanation', '[', '](https://)', 'Link')}
+                      title="Insert Link"
+                    >
+                      <LinkIcon size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="dqe-tool-btn"
+                      onClick={() => insertFormatting('explanation', '`', '`', 'code')}
+                      title="Inline Code"
+                    >
+                      <Code size={12} />
+                    </button>
+                  </div>
+
+                  <textarea
+                    ref={explanationTextareaRef}
+                    className="dqe-compact-textarea dqe-textarea-explanation"
+                    rows={2}
+                    placeholder="Explain the correct answer to learners after submission..."
+                    value={activeQuestion.explanation || ''}
+                    onChange={(e) => updateActiveQuestion('explanation', e.target.value)}
+                  />
                 </div>
-
-                <textarea
-                  ref={explanationTextareaRef}
-                  className="dqe-compact-textarea dqe-textarea-explanation"
-                  rows={2}
-                  placeholder="Explain the correct answer to learners after submission..."
-                  value={activeQuestion.explanation || ''}
-                  onChange={(e) => updateActiveQuestion('explanation', e.target.value)}
-                />
               </div>
-            </div>
+            )}
           </div>
         </div>
 
         {/* ════════════════════════════════════════════════════════════
-            COLUMN 3: QUIZ SETTINGS (~27% width)
-            (Time Limit and Question Preview completely removed)
+            COLUMN 3: SETTINGS / CONTEXT PANEL (260px width)
+            Quiz Mode: Quiz Settings | Assessment Mode: Assessment Context
             ════════════════════════════════════════════════════════════ */}
-        <div className="dqe-settings-column">
-          <div className="dqe-column-card dqe-settings-card">
-            <div className="dqe-card-header-row">
-              <Settings size={16} className="dqe-card-header-icon" />
-              <h2 className="dqe-card-header-title">Quiz Settings</h2>
-            </div>
+        <div
+          className="dqe-settings-column"
+          style={editorHeight ? { height: `${editorHeight}px`, maxHeight: `${editorHeight}px` } : undefined}
+        >
+          {mode === 'assessment' ? (
+            /* Assessment Context Panel */
+            <div
+              className="dqe-column-card dqe-settings-card dqe-assessment-context-card"
+              style={editorHeight ? { height: '100%', maxHeight: `${editorHeight}px`, overflowY: 'auto' } : undefined}
+            >
+              <div className="dqe-card-header-row">
+                <FileText size={16} className="dqe-card-header-icon" />
+                <h2 className="dqe-card-header-title">Assessment Context</h2>
+              </div>
 
-            {/* Quiz Title */}
-            <div className="dqe-form-group">
-              <label className="dqe-form-label">
-                Quiz Title <span className="dqe-req">*</span>
-              </label>
-              <input
-                type="text"
-                className="dqe-form-input dqe-input-title"
-                placeholder="e.g. Lesson Quiz"
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  markDirty();
-                }}
-              />
-            </div>
-
-            {/* Instructions (Optional) with Toolbar & Character Counter */}
-            <div className="dqe-form-group">
-              <label className="dqe-form-label">
-                Instructions (Optional)
-              </label>
-              <div className="dqe-rich-editor-box">
-                <div className="dqe-compact-toolbar">
-                  <button
-                    type="button"
-                    className="dqe-tool-btn"
-                    onClick={() => insertFormatting('instructions', '**', '**', 'bold')}
-                    title="Bold"
-                  >
-                    <Bold size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    className="dqe-tool-btn"
-                    onClick={() => insertFormatting('instructions', '*', '*', 'italic')}
-                    title="Italic"
-                  >
-                    <Italic size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    className="dqe-tool-btn"
-                    onClick={() => insertFormatting('instructions', '<u>', '</u>', 'underline')}
-                    title="Underline"
-                  >
-                    <Underline size={12} />
-                  </button>
-                  <div className="dqe-tool-divider" />
-                  <button
-                    type="button"
-                    className="dqe-tool-btn"
-                    onClick={() => insertFormatting('instructions', '\n- ', '', 'List item')}
-                    title="Bullet List"
-                  >
-                    <List size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    className="dqe-tool-btn"
-                    onClick={() => insertFormatting('instructions', '[', '](https://)', 'Link')}
-                    title="Link"
-                  >
-                    <LinkIcon size={12} />
-                  </button>
+              {/* Assessment Title & Description */}
+              <div className="dqe-context-info-section">
+                <div className="dqe-context-title-row">
+                  <span className="dqe-context-label">Assessment</span>
+                  {assessmentContext?.publicationStatus && (
+                    <span className={`dqe-status-pill ${assessmentContext.publicationStatus === 'published' ? 'published' : 'draft'}`}>
+                      <span className="dqe-status-dot" />
+                      <span>{assessmentContext.publicationStatus === 'published' ? 'Published' : 'Draft'}</span>
+                    </span>
+                  )}
                 </div>
-                <textarea
-                  ref={instructionsTextareaRef}
-                  className="dqe-compact-textarea dqe-textarea-instructions"
-                  rows={3}
-                  maxLength={500}
-                  placeholder="Answer all the questions carefully. You can attempt the quiz only once."
-                  value={instructions}
+                <h3 className="dqe-context-title">
+                  {assessmentContext?.title || 'Untitled Assessment'}
+                </h3>
+                {assessmentContext?.description && (
+                  <p className="dqe-context-description">
+                    {assessmentContext.description}
+                  </p>
+                )}
+              </div>
+
+              {/* Side-by-Side Metric Boxes: Total Questions & Total Marks */}
+              <div className="dqe-metrics-duo-row">
+                <div className="dqe-metric-box">
+                  <div className="dqe-metric-top">
+                    <HelpCircle size={14} className="dqe-metric-icon green" />
+                    <span className="dqe-metric-label">Total Questions</span>
+                  </div>
+                  <div className="dqe-metric-num-display">
+                    {totalQuestions}
+                  </div>
+                </div>
+
+                <div className="dqe-metric-box">
+                  <div className="dqe-metric-top">
+                    <Award size={14} className="dqe-metric-icon green" />
+                    <span className="dqe-metric-label">Total Marks</span>
+                  </div>
+                  <div className="dqe-metric-num-display">
+                    {totalMarks}
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          ) : (
+            /* Quiz Settings Panel */
+            <div
+              className="dqe-column-card dqe-settings-card"
+              style={editorHeight ? { height: '100%', maxHeight: `${editorHeight}px`, overflowY: 'auto' } : undefined}
+            >
+              <div className="dqe-card-header-row">
+                <Settings size={16} className="dqe-card-header-icon" />
+                <h2 className="dqe-card-header-title">Quiz Settings</h2>
+              </div>
+
+              {/* Quiz Title */}
+              <div className="dqe-form-group">
+                <label className="dqe-form-label">
+                  Quiz Title <span className="dqe-req">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="dqe-form-input dqe-input-title"
+                  placeholder="e.g. Lesson Quiz"
+                  value={title}
                   onChange={(e) => {
-                    setInstructions(e.target.value);
+                    setTitle(e.target.value);
                     markDirty();
                   }}
                 />
               </div>
-              <div className="dqe-char-counter">
-                {instructions.length}/500 characters
+
+              {/* Instructions (Optional) with Toolbar & Character Counter */}
+              <div className="dqe-form-group">
+                <label className="dqe-form-label">
+                  Instructions (Optional)
+                </label>
+                <div className="dqe-rich-editor-box">
+                  <div className="dqe-compact-toolbar">
+                    <button
+                      type="button"
+                      className="dqe-tool-btn"
+                      onClick={() => insertFormatting('instructions', '**', '**', 'bold')}
+                      title="Bold"
+                    >
+                      <Bold size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="dqe-tool-btn"
+                      onClick={() => insertFormatting('instructions', '*', '*', 'italic')}
+                      title="Italic"
+                    >
+                      <Italic size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="dqe-tool-btn"
+                      onClick={() => insertFormatting('instructions', '<u>', '</u>', 'underline')}
+                      title="Underline"
+                    >
+                      <Underline size={12} />
+                    </button>
+                    <div className="dqe-tool-divider" />
+                    <button
+                      type="button"
+                      className="dqe-tool-btn"
+                      onClick={() => insertFormatting('instructions', '\n- ', '', 'List item')}
+                      title="Bullet List"
+                    >
+                      <List size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="dqe-tool-btn"
+                      onClick={() => insertFormatting('instructions', '[', '](https://)', 'Link')}
+                      title="Link"
+                    >
+                      <LinkIcon size={12} />
+                    </button>
+                  </div>
+                  <textarea
+                    ref={instructionsTextareaRef}
+                    className="dqe-compact-textarea dqe-textarea-instructions"
+                    rows={3}
+                    maxLength={500}
+                    placeholder="Answer all the questions carefully. You can attempt the quiz only once."
+                    value={instructions}
+                    onChange={(e) => {
+                      setInstructions(e.target.value);
+                      markDirty();
+                    }}
+                  />
+                </div>
+                <div className="dqe-char-counter">
+                  {instructions.length}/500 characters
+                </div>
+              </div>
+
+              {/* Side-by-Side Metric Boxes: Total Questions & Total Marks */}
+              <div className="dqe-metrics-duo-row">
+                <div className="dqe-metric-box">
+                  <div className="dqe-metric-top">
+                    <HelpCircle size={14} className="dqe-metric-icon green" />
+                    <span className="dqe-metric-label">Total Questions</span>
+                  </div>
+                  <div className="dqe-metric-num-display">
+                    {totalQuestions}
+                  </div>
+                </div>
+
+                <div className="dqe-metric-box">
+                  <div className="dqe-metric-top">
+                    <Award size={14} className="dqe-metric-icon green" />
+                    <span className="dqe-metric-label">Total Marks</span>
+                  </div>
+                  <div className="dqe-metric-num-display">
+                    {totalMarks}
+                  </div>
+                </div>
               </div>
             </div>
-
-            {/* Side-by-Side Metric Boxes: Total Questions & Total Marks */}
-            <div className="dqe-metrics-duo-row">
-              <div className="dqe-metric-box">
-                <div className="dqe-metric-top">
-                  <HelpCircle size={14} className="dqe-metric-icon green" />
-                  <span className="dqe-metric-label">Total Questions</span>
-                </div>
-                <div className="dqe-metric-num-display">
-                  {totalQuestions}
-                </div>
-              </div>
-
-              <div className="dqe-metric-box">
-                <div className="dqe-metric-top">
-                  <Award size={14} className="dqe-metric-icon green" />
-                  <span className="dqe-metric-label">Total Marks</span>
-                </div>
-                <div className="dqe-metric-num-display">
-                  {totalMarks}
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -1682,3 +1793,5 @@ export const DedicatedQuizEditor = ({
     </div>
   );
 };
+
+export default DedicatedQuizEditor;

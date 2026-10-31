@@ -15,10 +15,10 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 1440px;
-  margin: 0 auto;
+  max-width: 100%;
+  margin: 0;
   box-sizing: border-box;
-  gap: 10px;
+  gap: 8px;
   animation: dqeFadeIn 0.2s ease-in-out;
 }
 
@@ -208,12 +208,13 @@
 }
 
 /* ════════════════════════════════════════════════════════════
-   3-COLUMN LAYOUT GRID (Proportions: Left ~23% | Center ~50% | Right ~27%)
+   3-COLUMN LAYOUT GRID (Equal Left Sidebar & Right Settings: 260px | Fluid Center: 1fr)
+   Height balanced across all 3 components (align-items: stretch)
    ════════════════════════════════════════════════════════════ */
 .dqe-layout-grid {
   display: grid;
-  grid-template-columns: minmax(230px, 23%) minmax(420px, 50%) minmax(260px, 27%);
-  gap: 12px;
+  grid-template-columns: 260px minmax(0, 1fr) 260px;
+  gap: 10px;
   align-items: start;
   width: 100%;
   box-sizing: border-box;
@@ -311,11 +312,13 @@
 }
 
 /* ════════════════════════════════════════════════════════════
-   COLUMN 1: QUESTIONS LIST (FIXED-HEIGHT & INDEPENDENTLY SCROLLABLE)
+   COLUMN 1: QUESTIONS LIST (BALANCED HEIGHT & INDEPENDENTLY SCROLLABLE)
    ════════════════════════════════════════════════════════════ */
 .dqe-question-list-column {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 .dqe-questions-card {
@@ -323,8 +326,8 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: calc(100vh - 130px);
   height: 100%;
+  min-height: 0;
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -416,7 +419,7 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  flex: 1;
+  flex: 1 1 0;
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
@@ -723,6 +726,7 @@
 .dqe-question-editor-column {
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
 .dqe-editor-card {
@@ -730,6 +734,8 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 /* Header Bar: Icon + Heading + Pagination + Delete Button */
@@ -1618,6 +1624,8 @@
 .dqe-settings-column {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 .dqe-settings-card {
@@ -1625,6 +1633,9 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 .dqe-card-header-row {
@@ -1925,11 +1936,123 @@
 }
 
 /* ════════════════════════════════════════════════════════════
+   ASSESSMENT CONTEXT PANEL (When mode === 'assessment')
+   ════════════════════════════════════════════════════════════ */
+.dqe-assessment-context-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+}
+
+.dqe-context-info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border, #c6d3cb);
+}
+
+.dark .dqe-context-info-section,
+[data-theme="dark"] .dqe-context-info-section {
+  border-bottom-color: var(--border, #22372b);
+}
+
+.dqe-context-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dqe-context-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #35443b);
+}
+
+.dark .dqe-context-label,
+[data-theme="dark"] .dqe-context-label {
+  color: var(--text-secondary, #98a99f);
+}
+
+.dqe-context-title {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text-primary, #121c16);
+  margin: 2px 0 0 0;
+  line-height: 1.35;
+}
+
+.dark .dqe-context-title,
+[data-theme="dark"] .dqe-context-title {
+  color: var(--text-primary, #f5f7f6);
+}
+
+.dqe-context-description {
+  font-size: 0.82rem;
+  color: var(--text-secondary, #35443b);
+  line-height: 1.45;
+  margin: 4px 0 0 0;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.dark .dqe-context-description,
+[data-theme="dark"] .dqe-context-description {
+  color: var(--text-secondary, #98a99f);
+}
+
+.dqe-context-current-pos {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: var(--radius-md, 7px);
+  background: var(--surface-muted, #f3f6f4);
+  border: 1px solid var(--border, #c6d3cb);
+}
+
+.dark .dqe-context-current-pos,
+[data-theme="dark"] .dqe-context-current-pos {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border, #22372b);
+}
+
+.dqe-context-sublabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary, #35443b);
+}
+
+.dark .dqe-context-sublabel,
+[data-theme="dark"] .dqe-context-sublabel {
+  color: var(--text-secondary, #98a99f);
+}
+
+.dqe-context-pos-val {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--brand-primary, #116830);
+}
+
+.dark .dqe-context-pos-val,
+[data-theme="dark"] .dqe-context-pos-val {
+  color: #34d399;
+}
+
+.dqe-current-q-marks-box {
+  margin-top: 4px;
+}
+
+/* ════════════════════════════════════════════════════════════
    RESPONSIVE DESIGN (AGENTS.md Compliance: Desktop, Tablet, Mobile)
    ════════════════════════════════════════════════════════════ */
 @media (max-width: 1200px) {
   .dqe-layout-grid {
-    grid-template-columns: 230px 1fr 240px;
+    grid-template-columns: 250px minmax(0, 1fr) 250px;
     gap: 10px;
   }
 }
