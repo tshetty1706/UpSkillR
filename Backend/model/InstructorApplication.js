@@ -41,27 +41,22 @@ const instructorApplicationSchema = new mongoose.Schema(
       type: Number,
       default: 1
     },
-    // 1. Personal Information
+    // 1. Personal Information (Application-specific onboarding details)
     personalInfo: {
-      fullName: { type: String, default: '' },
-      email: { type: String, default: '' },
       phone: { type: String, default: '' },
       country: { type: String, default: 'India' },
       countryCode: { type: String, default: '+91' },
       professionalTitle: { type: String, default: '' },
       professionalTitleOther: { type: String, default: '' },
-      bio: { type: String, default: '' },
-      location: { type: String, default: '' },
-      photoUrl: { type: String, default: '' }
+      location: { type: String, default: '' }
     },
-    // 2. Professional Information
+    // 2. Professional Information (Application-specific background details)
     professionalInfo: {
       currentRole: { type: String, default: '' },
       organization: { type: String, default: '' },
       yearsOfExperience: { type: String, default: '' },
       linkedinUrl: { type: String, default: '' },
-      websiteUrl: { type: String, default: '' },
-      keySkills: { type: [String], default: [] }
+      websiteUrl: { type: String, default: '' }
     },
     // 3. Education
     education: {

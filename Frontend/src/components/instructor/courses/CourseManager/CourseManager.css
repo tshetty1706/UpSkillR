@@ -342,13 +342,15 @@
   width: 100%;
 }
 
-/* Full-bleed viewport fitting for Module & Lesson Editor in Workspace */
-.workspace-content-card:has(.modules-editor-panel) {
+/* Full-bleed viewport fitting only when split workspace editors are active */
+.workspace-content-card:has(.curriculum-split-workspace),
+.workspace-content-card:has(.assessment-studio-container) {
   padding: 0;
   overflow: hidden;
 }
 
-.workspace-panel-section.modules-editor-panel {
+.workspace-content-card:has(.curriculum-split-workspace) .modules-editor-panel,
+.workspace-content-card:has(.assessment-studio-container) .modules-editor-panel {
   gap: 0;
   height: calc(100vh - 190px);
   max-height: calc(100vh - 190px);

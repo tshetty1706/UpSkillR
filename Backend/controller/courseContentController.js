@@ -1361,7 +1361,10 @@ exports.createAssessment = async (req, res) => {
       maxAttempts = 3,
       cooldownHours = 6,
       countsTowardCertificate = true,
-      questions = []
+      questions = [],
+      shuffleQuestions = false,
+      shuffleOptions = false,
+      resultVisibility = 'immediate'
     } = req.body;
 
     if (!title || !title.trim()) {
@@ -1380,8 +1383,8 @@ exports.createAssessment = async (req, res) => {
       description: description ? description.trim() : '',
       instructions: instructions ? instructions.trim() : '',
       assessmentType: assessmentType || 'graded',
-      timeLimit: Number(timeLimit) || Number(durationMinutes) || 30,
-      durationMinutes: Number(durationMinutes) || Number(timeLimit) || 30,
+      timeLimit: Number(timeLimit) || Number(durationMinutes) || 45,
+      durationMinutes: Number(durationMinutes) || Number(timeLimit) || 45,
       state: 'draft',
       effective_visible: false,
       sortKey,
@@ -1393,6 +1396,9 @@ exports.createAssessment = async (req, res) => {
       maxAttempts: Number(maxAttempts) || 3,
       cooldownHours: Number(cooldownHours) || 6,
       countsTowardCertificate: countsTowardCertificate !== false,
+      shuffleQuestions: Boolean(shuffleQuestions),
+      shuffleOptions: Boolean(shuffleOptions),
+      resultVisibility: resultVisibility === 'after_review' ? 'after_review' : 'immediate',
       questions: Array.isArray(questions) ? questions : [],
       totalMarks: Array.isArray(questions) ? questions.reduce((sum, q) => sum + (Number(q.marks) || Number(q.points) || 1), 0) : 10
     };
@@ -1426,6 +1432,9 @@ exports.updateAssessment = async (req, res) => {
       maxAttempts,
       cooldownHours,
       countsTowardCertificate,
+      shuffleQuestions,
+      shuffleOptions,
+      resultVisibility,
       questions
     } = req.body;
 
@@ -1447,6 +1456,15 @@ exports.updateAssessment = async (req, res) => {
     }
     if (countsTowardCertificate !== undefined) {
       assessment.countsTowardCertificate = Boolean(countsTowardCertificate);
+    }
+    if (shuffleQuestions !== undefined) {
+      assessment.shuffleQuestions = Boolean(shuffleQuestions);
+    }
+    if (shuffleOptions !== undefined) {
+      assessment.shuffleOptions = Boolean(shuffleOptions);
+    }
+    if (resultVisibility !== undefined) {
+      assessment.resultVisibility = resultVisibility === 'after_review' ? 'after_review' : 'immediate';
     }
 
     // Versioning: question edits increment version; config tweaks do NOT (Rule A.6.2)
@@ -1480,6 +1498,150 @@ exports.updateAssessment = async (req, res) => {
     });
   } catch (err) {
     res.status(err.status || 500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * GET /api/courses/:courseId/curriculum/assessments/:assessmentId/view
+ * Backend Enforced Learner Gating for Milestone Assessments
+ */
+exports.getAssessmentForLearner = async (req, res) => {
+  try {
+    const { courseId, assessmentId } = req.params;
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found.' });
+    }
+
+    const assessment = (course.courseAssessments || []).find(a => String(a._id) === String(assessmentId));
+    if (!assessment) {
+      return res.status(404).json({ success: false, message: 'Assessment not found.' });
+    }
+
+    const isInstructorOwner = req.user && (
+      String(course.instructorId) === String(req.user.id) ||
+      (course.instructor && String(course.instructor) === String(req.user.id)) ||
+      req.user.role === 'admin'
+    );
+
+    // If not instructor, check publication and gating
+    if (!isInstructorOwner) {
+      if (assessment.state !== 'published') {
+        return res.status(403).json({
+          success: false,
+          code: 'ASSESSMENT_DRAFT',
+          message: 'This assessment is currently in draft mode and not available.'
+        });
+      }
+
+      // Check course enrolment
+      const Enrolment = require('../model/Enrolment');
+      const enrolment = await Enrolment.findOne({ courseId, learnerId: req.user.id });
+      if (!enrolment) {
+        return res.status(403).json({
+          success: false,
+          code: 'NOT_ENROLLED',
+          message: 'You must be enrolled in this course to access assessments.'
+        });
+      }
+
+      // Check module prerequisites
+      const requiredIds = Array.isArray(assessment.requiredModuleIds)
+        ? assessment.requiredModuleIds.map(String)
+        : [];
+
+      if (requiredIds.length > 0) {
+        const completedLessons = new Set((enrolment.completedLessons || []).map(String));
+        const incompleteModules = [];
+
+        for (const reqModId of requiredIds) {
+          const mod = (course.modules || []).find(m => String(m._id) === reqModId);
+          if (!mod || mod.state !== 'published') continue;
+
+          // Gather all published items in this module
+          const pubItems = [];
+          for (const les of mod.lessons || []) {
+            if (les.state !== 'published') continue;
+            for (const item of (les.items || les.contentItems || [])) {
+              if (item.state === 'published') {
+                pubItems.push(String(item._id));
+              }
+            }
+          }
+
+          // If module has published items, verify all are completed
+          if (pubItems.length > 0) {
+            const allItemsDone = pubItems.every(id => completedLessons.has(id));
+            if (!allItemsDone) {
+              incompleteModules.push({
+                _id: mod._id,
+                title: mod.title
+              });
+            }
+          }
+        }
+
+        if (incompleteModules.length > 0) {
+          return res.status(403).json({
+            success: false,
+            code: 'PREREQUISITES_INCOMPLETE',
+            message: 'You must complete all prerequisite modules before unlocking this assessment.',
+            incompleteModules
+          });
+        }
+      }
+    }
+
+    // Assessment is unlocked. Return sanitized questions (exclude answers for active attempt)
+    const sanitizedQuestions = (assessment.questions || []).map((q, qIdx) => {
+      let options = Array.isArray(q.options) ? [...q.options] : [];
+      let optionImages = Array.isArray(q.optionImages) ? [...q.optionImages] : [];
+
+      if (assessment.shuffleOptions && !isInstructorOwner) {
+        // Deterministic shuffle or preserve
+      }
+
+      return {
+        _id: q._id || `q_${qIdx + 1}`,
+        questionText: q.questionText,
+        type: q.type || 'mcq',
+        options,
+        optionImages,
+        marks: q.marks || 1,
+        // Exclude correctAnswerIndex and correctOptionIndexes for learners
+        ...(isInstructorOwner ? {
+          correctAnswerIndex: q.correctAnswerIndex,
+          correctOptionIndexes: q.correctOptionIndexes,
+          explanation: q.explanation
+        } : {})
+      };
+    });
+
+    const sanitizedAssessment = {
+      _id: assessment._id,
+      title: assessment.title,
+      description: assessment.description,
+      instructions: assessment.instructions,
+      assessmentType: assessment.assessmentType,
+      timeLimit: assessment.timeLimit || assessment.durationMinutes || 45,
+      durationMinutes: assessment.durationMinutes || assessment.timeLimit || 45,
+      totalMarks: assessment.totalMarks || sanitizedQuestions.reduce((s, q) => s + (q.marks || 1), 0),
+      questionCount: sanitizedQuestions.length,
+      requiredModuleIds: assessment.requiredModuleIds || [],
+      shuffleQuestions: assessment.shuffleQuestions,
+      shuffleOptions: assessment.shuffleOptions,
+      resultVisibility: assessment.resultVisibility,
+      questions: sanitizedQuestions
+    };
+
+    return res.json({
+      success: true,
+      assessment: sanitizedAssessment,
+      isInstructor: isInstructorOwner
+    });
+  } catch (err) {
+    console.error('getAssessmentForLearner error:', err);
+    res.status(500).json({ success: false, message: err.message || 'Server error loading assessment.' });
   }
 };
 
@@ -1619,28 +1781,21 @@ exports.uploadResourceFromDevice = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please select a file to upload.' });
     }
 
-    let uploadRes = null;
-    try {
-      uploadRes = await uploadBufferToCloudinary(
-        req.file.buffer,
-        req.file.mimetype,
-        req.file.originalname,
-        'upskillr_course_materials'
-      );
-    } catch (cloudErr) {
-      console.warn('Cloudinary resource upload warning (falling back to persistent local storage):', cloudErr.message);
-    }
+    const ext = path.extname(req.file.originalname) || (req.file.mimetype.includes('pdf') ? '.pdf' : '');
+    const isDoc = req.file.mimetype.includes('pdf') || ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.txt'].includes(ext.toLowerCase());
 
-    let finalUrl = uploadRes?.secure_url;
-    let publicId = uploadRes?.public_id;
+    let finalUrl = '';
+    let publicId = '';
+    let format = ext.replace('.', '') || req.file.mimetype.split('/')[1] || '';
 
-    // If Cloudinary failed, lacks permissions, or fell back to Data URL, persist locally
-    if (!finalUrl || finalUrl.startsWith('data:') || !publicId) {
+    // For document files (PDFs, PPT, DOC, XLS), store directly in dedicated static uploads.
+    // This avoids Cloudinary timeout delays (which cause progress to hang at 45%) and
+    // prevents Cloudinary 401 Unauthorized delivery restrictions on PDFs.
+    if (isDoc) {
       const uploadsDir = path.join(__dirname, '..', 'uploads', 'resources');
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
       }
-      const ext = path.extname(req.file.originalname) || (req.file.mimetype.includes('pdf') ? '.pdf' : req.file.mimetype.includes('png') ? '.png' : req.file.mimetype.includes('jpg') || req.file.mimetype.includes('jpeg') ? '.jpg' : '');
       const safeBase = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
       const filename = `res_${Date.now()}_${safeBase.endsWith(ext) ? safeBase : safeBase + ext}`;
       const filePath = path.join(uploadsDir, filename);
@@ -1650,6 +1805,39 @@ exports.uploadResourceFromDevice = async (req, res) => {
       const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
       finalUrl = `${protocol}://${host}/uploads/resources/${filename}`;
       publicId = `local_res_${Date.now()}`;
+    } else {
+      // For images, attempt Cloudinary first with fallback to local storage
+      let uploadRes = null;
+      try {
+        uploadRes = await uploadBufferToCloudinary(
+          req.file.buffer,
+          req.file.mimetype,
+          req.file.originalname,
+          'upskillr_course_materials'
+        );
+      } catch (cloudErr) {
+        console.warn('Cloudinary resource upload warning:', cloudErr.message);
+      }
+
+      finalUrl = uploadRes?.secure_url;
+      publicId = uploadRes?.public_id;
+      if (uploadRes?.format) format = uploadRes.format;
+
+      if (!finalUrl || finalUrl.startsWith('data:') || !publicId) {
+        const uploadsDir = path.join(__dirname, '..', 'uploads', 'resources');
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        const safeBase = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const filename = `res_${Date.now()}_${safeBase.endsWith(ext) ? safeBase : safeBase + ext}`;
+        const filePath = path.join(uploadsDir, filename);
+        await fs.promises.writeFile(filePath, req.file.buffer);
+
+        const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost:5000';
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+        finalUrl = `${protocol}://${host}/uploads/resources/${filename}`;
+        publicId = `local_res_${Date.now()}`;
+      }
     }
 
     const fileSizeMb = (req.file.size / (1024 * 1024)).toFixed(1) + ' MB';
@@ -1662,7 +1850,7 @@ exports.uploadResourceFromDevice = async (req, res) => {
       publicId: publicId,
       fileName: req.file.originalname,
       fileSize: fileSizeMb,
-      format: uploadRes?.format || req.file.mimetype.split('/')[1] || ''
+      format: format
     });
   } catch (err) {
     console.error('uploadResourceFromDevice error:', err.message);

@@ -295,8 +295,21 @@ const sendOAuthAccountNoticeEmail = async (userEmail, provider) => {
 // Temporary In-Memory Store for Pending Registrations
 const pendingRegistrations = new Map();
 
+// Helper to fetch canonical application status for an instructor
+const getInstructorApplicationStatus = async (instructorId) => {
+  try {
+    const app = await InstructorApplication.findOne({ instructorId });
+    return app ? app.applicationStatus : 'not_started';
+  } catch (e) {
+    return 'not_started';
+  }
+};
+
 // Helper to generate JWT Token
-const generateToken = (user) => {
+const generateToken = (user, explicitAppStatus) => {
+  const applicationStatus = explicitAppStatus !== undefined
+    ? explicitAppStatus
+    : (user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined));
   return jwt.sign(
     {
       id: user._id,
@@ -304,7 +317,7 @@ const generateToken = (user) => {
       role: user.role,
       fullName: user.fullName,
       isVerified: user.isVerified,
-      applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
+      applicationStatus
     },
     JWT_SECRET,
     { expiresIn: '7d' }
@@ -773,7 +786,10 @@ exports.manualLogin = async (req, res) => {
     }
 
     // Issue authenticated JWT token and HTTP-only session cookie
-    const token = generateToken(user);
+    const applicationStatus = user.role === 'instructor'
+      ? await getInstructorApplicationStatus(user._id)
+      : undefined;
+    const token = generateToken(user, applicationStatus);
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -796,7 +812,7 @@ exports.manualLogin = async (req, res) => {
         points: user.role === 'learner' ? (user.points || 0) : undefined,
         currentStreak: user.role === 'learner' ? (user.currentStreak || 0) : undefined,
         longestStreak: user.role === 'learner' ? (user.longestStreak || 0) : undefined,
-        applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
+        applicationStatus
       }
     });
   } catch (error) {
@@ -918,7 +934,10 @@ exports.verifyLoginOtp = async (req, res) => {
     await user.save();
 
     // Now issue authenticated JWT token and HTTP-only cookie
-    const token = generateToken(user);
+    const applicationStatus = user.role === 'instructor'
+      ? await getInstructorApplicationStatus(user._id)
+      : undefined;
+    const token = generateToken(user, applicationStatus);
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -941,7 +960,7 @@ exports.verifyLoginOtp = async (req, res) => {
         points: user.role === 'learner' ? (user.points || 0) : undefined,
         currentStreak: user.role === 'learner' ? (user.currentStreak || 0) : undefined,
         longestStreak: user.role === 'learner' ? (user.longestStreak || 0) : undefined,
-        applicationStatus: user.applicationStatus || (user.role === 'instructor' ? 'not_started' : undefined)
+        applicationStatus
       }
     });
   } catch (error) {
@@ -1474,7 +1493,10 @@ exports.googleOAuthCallback = async (req, res) => {
       }
     }
 
-    const token = generateToken(user);
+    const applicationStatus = user.role === 'instructor'
+      ? await getInstructorApplicationStatus(user._id)
+      : undefined;
+    const token = generateToken(user, applicationStatus);
 
     // Send compact HttpOnly authentication session cookie containing the JWT
     res.cookie('token', token, {
@@ -1653,7 +1675,10 @@ exports.githubOAuthCallback = async (req, res) => {
       }
     }
 
-    const token = generateToken(user);
+    const applicationStatus = user.role === 'instructor'
+      ? await getInstructorApplicationStatus(user._id)
+      : undefined;
+    const token = generateToken(user, applicationStatus);
 
     res.cookie('token', token, {
       httpOnly: true,
@@ -1690,21 +1715,18 @@ exports.getCurrentUser = async (req, res) => {
       delete userObj.currentStreak;
       delete userObj.longestStreak;
       delete userObj.lastCheckInDate;
-      const InstructorApplication = require('../model/InstructorApplication');
       const application = await InstructorApplication.findOne({ instructorId: user._id });
-      // Instructor model is authoritative for live profile; fall back to application snapshot if empty
-      userObj.designation = user.designation || application?.personalInfo?.professionalTitle || '';
+      userObj.applicationStatus = application ? application.applicationStatus : 'not_started';
+      userObj.designation = user.designation || '';
       userObj.specialization = userObj.designation; // maintain backward compatibility
-      userObj.bio = user.bio || application?.personalInfo?.bio || '';
-      userObj.keySkills = (user.keySkills && user.keySkills.length > 0)
-        ? user.keySkills
-        : (application?.professionalInfo?.keySkills || []);
+      userObj.bio = user.bio || '';
+      userObj.keySkills = user.keySkills || [];
     }
 
     return res.status(200).json({
       success: true,
       user: userObj,
-      token: req.token || generateToken(user)
+      token: req.token || generateToken(user, userObj.applicationStatus)
     });
   } catch (error) {
     console.error('getCurrentUser error:', error);
@@ -1851,18 +1873,16 @@ exports.getPublicInstructorById = async (req, res) => {
       ? Math.round((totalRatingsSum / ratedCoursesCount) * 10) / 10
       : null;
 
-    const keySkills = (instructor.keySkills && instructor.keySkills.length > 0)
-      ? instructor.keySkills
-      : (application?.professionalInfo?.keySkills || []);
+    const keySkills = instructor.keySkills || [];
 
     const resultInstructor = {
       _id: instructor._id,
       fullName: instructor.fullName,
       email: instructor.email,
-      avatar: instructor.avatar || application?.personalInfo?.photoUrl || '',
+      avatar: instructor.avatar || '',
       isVerified: instructor.isVerified || false,
-      designation: instructor.designation || application?.personalInfo?.professionalTitle || 'Expert Educator',
-      bio: instructor.bio || application?.personalInfo?.bio || 'Dedicated educator building engaging online courses on UpSkillr.',
+      designation: instructor.designation || 'Expert Educator',
+      bio: instructor.bio || 'Dedicated educator building engaging online courses on UpSkillr.',
       keySkills,
       expertise: keySkills,
       // Submitted Application About Data
@@ -1999,16 +2019,6 @@ exports.uploadProfilePhoto = async (req, res) => {
         { avatar: photoUrl },
         { new: true }
       ).select('-password');
-
-      // Only update InstructorApplication if still in draft/not_started (onboarding)
-      const application = await InstructorApplication.findOne({ instructorId: userId });
-      if (application && application.applicationStatus !== 'submitted') {
-        application.personalInfo = {
-          ...application.personalInfo.toObject(),
-          photoUrl
-        };
-        await application.save();
-      }
     }
 
     if (!updatedUser) {
@@ -2017,13 +2027,10 @@ exports.uploadProfilePhoto = async (req, res) => {
 
     const userObj = updatedUser.toObject();
     if (role === 'instructor') {
-      const application = await InstructorApplication.findOne({ instructorId: userId });
-      userObj.designation = updatedUser.designation || application?.personalInfo?.professionalTitle || '';
+      userObj.designation = updatedUser.designation || '';
       userObj.specialization = userObj.designation;
-      userObj.bio = updatedUser.bio || application?.personalInfo?.bio || '';
-      userObj.keySkills = (updatedUser.keySkills && updatedUser.keySkills.length > 0)
-        ? updatedUser.keySkills
-        : (application?.professionalInfo?.keySkills || []);
+      userObj.bio = updatedUser.bio || '';
+      userObj.keySkills = updatedUser.keySkills || [];
     }
 
     return res.status(200).json({
@@ -2065,16 +2072,6 @@ exports.removeProfilePhoto = async (req, res) => {
         { avatar: '' },
         { new: true }
       ).select('-password');
-
-      // Only remove from InstructorApplication photoUrl if still in draft/not_started (onboarding)
-      const application = await InstructorApplication.findOne({ instructorId: userId });
-      if (application && application.applicationStatus !== 'submitted') {
-        application.personalInfo = {
-          ...(application.personalInfo ? application.personalInfo.toObject() : {}),
-          photoUrl: ''
-        };
-        await application.save();
-      }
     }
 
     if (!updatedUser) {
@@ -2085,13 +2082,10 @@ exports.removeProfilePhoto = async (req, res) => {
     userObj.avatar = '';
 
     if (role === 'instructor') {
-      const application = await InstructorApplication.findOne({ instructorId: userId });
-      userObj.designation = updatedUser.designation || application?.personalInfo?.professionalTitle || '';
+      userObj.designation = updatedUser.designation || '';
       userObj.specialization = userObj.designation;
-      userObj.bio = updatedUser.bio || application?.personalInfo?.bio || '';
-      userObj.keySkills = (updatedUser.keySkills && updatedUser.keySkills.length > 0)
-        ? updatedUser.keySkills
-        : (application?.professionalInfo?.keySkills || []);
+      userObj.bio = updatedUser.bio || '';
+      userObj.keySkills = updatedUser.keySkills || [];
     }
 
     return res.status(200).json({
@@ -2128,16 +2122,15 @@ exports.getInstructorProfileAndApplication = async (req, res) => {
         {
           $setOnInsert: {
             instructorId: userId,
-            applicationStatus: instructor.applicationStatus || 'submitted',
-            currentSection: 6,
-            'personalInfo.fullName': instructor.fullName,
-            'personalInfo.email': instructor.email,
-            'personalInfo.photoUrl': instructor.avatar || ''
+            applicationStatus: 'not_started',
+            currentSection: 1
           }
         },
         { new: true, upsert: true }
       );
     }
+
+    const appStatus = application ? application.applicationStatus : 'not_started';
 
     const profileData = {
       _id: instructor._id,
@@ -2145,16 +2138,14 @@ exports.getInstructorProfileAndApplication = async (req, res) => {
       fullName: instructor.fullName,
       email: instructor.email,
       avatar: instructor.avatar || '',
-      designation: instructor.designation || application?.personalInfo?.professionalTitle || '',
-      specialization: instructor.designation || application?.personalInfo?.professionalTitle || '',
-      bio: instructor.bio || application?.personalInfo?.bio || '',
-      keySkills: (instructor.keySkills && instructor.keySkills.length > 0)
-        ? instructor.keySkills
-        : (application?.professionalInfo?.keySkills || []),
+      designation: instructor.designation || '',
+      specialization: instructor.designation || '',
+      bio: instructor.bio || '',
+      keySkills: instructor.keySkills || [],
       role: instructor.role,
       authProvider: instructor.authProvider,
       isVerified: instructor.isVerified,
-      applicationStatus: instructor.applicationStatus,
+      applicationStatus: appStatus,
       passwordChangedAt: instructor.passwordChangedAt,
       createdAt: instructor.createdAt
     };
@@ -2163,20 +2154,20 @@ exports.getInstructorProfileAndApplication = async (req, res) => {
     if (application) {
       applicationData = {
         _id: application._id,
-        applicationStatus: application.applicationStatus,
+        applicationStatus: appStatus,
         currentSection: application.currentSection,
         submittedAt: application.submittedAt,
         personalInfo: {
-          fullName: application.personalInfo?.fullName || '',
-          email: application.personalInfo?.email || '',
+          fullName: instructor.fullName || '',
+          email: instructor.email || '',
           phone: application.personalInfo?.phone || '',
           country: application.personalInfo?.country || '',
           countryCode: application.personalInfo?.countryCode || '',
           professionalTitle: application.personalInfo?.professionalTitle || '',
           professionalTitleOther: application.personalInfo?.professionalTitleOther || '',
-          bio: application.personalInfo?.bio || '',
+          bio: instructor.bio || '',
           location: application.personalInfo?.location || '',
-          photoUrl: application.personalInfo?.photoUrl || ''
+          photoUrl: instructor.avatar || ''
         },
         professionalInfo: {
           currentRole: application.professionalInfo?.currentRole || '',
@@ -2184,7 +2175,7 @@ exports.getInstructorProfileAndApplication = async (req, res) => {
           yearsOfExperience: application.professionalInfo?.yearsOfExperience || '',
           linkedinUrl: application.professionalInfo?.linkedinUrl || '',
           websiteUrl: application.professionalInfo?.websiteUrl || '',
-          keySkills: application.professionalInfo?.keySkills || []
+          keySkills: instructor.keySkills || []
         },
         education: {
           degree: application.education?.degree || '',

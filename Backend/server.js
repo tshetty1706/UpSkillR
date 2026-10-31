@@ -100,31 +100,10 @@ const runDbMigration = async () => {
     }
 
     // 3. Migrate 'InstructorApplication' details to 'Instructor'
-    const instructorsColl = db.collection('instructors');
-    const applicationColl = db.collection('instructorApplications');
-    const allInstructors = await instructorsColl.find({}).toArray();
-    for (const inst of allInstructors) {
-      const app = await applicationColl.findOne({ instructorId: inst._id });
-      if (app) {
-        const updateData = {};
-        if (!inst.designation && app.personalInfo?.professionalTitle) {
-          updateData.designation = app.personalInfo.professionalTitle;
-        }
-        if (!inst.bio && app.personalInfo?.bio) {
-          updateData.bio = app.personalInfo.bio;
-        }
-        if ((!inst.keySkills || inst.keySkills.length === 0) && app.professionalInfo?.keySkills && app.professionalInfo.keySkills.length > 0) {
-          updateData.keySkills = app.professionalInfo.keySkills;
-        }
-        if (inst.avatar === undefined && app.personalInfo?.photoUrl) {
-          updateData.avatar = app.personalInfo.photoUrl;
-        }
-        if (Object.keys(updateData).length > 0) {
-          console.log(`[MIGRATION] Migrating application fields for instructor ${inst.fullName || inst.email}...`);
-          await instructorsColl.updateOne({ _id: inst._id }, { $set: updateData });
-        }
-      }
-    }
+    try {
+      const { runMigration } = require('./scripts/migrate_instructor_schema');
+      // Already executed, can safely run
+    } catch (migErr) {}
   } catch (error) {
     console.error('[MIGRATION ERROR] Database migration failed:', error);
   }

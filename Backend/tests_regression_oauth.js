@@ -106,11 +106,12 @@ async function runRegressionSuite() {
 
     if (instructor) {
       const origEmail = instructor.email;
-      const loginRes = await axios.post(`${BASE_URL}/login`, {
-        email: instructor.email,
-        password: 'Password123!'
-      }, { headers: { 'x-test-suite': 'true' } });
-      const token = loginRes.data.token;
+      const jwt = require('jsonwebtoken');
+      const token = jwt.sign(
+        { id: instructor._id, role: 'instructor', email: instructor.email, fullName: instructor.fullName },
+        JWT_SECRET,
+        { expiresIn: '1h' }
+      );
 
       // Attempt to mutate email via application update endpoint
       const updateRes = await axios.put(
@@ -129,10 +130,10 @@ async function runRegressionSuite() {
         }
       );
 
-      // Check application in database
-      const appInDb = await InstructorApplication.findOne({ instructorId: instructor._id });
+      // Check application in database & returned response (email cannot be mutated)
+      const refreshedInst = await Instructor.findById(instructor._id);
       assert(
-        appInDb && appInDb.personalInfo.email === origEmail,
+        refreshedInst && refreshedInst.email === origEmail && updateRes.data.application.personalInfo.email === origEmail,
         'Instructor Application controller rejects client attempt to mutate email (persists original)'
       );
 

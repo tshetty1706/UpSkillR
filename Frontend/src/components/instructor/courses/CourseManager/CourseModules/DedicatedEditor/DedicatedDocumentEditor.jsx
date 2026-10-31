@@ -102,7 +102,7 @@ export const DedicatedDocumentEditor = ({
     }
 
     setIsUploading(true);
-    setUploadProgress(20);
+    setUploadProgress(15);
 
     try {
       const formData = new FormData();
@@ -112,20 +112,64 @@ export const DedicatedDocumentEditor = ({
       const cleanHeaders = { ...endpointHeaders };
       delete cleanHeaders['Content-Type'];
 
-      setUploadProgress(45);
-
       const uploadUrl = `${apiBase}/courses/${courseId}/curriculum/upload/resource`;
-      const res = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: cleanHeaders,
-        body: formData
+
+      const data = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', uploadUrl);
+
+        Object.keys(cleanHeaders).forEach(key => {
+          if (cleanHeaders[key]) {
+            xhr.setRequestHeader(key, cleanHeaders[key]);
+          }
+        });
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round(15 + (e.loaded / e.total) * 80);
+            setUploadProgress(Math.min(pct, 95));
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const parsed = JSON.parse(xhr.responseText);
+              resolve(parsed);
+            } catch {
+              reject(new Error('Invalid server response format.'));
+            }
+          } else {
+            try {
+              const errData = JSON.parse(xhr.responseText);
+              reject(new Error(errData.message || `Upload failed with HTTP ${xhr.status}`));
+            } catch {
+              reject(new Error(`Upload failed with HTTP ${xhr.status}`));
+            }
+          }
+        };
+
+        xhr.onerror = () => {
+          reject(new Error('Network error uploading document. Please check your connection.'));
+        };
+
+        xhr.ontimeout = () => {
+          reject(new Error('Upload timed out. Please try again with a smaller file.'));
+        };
+
+        xhr.timeout = 120000;
+        xhr.send(formData);
       });
 
-      setUploadProgress(80);
-      const data = await res.json();
+      setUploadProgress(100);
 
       if (data.success && (data.url || data.fileUrl || data.secure_url)) {
-        const finalUrl = data.url || data.fileUrl || data.secure_url;
+        let finalUrl = data.url || data.fileUrl || data.secure_url;
+        if (finalUrl && finalUrl.startsWith('/uploads/')) {
+          const backendOrigin = (apiBase || '').replace(/\/api\/?$/, '') || 'http://localhost:5000';
+          finalUrl = `${backendOrigin}${finalUrl}`;
+        }
+
         const finalName = data.fileName || file.name;
         const finalSize = data.fileSize || `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
 
@@ -133,7 +177,6 @@ export const DedicatedDocumentEditor = ({
         setFileName(finalName);
         setFileSize(finalSize);
         setFileType(lowerName.endsWith('.pdf') ? 'pdf' : 'document');
-        setUploadProgress(100);
 
         // Auto-populate Title if default or empty
         if (!title || title.includes('Reference Document') || title.includes('Lesson')) {

@@ -154,7 +154,7 @@ export const DedicatedContentEditorPage = ({
       guidanceTitle={currentConfig.guidanceTitle}
       guidanceType={currentConfig.guidanceType}
       onBackToWorkspace={onBackToWorkspace}
-      fullBleed={editorType === 'content-modules' || editorType === 'content-resources'}
+      fullBleed={editorType === 'content-modules' || editorType === 'content-resources' || editorType === 'content-assessments'}
     >
       <>
         {/* ── 1. MODULE & LESSONS EDITOR (Includes Notes, Articles, and Documents) ── */}

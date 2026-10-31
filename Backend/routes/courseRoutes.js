@@ -135,6 +135,7 @@ router.post('/:courseId/curriculum/assessments', protect, requireSubmittedInstru
 router.patch('/:courseId/curriculum/assessments/:assessmentId', protect, requireSubmittedInstructor, courseContentController.updateAssessment);
 router.delete('/:courseId/curriculum/assessments/:assessmentId', protect, requireSubmittedInstructor, courseContentController.deleteAssessment);
 router.patch('/:courseId/curriculum/assessments/:assessmentId/toggle-state', protect, requireSubmittedInstructor, courseContentController.toggleAssessmentState);
+router.get('/:courseId/curriculum/assessments/:assessmentId/view', protect, courseContentController.getAssessmentForLearner);
 router.post('/:courseId/curriculum/upload/video', protect, requireSubmittedInstructor, verifyCourseOwnership, videoUpload.single('video'), courseContentController.uploadVideoFromDevice);
 router.post('/:courseId/curriculum/upload/resource', protect, requireSubmittedInstructor, verifyCourseOwnership, resourceUpload.single('file'), courseContentController.uploadResourceFromDevice);
 

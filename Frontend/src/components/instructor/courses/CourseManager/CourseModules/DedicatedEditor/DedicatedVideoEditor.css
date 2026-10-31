@@ -106,7 +106,7 @@
 
 .dve-title-desc-wrap {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -118,6 +118,31 @@
   color: var(--text-primary, #121c16);
   letter-spacing: -0.015em;
   line-height: 1.2;
+}
+
+.dve-lesson-badge,
+.dae-lesson-badge {
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill, 9999px);
+  background: var(--surface-muted, #f3f6f4);
+  color: var(--text-secondary, #35443b);
+  border: 1px solid var(--border-subtle, #e2eae5);
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  align-self: center;
+}
+
+.dark .dve-lesson-badge,
+[data-theme="dark"] .dve-lesson-badge,
+.dark .dae-lesson-badge,
+[data-theme="dark"] .dae-lesson-badge {
+  background: var(--surface-muted, #16231b);
+  color: var(--text-secondary, #98a99f);
+  border-color: var(--border, #22372b);
 }
 
 .dve-main-desc {

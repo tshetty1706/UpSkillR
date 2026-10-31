@@ -95,7 +95,8 @@ export const LearnerPreview = ({
     if (reqIds.length === 0) return true;
 
     return reqIds.every(reqId => {
-      const targetMod = publishedModules.find(m => m._id === reqId);
+      const targetId = String(reqId?._id || reqId);
+      const targetMod = publishedModules.find(m => String(m._id) === targetId);
       if (!targetMod) return true; // If module was unpublished, do not block
       return isModuleComplete(targetMod);
     });
@@ -423,7 +424,8 @@ export const LearnerPreview = ({
                   const unlocked = isAssessmentUnlocked(ass);
                   const isPassed = !!completedAssessments[ass._id];
                   const requiredModNames = (ass.requiredModuleIds || []).map(id => {
-                    const m = publishedModules.find(mod => mod._id === id);
+                    const targetId = String(id?._id || id);
+                    const m = publishedModules.find(mod => String(mod._id) === targetId);
                     return m ? m.title : 'Module';
                   });
 

@@ -5,6 +5,26 @@ const Instructor = require('../model/Instructor');
 const { uploadBufferToCloudinary, deleteCloudinaryAsset } = require('./mediaController');
 
 /**
+ * Helper to hydrate an application document with canonical instructor identity fields.
+ * Ensures backward compatibility with frontend consumers without duplicating fields in MongoDB.
+ */
+function hydrateApplicationWithInstructor(application, instructor) {
+  const appObj = application.toObject ? application.toObject() : { ...application };
+  appObj.personalInfo = {
+    ...(appObj.personalInfo || {}),
+    fullName: instructor.fullName || '',
+    email: instructor.email || '',
+    photoUrl: instructor.avatar || '',
+    bio: instructor.bio || ''
+  };
+  appObj.professionalInfo = {
+    ...(appObj.professionalInfo || {}),
+    keySkills: instructor.keySkills || []
+  };
+  return appObj;
+}
+
+/**
  * Get current instructor application and status
  * GET /api/instructor/application
  */
@@ -20,28 +40,36 @@ exports.getApplication = async (req, res) => {
     let application = await InstructorApplication.findOne({ instructorId });
 
     if (!application) {
-      // Initialize fresh application with instructor details
+      // Initialize fresh application companion document
       application = new InstructorApplication({
         instructorId,
-        applicationStatus: instructor.applicationStatus || 'not_started',
+        applicationStatus: 'not_started',
         currentSection: 1,
         personalInfo: {
-          fullName: instructor.fullName || '',
-          email: instructor.email || '',
           phone: '',
-          professionalTitle: '',
-          bio: '',
-          location: '',
-          photoUrl: instructor.avatar || ''
+          country: 'India',
+          countryCode: '+91',
+          professionalTitle: instructor.designation || '',
+          professionalTitleOther: '',
+          location: ''
+        },
+        professionalInfo: {
+          currentRole: instructor.designation || '',
+          organization: '',
+          yearsOfExperience: '',
+          linkedinUrl: '',
+          websiteUrl: ''
         }
       });
       await application.save();
     }
 
+    const hydratedApplication = hydrateApplicationWithInstructor(application, instructor);
+
     return res.status(200).json({
       success: true,
-      applicationStatus: instructor.applicationStatus || application.applicationStatus,
-      application
+      applicationStatus: application.applicationStatus,
+      application: hydratedApplication
     });
   } catch (error) {
     console.error('Error fetching instructor application:', error);
@@ -84,12 +112,15 @@ exports.updateApplication = async (req, res) => {
       });
     }
 
+    // 1. Personal Information Handling
     if (personalInfo) {
-      const safePersonalInfo = { ...personalInfo };
-      // Enforce: Email address cannot be edited anywhere in instructor application
-      delete safePersonalInfo.email;
-      safePersonalInfo.email = instructor.email;
-      application.personalInfo = { ...application.personalInfo.toObject(), ...safePersonalInfo };
+      // Canonical Instructor Updates:
+      if (typeof personalInfo.fullName === 'string' && personalInfo.fullName.trim()) {
+        instructor.fullName = personalInfo.fullName.trim();
+      }
+      if (personalInfo.bio !== undefined && typeof personalInfo.bio === 'string') {
+        instructor.bio = personalInfo.bio.trim();
+      }
       if (personalInfo.photoUrl !== undefined) {
         instructor.avatar = personalInfo.photoUrl || '';
       }
@@ -99,32 +130,60 @@ exports.updateApplication = async (req, res) => {
         const isOther = title === 'Other' || title.toLowerCase().startsWith('other');
         instructor.designation = isOther && titleOther ? titleOther : title;
       }
-      if (personalInfo.bio !== undefined) {
-        instructor.bio = personalInfo.bio || '';
-      }
+
+      // Application-specific personalInfo fields (No redundant fullName/email/bio/photoUrl)
+      const currentPersonalInfo = application.personalInfo ? application.personalInfo.toObject() : {};
+      application.personalInfo = {
+        ...currentPersonalInfo,
+        ...(personalInfo.phone !== undefined ? { phone: personalInfo.phone } : {}),
+        ...(personalInfo.country !== undefined ? { country: personalInfo.country } : {}),
+        ...(personalInfo.countryCode !== undefined ? { countryCode: personalInfo.countryCode } : {}),
+        ...(personalInfo.professionalTitle !== undefined ? { professionalTitle: personalInfo.professionalTitle } : {}),
+        ...(personalInfo.professionalTitleOther !== undefined ? { professionalTitleOther: personalInfo.professionalTitleOther } : {}),
+        ...(personalInfo.location !== undefined ? { location: personalInfo.location } : {})
+      };
+      application.markModified('personalInfo');
     }
 
+    // 2. Professional Information Handling
     if (professionalInfo) {
-      const profData = { ...professionalInfo };
-      if (typeof profData.keySkills === 'string') {
-        profData.keySkills = profData.keySkills
-          ? profData.keySkills.split(',').map((s) => s.trim()).filter(Boolean)
-          : [];
+      // Canonical Instructor Key Skills Update:
+      if (professionalInfo.keySkills !== undefined) {
+        let skills = [];
+        if (Array.isArray(professionalInfo.keySkills)) {
+          skills = professionalInfo.keySkills.map((s) => String(s).trim()).filter(Boolean);
+        } else if (typeof professionalInfo.keySkills === 'string') {
+          skills = professionalInfo.keySkills.split(',').map((s) => s.trim()).filter(Boolean);
+        }
+        instructor.keySkills = skills;
       }
-      application.professionalInfo = { ...application.professionalInfo.toObject(), ...profData };
-      if (profData.keySkills !== undefined) {
-        instructor.keySkills = profData.keySkills;
-      }
+
+      // Application-specific professionalInfo fields (No redundant keySkills)
+      const currentProfInfo = application.professionalInfo ? application.professionalInfo.toObject() : {};
+      application.professionalInfo = {
+        ...currentProfInfo,
+        ...(professionalInfo.currentRole !== undefined ? { currentRole: professionalInfo.currentRole } : {}),
+        ...(professionalInfo.organization !== undefined ? { organization: professionalInfo.organization } : {}),
+        ...(professionalInfo.yearsOfExperience !== undefined ? { yearsOfExperience: professionalInfo.yearsOfExperience } : {}),
+        ...(professionalInfo.linkedinUrl !== undefined ? { linkedinUrl: professionalInfo.linkedinUrl } : {}),
+        ...(professionalInfo.websiteUrl !== undefined ? { websiteUrl: professionalInfo.websiteUrl } : {})
+      };
+      application.markModified('professionalInfo');
     }
 
+    // 3. Education
     if (education) {
       application.education = { ...application.education.toObject(), ...education };
+      application.markModified('education');
     }
 
+    // 4. Teaching Experience
     if (teachingExperience) {
       application.teachingExperience = { ...application.teachingExperience.toObject(), ...teachingExperience };
+      application.markModified('teachingExperience');
     }
 
+    // 5. Courses & Expertise
     if (coursesExpertise) {
       const currentCoursesExpertise = application.coursesExpertise ? application.coursesExpertise.toObject() : {};
       application.coursesExpertise = { ...currentCoursesExpertise, ...coursesExpertise };
@@ -134,6 +193,7 @@ exports.updateApplication = async (req, res) => {
       application.markModified('coursesExpertise');
     }
 
+    // 6. Documents
     if (documents) {
       const currentDocuments = application.documents ? application.documents.toObject() : {};
       application.documents = { ...currentDocuments, ...documents };
@@ -150,20 +210,31 @@ exports.updateApplication = async (req, res) => {
       application.currentSection = currentSection;
     }
 
-    // Move status from not_started to draft if user starts filling out data
-    if (application.applicationStatus === 'not_started' || instructor.applicationStatus === 'not_started') {
+    // Transition status to draft if previously not_started
+    if (application.applicationStatus === 'not_started') {
       application.applicationStatus = 'draft';
-      instructor.applicationStatus = 'draft';
     }
 
     await instructor.save();
     await application.save();
 
+    const hydratedApplication = hydrateApplicationWithInstructor(application, instructor);
+
     return res.status(200).json({
       success: true,
       message: 'Application progress saved successfully.',
-      applicationStatus: instructor.applicationStatus || application.applicationStatus,
-      application
+      applicationStatus: application.applicationStatus,
+      application: hydratedApplication,
+      user: {
+        id: instructor._id,
+        fullName: instructor.fullName,
+        email: instructor.email,
+        avatar: instructor.avatar,
+        designation: instructor.designation,
+        bio: instructor.bio,
+        keySkills: instructor.keySkills,
+        applicationStatus: application.applicationStatus
+      }
     });
   } catch (error) {
     console.error('Error auto-saving instructor application:', error);
@@ -175,7 +246,7 @@ exports.updateApplication = async (req, res) => {
 };
 
 /**
- * Upload Profile Photo
+ * Upload Profile Photo (Operates canonically on Instructor.avatar)
  * POST /api/instructor/application/upload/photo
  */
 exports.uploadPhoto = async (req, res) => {
@@ -187,7 +258,7 @@ exports.uploadPhoto = async (req, res) => {
 
     let photoUrl = '';
 
-    // Attempt Cloudinary upload first if credentials are configured
+    // Direct Cloudinary upload
     try {
       const uploadResult = await uploadBufferToCloudinary(
         req.file.buffer,
@@ -202,8 +273,7 @@ exports.uploadPhoto = async (req, res) => {
       console.warn('Cloudinary upload warning:', cErr.message);
     }
 
-    // Fallback: If Cloudinary did not return a remote URL (offline / local development / unconfigured),
-    // save to local uploads/photos directory so it is served quickly and reliably via express.static
+    // Fallback: save to local uploads/photos directory
     if (!photoUrl) {
       const ext = path.extname(req.file.originalname) || (req.file.mimetype.includes('png') ? '.png' : req.file.mimetype.includes('webp') ? '.webp' : '.jpg');
       const filename = `instructor-${instructorId}-${Date.now()}${ext}`;
@@ -216,33 +286,29 @@ exports.uploadPhoto = async (req, res) => {
     }
 
     const instructor = await Instructor.findById(instructorId);
-    if (instructor) {
-      instructor.avatar = photoUrl;
-      if (instructor.applicationStatus === 'not_started') {
-        instructor.applicationStatus = 'draft';
-      }
-      await instructor.save();
+    if (!instructor) {
+      return res.status(404).json({ success: false, message: 'Instructor not found.' });
     }
+    instructor.avatar = photoUrl;
+    await instructor.save();
 
     let application = await InstructorApplication.findOne({ instructorId });
     if (!application) {
       application = new InstructorApplication({ instructorId, applicationStatus: 'draft' });
     }
-
-    application.personalInfo = {
-      ...(application.personalInfo ? application.personalInfo.toObject() : {}),
-      photoUrl
-    };
     if (application.applicationStatus === 'not_started') {
       application.applicationStatus = 'draft';
     }
     await application.save();
 
+    const hydratedApplication = hydrateApplicationWithInstructor(application, instructor);
+
     return res.status(200).json({
       success: true,
       message: 'Profile photo uploaded successfully!',
-      photoUrl,
-      application
+      photoUrl: instructor.avatar,
+      avatar: instructor.avatar,
+      application: hydratedApplication
     });
   } catch (error) {
     console.error('Error uploading photo:', error);
@@ -251,7 +317,7 @@ exports.uploadPhoto = async (req, res) => {
 };
 
 /**
- * Remove Profile Photo
+ * Remove Profile Photo (Operates canonically on Instructor.avatar)
  * DELETE /api/instructor/application/upload/photo
  */
 exports.removePhoto = async (req, res) => {
@@ -272,19 +338,11 @@ exports.removePhoto = async (req, res) => {
       await instructor.save();
     }
 
-    let application = await InstructorApplication.findOne({ instructorId });
-    if (application) {
-      application.personalInfo = {
-        ...(application.personalInfo ? application.personalInfo.toObject() : {}),
-        photoUrl: ''
-      };
-      await application.save();
-    }
-
     return res.status(200).json({
       success: true,
       message: 'Profile photo removed. Default profile icon restored.',
-      photoUrl: ''
+      photoUrl: '',
+      avatar: ''
     });
   } catch (error) {
     console.error('Error removing photo:', error);
@@ -303,7 +361,6 @@ exports.uploadResume = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please select a resume file (PDF/DOC/DOCX) to upload.' });
     }
 
-    // Direct upload to Cloudinary (Zero Local Disk Writes)
     const uploadResult = await uploadBufferToCloudinary(
       req.file.buffer,
       req.file.mimetype,
@@ -331,19 +388,17 @@ exports.uploadResume = async (req, res) => {
     application.markModified('documents');
     if (application.applicationStatus === 'not_started') {
       application.applicationStatus = 'draft';
-      const instructor = await Instructor.findById(instructorId);
-      if (instructor && instructor.applicationStatus === 'not_started') {
-        instructor.applicationStatus = 'draft';
-        await instructor.save();
-      }
     }
     await application.save();
+
+    const instructor = await Instructor.findById(instructorId);
+    const hydratedApplication = instructor ? hydrateApplicationWithInstructor(application, instructor) : application;
 
     return res.status(200).json({
       success: true,
       message: 'Resume uploaded successfully!',
       resume: resumeObj,
-      application
+      application: hydratedApplication
     });
   } catch (error) {
     console.error('Error uploading resume:', error);
@@ -390,7 +445,6 @@ exports.uploadCertificate = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please select a certificate file (PDF/JPG/PNG/WEBP) to upload.' });
     }
 
-    // Direct upload to Cloudinary (Zero Local Disk Writes)
     const uploadResult = await uploadBufferToCloudinary(
       req.file.buffer,
       req.file.mimetype,
@@ -468,28 +522,40 @@ exports.submitApplication = async (req, res) => {
       });
     }
 
-    // Check required fields per section
+    // Check required fields from canonical Instructor record and application
+    if (!instructor.fullName?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Full Name is required before submitting your application.'
+      });
+    }
+
+    if (!instructor.email?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email address is required.'
+      });
+    }
+
     const pInfo = application.personalInfo || {};
     const isOtherTitle = pInfo.professionalTitle === 'Other' || pInfo.professionalTitle?.toLowerCase().startsWith('other');
     if (
-      !pInfo.fullName?.trim() ||
-      !pInfo.email?.trim() ||
       !pInfo.phone?.trim() ||
       !pInfo.professionalTitle?.trim() ||
       (isOtherTitle && !pInfo.professionalTitleOther?.trim()) ||
-      !pInfo.bio?.trim()
+      !instructor.bio?.trim()
     ) {
       return res.status(400).json({
         success: false,
-        message: 'Please complete all required fields in Personal Information (including Professional Title and Bio) before submitting.'
+        message: 'Please complete all required fields in Personal Information (including Professional Title, Phone Number, and Bio) before submitting.'
       });
     }
 
     const profInfo = application.professionalInfo || {};
-    if (!profInfo.currentRole?.trim() || !profInfo.yearsOfExperience?.trim() || !profInfo.keySkills || profInfo.keySkills.length === 0) {
+    if (!profInfo.currentRole?.trim() || !profInfo.yearsOfExperience?.trim() || !instructor.keySkills || instructor.keySkills.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Please complete all required fields in Professional Information (including Key Technical Skills) before submitting.'
+        message: 'Please complete all required fields in Professional Information (including Current Role, Experience, and Key Skills) before submitting.'
       });
     }
 
@@ -525,21 +591,18 @@ exports.submitApplication = async (req, res) => {
       });
     }
 
-    // Update status to submitted
+    // Update canonical application status to submitted
     application.applicationStatus = 'submitted';
     application.submittedAt = new Date();
     await application.save();
 
-    instructor.applicationStatus = 'submitted';
-    if (pInfo.photoUrl) {
-      instructor.avatar = pInfo.photoUrl;
-    }
+    // Ensure designation is aligned with the submitted title
     const resolvedTitle = isOtherTitle && pInfo.professionalTitleOther?.trim()
       ? pInfo.professionalTitleOther.trim()
       : (pInfo.professionalTitle || '');
-    instructor.designation = resolvedTitle;
-    instructor.bio = pInfo.bio || '';
-    instructor.keySkills = profInfo.keySkills || [];
+    if (resolvedTitle && !instructor.designation) {
+      instructor.designation = resolvedTitle;
+    }
     await instructor.save();
 
     return res.status(200).json({
@@ -553,6 +616,9 @@ exports.submitApplication = async (req, res) => {
         role: instructor.role,
         isVerified: instructor.isVerified,
         avatar: instructor.avatar,
+        designation: instructor.designation,
+        bio: instructor.bio,
+        keySkills: instructor.keySkills,
         applicationStatus: 'submitted'
       }
     });
@@ -576,7 +642,6 @@ exports.previewProxy = async (req, res) => {
       return res.status(400).json({ success: false, message: 'File URL is required.' });
     }
 
-    // SSRF security check: Only allow approved Cloudinary media
     const isCloudinary = fileUrl.startsWith('https://res.cloudinary.com/') || fileUrl.startsWith('http://res.cloudinary.com/');
     if (!isCloudinary) {
       return res.status(403).json({ success: false, message: 'Invalid or unauthorized document source.' });
@@ -587,7 +652,6 @@ exports.previewProxy = async (req, res) => {
     let contentType;
     const isPdf = /\.pdf(\?.*)?$/i.test(fileUrl);
 
-    // If it's a Cloudinary image-pipeline PDF, fetch its auto-rendered high-res PNG image directly
     if (isPdf && fileUrl.includes('/image/upload/')) {
       const pngUrl = fileUrl.replace(/\.pdf(\?.*)?$/i, '.png$1');
       try {
@@ -596,9 +660,7 @@ exports.previewProxy = async (req, res) => {
           timeout: 25000
         });
         contentType = 'image/png';
-      } catch (pngErr) {
-        // Fall back to direct fetch below if png transformation was not available
-      }
+      } catch (pngErr) {}
     }
 
     if (!response) {
@@ -631,4 +693,3 @@ exports.previewProxy = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Could not load document preview.' });
   }
 };
-

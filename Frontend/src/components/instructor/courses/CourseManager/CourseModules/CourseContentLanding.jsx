@@ -3,10 +3,6 @@ import {
   Layers,
   Award,
   ArrowRight,
-  FileText,
-  Video,
-  HelpCircle,
-  Lock,
   CheckCircle2,
   BookOpen
 } from 'lucide-react';
@@ -19,35 +15,6 @@ export const CourseContentLanding = ({
 }) => {
   // Aggregate stats across all lesson items
   const totalLessons = modules.reduce((acc, m) => acc + (m.lessons?.length || 0), 0);
-
-  const totalVideos = modules.reduce((acc, m) => {
-    return acc + (m.lessons || []).reduce((lAcc, l) => {
-      const items = l.items || l.contentItems || [];
-      return lAcc + items.filter(i => (i.type || '').toLowerCase() === 'video').length;
-    }, 0);
-  }, 0);
-
-  const totalQuizzes = modules.reduce((acc, m) => {
-    return acc + (m.lessons || []).reduce((lAcc, l) => {
-      const items = l.items || l.contentItems || [];
-      return lAcc + items.filter(i => (i.type || '').toLowerCase() === 'quiz').length;
-    }, 0);
-  }, 0);
-
-  const totalNotes = modules.reduce((acc, m) => {
-    return acc + (m.lessons || []).reduce((lAcc, l) => {
-      const items = l.items || l.contentItems || [];
-      return lAcc + items.filter(i => ['article', 'article_md', 'note'].includes((i.type || '').toLowerCase())).length;
-    }, 0);
-  }, 0);
-
-  const totalDocs = modules.reduce((acc, m) => {
-    return acc + (m.lessons || []).reduce((lAcc, l) => {
-      const items = l.items || l.contentItems || [];
-      return lAcc + items.filter(i => ['pdf', 'document'].includes((i.type || '').toLowerCase())).length;
-    }, 0);
-  }, 0);
-
   const publishedModules = modules.filter(m => m.state === 'published' || m.status === 'published').length;
   const draftModules = modules.length - publishedModules;
 
@@ -60,14 +27,14 @@ export const CourseContentLanding = ({
             <h2 className="landing-main-title">Course Content</h2>
           </div>
           <p className="landing-subtitle">
-            Design and organize your curriculum structure, video lectures, notes, quizzes, and module assessments.
+            Design and organize your curriculum structure, video lectures, articles, documents, quizzes, and module assessments.
           </p>
         </div>
       </div>
 
-      {/* ── Main Navigation Cards Grid (Module & Lessons + Assessment) ── */}
+      {/* ── Main Navigation Cards Grid (Module & Lessons + Assessments) ── */}
       <div className="content-cards-grid two-cards-grid">
-        {/* Card 1: Module & Lessons (Integrated with Notes, Articles, and Documents) */}
+        {/* Card 1: Module & Lessons */}
         <div
           className="content-nav-card card-modules"
           onClick={() => onNavigateSubView('modules')}
@@ -102,24 +69,6 @@ export const CourseContentLanding = ({
                 <BookOpen size={13} />
                 <span>{totalLessons} {totalLessons === 1 ? 'Lesson' : 'Lessons'}</span>
               </div>
-              <div className="stat-pill" title={`${totalVideos} Video Lectures`}>
-                <Video size={13} />
-                <span>{totalVideos} {totalVideos === 1 ? 'Video' : 'Videos'}</span>
-              </div>
-              <div className="stat-pill" title={`${totalQuizzes} Quizzes`}>
-                <HelpCircle size={13} />
-                <span>{totalQuizzes} {totalQuizzes === 1 ? 'Quiz' : 'Quizzes'}</span>
-              </div>
-              <div className="stat-pill" title={`${totalNotes} Notes & Articles`}>
-                <FileText size={13} />
-                <span>{totalNotes} {totalNotes === 1 ? 'Note' : 'Notes'}</span>
-              </div>
-              {totalDocs > 0 && (
-                <div className="stat-pill" title={`${totalDocs} Documents`}>
-                  <BookOpen size={13} />
-                  <span>{totalDocs} {totalDocs === 1 ? 'Doc' : 'Docs'}</span>
-                </div>
-              )}
             </div>
 
             <div className="card-meta-status">
@@ -141,7 +90,7 @@ export const CourseContentLanding = ({
           </div>
         </div>
 
-        {/* Card 2: Assessment (Module-Gated) */}
+        {/* Card 2: Assessments */}
         <div
           className="content-nav-card card-assessment"
           onClick={() => onNavigateSubView('assessments')}
@@ -161,20 +110,16 @@ export const CourseContentLanding = ({
             </div>
 
             <div className="card-text-block">
-              <h3 className="card-title">Assessment</h3>
+              <h3 className="card-title">Assessments</h3>
               <p className="card-description">
                 Create milestone assessments and define which modules learners must complete before unlocking them.
               </p>
             </div>
 
             <div className="card-stats-row">
-              <div className="stat-pill">
+              <div className="stat-pill" title={`${courseAssessments.length} Assessments`}>
                 <Award size={13} />
-                <span>{courseAssessments.length} Assessments</span>
-              </div>
-              <div className="stat-pill">
-                <Lock size={13} />
-                <span>Module-Gated</span>
+                <span>{courseAssessments.length} {courseAssessments.length === 1 ? 'Assessment' : 'Assessments'}</span>
               </div>
             </div>
 

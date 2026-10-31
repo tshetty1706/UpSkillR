@@ -752,14 +752,31 @@ exports.uploadLessonResource = async (req, res) => {
     const fileExt = (req.file.originalname || '').split('.').pop().toUpperCase() || 'FILE';
     const fileSizeMb = (req.file.size / (1024 * 1024)).toFixed(1) + ' MB';
 
-    // Direct Cloudinary upload (Zero Local Disk Writes)
-    const uploadResult = await uploadBufferToCloudinary(
-      req.file.buffer,
-      req.file.mimetype,
-      req.file.originalname,
-      'upskillr_course_resources'
-    );
-    const fileUrl = uploadResult.secure_url;
+    let fileUrl = '';
+    const isDoc = req.file.mimetype.includes('pdf') || (req.file.originalname && req.file.originalname.toLowerCase().endsWith('.pdf'));
+
+    if (isDoc) {
+      const uploadsDir = path.join(__dirname, '../uploads/resources');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const safeBase = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filename = `res_${Date.now()}_${safeBase}`;
+      const filePath = path.join(uploadsDir, filename);
+      await fs.promises.writeFile(filePath, req.file.buffer);
+
+      const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost:5000';
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+      fileUrl = `${protocol}://${host}/uploads/resources/${filename}`;
+    } else {
+      const uploadResult = await uploadBufferToCloudinary(
+        req.file.buffer,
+        req.file.mimetype,
+        req.file.originalname,
+        'upskillr_course_resources'
+      );
+      fileUrl = uploadResult.secure_url;
+    }
 
     const newResource = {
       title: title ? title.trim() : req.file.originalname,

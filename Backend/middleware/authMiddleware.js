@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { Instructor, Learner } = require('../model/User');
+const InstructorApplication = require('../model/InstructorApplication');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'upskillr_jwt_secret_key_2026_super_secure';
 
@@ -123,14 +124,16 @@ const requireSubmittedInstructor = async (req, res, next) => {
   }
 
   try {
-    const instructor = await Instructor.findById(req.user.id);
-    if (!instructor || instructor.applicationStatus !== 'submitted') {
+    const application = await InstructorApplication.findOne({ instructorId: req.user.id });
+    const applicationStatus = application ? application.applicationStatus : 'not_started';
+    if (applicationStatus !== 'submitted') {
       return res.status(403).json({
         success: false,
         message: 'Access denied. Instructor application must be submitted before accessing dashboard features.',
-        applicationStatus: instructor ? instructor.applicationStatus : 'not_started'
+        applicationStatus
       });
     }
+    req.user.applicationStatus = applicationStatus;
     next();
   } catch (error) {
     console.error('requireSubmittedInstructor DB check error:', error);

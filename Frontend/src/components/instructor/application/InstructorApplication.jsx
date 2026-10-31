@@ -635,6 +635,31 @@ export const InstructorApplication = ({ user, onLogout }) => {
 
       const data = await response.json();
       if (data.success) {
+        if (data.user) {
+          const storedUser = sessionStorage.getItem('upskillr_user');
+          if (storedUser) {
+            try {
+              const u = JSON.parse(storedUser);
+              let changed = false;
+              if (data.user.fullName && u.fullName !== data.user.fullName) {
+                u.fullName = data.user.fullName;
+                changed = true;
+              }
+              if (data.user.avatar !== undefined && u.avatar !== data.user.avatar) {
+                u.avatar = data.user.avatar;
+                changed = true;
+              }
+              if (data.user.applicationStatus && u.applicationStatus !== data.user.applicationStatus) {
+                u.applicationStatus = data.user.applicationStatus;
+                changed = true;
+              }
+              if (changed) {
+                sessionStorage.setItem('upskillr_user', JSON.stringify(u));
+                window.dispatchEvent(new Event('upskillr_user_updated'));
+              }
+            } catch (err) {}
+          }
+        }
         setAutoSaveStatus('saved');
         setTimeout(() => {
           setAutoSaveStatus('idle');
