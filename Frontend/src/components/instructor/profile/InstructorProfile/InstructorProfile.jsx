@@ -973,14 +973,125 @@ export const InstructorProfile = ({ user }) => {
     }
   };
 
-  // Helper to get reliable document preview URL
-  const getDocumentPreviewUrl = (url) => {
+  // Document type detection & safe URL helpers
+  const isPdfUrl = (url) => {
+    if (!url) return false;
+    return /\.pdf(\?.*)?$/i.test(url) || url.startsWith('data:application/pdf');
+  };
+
+  const isImageUrl = (url) => {
+    if (!url) return false;
+    return (/\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(url) || url.startsWith('data:image/')) && !isPdfUrl(url);
+  };
+
+  const isWordDocUrl = (url) => {
+    if (!url) return false;
+    return /\.(docx?|rtf)(\?.*)?$/i.test(url) ||
+      url.startsWith('data:application/msword') ||
+      url.startsWith('data:application/vnd.openxmlformats');
+  };
+
+  const getSafeDocUrl = (url) => {
     if (!url) return '';
-    // If it's a Cloudinary PDF, convert to .png extension for direct, unblocked high-res rendering
-    if (url.includes('cloudinary.com') && /\.pdf(\?.*)?$/i.test(url)) {
-      return url.replace(/\.pdf(\?.*)?$/i, '.png$1');
+    if (url.startsWith('/uploads/')) {
+      return `${API_BASE.replace('/api', '')}${url}`;
     }
     return url;
+  };
+
+  const getDocInlinePreviewUrl = (url) => {
+    if (!url) return '';
+    const safeUrl = getSafeDocUrl(url);
+    if (safeUrl.startsWith('data:')) {
+      return safeUrl;
+    }
+    if (isPdfUrl(safeUrl)) {
+      return `${API_BASE}/instructor/application/preview-proxy?url=${encodeURIComponent(safeUrl)}`;
+    }
+    return safeUrl;
+  };
+
+  const handleOpenFullInTab = (e) => {
+    if (e) e.preventDefault();
+    const url = getSafeDocUrl(previewModal.url);
+    if (!url) return;
+
+    if (url.startsWith('data:')) {
+      try {
+        const arr = url.split(',');
+        const mimeMatch = arr[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const blob = new Blob([u8arr], { type: mime });
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, '_blank', 'noopener,noreferrer');
+        return;
+      } catch (err) {
+        console.error('Error opening data URL in new tab:', err);
+      }
+    }
+
+    if (isPdfUrl(url)) {
+      window.open(`${API_BASE}/instructor/application/preview-proxy?url=${encodeURIComponent(url)}`, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleDownloadDocument = async (e) => {
+    if (e) e.preventDefault();
+    const url = getSafeDocUrl(previewModal.url);
+    if (!url) return;
+
+    const baseName = (previewModal.title || 'document').replace(/[^\w.-]+/g, '_');
+    const ext = isPdfUrl(url) ? '.pdf' : isWordDocUrl(url) ? '.docx' : '';
+    const filename = baseName.toLowerCase().endsWith(ext) ? baseName : `${baseName}${ext}`;
+
+    try {
+      if (url.startsWith('data:')) {
+        const arr = url.split(',');
+        const mimeMatch = arr[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const blob = new Blob([u8arr], { type: mime });
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl);
+        return;
+      }
+
+      const downloadEndpoint = `${API_BASE}/instructor/application/preview-proxy?url=${encodeURIComponent(url)}`;
+      const res = await fetch(downloadEndpoint);
+      if (!res.ok) throw new Error('Proxy fetch failed');
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.warn('Download fallback to direct window.open:', err);
+      window.open(url, '_blank');
+    }
   };
 
   if (loading) {
@@ -2463,29 +2574,24 @@ export const InstructorProfile = ({ user }) => {
                 <span>{previewModal.title}</span>
               </div>
               <div className="doc-preview-modal-actions">
-                <a
-                  href={previewModal.url.includes('cloudinary.com') ? getDocumentPreviewUrl(previewModal.url) : previewModal.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={handleOpenFullInTab}
                   className="btn btn-outline btn-modal-action"
-                  title="Open full document in new tab"
+                  title="Open full document in new browser tab"
                 >
                   <ExternalLink size={14} />
                   <span>Open Full</span>
-                </a>
-                <a
-                  href={previewModal.url.startsWith('http') && previewModal.url.includes('cloudinary.com')
-                    ? `${API_BASE}/instructor/application/preview-proxy?url=${encodeURIComponent(previewModal.url)}`
-                    : previewModal.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download={previewModal.title || 'document'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadDocument}
                   className="btn btn-outline btn-modal-action"
                   title="Download document"
                 >
                   <Download size={14} />
                   <span>Download</span>
-                </a>
+                </button>
                 <button
                   type="button"
                   className="doc-preview-modal-close"
@@ -2498,25 +2604,59 @@ export const InstructorProfile = ({ user }) => {
             </div>
 
             <div className="doc-preview-modal-body">
-              {(!previewModal.url.startsWith('http') || previewModal.url.includes('cloudinary.com') || /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(previewModal.url)) ? (
+              {isImageUrl(previewModal.url) ? (
                 <img
-                  src={getDocumentPreviewUrl(previewModal.url)}
+                  src={getSafeDocUrl(previewModal.url)}
                   alt={previewModal.title}
                   className="doc-preview-image"
                   onError={(e) => {
-                    // Fallback to proxy if direct image fails
                     e.target.onerror = null;
-                    if (previewModal.url.includes('cloudinary.com')) {
-                      e.target.src = `${API_BASE}/instructor/application/preview-proxy?url=${encodeURIComponent(previewModal.url)}`;
+                    const safe = getSafeDocUrl(previewModal.url);
+                    if (safe.startsWith('http')) {
+                      e.target.src = `${API_BASE}/instructor/application/preview-proxy?url=${encodeURIComponent(safe)}`;
                     }
                   }}
                 />
-              ) : (
+              ) : isPdfUrl(previewModal.url) ? (
                 <iframe
-                  src={previewModal.url}
+                  src={getDocInlinePreviewUrl(previewModal.url)}
                   title={previewModal.title}
                   className="doc-preview-iframe"
-                  style={{ width: '100%', height: '70vh', border: 'none', borderRadius: '8px' }}
+                />
+              ) : isWordDocUrl(previewModal.url) ? (
+                <div className="doc-preview-office-card">
+                  <div className="office-card-icon">
+                    <FileText size={40} />
+                  </div>
+                  <h3>Microsoft Word Document</h3>
+                  <p className="office-doc-name"><strong>{previewModal.title}</strong></p>
+                  <p className="office-doc-desc">
+                    Word documents (.doc/.docx) can be downloaded or opened directly to view full content.
+                  </p>
+                  <div className="office-actions-row">
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={handleDownloadDocument}
+                    >
+                      <Download size={14} />
+                      <span>Download Document</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={handleOpenFullInTab}
+                    >
+                      <ExternalLink size={14} />
+                      <span>Open in Browser</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <iframe
+                  src={getSafeDocUrl(previewModal.url)}
+                  title={previewModal.title}
+                  className="doc-preview-iframe"
                 />
               )}
             </div>

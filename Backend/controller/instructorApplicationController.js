@@ -642,50 +642,76 @@ exports.previewProxy = async (req, res) => {
       return res.status(400).json({ success: false, message: 'File URL is required.' });
     }
 
-    const isCloudinary = fileUrl.startsWith('https://res.cloudinary.com/') || fileUrl.startsWith('http://res.cloudinary.com/');
-    if (!isCloudinary) {
+    // 1. Handle base64 Data URLs
+    if (fileUrl.startsWith('data:')) {
+      const matches = fileUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        const mimeType = matches[1];
+        const buffer = Buffer.from(matches[2], 'base64');
+        const isPdf = mimeType.toLowerCase().includes('pdf');
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Disposition', `inline; filename="preview.${isPdf ? 'pdf' : 'bin'}"`);
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return res.send(buffer);
+      }
+    }
+
+    // 2. Handle local uploads
+    if (fileUrl.startsWith('/uploads/') || fileUrl.includes('/uploads/')) {
+      const fs = require('fs');
+      const cleanPath = fileUrl.startsWith('http') ? new URL(fileUrl).pathname : fileUrl;
+      const relativeUploadPath = cleanPath.substring(cleanPath.indexOf('/uploads/'));
+      const filePath = path.join(__dirname, '..', relativeUploadPath);
+
+      if (fs.existsSync(filePath)) {
+        const ext = path.extname(filePath).toLowerCase();
+        let mimeType = 'application/octet-stream';
+        if (ext === '.pdf') mimeType = 'application/pdf';
+        else if (ext === '.png') mimeType = 'image/png';
+        else if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg';
+        else if (ext === '.webp') mimeType = 'image/webp';
+
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Disposition', `inline; filename="preview${ext}"`);
+        return fs.createReadStream(filePath).pipe(res);
+      }
+    }
+
+    // 3. Handle Cloudinary or remote URLs
+    const isCloudinary = fileUrl.startsWith('https://res.cloudinary.com/') ||
+                         fileUrl.startsWith('http://res.cloudinary.com/') ||
+                         fileUrl.includes('cloudinary.com');
+
+    if (!isCloudinary && !fileUrl.startsWith('http://') && !fileUrl.startsWith('https://')) {
       return res.status(403).json({ success: false, message: 'Invalid or unauthorized document source.' });
     }
 
     const axios = require('axios');
-    let response;
-    let contentType;
     const isPdf = /\.pdf(\?.*)?$/i.test(fileUrl);
+    const isImage = /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(fileUrl);
 
-    if (isPdf && fileUrl.includes('/image/upload/')) {
-      const pngUrl = fileUrl.replace(/\.pdf(\?.*)?$/i, '.png$1');
-      try {
-        response = await axios.get(pngUrl, {
-          responseType: 'arraybuffer',
-          timeout: 25000
-        });
-        contentType = 'image/png';
-      } catch (pngErr) {}
-    }
+    // Fetch the original file buffer directly from storage
+    const response = await axios.get(fileUrl, {
+      responseType: 'arraybuffer',
+      timeout: 30000,
+      headers: {
+        'Accept': isPdf ? 'application/pdf,*/*' : '*/*'
+      }
+    });
 
-    if (!response) {
-      try {
-        response = await axios.get(fileUrl, {
-          responseType: 'arraybuffer',
-          timeout: 25000
-        });
-        contentType = response.headers['content-type'] || (isPdf ? 'application/pdf' : 'application/octet-stream');
-      } catch (directErr) {
-        if (isPdf) {
-          const pngUrl = fileUrl.replace(/\.pdf(\?.*)?$/i, '.png$1');
-          response = await axios.get(pngUrl, {
-            responseType: 'arraybuffer',
-            timeout: 25000
-          });
-          contentType = 'image/png';
-        } else {
-          throw directErr;
-        }
+    let contentType = response.headers['content-type'];
+    if (!contentType || contentType === 'application/octet-stream') {
+      if (isPdf) contentType = 'application/pdf';
+      else if (isImage) {
+        if (fileUrl.match(/\.png(\?.*)?$/i)) contentType = 'image/png';
+        else if (fileUrl.match(/\.jpe?g(\?.*)?$/i)) contentType = 'image/jpeg';
+        else if (fileUrl.match(/\.webp(\?.*)?$/i)) contentType = 'image/webp';
       }
     }
 
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', 'inline; filename="preview"');
+    const filename = isPdf ? 'document.pdf' : 'preview';
+    res.setHeader('Content-Type', contentType || (isPdf ? 'application/pdf' : 'application/octet-stream'));
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
     res.setHeader('Cache-Control', 'public, max-age=86400');
     return res.send(Buffer.from(response.data));
   } catch (error) {
