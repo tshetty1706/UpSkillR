@@ -154,7 +154,7 @@ export default function Login() {
             navigate('/instructor/application');
           }
         } else {
-          navigate('/learner');
+          navigate('/learner/dashboard');
         }
       } catch (e) {
         console.error('Failed to parse user data from OAuth callback', e);
@@ -346,7 +346,7 @@ export default function Login() {
           sessionStorage.removeItem('upskillr_redirect_after_login');
           navigate(redirectPath);
         } else {
-          navigate('/learner');
+          navigate('/learner/dashboard');
         }
       }
     } catch (err) {
@@ -407,7 +407,7 @@ export default function Login() {
           sessionStorage.removeItem('upskillr_redirect_after_login');
           navigate(redirectPath);
         } else {
-          navigate('/learner');
+          navigate('/learner/dashboard');
         }
       }
     } catch (err) {

@@ -498,3 +498,125 @@ exports.getLearnerCertificates = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Failed to fetch certificates.' });
   }
 };
+
+
+const Bookmark = require('../model/Bookmark');
+const Course = require('../model/Course');
+
+// ─── 11. Bookmarks Endpoints ───
+exports.getLearnerBookmarks = async (req, res) => {
+  try {
+    const learnerId = req.user.id;
+    const bookmarks = await Bookmark.find({ learnerId }).sort({ createdAt: -1 });
+    return res.status(200).json({ success: true, count: bookmarks.length, bookmarks });
+  } catch (err) {
+    console.error('Error fetching bookmarks:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch bookmarks.' });
+  }
+};
+
+exports.addOrToggleBookmark = async (req, res) => {
+  try {
+    const learnerId = req.user.id;
+    const { courseId, resourceId = null, resourceType = 'course', title, courseTitle, courseThumbnail, category, url } = req.body;
+
+    if (!courseId) {
+      return res.status(400).json({ success: false, message: 'courseId is required.' });
+    }
+
+    // Check if exists
+    const query = {
+      learnerId,
+      courseId,
+      resourceType: resourceType || 'course',
+      resourceId: resourceId || null
+    };
+
+    const existing = await Bookmark.findOne(query);
+    if (existing) {
+      // Toggle off: remove
+      await Bookmark.findByIdAndDelete(existing._id);
+      return res.status(200).json({ success: true, action: 'removed', isBookmarked: false, message: 'Bookmark removed.' });
+    }
+
+    // If title or thumbnail missing, lookup course
+    let resolvedTitle = title;
+    let resolvedCourseTitle = courseTitle;
+    let resolvedThumb = courseThumbnail;
+    let resolvedCategory = category;
+
+    if (!resolvedTitle || !resolvedThumb) {
+      const course = await Course.findById(courseId);
+      if (course) {
+        resolvedCourseTitle = resolvedCourseTitle || course.title;
+        resolvedTitle = resolvedTitle || course.title;
+        resolvedThumb = resolvedThumb || course.thumbnail;
+        resolvedCategory = resolvedCategory || course.category;
+      }
+    }
+
+    const bookmark = await Bookmark.create({
+      learnerId,
+      courseId,
+      resourceId: resourceId || null,
+      resourceType: resourceType || 'course',
+      title: resolvedTitle || 'Bookmarked Resource',
+      courseTitle: resolvedCourseTitle || resolvedTitle || 'Course',
+      courseThumbnail: resolvedThumb || '',
+      category: resolvedCategory || 'General',
+      url: url || `/courses/${courseId}`
+    });
+
+    return res.status(201).json({ success: true, action: 'added', isBookmarked: true, bookmark, message: 'Bookmark added.' });
+  } catch (err) {
+    console.error('Error saving bookmark:', err);
+    return res.status(500).json({ success: false, message: 'Failed to save bookmark.' });
+  }
+};
+
+exports.deleteLearnerBookmark = async (req, res) => {
+  try {
+    const learnerId = req.user.id;
+    const { id } = req.params;
+    const { courseId, resourceId, resourceType } = req.query;
+
+    if (id) {
+      await Bookmark.findOneAndDelete({ _id: id, learnerId });
+    } else if (courseId) {
+      const q = { learnerId, courseId };
+      if (resourceType) q.resourceType = resourceType;
+      if (resourceId) q.resourceId = resourceId;
+      await Bookmark.findOneAndDelete(q);
+    } else {
+      return res.status(400).json({ success: false, message: 'Bookmark ID or courseId is required.' });
+    }
+
+    return res.status(200).json({ success: true, message: 'Bookmark removed successfully.' });
+  } catch (err) {
+    console.error('Error deleting bookmark:', err);
+    return res.status(500).json({ success: false, message: 'Failed to remove bookmark.' });
+  }
+};
+
+// ─── 12. Record Course Activity / Access ───
+exports.recordCourseAccess = async (req, res) => {
+  try {
+    const learnerId = req.user.id;
+    const courseId = req.params.courseId || req.body.courseId;
+
+    if (!courseId) {
+      return res.status(400).json({ success: false, message: 'courseId is required.' });
+    }
+
+    const enrolment = await Enrolment.findOne({ learnerId, courseId });
+    if (enrolment) {
+      enrolment.lastAccessedAt = new Date();
+      await enrolment.save();
+    }
+
+    return res.status(200).json({ success: true, message: 'Course access updated.' });
+  } catch (err) {
+    console.error('Error recording course access:', err);
+    return res.status(500).json({ success: false, message: 'Failed to record access.' });
+  }
+};

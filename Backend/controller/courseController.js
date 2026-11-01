@@ -61,8 +61,7 @@ const sanitizeCourseForLearner = (course) => {
 
       // Filter lessons to only published lessons
       const rawLessons = Array.isArray(modObj.lessons) ? modObj.lessons : [];
-      modObj.lessons = rawLessons
-        .filter(l => (l.state === 'published' || l.status === 'published'))
+      modObj.lessons = rawLessons.filter(l => (l.state === 'published' || l.status === 'published' || !l.state || (Array.isArray(l.items) && l.items.some(i => i.state === 'published' || i.status === 'published'))))
         .map(les => {
           const lesObj = { ...les };
 
@@ -1563,6 +1562,84 @@ exports.enrolInCourse = async (req, res) => {
   }
 };
 
+/**
+ * Accurately compute progress percentage and status for an enrolment given a course.
+ * Ensures a course is NEVER marked 100% or completed if any visible lesson remains unfinished.
+ */
+const calculateEnrolmentProgress = (course, enrolment) => {
+  if (!course || !enrolment) {
+    return {
+      progressPercentage: 0,
+      status: 'active',
+      completedLessonsCount: 0,
+      totalLessonsCount: 1,
+      pubItemIds: new Set(),
+      lessonToItemsMap: new Map()
+    };
+  }
+
+  const sanitized = sanitizeCourseForLearner(course);
+  const pubModules = (sanitized?.modules || []).filter(m => m.state === 'published' || m.status === 'published');
+  const allVisibleLessons = [];
+  const pubItemIds = new Set();
+  const lessonToItemsMap = new Map();
+
+  pubModules.forEach(m => {
+    (m.lessons || []).forEach(l => {
+      allVisibleLessons.push(l);
+      const lItems = (l.items || l.contentItems || []).filter(i => i.state === 'published' || i.status === 'published');
+      const itemIds = lItems.map(i => String(i._id));
+      lessonToItemsMap.set(String(l._id), itemIds);
+      itemIds.forEach(id => pubItemIds.add(id));
+    });
+  });
+
+  const completedList = (enrolment.completedLessons || []).map(k => String(k));
+  let completedLessonsCount = 0;
+
+  allVisibleLessons.forEach((l, idx) => {
+    const lIdStr = String(l._id);
+    const lItems = lessonToItemsMap.get(lIdStr) || [];
+    const isIdDone = completedList.includes(lIdStr);
+    const isIdxDone = completedList.includes(String(idx));
+    const areItemsDone = lItems.length > 0 && lItems.every(id => completedList.includes(id));
+    const anyItemDone = lItems.length > 0 && lItems.some(id => completedList.includes(id));
+
+    if (isIdDone || isIdxDone || areItemsDone || anyItemDone) {
+      completedLessonsCount += 1;
+    }
+  });
+
+  const totalLessonsCount = allVisibleLessons.length > 0
+    ? allVisibleLessons.length
+    : ((sanitized?.lessons && sanitized.lessons.length > 0) ? sanitized.lessons.length : (pubModules.length || 1));
+
+  let progressPercentage = 0;
+  let status = 'active';
+
+  if (completedLessonsCount >= totalLessonsCount && totalLessonsCount > 0) {
+    progressPercentage = 100;
+    status = 'completed';
+  } else if (completedLessonsCount > 0) {
+    progressPercentage = Math.min(Math.round((completedLessonsCount / totalLessonsCount) * 100), 99);
+    status = 'in_progress';
+  } else {
+    progressPercentage = 0;
+    status = 'active';
+  }
+
+  return {
+    progressPercentage,
+    status,
+    completedLessonsCount,
+    totalLessonsCount,
+    pubItemIds,
+    lessonToItemsMap,
+    allVisibleLessons
+  };
+};
+exports.calculateEnrolmentProgress = calculateEnrolmentProgress;
+
 exports.getCourseProgress = async (req, res) => {
   try {
     const courseId = req.params.courseId || req.params.id;
@@ -1571,17 +1648,26 @@ exports.getCourseProgress = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Enrolment record not found.' });
     }
     const course = await Course.findById(courseId);
-    const totalLessons = Math.max(
-      (course?.lessons?.length || 0) + (course?.modules || []).reduce((acc, m) => acc + (m.lessons?.length || 0), 0) || (course?.modules?.length || 0),
-      1
-    );
+    const { progressPercentage, status, completedLessonsCount, totalLessonsCount } = calculateEnrolmentProgress(course, enrolment);
+
+    // Auto heal enrolment in database if out of sync
+    if (enrolment.progressPercentage !== progressPercentage || enrolment.status !== status) {
+      enrolment.progressPercentage = progressPercentage;
+      enrolment.status = status;
+      if (status !== 'completed') enrolment.completedAt = null;
+      await Enrolment.updateOne(
+        { _id: enrolment._id },
+        { $set: { progressPercentage, status, completedAt: enrolment.completedAt } }
+      );
+    }
+
     return res.status(200).json({
       success: true,
       enrolment,
-      totalModules: totalLessons,
-      completedModules: enrolment.completedLessons.length,
-      progressPercentage: enrolment.progressPercentage,
-      status: enrolment.status,
+      totalModules: totalLessonsCount,
+      completedModules: completedLessonsCount,
+      progressPercentage,
+      status,
       completedAt: enrolment.completedAt
     });
   } catch (error) {
@@ -1597,49 +1683,16 @@ exports.getLearnerEnrolments = async (req, res) => {
     const sanitisedEnrolments = enrolments.map(enrolment => {
       const eObj = enrolment;
       if (eObj.courseId) {
+        const { progressPercentage, status } = calculateEnrolmentProgress(eObj.courseId, eObj);
         eObj.courseId = sanitizeCourseForLearner(eObj.courseId);
+        eObj.progressPercentage = progressPercentage;
+        eObj.status = status;
 
-        const pubModules = (eObj.courseId.modules || []).filter(m => m.state === 'published' || m.status === 'published');
-        const pubItemIds = new Set();
-        pubModules.forEach(m => {
-          (m.lessons || []).filter(l => l.state === 'published' || l.status === 'published').forEach(l => {
-            (l.items || l.contentItems || []).filter(i => i.state === 'published' || i.status === 'published').forEach(i => {
-              pubItemIds.add(String(i._id));
-            });
-          });
-        });
-
-        if (pubItemIds.size > 0) {
-          const completedCount = (eObj.completedLessons || []).filter(k => pubItemIds.has(String(k))).length;
-          const actualPercentage = Math.min(Math.round((completedCount / pubItemIds.size) * 100), 100);
-          eObj.progressPercentage = actualPercentage;
-          if (actualPercentage < 100) {
-            eObj.status = completedCount > 0 ? 'in_progress' : 'active';
-          } else {
-            eObj.status = 'completed';
-          }
-        } else {
-          const totalItems = (eObj.courseId.lessons && eObj.courseId.lessons.length > 0)
-            ? eObj.courseId.lessons.length
-            : (eObj.courseId.modules || []).length;
-
-          if (totalItems > 0) {
-            const validCompleted = new Set();
-            (eObj.completedLessons || []).forEach(k => {
-              const num = Number(k);
-              if (!isNaN(num) && num >= 0 && num < totalItems) {
-                validCompleted.add(num);
-              }
-            });
-            const completedCount = validCompleted.size;
-            const actualPercentage = Math.min(Math.round((completedCount / totalItems) * 100), 100);
-            eObj.progressPercentage = actualPercentage;
-            if (actualPercentage < 100) {
-              eObj.status = completedCount > 0 ? 'in_progress' : 'active';
-            } else {
-              eObj.status = 'completed';
-            }
-          }
+        if (enrolment.status !== status || enrolment.progressPercentage !== progressPercentage) {
+          Enrolment.updateOne(
+            { _id: enrolment._id },
+            { $set: { status, progressPercentage } }
+          ).catch(err => console.error('Enrolment sync error:', err));
         }
       }
       return eObj;
@@ -1776,23 +1829,19 @@ exports.updateLessonProgress = async (req, res) => {
     });
     enrolment.completedLessons = Array.from(uniqueValid);
 
-    // Recalculate course progress
-    let newPercentage = 0;
-    if (pubItemIds.size > 0) {
-      const completedItemsCount = enrolment.completedLessons.filter(i => pubItemIds.has(String(i))).length;
-      newPercentage = Math.min(Math.round((completedItemsCount / pubItemIds.size) * 100), 100);
-    } else {
-      newPercentage = Math.min(Math.round((enrolment.completedLessons.length / totalLessons) * 100), 100);
-    }
+    // Recalculate course progress using single-source-of-truth calculation
+    const progressResult = calculateEnrolmentProgress(course, enrolment);
+    const newPercentage = progressResult.progressPercentage;
+    const newStatus = progressResult.status;
 
     enrolment.progressPercentage = newPercentage;
+    enrolment.status = newStatus;
     enrolment.lastAccessedAt = Date.now();
 
     if (newPercentage === 100) {
-      enrolment.status = 'completed';
       if (!enrolment.completedAt) enrolment.completedAt = Date.now();
     } else {
-      enrolment.status = enrolment.completedLessons.length > 0 ? 'in_progress' : 'active';
+      enrolment.completedAt = null;
     }
 
     await enrolment.save();

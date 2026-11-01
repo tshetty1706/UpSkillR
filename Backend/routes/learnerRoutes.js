@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const learnerController = require('../controller/learnerController');
+const reviewController = require('../controller/reviewController');
 const { protect, requireLearner } = require('../middleware/authMiddleware');
 
 // Middleware to prevent caching
@@ -30,8 +31,19 @@ router.get('/me/point-history', learnerController.getPointHistory);
 // Enrolled Courses Route
 router.get('/me/courses', courseController.getLearnerEnrolments);
 
-// FR-09: Learner's own reviews (for profile display)
+// FR-09: Learner's own reviews & feedback management
 router.get('/me/reviews', learnerController.getLearnerReviews);
+router.delete('/me/reviews/:reviewId', reviewController.deleteCourseReview);
+router.patch('/me/reviews/:reviewId', reviewController.updateCourseReview);
+
+// Bookmarks Routes
+router.get('/me/bookmarks', learnerController.getLearnerBookmarks);
+router.post('/me/bookmarks', learnerController.addOrToggleBookmark);
+router.delete('/me/bookmarks/:id', learnerController.deleteLearnerBookmark);
+router.delete('/me/bookmarks', learnerController.deleteLearnerBookmark);
+
+// Recent Course Activity / Access Route
+router.post('/me/recent-course', learnerController.recordCourseAccess);
 
 // Learning Activity Heatmap (from PointTransaction data)
 router.get('/me/activity', learnerController.getLearnerActivity);

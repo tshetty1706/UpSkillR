@@ -1,0 +1,396 @@
+/* Recently Viewed Card Styles */
+
+.recently-viewed-section {
+  margin-bottom: 28px;
+}
+
+.section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.section-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.015em;
+}
+
+/* Card Container */
+.recently-viewed-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background-color: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.recently-viewed-card:hover {
+  border-color: var(--border);
+  box-shadow: var(--shadow-md);
+}
+
+/* Thumbnail Wrap */
+.recent-card-thumb-wrap {
+  position: relative;
+  width: 150px;
+  height: 94px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex-shrink: 0;
+  background-color: var(--surface-muted);
+}
+
+.recent-card-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.25s ease;
+}
+
+.recently-viewed-card:hover .recent-card-thumb {
+  transform: scale(1.03);
+}
+
+.thumb-play-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.85;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+
+.recently-viewed-card:hover .thumb-play-overlay {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.thumb-play-icon {
+  color: #ffffff;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+/* Details */
+.recent-card-details {
+  flex: 1;
+  min-width: 0; /* enables text-overflow: ellipsis in flex children */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recent-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.recent-category-pill {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--brand-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.recent-course-title {
+  font-size: 1.12rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recent-current-lesson {
+  font-size: 0.86rem;
+  color: var(--text-muted);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Progress Container */
+.recent-progress-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 480px;
+}
+
+.recent-progress-bar-wrap {
+  flex: 1;
+  height: 7px;
+  background-color: var(--surface-muted);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+}
+
+.recent-progress-bar-fill {
+  height: 100%;
+  background-color: var(--brand-primary);
+  border-radius: var(--radius-pill);
+  transition: width 0.4s ease;
+}
+
+.recent-progress-pct-text {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 36px;
+  text-align: right;
+}
+
+/* Continue Button */
+.recent-card-action {
+  flex-shrink: 0;
+}
+
+.btn-recent-continue {
+  min-height: 44px;
+  padding: 10px 22px;
+  background-color: var(--brand-primary);
+  color: var(--btn-primary-text, #ffffff);
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: var(--font-family);
+  font-size: 0.92rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 2px 8px var(--brand-emerald-glow, rgba(17, 104, 48, 0.2));
+}
+
+.btn-recent-continue:hover {
+  background-color: var(--brand-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--brand-emerald-glow, rgba(17, 104, 48, 0.25));
+}
+
+.btn-recent-continue:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* Empty State Card */
+.recently-viewed-empty-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background-color: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+}
+
+.empty-content-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.empty-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background-color: var(--brand-soft);
+  color: var(--brand-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .empty-icon-box,
+.dark .empty-icon-box {
+  background-color: var(--brand-light);
+}
+
+.empty-text-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.empty-main-text {
+  font-size: 0.96rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.empty-sub-text {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.btn-explore-empty {
+  min-height: 44px;
+  padding: 9px 18px;
+  background-color: var(--brand-soft);
+  color: var(--brand-primary);
+  border: 1px solid rgba(17, 104, 48, 0.25);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family);
+  font-size: 0.88rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .btn-explore-empty,
+.dark .btn-explore-empty {
+  background-color: var(--brand-light);
+  border-color: rgba(57, 217, 95, 0.3);
+}
+
+.btn-explore-empty:hover {
+  background-color: var(--brand-primary);
+  color: var(--btn-primary-text, #ffffff);
+}
+
+.btn-explore-empty:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* Skeleton Loader */
+.loading-skeleton {
+  pointer-events: none;
+}
+
+.skeleton-thumb {
+  width: 150px;
+  height: 94px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, var(--surface-muted) 25%, var(--border-subtle) 50%, var(--surface-muted) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--surface-muted) 25%, var(--border-subtle) 50%, var(--surface-muted) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.line-title { width: 60%; height: 18px; }
+.line-subtitle { width: 40%; }
+.line-progress { width: 75%; height: 8px; }
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Responsiveness */
+@media (max-width: 767px) {
+  .recently-viewed-card {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .recent-card-thumb-wrap {
+    width: 100%;
+    height: 160px;
+  }
+
+  .recent-card-details {
+    width: 100%;
+  }
+
+  .recent-progress-container {
+    max-width: 100%;
+  }
+
+  .recent-card-action {
+    width: 100%;
+  }
+
+  .btn-recent-continue {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .recently-viewed-empty-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .btn-explore-empty {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+
+
+.empty-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-mylearning-empty {
+  min-height: 44px;
+  padding: 9px 18px;
+  background-color: var(--brand-primary);
+  color: var(--btn-primary-text, #ffffff);
+  border: 1px solid var(--brand-primary);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family);
+  font-size: 0.88rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-mylearning-empty:hover {
+  background-color: var(--brand-primary-hover);
+}
+
+.btn-mylearning-empty:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}

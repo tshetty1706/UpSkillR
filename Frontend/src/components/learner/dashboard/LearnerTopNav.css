@@ -1,0 +1,243 @@
+/* Learner Top Navigation Bar Styles */
+
+.learner-topnav {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--border-subtle);
+  z-index: 105;
+  box-shadow: var(--shadow-sm);
+  transition: background-color var(--theme-transition-duration) var(--theme-transition-timing),
+              border-color var(--theme-transition-duration) var(--theme-transition-timing);
+}
+
+.learner-topnav-container {
+  max-width: var(--max-width, 1440px);
+  margin: 0 auto;
+  height: 100%;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* Left Brand Section */
+.learner-topnav-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.mobile-sidebar-toggle-btn {
+  display: none;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.mobile-sidebar-toggle-btn:hover {
+  background-color: var(--surface-muted);
+}
+
+.mobile-sidebar-toggle-btn:focus-visible {
+  outline: 2px solid var(--brand-primary);
+}
+
+.learner-brand-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.brand-logo-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background-color: var(--brand-soft);
+  color: var(--brand-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-theme="dark"] .brand-logo-badge,
+.dark .brand-logo-badge {
+  background-color: var(--brand-light);
+  color: var(--brand-primary);
+}
+
+.brand-book-icon {
+  color: var(--brand-primary);
+}
+
+.brand-title-text {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.brand-role-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background-color: var(--brand-soft);
+  color: var(--brand-primary);
+  border: 1px solid rgba(17, 104, 48, 0.2);
+  letter-spacing: 0.02em;
+}
+
+[data-theme="dark"] .brand-role-chip,
+.dark .brand-role-chip {
+  background-color: var(--brand-light);
+  border-color: rgba(57, 217, 95, 0.2);
+}
+
+/* Right Section Actions */
+.learner-topnav-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topnav-icon-btn {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.topnav-icon-btn:hover {
+  background-color: var(--surface-muted);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.topnav-icon-btn:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* Profile Quick Access Button */
+.topnav-profile-btn {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 12px 4px 6px;
+  background-color: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  font-family: var(--font-family);
+}
+
+.topnav-profile-btn:hover {
+  background-color: var(--brand-soft);
+  border-color: var(--brand-primary);
+}
+
+.topnav-profile-btn:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.topnav-user-avatar {
+  flex-shrink: 0;
+}
+
+.topnav-user-name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  max-width: 130px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Logout Button */
+.topnav-logout-btn {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.topnav-logout-btn:hover {
+  background-color: var(--color-error-bg, rgba(220, 38, 38, 0.08));
+  color: var(--color-error, #dc2626);
+  border-color: var(--color-error-border, rgba(220, 38, 38, 0.3));
+}
+
+.topnav-logout-btn:focus-visible {
+  outline: 2px solid var(--color-error, #dc2626);
+  outline-offset: 2px;
+}
+
+/* Responsiveness */
+@media (max-width: 1023px) {
+  .learner-topnav-container {
+    padding: 0 16px;
+  }
+}
+
+@media (max-width: 767px) {
+  .mobile-sidebar-toggle-btn {
+    display: flex;
+  }
+
+  .brand-role-chip {
+    display: none;
+  }
+
+  .topnav-user-name {
+    display: none;
+  }
+
+  .topnav-profile-btn {
+    padding: 4px;
+    border-radius: var(--radius-md);
+  }
+
+  .logout-text {
+    display: none;
+  }
+
+  .topnav-logout-btn {
+    padding: 8px 10px;
+  }
+}
+

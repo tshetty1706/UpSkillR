@@ -1,0 +1,368 @@
+/* Learner Collapsible Sidebar Styles */
+
+.learner-sidebar-backdrop {
+  display: none;
+}
+
+.learner-sidebar {
+  position: fixed;
+  top: 60px; /* Aligns right beneath the compact top navbar */
+  left: 0;
+  bottom: 0;
+  width: 72px;
+  background-color: var(--surface);
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px 10px;
+  z-index: 100;
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.22s ease;
+  overflow-x: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Hover-expanded state on desktop: overlays content without moving main layout */
+.learner-sidebar.expanded {
+  width: 240px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  border-right-color: var(--border);
+}
+
+[data-theme="dark"] .learner-sidebar.expanded,
+.dark .learner-sidebar.expanded {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* Mobile Header: Hidden on Desktop */
+.sidebar-mobile-header {
+  display: none;
+}
+
+/* Navigation List */
+.sidebar-nav-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-nav-item {
+  position: relative;
+}
+
+/* Sidebar Nav Button (44px min touch target) */
+.sidebar-nav-btn {
+  width: 100%;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: 0.925rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  position: relative;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.sidebar-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.sidebar-icon {
+  color: var(--text-secondary);
+  transition: color 0.15s ease;
+}
+
+.sidebar-label {
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  pointer-events: none;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.learner-sidebar.expanded .sidebar-label {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+/* Hover & Focus States */
+.sidebar-nav-btn:hover {
+  background-color: var(--surface-muted);
+  color: var(--text-primary);
+}
+
+.sidebar-nav-btn:hover .sidebar-icon {
+  color: var(--brand-primary);
+}
+
+.sidebar-nav-btn:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* Active Nav State */
+.sidebar-nav-btn.active {
+  background-color: var(--brand-soft);
+  color: var(--brand-primary);
+  border-color: rgba(17, 104, 48, 0.2);
+  font-weight: 600;
+}
+
+.sidebar-nav-btn.active .sidebar-icon {
+  color: var(--brand-primary);
+}
+
+.sidebar-nav-btn.active .sidebar-label {
+  color: var(--brand-primary);
+}
+
+[data-theme="dark"] .sidebar-nav-btn.active,
+.dark .sidebar-nav-btn.active {
+  background-color: var(--brand-light);
+  border-color: rgba(57, 217, 95, 0.25);
+  color: var(--brand-primary);
+}
+
+[data-theme="dark"] .sidebar-nav-btn.active .sidebar-label,
+.dark .sidebar-nav-btn.active .sidebar-label {
+  color: var(--brand-primary);
+}
+
+/* Tooltip (Only shown when collapsed) */
+.sidebar-tooltip {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: var(--text-primary);
+  color: var(--surface);
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  box-shadow: var(--shadow-md);
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  z-index: 1000;
+}
+
+.learner-sidebar.collapsed .sidebar-nav-btn:hover .sidebar-tooltip,
+.learner-sidebar.collapsed .sidebar-profile-card:hover .sidebar-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.learner-sidebar.expanded .sidebar-tooltip {
+  display: none !important;
+}
+
+/* Bottom Profile Section */
+.sidebar-profile-section {
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+  position: relative;
+}
+
+.sidebar-profile-card {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  position: relative;
+}
+
+.sidebar-profile-card:hover {
+  background-color: var(--surface-muted);
+}
+
+.sidebar-profile-card:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.sidebar-profile-card.active {
+  background-color: var(--brand-soft);
+  border-color: rgba(17, 104, 48, 0.25);
+}
+
+[data-theme="dark"] .sidebar-profile-card.active,
+.dark .sidebar-profile-card.active {
+  background-color: var(--brand-light);
+  border-color: rgba(57, 217, 95, 0.25);
+}
+
+.sidebar-user-avatar {
+  flex-shrink: 0;
+}
+
+.sidebar-user-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  pointer-events: none;
+}
+
+.learner-sidebar.expanded .sidebar-user-info {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.sidebar-user-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.sidebar-view-profile-text {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
+.sidebar-profile-arrow {
+  margin-left: auto;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  flex-shrink: 0;
+}
+
+.learner-sidebar.expanded .sidebar-profile-arrow {
+  opacity: 1;
+}
+
+/* Tablet & Mobile Responsiveness */
+@media (max-width: 1023px) {
+  .learner-sidebar {
+    top: 56px;
+  }
+}
+
+@media (max-width: 767px) {
+  .learner-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(2px);
+    z-index: 998;
+  }
+
+  .learner-sidebar {
+    top: 0;
+    width: 260px;
+    transform: translateX(-100%);
+    box-shadow: var(--shadow-lg);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 999;
+  }
+
+  .learner-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 16px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .sidebar-brand-mobile {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--brand-primary);
+    font-weight: 700;
+    font-size: 1.15rem;
+  }
+
+  .sidebar-brand-icon {
+    color: var(--brand-primary);
+  }
+
+  .sidebar-close-btn {
+    min-height: 44px;
+    min-width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+
+  .sidebar-close-btn:focus-visible {
+    outline: 2px solid var(--brand-primary);
+  }
+
+  /* In mobile drawer mode, always show labels */
+  .sidebar-label {
+    opacity: 1 !important;
+    transform: none !important;
+    pointer-events: auto !important;
+  }
+
+  .sidebar-user-info {
+    opacity: 1 !important;
+    transform: none !important;
+    pointer-events: auto !important;
+  }
+
+  .sidebar-profile-arrow {
+    opacity: 1 !important;
+  }
+
+  .sidebar-tooltip {
+    display: none !important;
+  }
+}
+

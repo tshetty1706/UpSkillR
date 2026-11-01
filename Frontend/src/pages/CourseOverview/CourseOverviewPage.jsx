@@ -74,8 +74,9 @@ export const CourseOverviewPage = ({ courseId, user = null }) => {
   };
 
   const handleGoToLearning = () => {
-    window.history.pushState({}, '', '/learner');
-    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/learner' } }));
+    const path = `/learn/${courseId}`;
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
   };
 
   const handleEnroll = async () => {

@@ -267,3 +267,47 @@ exports.getLearnerAllReviews = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Failed to fetch your reviews.' });
   }
 };
+
+
+// 6. Delete Review (DELETE /api/courses/:courseId/review or DELETE /api/learners/me/reviews/:reviewId)
+exports.deleteCourseReview = async (req, res) => {
+  try {
+    const learnerId = req.user.id;
+    const { courseId, reviewId } = req.params;
+
+    let review;
+    if (reviewId && mongoose.Types.ObjectId.isValid(reviewId)) {
+      review = await CourseReview.findOne({ _id: reviewId, learnerId });
+    } else if (courseId && mongoose.Types.ObjectId.isValid(courseId)) {
+      review = await CourseReview.findOne({ courseId, learnerId });
+    }
+
+    if (!review) {
+      return res.status(404).json({ success: false, message: 'Review not found or unauthorized.' });
+    }
+
+    const targetCourseId = review.courseId;
+    await CourseReview.findByIdAndDelete(review._id);
+
+    // Sync with enrolment: clear rating and feedback
+    const enrolment = await Enrolment.findOne({ learnerId, courseId: targetCourseId });
+    if (enrolment) {
+      enrolment.rating = null;
+      enrolment.feedback = '';
+      enrolment.feedbackTags = [];
+      enrolment.ratedAt = null;
+      await enrolment.save();
+    }
+
+    // Recalculate Course average rating
+    await updateCourseRatingStats(targetCourseId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Course review has been deleted successfully.'
+    });
+  } catch (error) {
+    console.error('Error deleting course review:', error);
+    return res.status(500).json({ success: false, message: 'Server error while deleting review.' });
+  }
+};

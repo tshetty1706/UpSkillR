@@ -12,6 +12,7 @@ import { LearnerDashboard } from './pages/Learner/LearnerDashboard';
 import { ExploreCourses } from './components/home/ExploreCourses/ExploreCourses';
 import { ExploreInstructors } from './components/home/ExploreInstructors/ExploreInstructors';
 import { CourseOverviewPage } from './pages/CourseOverview/CourseOverviewPage';
+import { CourseLearningPage } from './pages/CourseLearning/CourseLearningPage';
 import { NotFound } from './components/common/NotFound/NotFound';
 import { InstructorApplication } from './components/instructor/application/InstructorApplication';
 import { InstructorExploreCourses } from './components/home/InstructorExploreCourses/InstructorExploreCourses';
@@ -63,7 +64,7 @@ function App() {
           setCurrentUser(user);
           const targetPath = user.role === 'instructor'
             ? (user.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
-            : '/learner';
+            : '/learner/dashboard';
           window.history.replaceState({}, document.title, targetPath);
           setCurrentPath(targetPath);
           setAuthChecking(false);
@@ -94,7 +95,7 @@ function App() {
           if (window.location.pathname === '/dashboard' || window.location.pathname === '/login') {
             const targetPath = data.user.role === 'instructor'
               ? (data.user.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
-              : '/learner';
+              : '/learner/dashboard';
             window.history.replaceState({}, document.title, targetPath);
             setCurrentPath(targetPath);
           }
@@ -184,7 +185,7 @@ function App() {
       if (currentUser) {
         const targetPath = currentUser.role === 'instructor'
           ? (currentUser.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
-          : '/learner';
+          : '/learner/dashboard';
         if (currentPath !== targetPath) {
           window.history.replaceState({}, '', targetPath);
         }
@@ -209,7 +210,7 @@ function App() {
       if (currentUser) {
         const targetPath = currentUser.role === 'instructor'
           ? (currentUser.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
-          : '/learner';
+          : '/learner/dashboard';
         if (currentPath !== targetPath) {
           window.history.replaceState({}, '', targetPath);
         }
@@ -225,7 +226,7 @@ function App() {
       if (currentUser) {
         const targetPath = currentUser.role === 'instructor'
           ? (currentUser.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
-          : '/learner';
+          : '/learner/dashboard';
         if (currentPath !== targetPath) {
           window.history.replaceState({}, '', targetPath);
         }
@@ -241,7 +242,7 @@ function App() {
       if (currentUser) {
         const targetPath = currentUser.role === 'instructor'
           ? (currentUser.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
-          : '/learner';
+          : '/learner/dashboard';
         if (currentPath !== targetPath) {
           window.history.replaceState({}, '', targetPath);
         }
@@ -288,7 +289,9 @@ function App() {
 
       return <InstructorDashboard user={currentUser} onLogout={handleLogout} />;
     }
-    if (path.startsWith('/learner/') || path === '/learner') {
+    if (path.startsWith('/learner/') || path === '/learner' || (currentUser?.role === 'learner' && path === '/profile')) {
+      if (path === '/profile') window.history.replaceState({}, '', '/learner/profile');
+      if (path === '/learner') window.history.replaceState({}, '', '/learner/dashboard');
       if (!currentUser) {
         if (authChecking) {
           return (
@@ -327,6 +330,29 @@ function App() {
         </div>
       );
     }
+    // Dedicated Course Learning Interface Route: /learn/:courseId
+    const courseLearnMatch = currentPath.match(/^\/learn\/([^/?#]+)/i);
+    if (courseLearnMatch) {
+      const courseId = courseLearnMatch[1];
+      if (!currentUser) {
+        if (authChecking) {
+          return (
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', color: 'var(--brand-primary)', fontWeight: 600 }}>
+              <div>Loading course interface...</div>
+            </div>
+          );
+        }
+        sessionStorage.setItem('upskillr_redirect_after_login', `/learn/${courseId}`);
+        return <Login />;
+      }
+      return (
+        <div className="app-main">
+          <Navbar />
+          <CourseLearningPage courseId={courseId} user={currentUser} />
+        </div>
+      );
+    }
+
     // Course Overview Route: /courses/:courseId or /course/:courseId
     const courseOverviewMatch = currentPath.match(/^\/(?:courses|course)\/([^/?#]+)/i);
     if (courseOverviewMatch) {

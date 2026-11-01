@@ -1,0 +1,182 @@
+/* Learner Achievements View Styles */
+
+.learner-achievements-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.achievements-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.achievements-page-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.achievements-page-subtitle {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* Stats Grid */
+.achievements-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.achieve-stat-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.achieve-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border);
+}
+
+.achieve-icon-box {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.streak-icon {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
+.best-streak-icon {
+  background-color: var(--brand-soft);
+  color: var(--brand-primary);
+}
+
+[data-theme="dark"] .best-streak-icon,
+.dark .best-streak-icon {
+  background-color: var(--brand-light);
+}
+
+.points-icon {
+  background-color: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.completed-icon {
+  background-color: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.achieve-stat-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.achieve-stat-number {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.achieve-stat-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* Roadmap Notice Card */
+.achievements-roadmap-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: 24px 28px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.roadmap-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.roadmap-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background-color: var(--brand-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .roadmap-icon-wrap,
+.dark .roadmap-icon-wrap {
+  background-color: var(--brand-light);
+}
+
+.roadmap-title {
+  font-size: 1.18rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 6px 0;
+}
+
+.roadmap-desc {
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.roadmap-milestones-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+  background-color: var(--surface-muted);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+
+.roadmap-milestone-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+.milestone-status-bullet.done {
+  color: var(--color-success, #16a34a);
+  flex-shrink: 0;
+}
+
+.milestone-status-bullet.pending {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+

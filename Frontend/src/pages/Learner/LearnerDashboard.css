@@ -1,0 +1,51 @@
+/* Redesigned Learner Dashboard Layout Styles */
+
+.learner-dashboard-root {
+  min-height: 100vh;
+  background-color: var(--background);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Main Dashboard Workspace */
+.learner-dashboard-workspace {
+  display: flex;
+  flex: 1;
+  position: relative;
+  min-height: calc(100vh - 60px);
+}
+
+/* Main Content Area */
+.learner-main-content {
+  flex: 1;
+  min-width: 0; /* Prevents overflow with flex layouts */
+  margin-left: 72px; /* Reserves compact sidebar width */
+  padding: 32px; /* Desktop: 32px per AGENTS.md */
+  transition: margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.learner-content-container {
+  max-width: var(--max-width, 1440px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Tablet Breakpoint (768px - 1023px) */
+@media (max-width: 1023px) {
+  .learner-main-content {
+    padding: 24px; /* Tablet: 24px per AGENTS.md */
+  }
+}
+
+/* Mobile Breakpoint (< 768px) */
+@media (max-width: 767px) {
+  .learner-main-content {
+    margin-left: 0; /* Full width on mobile */
+    padding: 16px; /* Mobile: 16px per AGENTS.md */
+  }
+}
+
