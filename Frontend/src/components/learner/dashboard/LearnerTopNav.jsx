@@ -2,43 +2,47 @@ import React from 'react';
 import { BookOpen, Sun, Moon, LogOut, Menu } from 'lucide-react';
 import { useTheme } from '../../../context/ThemeContext';
 import { NotificationBell } from '../../common/NotificationBell/NotificationBell';
-import { Avatar } from '../../common/Avatar/Avatar';
 import './LearnerTopNav.css';
 
 export const LearnerTopNav = ({
   user,
   onToggleMobileSidebar,
-  onNavigateProfile,
   onLogoutClick,
   onLogoClick,
   onNavigateToCourse
 }) => {
   const { toggleTheme, isDarkMode } = useTheme();
 
-  const userName = user?.fullName || user?.name || 'Learner';
-  const userAvatar = user?.avatar || user?.profilePhoto;
+  const handleBrandClick = (e) => {
+    e.preventDefault();
+    if (onLogoClick) {
+      onLogoClick();
+    } else {
+      window.history.pushState({}, '', '/learner/dashboard');
+      window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/learner/dashboard' } }));
+    }
+  };
 
   return (
     <header className="learner-topnav" aria-label="Learner Top Navigation Bar">
       <div className="learner-topnav-container">
-        {/* Left Section: Mobile Menu Trigger + Brand Identity */}
+        {/* Left Section: Mobile Menu Trigger (when sidebar exists) + Brand Identity */}
         <div className="learner-topnav-left">
-          <button
-            type="button"
-            className="mobile-sidebar-toggle-btn"
-            onClick={onToggleMobileSidebar}
-            aria-label="Toggle navigation menu"
-          >
-            <Menu size={22} />
-          </button>
+          {onToggleMobileSidebar && (
+            <button
+              type="button"
+              className="mobile-sidebar-toggle-btn"
+              onClick={onToggleMobileSidebar}
+              aria-label="Toggle navigation menu"
+            >
+              <Menu size={22} />
+            </button>
+          )}
 
           <a
             href="/learner/dashboard"
             className="learner-brand-link"
-            onClick={(e) => {
-              e.preventDefault();
-              if (onLogoClick) onLogoClick();
-            }}
+            onClick={handleBrandClick}
             aria-label="UpSkillr Learner Dashboard Home"
           >
             <div className="brand-logo-badge">
@@ -49,7 +53,7 @@ export const LearnerTopNav = ({
           </a>
         </div>
 
-        {/* Right Section: Theme Toggle, Notifications, Profile & Logout (NO SEARCH BAR) */}
+        {/* Right Section: Theme Toggle, Notifications & Logout (NO PROFILE ACCESS IN NAVBAR) */}
         <div className="learner-topnav-right">
           {/* Theme Switcher Button */}
           <button
@@ -64,23 +68,6 @@ export const LearnerTopNav = ({
 
           {/* Notifications Bell */}
           <NotificationBell onNavigateToCourse={onNavigateToCourse} />
-
-          {/* Profile Quick Access Button */}
-          <button
-            type="button"
-            className="topnav-profile-btn"
-            onClick={onNavigateProfile}
-            aria-label={`Open profile for ${userName}`}
-            title="My Profile"
-          >
-            <Avatar
-              image={userAvatar}
-              name={userName}
-              size="small"
-              className="topnav-user-avatar"
-            />
-            <span className="topnav-user-name">{userName}</span>
-          </button>
 
           {/* Logout Action */}
           <button

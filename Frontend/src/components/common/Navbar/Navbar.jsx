@@ -5,13 +5,31 @@ import './Navbar.css';
 import { Avatar } from '../Avatar/Avatar';
 import { NotificationBell } from '../NotificationBell/NotificationBell';
 import { LogoutModal } from '../LogoutModal/LogoutModal';
+import { LearnerTopNav } from '../../learner/dashboard/LearnerTopNav';
 
-export const Navbar = () => {
+export const Navbar = ({ user: propUser }) => {
   const { theme, toggleTheme, isDarkMode } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    if (propUser) return propUser;
+    const userStr = sessionStorage.getItem('upskillr_user');
+    if (userStr) {
+      try {
+        return JSON.parse(userStr);
+      } catch (err) {
+        return null;
+      }
+    }
+    return null;
+  });
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
+
+  useEffect(() => {
+    if (propUser !== undefined) {
+      setCurrentUser(propUser);
+    }
+  }, [propUser]);
 
   useEffect(() => {
     const updateUserAndPath = (e) => {
@@ -21,15 +39,19 @@ export const Navbar = () => {
         setCurrentPath(window.location.pathname);
       }
 
-      const userStr = sessionStorage.getItem('upskillr_user');
-      if (userStr) {
-        try {
-          setCurrentUser(JSON.parse(userStr));
-        } catch (err) {
-          console.error('Failed to parse user details');
-        }
+      if (propUser !== undefined) {
+        setCurrentUser(propUser);
       } else {
-        setCurrentUser(null);
+        const userStr = sessionStorage.getItem('upskillr_user');
+        if (userStr) {
+          try {
+            setCurrentUser(JSON.parse(userStr));
+          } catch (err) {
+            console.error('Failed to parse user details');
+          }
+        } else {
+          setCurrentUser(null);
+        }
       }
     };
 
@@ -78,6 +100,27 @@ export const Navbar = () => {
     setCurrentUser(null);
     navigate('/');
   };
+
+  const effectiveUser = propUser !== undefined ? propUser : currentUser;
+
+  // When user is a logged-in learner, display the Learner Dashboard Top Navigation Bar
+  if (effectiveUser && effectiveUser.role === 'learner') {
+    return (
+      <>
+        <LearnerTopNav
+          user={effectiveUser}
+          onLogoutClick={() => setShowLogoutModal(true)}
+          onLogoClick={() => navigate('/learner/dashboard')}
+          onNavigateToCourse={(cId) => navigate(`/courses/${cId}`)}
+        />
+        <LogoutModal
+          isOpen={showLogoutModal}
+          onClose={() => setShowLogoutModal(false)}
+          onConfirm={handleLogout}
+        />
+      </>
+    );
+  }
 
   return (
     <header className="navbar-header">

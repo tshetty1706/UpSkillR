@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard,
   BookOpen,
@@ -7,6 +7,9 @@ import {
   MessageSquare,
   Compass,
   ChevronRight,
+  ChevronUp,
+  User,
+  Settings,
   X
 } from 'lucide-react';
 import { Avatar } from '../../common/Avatar/Avatar';
@@ -20,6 +23,9 @@ export const LearnerSidebar = ({
   onCloseMobile
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const profileSectionRef = useRef(null);
+  const hoverTimeoutRef = useRef(null);
 
   // Exact 6 Navigation Items in Required Order:
   // 1. Dashboard (/learner/dashboard)
@@ -43,7 +49,7 @@ export const LearnerSidebar = ({
     },
     {
       id: 'bookmarks',
-      label: 'Bookmarks',
+      label: 'Bookmarks & Notes',
       icon: Bookmark,
       path: '/learner/bookmarks'
     },
@@ -67,7 +73,24 @@ export const LearnerSidebar = ({
     }
   ];
 
+  // Exactly two submenu options for Profile Popover:
+  const profileSubmenuItems = [
+    {
+      id: 'profile',
+      label: 'Profile',
+      icon: User,
+      path: '/learner/profile'
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      icon: Settings,
+      path: '/learner/settings'
+    }
+  ];
+
   const handleItemClick = (item) => {
+    setIsMenuOpen(false);
     if (onSelectView) {
       onSelectView(item.id, item.path);
     }
@@ -76,17 +99,63 @@ export const LearnerSidebar = ({
     }
   };
 
-  const handleProfileClick = () => {
+  const handleProfileOptionClick = (option, e) => {
+    if (e) e.stopPropagation();
+    setIsMenuOpen(false);
     if (onSelectView) {
-      onSelectView('profile', '/learner/profile');
+      onSelectView(option.id, option.path);
     }
     if (onCloseMobile) {
       onCloseMobile();
     }
   };
 
+  // Toggle or open submenu on card click
+  const handleProfileCardClick = (e) => {
+    e.stopPropagation();
+    setIsMenuOpen((prev) => !prev);
+  };
+
+  // Hover handlers with graceful debounce for popover access
+  const handleProfileMouseEnter = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    setIsMenuOpen(true);
+  };
+
+  const handleProfileMouseLeave = () => {
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsMenuOpen(false);
+    }, 220);
+  };
+
+  // Close submenu on click outside
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (profileSectionRef.current && !profileSectionRef.current.contains(event.target)) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setIsMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    };
+  }, []);
+
   const userName = user?.fullName || user?.name || 'Learner';
   const userAvatar = user?.avatar || user?.profilePhoto;
+  const isProfileActive = activeView === 'profile' || activeView === 'settings';
 
   return (
     <>
@@ -102,7 +171,10 @@ export const LearnerSidebar = ({
       <aside
         className={`learner-sidebar ${isHovered ? 'expanded' : 'collapsed'} ${isMobileOpen ? 'mobile-open' : ''}`}
         onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        onMouseLeave={() => {
+          setIsHovered(false);
+          setIsMenuOpen(false);
+        }}
         aria-label="Learner Navigation Sidebar"
       >
         {/* Mobile Header with Close Button */}
@@ -154,14 +226,56 @@ export const LearnerSidebar = ({
           </ul>
         </nav>
 
-        {/* Bottom User Profile Section */}
-        <div className="sidebar-profile-section">
+        {/* Bottom User Profile Section with Popover Submenu */}
+        <div
+          className="sidebar-profile-section"
+          ref={profileSectionRef}
+          onMouseEnter={handleProfileMouseEnter}
+          onMouseLeave={handleProfileMouseLeave}
+        >
+          {/* Submenu Popover with exactly two options: Profile & Settings */}
+          {isMenuOpen && (
+            <div
+              className={`sidebar-profile-submenu ${isHovered ? 'menu-expanded' : 'menu-collapsed'}`}
+              role="menu"
+              aria-label="User Account Navigation"
+            >
+              <div className="submenu-header">
+                <span className="submenu-title">Account</span>
+              </div>
+              <div className="submenu-items-stack">
+                {profileSubmenuItems.map((opt) => {
+                  const OptIcon = opt.icon;
+                  const isOptActive = activeView === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      role="menuitem"
+                      className={`sidebar-submenu-item ${isOptActive ? 'active' : ''}`}
+                      onClick={(e) => handleProfileOptionClick(opt, e)}
+                    >
+                      <span className="submenu-item-icon-box">
+                        <OptIcon size={17} />
+                      </span>
+                      <span className="submenu-item-label">{opt.label}</span>
+                      {isOptActive && <span className="active-item-dot" aria-hidden="true" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Profile Card Fixed at Bottom */}
           <button
             type="button"
-            className={`sidebar-profile-card ${activeView === 'profile' ? 'active' : ''}`}
-            onClick={handleProfileClick}
-            aria-label={`View profile for ${userName}`}
-            title={!isHovered ? `Profile: ${userName}` : undefined}
+            className={`sidebar-profile-card ${isProfileActive ? 'active' : ''} ${isMenuOpen ? 'menu-active' : ''}`}
+            onClick={handleProfileCardClick}
+            aria-label={`User menu for ${userName}`}
+            aria-haspopup="menu"
+            aria-expanded={isMenuOpen}
+            title={!isHovered ? `Account: ${userName}` : undefined}
           >
             <Avatar
               image={userAvatar}
@@ -173,14 +287,24 @@ export const LearnerSidebar = ({
               <span className="sidebar-user-name" title={userName}>
                 {userName}
               </span>
-              <span className="sidebar-view-profile-text">View Profile</span>
+              <span className="sidebar-view-profile-text">
+                {activeView === 'settings' ? 'Settings' : 'Profile & Settings'}
+              </span>
             </div>
-            <ChevronRight size={16} className="sidebar-profile-arrow" aria-hidden="true" />
+            <div className="sidebar-profile-arrow-wrap">
+              {isMenuOpen ? (
+                <ChevronUp size={16} className="sidebar-profile-arrow" aria-hidden="true" />
+              ) : (
+                <ChevronRight size={16} className="sidebar-profile-arrow" aria-hidden="true" />
+              )}
+            </div>
 
-            {/* Profile Tooltip when collapsed */}
-            <span className="sidebar-tooltip" role="tooltip">
-              Profile
-            </span>
+            {/* Profile Tooltip when collapsed & menu closed */}
+            {!isMenuOpen && (
+              <span className="sidebar-tooltip" role="tooltip">
+                Profile &amp; Settings
+              </span>
+            )}
           </button>
         </div>
       </aside>

@@ -57,4 +57,9 @@ router.get('/me/notifications', notificationController.getLearnerNotifications);
 router.patch('/me/notifications/read-all', notificationController.markAllNotificationsAsRead);
 router.patch('/me/notifications/:id/read', notificationController.markNotificationAsRead);
 
+// Account Deletion (Password check + Email OTP + Permanent Deletion)
+router.post('/me/delete-account/verify-password', learnerController.verifyDeleteAccountPassword);
+router.post('/me/delete-account/resend-otp', learnerController.resendDeleteAccountOtp);
+router.post('/me/delete-account/confirm', learnerController.confirmDeleteAccount);
+
 module.exports = router;

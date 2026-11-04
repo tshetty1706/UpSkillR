@@ -10,6 +10,7 @@ const assessmentReviewController = require('../controller/assessmentReviewContro
 const analyticsController = require('../controller/analyticsController');
 const reviewController = require('../controller/reviewController');
 const learnerController = require('../controller/learnerController');
+const quizController = require('../controller/quizController');
 const {
   protect,
   requireLearner,
@@ -99,6 +100,15 @@ router.patch('/:courseId/review', protect, requireLearner, reviewController.upda
 router.put('/:courseId/review', protect, requireLearner, reviewController.updateCourseReview);
 router.delete('/:courseId/review', protect, requireLearner, reviewController.deleteCourseReview);
 router.post('/:courseId/access', protect, requireLearner, learnerController.recordCourseAccess);
+
+// ─── Dedicated Quiz System Routes ───
+router.get('/:courseId/quizzes/:quizId/info', protect, requireLearner, quizController.getQuizInfo);
+router.post('/:courseId/quizzes/:quizId/start', protect, requireLearner, quizController.startQuizAttempt);
+router.get('/:courseId/quizzes/:quizId/attempt/:attemptId', protect, requireLearner, quizController.getQuizAttempt);
+router.post('/:courseId/quizzes/:quizId/attempt/:attemptId/submit', protect, requireLearner, quizController.submitQuizAttempt);
+router.get('/:courseId/quizzes/:quizId/leaderboard', protect, requireLearner, quizController.getQuizLeaderboard);
+router.get('/:courseId/course-leaderboard', protect, requireLearner, quizController.getCourseLeaderboard);
+
 
 // ─── 3. Instructor Course Management (Collection Level) ───
 router.get('/instructor/my-courses', protect, requireSubmittedInstructor, courseController.getInstructorCourses);

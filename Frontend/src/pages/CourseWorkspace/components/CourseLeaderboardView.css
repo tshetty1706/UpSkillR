@@ -1,0 +1,600 @@
+/* ==========================================================================
+   Course Leaderboard View Styles (3-Panel Learning Workspace Integrated)
+   ========================================================================== */
+
+.course-leaderboard-pane-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ─── 1. Header & Title Block ─── */
+.course-leaderboard-header {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.leaderboard-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.leaderboard-title-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.leaderboard-icon-wrapper {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md, 10px);
+  background-color: var(--brand-soft, rgba(16, 185, 129, 0.12));
+  color: var(--brand-primary, #10b981);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.leaderboard-trophy-icon {
+  color: var(--brand-primary, #10b981);
+}
+
+.leaderboard-breadcrumb-crumb {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--brand-primary, #10b981);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+
+.course-leaderboard-title {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.25;
+}
+
+.leaderboard-header-meta-chips {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.leaderboard-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill, 9999px);
+  font-size: 0.82rem;
+  font-weight: 600;
+  background-color: var(--surface-muted);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.leaderboard-meta-chip.enrolled-chip {
+  color: var(--brand-primary, #10b981);
+  background-color: var(--brand-soft, rgba(16, 185, 129, 0.1));
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+/* ─── 2. Ranking Methodology Callout Card ─── */
+.ranking-methodology-card {
+  display: flex;
+  gap: 14px;
+  padding: 16px 20px;
+  background-color: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg, 12px);
+  box-sizing: border-box;
+}
+
+.methodology-icon-col {
+  color: var(--brand-primary, #10b981);
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.methodology-content-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.methodology-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.methodology-heading {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.assessment-coming-soon-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill, 9999px);
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.methodology-description {
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* ─── 3. Current User Standing Banner ─── */
+.current-user-standing-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 24px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.05) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.user-standing-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.standing-rank-display {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.standing-rank-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.standing-rank-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rank-number-text {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--brand-primary, #10b981);
+}
+
+.rank-out-of {
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.user-standing-metrics-grid {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.standing-metric-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-end;
+}
+
+.metric-cell-label {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 600;
+}
+
+.metric-cell-val {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.metric-cell-val.text-brand {
+  color: var(--brand-primary, #10b981);
+}
+
+.metric-cell-val.text-muted {
+  color: var(--text-muted);
+}
+
+/* ─── 4. Table Section ─── */
+.course-leaderboard-table-section {
+  background-color: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.04));
+}
+
+.leaderboard-table-responsive-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.course-leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+  text-align: left;
+}
+
+.course-leaderboard-table thead th {
+  padding: 14px 20px;
+  background-color: var(--surface-muted);
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+.course-leaderboard-table thead th.text-right {
+  text-align: right;
+}
+
+.th-sub-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: normal;
+  margin-top: 2px;
+}
+
+.course-leaderboard-table tbody tr {
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background-color 0.15s ease;
+}
+
+.course-leaderboard-table tbody tr:hover {
+  background-color: var(--surface-muted);
+}
+
+.course-leaderboard-table tbody td {
+  padding: 16px 20px;
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.course-leaderboard-table tbody td.text-right {
+  text-align: right;
+}
+
+/* Current user row highlight */
+.leaderboard-student-row.current-student-row {
+  background-color: rgba(16, 185, 129, 0.08);
+  border-left: 3px solid var(--brand-primary, #10b981);
+}
+
+.leaderboard-student-row.current-student-row:hover {
+  background-color: rgba(16, 185, 129, 0.12);
+}
+
+/* Rank Badges */
+.rank-cell-content {
+  display: flex;
+  align-items: center;
+}
+
+.course-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill, 9999px);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.rank-badge-icon {
+  flex-shrink: 0;
+}
+
+.course-rank-badge.rank-gold {
+  background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+  color: #1a1303;
+  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.3);
+}
+
+.course-rank-badge.rank-silver {
+  background: linear-gradient(135deg, #cbd5e1 0%, #64748b 100%);
+  color: #0f172a;
+  box-shadow: 0 2px 6px rgba(100, 116, 139, 0.25);
+}
+
+.course-rank-badge.rank-bronze {
+  background: linear-gradient(135deg, #d97706 0%, #92400e 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(146, 64, 14, 0.25);
+}
+
+.course-rank-badge.rank-standard {
+  background-color: var(--surface-muted);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  font-weight: 700;
+}
+
+/* Student Profile Cell */
+.student-profile-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.leaderboard-student-avatar {
+  flex-shrink: 0;
+}
+
+.student-name-stack {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.student-display-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.you-badge-chip {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill, 9999px);
+  background-color: var(--brand-soft, rgba(16, 185, 129, 0.15));
+  color: var(--brand-primary, #10b981);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  text-transform: uppercase;
+}
+
+/* Score Pills & Formats */
+.font-mono {
+  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+}
+
+.score-pill-plain {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.assessment-placeholder-dash {
+  color: var(--text-muted);
+  font-weight: 500;
+  cursor: help;
+}
+
+.total-score-badge {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--brand-primary, #10b981);
+}
+
+/* ─── 5. Empty State ─── */
+.course-leaderboard-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 60px 24px;
+  gap: 14px;
+}
+
+.empty-trophy-wrapper {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-pill, 9999px);
+  background-color: var(--surface-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-primary, #10b981);
+  border: 1px solid var(--border-subtle);
+}
+
+.empty-trophy-icon {
+  opacity: 0.85;
+}
+
+.course-leaderboard-empty-state h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.course-leaderboard-empty-state p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  max-width: 460px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ─── 6. Loading & Error States ─── */
+.course-leaderboard-loading-box,
+.course-leaderboard-error-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+  gap: 16px;
+  background-color: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg, 12px);
+}
+
+.loading-orbit-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(16, 185, 129, 0.15);
+  border-top-color: var(--brand-primary, #10b981);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.course-leaderboard-loading-box p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.course-leaderboard-error-card .error-icon {
+  color: #ef4444;
+}
+
+.course-leaderboard-error-card h3 {
+  font-size: 1.2rem;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.course-leaderboard-error-card p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.btn-retry-leaderboard {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background-color: var(--brand-primary, #10b981);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  min-height: 44px;
+  transition: opacity 0.15s ease;
+}
+
+.btn-retry-leaderboard:hover {
+  opacity: 0.9;
+}
+
+/* ─── 7. Footer Note ─── */
+.course-leaderboard-footer {
+  padding-top: 8px;
+}
+
+.footer-rules-note {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ─── 8. Responsive Breakpoints (Per AGENTS.md) ─── */
+@media (max-width: 1023px) {
+  .course-leaderboard-pane-container {
+    padding: 20px 20px;
+    gap: 20px;
+  }
+
+  .current-user-standing-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px 20px;
+  }
+
+  .user-standing-metrics-grid {
+    width: 100%;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .standing-metric-cell {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 767px) {
+  .course-leaderboard-pane-container {
+    padding: 16px 14px;
+    gap: 16px;
+  }
+
+  .leaderboard-heading-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .course-leaderboard-title {
+    font-size: 1.35rem;
+  }
+
+  .ranking-methodology-card {
+    padding: 14px 16px;
+  }
+
+  .user-standing-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  .course-leaderboard-table thead th,
+  .course-leaderboard-table tbody td {
+    padding: 12px 14px;
+  }
+}

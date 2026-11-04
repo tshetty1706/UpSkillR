@@ -48,6 +48,10 @@ const learnerSchema = new mongoose.Schema({
     trim: true,
     lowercase: true
   },
+  usernameLastChangedAt: {
+    type: Date,
+    default: null
+  },
   bio: {
     type: String,
     default: '',
@@ -185,6 +189,22 @@ const learnerSchema = new mongoose.Schema({
     default: 0
   },
   resetPasswordCooldown: {
+    type: Date,
+    default: null
+  },
+  deleteAccountOtp: {
+    type: String,
+    default: null
+  },
+  deleteAccountOtpExpires: {
+    type: Date,
+    default: null
+  },
+  deleteAccountOtpAttempts: {
+    type: Number,
+    default: 0
+  },
+  deleteAccountOtpCooldown: {
     type: Date,
     default: null
   },

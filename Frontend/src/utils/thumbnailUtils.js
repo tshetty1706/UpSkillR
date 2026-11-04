@@ -47,14 +47,21 @@ export const getEffectiveThumbnail = (thumbnail, isDarkMode = false) => {
       ? (thumbnail.dark || thumbnail.darkUrl || thumbnail.url || thumbnail.src)
       : (thumbnail.light || thumbnail.lightUrl || thumbnail.url || thumbnail.src);
     if (candidate && isCustomThumbnail(candidate) && !brokenImageCache.has(typeof candidate === 'string' ? candidate.trim() : candidate)) {
-      return typeof candidate === 'string' ? candidate.trim() : candidate;
+      const trimmed = typeof candidate === 'string' ? candidate.trim() : candidate;
+      if (typeof trimmed === 'string' && trimmed.startsWith('/uploads/')) {
+        return `http://localhost:5000${trimmed}`;
+      }
+      return trimmed;
     }
     return defaultThemeThumb;
   }
 
   if (typeof thumbnail === 'string') {
-    const trimmed = thumbnail.trim();
+    let trimmed = thumbnail.trim();
     if (isCustomThumbnail(trimmed) && !brokenImageCache.has(trimmed)) {
+      if (trimmed.startsWith('/uploads/')) {
+        return `http://localhost:5000${trimmed}`;
+      }
       return trimmed;
     }
   }
@@ -63,4 +70,3 @@ export const getEffectiveThumbnail = (thumbnail, isDarkMode = false) => {
 };
 
 export { lightThumbnail, darkThumbnail };
-

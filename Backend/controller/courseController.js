@@ -1837,6 +1837,8 @@ exports.updateLessonProgress = async (req, res) => {
     enrolment.progressPercentage = newPercentage;
     enrolment.status = newStatus;
     enrolment.lastAccessedAt = Date.now();
+    if (req.body.moduleId) enrolment.lastAccessedModuleId = req.body.moduleId;
+    if (lessonKey) enrolment.lastAccessedLessonId = lessonKey;
 
     if (newPercentage === 100) {
       if (!enrolment.completedAt) enrolment.completedAt = Date.now();

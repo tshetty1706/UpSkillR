@@ -7,7 +7,8 @@ import { LearnerBookmarksView } from '../../components/learner/bookmarks/Learner
 import { LearnerAchievementsView } from '../../components/learner/achievements/LearnerAchievementsView';
 import { LearnerFeedbackView } from '../../components/learner/feedback/LearnerFeedbackView';
 import { LearnerExploreView } from '../../components/learner/explore/LearnerExploreView';
-import { LearnerProfile } from '../../components/learner/profile/LearnerProfile';
+import { LearnerProfileView } from '../../components/learner/profile/LearnerProfileView';
+import { LearnerSettingsView } from '../../components/learner/settings/LearnerSettingsView';
 import { CourseRatingModal } from '../../components/learner/dashboard/LearnerDashboardOverview/CourseRatingModal';
 import { LogoutModal } from '../../components/common/LogoutModal/LogoutModal';
 import { useToast } from '../../context/ToastContext';
@@ -25,6 +26,7 @@ export const LearnerDashboard = ({ user }) => {
     if (p.includes('/achievements')) return 'achievements';
     if (p.includes('/feedback')) return 'feedback';
     if (p.includes('/explore')) return 'explore';
+    if (p.includes('/settings')) return 'settings';
     if (p.includes('/profile')) return 'profile';
     if (p.includes('/dashboard')) return 'dashboard';
     return 'dashboard';
@@ -161,7 +163,7 @@ export const LearnerDashboard = ({ user }) => {
       }
     } catch (e) {}
 
-    const path = `/learn/${targetId}`;
+    const path = `/courses/${targetId}`;
     window.history.pushState({}, '', path);
     window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
   };
@@ -395,7 +397,15 @@ export const LearnerDashboard = ({ user }) => {
 
             {/* Dedicated Profile Page */}
             {activeView === 'profile' && (
-              <LearnerProfile user={user} />
+              <LearnerProfileView
+                user={user}
+                onNavigateSettings={() => handleSelectView('settings', '/learner/settings')}
+              />
+            )}
+
+            {/* Dedicated Settings Page */}
+            {activeView === 'settings' && (
+              <LearnerSettingsView user={user} />
             )}
           </div>
         </main>

@@ -3,22 +3,33 @@
    ========================================================================== */
 
 .course-learning-page-container {
-  min-height: 100vh;
-  background-color: var(--background);
+  min-height: calc(100vh - 60px);
+  background: linear-gradient(135deg, #052217 0%, #083323 50%, #0c432f 100%);
   color: var(--text-primary);
   font-family: var(--font-family);
   display: flex;
   flex-direction: column;
 }
 
-/* ─── 1. TOP HERO BANNER (Matches Reference Image 1) ─── */
+/* ─── 1. TOP HERO BANNER (Full Screen) ─── */
 .learning-hero-banner {
   background: linear-gradient(135deg, #052217 0%, #083323 50%, #0c432f 100%);
   color: #ffffff;
-  padding: 24px 32px 32px;
+  padding: 40px 32px 56px;
   position: relative;
   overflow: hidden;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.learning-hero-banner.full-screen-hero {
+  flex: 1;
+  min-height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .learning-hero-banner::before {
@@ -26,18 +37,21 @@
   position: absolute;
   top: -20%;
   right: 15%;
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%);
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.18) 0%, transparent 70%);
   pointer-events: none;
 }
 
 .learning-banner-inner {
   max-width: var(--max-width, 1440px);
+  width: 100%;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  justify-content: center;
+  gap: 28px;
+  flex: 1;
 }
 
 /* Back Link Row */
@@ -52,26 +66,26 @@
   gap: 8px;
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.85);
   font-family: var(--font-family);
-  font-size: 0.88rem;
-  font-weight: 500;
+  font-size: 0.92rem;
+  font-weight: 600;
   cursor: pointer;
-  padding: 6px 0;
-  min-height: 36px;
-  transition: color 0.18s ease;
+  padding: 8px 0;
+  min-height: 44px;
+  transition: all 0.18s ease;
 }
 
 .btn-back-learning:hover {
   color: #ffffff;
-  text-decoration: underline;
+  transform: translateX(-2px);
 }
 
 /* Main Banner Grid */
 .banner-main-grid {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  gap: 40px;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 48px;
   align-items: center;
 }
 
@@ -79,24 +93,24 @@
 .banner-info-column {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
 }
 
 .banner-course-title {
-  font-size: 1.85rem;
+  font-size: clamp(2rem, 3.2vw, 2.75rem);
   font-weight: 800;
   color: #ffffff;
   margin: 0;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
 }
 
 .banner-course-desc {
-  font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.82);
-  line-height: 1.5;
+  font-size: 1.05rem;
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.6;
   margin: 0;
-  max-width: 680px;
+  max-width: 720px;
 }
 
 /* Instructor & Metadata Row */
@@ -223,12 +237,12 @@
 /* Laptop / Device Illustration Frame */
 .banner-device-frame {
   width: 100%;
-  max-width: 400px;
-  height: 190px;
+  max-width: 440px;
+  height: 230px;
   border-radius: var(--radius-lg, 12px);
   overflow: hidden;
   background: #02140e;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
@@ -266,6 +280,32 @@
   gap: 10px;
   width: 100%;
   max-width: 400px;
+}
+
+.btn-banner-workspace-primary {
+  width: 100%;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: var(--radius-md, 8px);
+  padding: 12px 18px;
+  cursor: pointer;
+  font-family: var(--font-family);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  min-height: 48px;
+  box-shadow: 0 4px 14px rgba(4, 120, 87, 0.4);
+  transition: all 0.18s ease;
+}
+
+.btn-banner-workspace-primary:hover {
+  background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(4, 120, 87, 0.5);
 }
 
 .btn-banner-continue-primary {

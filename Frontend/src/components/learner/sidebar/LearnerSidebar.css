@@ -18,7 +18,7 @@
   padding: 16px 10px;
   z-index: 100;
   transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.22s ease;
-  overflow-x: hidden;
+  overflow: visible;
   box-shadow: var(--shadow-sm);
 }
 
@@ -185,6 +185,133 @@
 }
 
 /* Bottom Profile Section */
+
+/* Profile Submenu Popover */
+.sidebar-profile-submenu {
+  position: absolute;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  padding: 6px;
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  animation: submenuFadeIn 0.16s ease-out;
+}
+
+[data-theme="dark"] .sidebar-profile-submenu,
+.dark .sidebar-profile-submenu {
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6);
+  border-color: var(--border);
+}
+
+@keyframes submenuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Collapsed Sidebar: Popover flies out to the right of the compact sidebar */
+.sidebar-profile-submenu.menu-collapsed {
+  left: calc(100% + 10px);
+  bottom: 0px;
+  width: 175px;
+}
+
+/* Expanded Sidebar & Mobile: Popover sits directly above the profile card */
+.sidebar-profile-submenu.menu-expanded {
+  left: 6px;
+  right: 6px;
+  bottom: calc(100% + 8px);
+  width: auto;
+}
+
+.submenu-header {
+  padding: 6px 10px 4px;
+}
+
+.submenu-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.submenu-items-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sidebar-submenu-item {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.14s ease, color 0.14s ease;
+  text-align: left;
+}
+
+.sidebar-submenu-item:hover {
+  background-color: var(--surface-muted);
+  color: var(--brand-primary);
+}
+
+.sidebar-submenu-item:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: -2px;
+}
+
+.sidebar-submenu-item.active {
+  background-color: var(--brand-soft);
+  color: var(--brand-primary);
+  font-weight: 600;
+}
+
+[data-theme="dark"] .sidebar-submenu-item.active,
+.dark .sidebar-submenu-item.active {
+  background-color: var(--brand-light);
+  color: var(--brand-primary);
+}
+
+.submenu-item-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.submenu-item-label {
+  flex: 1;
+}
+
+.active-item-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--brand-primary);
+  flex-shrink: 0;
+}
+
 .sidebar-profile-section {
   padding-top: 12px;
   border-top: 1px solid var(--border-subtle);
