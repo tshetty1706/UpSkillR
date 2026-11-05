@@ -298,7 +298,7 @@ const FolderModal = ({ isOpen, onClose, onSave, editingFolder }) => {
 };
 
 // ─── Modal 3: Move Item to Folder Modal ───
-const MoveToFolderModal = ({ isOpen, onClose, onMove, movingItem, folders }) => {
+const MoveToFolderModal = ({ isOpen, onClose, onMove, movingItem, folders, onOpenNewFolder }) => {
   const [selectedFolderId, setSelectedFolderId] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -383,6 +383,36 @@ const MoveToFolderModal = ({ isOpen, onClose, onMove, movingItem, folders }) => 
                 </div>
               </label>
             ))}
+
+            {folders.length === 0 && (
+              <div style={{ padding: '16px', textAlign: 'center', background: 'var(--surface-muted)', borderRadius: '8px', marginTop: '4px' }}>
+                <p style={{ margin: '0 0 10px 0', fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
+                  You haven't created any custom folders yet.
+                </p>
+                <button
+                  type="button"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    backgroundColor: 'var(--brand-primary, #10b981)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => {
+                    onClose();
+                    if (onOpenNewFolder) onOpenNewFolder();
+                  }}
+                >
+                  <Plus size={14} /> Create a Folder First
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="library-modal-footer">
@@ -762,6 +792,15 @@ export const LearnerBookmarksView = ({ onNavigate, onExploreCourses }) => {
       folderId: bookmark.folderId?._id || bookmark.folderId || ''
     });
     setIsNoteModalOpen(true);
+  };
+
+  // ─── Open Move to Folder Modal ───
+  const handleOpenMoveModal = (item, type = 'bookmark') => {
+    setMovingItem({
+      type,
+      item
+    });
+    setIsMoveModalOpen(true);
   };
 
   // ─── Filtering & Search Aggregation ───
@@ -1370,12 +1409,7 @@ export const LearnerBookmarksView = ({ onNavigate, onExploreCourses }) => {
                         <button
                           type="button"
                           className="btn-card-icon"
-                          onClick={() =>
-                            setMovingItem({
-                              type: 'note',
-                              item
-                            })
-                          }
+                          onClick={() => handleOpenMoveModal(item, 'note')}
                           title="Move to Folder"
                           aria-label={`Move note ${item.title} to folder`}
                         >
@@ -1484,12 +1518,7 @@ export const LearnerBookmarksView = ({ onNavigate, onExploreCourses }) => {
                         <button
                           type="button"
                           className="btn-card-icon"
-                          onClick={() =>
-                            setMovingItem({
-                              type: 'bookmark',
-                              item
-                            })
-                          }
+                          onClick={() => handleOpenMoveModal(item, 'bookmark')}
                           title="Move to Folder"
                           aria-label={`Move ${item.title} to folder`}
                         >
@@ -1572,12 +1601,7 @@ export const LearnerBookmarksView = ({ onNavigate, onExploreCourses }) => {
                         <button
                           type="button"
                           className="btn-card-icon"
-                          onClick={() =>
-                            setMovingItem({
-                              type: 'bookmark',
-                              item
-                            })
-                          }
+                          onClick={() => handleOpenMoveModal(item, 'bookmark')}
                           title="Move to Folder"
                           aria-label={`Move ${item.title} to folder`}
                         >
@@ -1675,12 +1699,7 @@ export const LearnerBookmarksView = ({ onNavigate, onExploreCourses }) => {
                       <button
                         type="button"
                         className="btn-card-icon"
-                        onClick={() =>
-                          setMovingItem({
-                            type: 'bookmark',
-                            item
-                          })
-                        }
+                        onClick={() => handleOpenMoveModal(item, 'bookmark')}
                         title="Move to Folder"
                         aria-label={`Move ${item.title} to folder`}
                       >
@@ -1728,7 +1747,7 @@ export const LearnerBookmarksView = ({ onNavigate, onExploreCourses }) => {
       />
 
       <MoveToFolderModal
-        isOpen={isMoveModalOpen}
+        isOpen={isMoveModalOpen || Boolean(movingItem)}
         onClose={() => {
           setIsMoveModalOpen(false);
           setMovingItem(null);
@@ -1736,6 +1755,10 @@ export const LearnerBookmarksView = ({ onNavigate, onExploreCourses }) => {
         onMove={handleMoveItemToFolder}
         movingItem={movingItem}
         folders={folders}
+        onOpenNewFolder={() => {
+          setEditingFolder(null);
+          setIsFolderModalOpen(true);
+        }}
       />
 
       <DeleteConfirmModal
