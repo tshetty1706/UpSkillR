@@ -88,8 +88,13 @@ router.post('/enrol', protect, requireLearner, courseController.enrolInCourse);
 router.post('/:courseId/enroll', protect, requireLearner, courseController.enrolInCourse);
 router.get('/learner/my-enrolments', protect, requireLearner, courseController.getLearnerEnrolments);
 router.get('/:courseId/progress', protect, requireLearner, courseController.getCourseProgress);
+router.post('/:courseId/progress', protect, requireLearner, courseController.updateLessonProgress);
 router.post('/progress', protect, requireLearner, courseController.updateLessonProgress);
+router.post('/:courseId/lessons/:lessonId/progress', protect, requireLearner, courseController.updateLessonProgress);
+router.post('/:courseId/lessons/:lessonId/complete', protect, requireLearner, courseController.updateLessonProgress);
 router.post('/:courseId/modules/:moduleId/complete', protect, requireLearner, courseController.updateLessonProgress);
+router.post('/:courseId/modules/:moduleId/lessons/:lessonId/progress', protect, requireLearner, courseController.updateLessonProgress);
+router.post('/:courseId/modules/:moduleId/lessons/:lessonId/complete', protect, requireLearner, courseController.updateLessonProgress);
 router.post('/rate', protect, requireLearner, reviewController.submitCourseReview);
 
 // ─── Course Reviews & Ratings (FR-09) ───

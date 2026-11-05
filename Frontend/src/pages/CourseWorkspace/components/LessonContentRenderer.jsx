@@ -33,6 +33,7 @@ export const LessonContentRenderer = ({
     case 'video':
       return (
         <VideoLesson
+          key={contentItem?._id || lesson?._id || 'video-lesson'}
           lesson={lesson}
           contentItem={contentItem}
           course={course}

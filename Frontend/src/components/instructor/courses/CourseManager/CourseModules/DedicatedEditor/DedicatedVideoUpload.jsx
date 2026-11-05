@@ -274,18 +274,34 @@ export const DedicatedVideoUpload = ({
           }
         }
       } else {
-        // Development / mock fallback
-        setUploadProgress(85);
-        setUploadStage('processing');
-        setStatusMessage('Configuring development video stream...');
-        await new Promise((r) => setTimeout(r, 1000));
+        // Direct server-side upload fallback to persistent storage
+        setUploadProgress(40);
+        setUploadStage('uploading');
+        setStatusMessage('Uploading video to persistent storage...');
 
-        finalAssetId = credData.assetId || `asset_${Date.now()}`;
-        finalPlaybackId = credData.playbackId || `stream_${Date.now()}`;
-        if (!finalThumbnail) {
-          finalThumbnail = `https://image.mux.com/${finalPlaybackId}/thumbnail.jpg?time=2`;
+        const formData = new FormData();
+        formData.append('video', file);
+
+        const uploadDirectRes = await fetch(`${apiBase}/courses/${courseId}/curriculum/upload/video`, {
+          method: 'POST',
+          headers: {
+            ...authHeaders
+          },
+          body: formData
+        });
+
+        const uploadDirectData = await uploadDirectRes.json();
+        if (uploadDirectRes.ok && uploadDirectData.success && uploadDirectData.url) {
+          finalVideoUrl = uploadDirectData.url;
+          finalPlaybackId = '';
+          finalAssetId = uploadDirectData.assetId || `local_${Date.now()}`;
+          finalDuration = detectedDuration || 60;
+          if (!finalThumbnail && capturedThumbnails.length > 0) {
+            finalThumbnail = capturedThumbnails[0];
+          }
+        } else {
+          throw new Error(uploadDirectData.message || 'Direct video upload to server failed.');
         }
-        finalVideoUrl = `https://stream.mux.com/${finalPlaybackId}.m3u8`;
       }
 
       // Complete upload without saving automatically to DB
@@ -308,9 +324,11 @@ export const DedicatedVideoUpload = ({
         video: {
           muxAssetId: finalAssetId,
           muxPlaybackId: finalPlaybackId,
-          videoUrl: localBlobUrl || finalVideoUrl,
-          url: localBlobUrl || finalVideoUrl,
-          fileUrl: localBlobUrl || finalVideoUrl,
+          videoUrl: finalVideoUrl || (finalPlaybackId ? `https://stream.mux.com/${finalPlaybackId}.m3u8` : localBlobUrl),
+          url: finalVideoUrl || (finalPlaybackId ? `https://stream.mux.com/${finalPlaybackId}.m3u8` : localBlobUrl),
+          fileUrl: finalVideoUrl || (finalPlaybackId ? `https://stream.mux.com/${finalPlaybackId}.m3u8` : localBlobUrl),
+          mp4Url: finalPlaybackId ? `https://stream.mux.com/${finalPlaybackId}/capped-1080p.mp4` : '',
+          previewBlobUrl: localBlobUrl,
           duration: Number(finalDuration) || detectedDuration || 0,
           trimStart: 0,
           trimEnd: Number(finalDuration) || detectedDuration || 0,

@@ -650,7 +650,7 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
   // ─── Mark Complete Action ───
   const handleToggleComplete = async () => {
     if (!activeLesson) return;
-    const token = sessionStorage.getItem('upskillr_token');
+    const token = sessionStorage.getItem('upskillr_token') || localStorage.getItem('upskillr_token');
     if (!token) {
       toast.warning('Please log in as a learner to track progress.');
       return;
@@ -665,15 +665,17 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
     setEnrolment((prev) => {
       if (!prev) return prev;
       const currentArr = Array.isArray(prev.completedLessons) ? [...prev.completedLessons] : [];
+      const idsToToggle = [
+        String(targetIdentifier),
+        activeLesson?._id ? String(activeLesson._id) : null,
+        activeContentItem?._id ? String(activeContentItem._id) : null
+      ].filter(Boolean);
+
       let updatedArr = [];
       if (newStatus) {
-        if (!currentArr.includes(targetIdentifier)) {
-          updatedArr = [...currentArr, targetIdentifier];
-        } else {
-          updatedArr = currentArr;
-        }
+        updatedArr = Array.from(new Set([...currentArr, ...idsToToggle]));
       } else {
-        updatedArr = currentArr.filter((id) => String(id) !== String(targetIdentifier));
+        updatedArr = currentArr.filter((id) => !idsToToggle.includes(String(id)));
       }
       return {
         ...prev,
@@ -694,15 +696,34 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
           lessonId: activeLesson?._id || selectedLessonIdx
         })
       });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || `Server returned ${res.status}`);
+      }
+
       const data = await res.json();
 
       if (data.success) {
+        if (data.enrolment) {
+          setEnrolment(data.enrolment);
+        }
+
         const itemLabel = activeContentItem?.title || activeLesson.title;
         if (newStatus) {
           toast.success(`✓ "${itemLabel}" marked as completed!`);
           window.dispatchEvent(new CustomEvent('upskillr_points_updated'));
 
-          if (data.isCourseCompleted) {
+          // Display specific reward notifications for module or course completions
+          if (Array.isArray(data.awardedBadges) && data.awardedBadges.length > 0) {
+            data.awardedBadges.forEach((msg) => {
+              toast.success(`⭐ ${msg}`);
+            });
+          } else if (data.pointsAwarded > 0) {
+            toast.success(`⭐ +${data.pointsAwarded} Points awarded!`);
+          }
+
+          if (data.isCourseCompleted || data.enrolment?.progressPercentage === 100) {
             toast.success('🎓 Congratulations! You completed all lessons in this course!');
           }
         } else {
@@ -710,19 +731,25 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
         }
 
         // Re-fetch progress to stay in sync with backend gamification
-        const progressRes = await fetch(`${API_BASE}/courses/${courseId}/progress`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const progressData = await progressRes.json();
-        if (progressData.success && progressData.enrolment) {
-          setEnrolment(progressData.enrolment);
+        try {
+          const progressRes = await fetch(`${API_BASE}/courses/${courseId}/progress`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (progressRes.ok) {
+            const progressData = await progressRes.json();
+            if (progressData.success && progressData.enrolment) {
+              setEnrolment(progressData.enrolment);
+            }
+          }
+        } catch (fetchErr) {
+          // Background sync
         }
       } else {
         toast.error(data.message || 'Could not update lesson progress.');
       }
     } catch (err) {
       console.error('Error toggling complete:', err);
-      toast.error('Network error updating progress.');
+      toast.error(err.message || 'Network error updating progress.');
     }
   };
 

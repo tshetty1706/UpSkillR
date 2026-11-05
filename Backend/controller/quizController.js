@@ -615,6 +615,16 @@ exports.submitQuizAttempt = async (req, res) => {
         }
         enrolment.lastAccessed = now;
         await enrolment.save();
+
+        try {
+          const { checkAndAwardLearningProgressPoints } = require('../services/pointsService');
+          const pointRewardResult = await checkAndAwardLearningProgressPoints(course, enrolment, req.user.id);
+          if (pointRewardResult.totalPointsAwarded > 0) {
+            // Points awarded for completing module or course via quiz
+          }
+        } catch (pointErr) {
+          console.error('Quiz point reward error:', pointErr);
+        }
       }
     }
 

@@ -31,6 +31,111 @@ const courseCache = {
 };
 exports.courseCache = courseCache;
 
+// Helper to normalize video item metadata strictly without substituting unrelated fallback videos
+const normalizeVideoContentItem = (item) => {
+  if (!item) return item;
+  const itemObj = item.toObject ? item.toObject() : { ...item };
+  // Only apply to items that are actually videos (do not touch articles, quizzes, or notes)
+  if (itemObj.type !== 'video') {
+    return itemObj;
+  }
+
+  const rawVideo = itemObj.video || itemObj.videoDetails || {};
+  const v = { ...rawVideo };
+
+  // 1. Resolve Mux playback ID (ignore mock IDs)
+  let playbackId = (v.muxPlaybackId || itemObj.muxPlaybackId || '').trim();
+  if (playbackId && (playbackId.startsWith('mock_') || playbackId.startsWith('mux_mock_') || playbackId.startsWith('stream_'))) {
+    playbackId = '';
+  }
+
+  // 2. Resolve URLs
+  let rawUrl = (v.videoUrl || v.url || v.fileUrl || itemObj.fileUrl || itemObj.mediaUrl || '').trim();
+  const isDeadBlob = rawUrl.startsWith('blob:');
+  if (isDeadBlob) {
+    rawUrl = '';
+  }
+
+  let provider = 'none';
+  let videoUrl = '';
+  let mp4Url = (v.mp4Url || '').trim();
+  let status = v.status || 'unavailable';
+
+  // Check if file exists in local storage /uploads/videos/
+  const fileName = (v.fileName || itemObj.fileName || '').trim();
+  if (!rawUrl && !playbackId && fileName) {
+    const localCheckPath = path.join(__dirname, '..', 'uploads', 'videos', fileName);
+    if (fs.existsSync(localCheckPath)) {
+      rawUrl = `/uploads/videos/${fileName}`;
+    }
+  }
+
+  if (playbackId) {
+    provider = 'mux';
+    videoUrl = `https://stream.mux.com/${playbackId}.m3u8`;
+    mp4Url = `https://stream.mux.com/${playbackId}/capped-1080p.mp4`;
+    status = 'ready';
+  } else if (rawUrl.includes('cloudinary.com')) {
+    provider = 'cloudinary';
+    videoUrl = rawUrl.replace(/^http:/, 'https:');
+    mp4Url = videoUrl;
+    status = 'ready';
+  } else if (rawUrl.startsWith('/uploads/') || rawUrl.includes('/uploads/')) {
+    provider = 'local';
+    videoUrl = rawUrl;
+    mp4Url = rawUrl;
+    status = 'ready';
+  } else if (rawUrl && !rawUrl.startsWith('blob:')) {
+    provider = 'direct';
+    videoUrl = rawUrl;
+    mp4Url = rawUrl;
+    status = 'ready';
+  } else {
+    // Strictly NO fallback demo/sample videos!
+    provider = 'none';
+    videoUrl = '';
+    mp4Url = '';
+    status = (v.status === 'processing') ? 'processing' : 'unavailable';
+  }
+
+  // 3. Resolve thumbnail
+  let thumbnailUrl = (v.thumbnailUrl || itemObj.thumbnailUrl || '').trim();
+  if (!thumbnailUrl || thumbnailUrl.startsWith('blob:')) {
+    if (provider === 'mux' && playbackId) {
+      thumbnailUrl = `https://image.mux.com/${playbackId}/thumbnail.jpg?time=2`;
+    } else {
+      thumbnailUrl = '';
+    }
+  }
+
+  const durationSec = Number(v.duration) || Number(v.durationSeconds) || 0;
+
+  const normalizedVideo = {
+    ...v,
+    provider,
+    muxAssetId: playbackId ? (v.muxAssetId || '') : '',
+    muxPlaybackId: playbackId,
+    videoUrl,
+    url: videoUrl,
+    fileUrl: videoUrl,
+    mp4Url,
+    hlsUrl: provider === 'mux' ? videoUrl : '',
+    thumbnailUrl,
+    status,
+    duration: durationSec,
+    allowScrubAhead: v.allowScrubAhead !== false,
+    watchedThresholdPercent: Number(v.watchedThresholdPercent) || 90
+  };
+
+  itemObj.video = normalizedVideo;
+  itemObj.videoDetails = { ...normalizedVideo };
+  itemObj.fileUrl = videoUrl;
+  itemObj.mediaUrl = videoUrl;
+
+  return itemObj;
+};
+exports.normalizeVideoContentItem = normalizeVideoContentItem;
+
 // Helper to sanitize and map published course content (modules, lessons, items, notes) for learner/public retrieval
 const sanitizeCourseForLearner = (course) => {
   if (!course) return null;
@@ -67,7 +172,7 @@ const sanitizeCourseForLearner = (course) => {
 
           // Filter items to only published items (videos, quizzes, etc.)
           const rawItems = Array.isArray(lesObj.items) ? lesObj.items : (Array.isArray(lesObj.contentItems) ? lesObj.contentItems : []);
-          lesObj.items = rawItems.filter(i => (i.state === 'published' || i.status === 'published'));
+          lesObj.items = rawItems.filter(i => (i.state === 'published' || i.status === 'published')).map(item => normalizeVideoContentItem(item));
           lesObj.contentItems = lesObj.items;
 
           // Map published lesson-level notes (articles, pdfs, images)
@@ -1705,10 +1810,16 @@ exports.getLearnerEnrolments = async (req, res) => {
 
 exports.updateLessonProgress = async (req, res) => {
   try {
-    const courseId = req.params.courseId || req.body.courseId;
-    const lessonIndex = req.body.lessonIndex !== undefined ? req.body.lessonIndex : req.params.moduleId;
+    const courseId = req.params.courseId || req.body.courseId || req.params.id;
+    const rawTarget = req.params.lessonId !== undefined
+      ? req.params.lessonId
+      : (req.params.targetIdentifier !== undefined
+        ? req.params.targetIdentifier
+        : (req.body.lessonIndex !== undefined
+          ? req.body.lessonIndex
+          : (req.body.lessonId || req.body.targetIdentifier || req.params.moduleId)));
 
-    if (!courseId || lessonIndex === undefined) {
+    if (!courseId || rawTarget === undefined || rawTarget === null) {
       return res.status(400).json({ success: false, message: 'Course ID and lesson/module identifier are required.' });
     }
 
@@ -1726,18 +1837,28 @@ exports.updateLessonProgress = async (req, res) => {
     const pubModules = (course.modules || []).filter(m => m.state === 'published' || m.status === 'published');
     const pubItemIds = new Set();
     const lessonToItemsMap = new Map();
+    const itemToLessonMap = new Map();
+    const allLessonIds = new Set();
     let publishedLessonsCount = 0;
 
     pubModules.forEach((m, mIdx) => {
-      (m.lessons || []).filter(l => l.state === 'published' || l.status === 'published').forEach((l, lIdx) => {
+      (m.lessons || []).filter(l => l.state === 'published' || l.status === 'published').forEach((l) => {
         publishedLessonsCount++;
         const lIdStr = String(l._id);
+        allLessonIds.add(lIdStr);
         const lItems = (l.items || l.contentItems || []).filter(i => i.state === 'published' || i.status === 'published');
         const itemIds = lItems.map(i => String(i._id));
         lessonToItemsMap.set(lIdStr, itemIds);
         lessonToItemsMap.set(String(mIdx), itemIds); // Also support numeric module index
-        itemIds.forEach(id => pubItemIds.add(id));
+        itemIds.forEach(id => {
+          pubItemIds.add(id);
+          itemToLessonMap.set(id, lIdStr);
+        });
       });
+    });
+
+    (course.lessons || []).forEach(l => {
+      if (l._id) allLessonIds.add(String(l._id));
     });
 
     const totalLessons = Math.max(
@@ -1747,9 +1868,9 @@ exports.updateLessonProgress = async (req, res) => {
       1
     );
 
-    const idx = typeof lessonIndex === 'number' ? lessonIndex : parseInt(lessonIndex, 10);
-    const isNum = !isNaN(idx) && String(idx) === String(lessonIndex).trim();
-    const lessonKey = isNum ? idx : String(lessonIndex);
+    const idx = typeof rawTarget === 'number' ? rawTarget : parseInt(rawTarget, 10);
+    const isNum = !isNaN(idx) && String(idx) === String(rawTarget).trim();
+    const lessonKey = isNum ? idx : String(rawTarget);
 
     // Verify identifier belongs to course
     let moduleBelongs = false;
@@ -1758,8 +1879,8 @@ exports.updateLessonProgress = async (req, res) => {
         moduleBelongs = true;
       }
     } else {
-      const targetStr = String(lessonIndex);
-      if (pubItemIds.has(targetStr)) {
+      const targetStr = String(lessonKey);
+      if (pubItemIds.has(targetStr) || allLessonIds.has(targetStr) || lessonToItemsMap.has(targetStr)) {
         moduleBelongs = true;
       } else {
         const inModules = (course.modules || []).some(m =>
@@ -1779,51 +1900,92 @@ exports.updateLessonProgress = async (req, res) => {
     }
 
     // Check if already completed
-    const isAlreadyCompleted = (enrolment.completedLessons || []).some(i => String(i) === String(lessonKey));
-    let newlyCompleted = false;
-
-    // Idempotent check for /complete endpoint
+    let currentCompleted = Array.isArray(enrolment.completedLessons) ? [...enrolment.completedLessons] : [];
+    const isAlreadyCompleted = currentCompleted.some(i => String(i) === String(lessonKey));
     const isCompleteEndpoint = req.originalUrl?.includes('/complete');
 
-    if (isAlreadyCompleted) {
-      if (isCompleteEndpoint) {
-        return res.status(200).json({
-          success: true,
-          message: 'Item/Module is already completed.',
-          enrolment,
-          pointsAwarded: 0,
-          isCompleted: true
-        });
-      } else {
-        // Toggle off for toggle /progress endpoint
-        enrolment.completedLessons = enrolment.completedLessons.filter(i => String(i) !== String(lessonKey));
-      }
+    // Desired state: explicit boolean if provided, else if /complete endpoint keep completed, else toggle
+    let wantsCompleted;
+    if (typeof req.body?.completed === 'boolean') {
+      wantsCompleted = req.body.completed;
+    } else if (isCompleteEndpoint) {
+      wantsCompleted = true;
     } else {
-      // If a lesson ID was passed and has items, also mark its items
+      wantsCompleted = !isAlreadyCompleted;
+    }
+
+    let newlyCompleted = false;
+
+    if (wantsCompleted) {
+      // MARKING COMPLETE
+      if (!currentCompleted.some(i => String(i) === String(lessonKey))) {
+        currentCompleted.push(lessonKey);
+        newlyCompleted = true;
+      }
+
+      // If lessonKey is a lesson, also mark all its published items
       if (lessonToItemsMap.has(String(lessonKey))) {
         const relatedItems = lessonToItemsMap.get(String(lessonKey)) || [];
         relatedItems.forEach(itemId => {
-          if (!enrolment.completedLessons.some(i => String(i) === String(itemId))) {
-            enrolment.completedLessons.push(itemId);
+          if (!currentCompleted.some(i => String(i) === String(itemId))) {
+            currentCompleted.push(itemId);
           }
         });
       }
-      enrolment.completedLessons.push(lessonKey);
-      newlyCompleted = true;
+
+      // If lessonKey is an item, check if all sibling items are done, and if so mark parent lesson
+      if (itemToLessonMap.has(String(lessonKey))) {
+        const parentLId = itemToLessonMap.get(String(lessonKey));
+        const siblings = lessonToItemsMap.get(parentLId) || [];
+        const allSiblingsDone = siblings.every(sId =>
+          sId === String(lessonKey) || currentCompleted.some(c => String(c) === String(sId))
+        );
+        if (allSiblingsDone && !currentCompleted.some(c => String(c) === String(parentLId))) {
+          currentCompleted.push(parentLId);
+        }
+      }
+
+      // If req.body.lessonId was provided and not yet added, add it
+      if (req.body?.lessonId && !currentCompleted.some(c => String(c) === String(req.body.lessonId))) {
+        currentCompleted.push(String(req.body.lessonId));
+      }
+
+      enrolment.completedLessons = currentCompleted;
+    } else {
+      // UNMARKING / INCOMPLETE
+      let filtered = currentCompleted.filter(i => String(i) !== String(lessonKey));
+
+      // If lessonKey is a lesson, remove all its items too
+      if (lessonToItemsMap.has(String(lessonKey))) {
+        const relatedItems = lessonToItemsMap.get(String(lessonKey)) || [];
+        filtered = filtered.filter(i => !relatedItems.includes(String(i)));
+      }
+
+      // If lessonKey is an item, remove parent lesson too
+      if (itemToLessonMap.has(String(lessonKey))) {
+        const parentLId = itemToLessonMap.get(String(lessonKey));
+        filtered = filtered.filter(i => String(i) !== String(parentLId));
+      }
+
+      // Also if req.body.lessonId was provided, remove it
+      if (req.body?.lessonId) {
+        filtered = filtered.filter(i => String(i) !== String(req.body.lessonId));
+      }
+
+      enrolment.completedLessons = filtered;
+      newlyCompleted = false;
     }
 
     // Sanitize and deduplicate completedLessons
     const uniqueValid = new Set();
     (enrolment.completedLessons || []).forEach(i => {
       const strVal = String(i);
-      if (pubItemIds.has(strVal)) {
+      if (pubItemIds.has(strVal) || allLessonIds.has(strVal) || lessonToItemsMap.has(strVal)) {
         uniqueValid.add(strVal);
       } else {
         const n = Number(i);
         if (!isNaN(n) && n >= 0 && n < (course.modules?.length || totalLessons)) {
           uniqueValid.add(n);
-        } else if (lessonToItemsMap.has(strVal)) {
-          uniqueValid.add(strVal);
         }
       }
     });
@@ -1837,7 +1999,7 @@ exports.updateLessonProgress = async (req, res) => {
     enrolment.progressPercentage = newPercentage;
     enrolment.status = newStatus;
     enrolment.lastAccessedAt = Date.now();
-    if (req.body.moduleId) enrolment.lastAccessedModuleId = req.body.moduleId;
+    if (req.body?.moduleId) enrolment.lastAccessedModuleId = req.body.moduleId;
     if (lessonKey) enrolment.lastAccessedLessonId = lessonKey;
 
     if (newPercentage === 100) {
@@ -1849,99 +2011,27 @@ exports.updateLessonProgress = async (req, res) => {
     await enrolment.save();
 
     let pointsAwarded = 0;
-    if (newlyCompleted && req.user && req.user.role === 'learner') {
-      const PointTransaction = require('../model/PointTransaction');
-      const isQuiz = Boolean(req.body.quizId);
-      const referenceId = isQuiz
-        ? `${courseId}_quiz_${req.body.quizId}`
-        : `${courseId}_mod_${lessonKey}`;
-      const txType = isQuiz ? 'QUIZ_COMPLETION' : 'MODULE_COMPLETION';
-
-      const existingTx = await PointTransaction.findOne({
-        learnerId: req.user.id,
-        type: txType,
-        referenceId
-      });
-
-      if (!existingTx) {
-        const learner = await Learner.findById(req.user.id);
-        if (learner && learner.role === 'learner') {
-          const modulePts = 5;
-          learner.points = (learner.points || 0) + modulePts;
-          pointsAwarded += modulePts;
-
-          // Maintain daily learning streak since valid learning activity occurred
-          const { isSameDay, isConsecutiveDay } = require('./learnerController');
-          if (typeof isSameDay === 'function' && !isSameDay(learner.lastCheckInDate)) {
-            const isConsecutive = typeof isConsecutiveDay === 'function' && isConsecutiveDay(learner.lastCheckInDate);
-            learner.currentStreak = isConsecutive ? (learner.currentStreak || 0) + 1 : 1;
-            learner.longestStreak = Math.max(learner.longestStreak || 0, learner.currentStreak);
-            learner.lastCheckInDate = new Date();
-          }
-
-          await learner.save();
-
-          try {
-            const desc = isQuiz
-              ? `Passed quiz: "${req.body.quizTitle || 'Quiz'}" in ${course.title} (+${modulePts} points)`
-              : `Completed module in ${course.title} (+${modulePts} points)`;
-
-            await PointTransaction.create({
-              learnerId: req.user.id,
-              points: modulePts,
-              type: txType,
-              referenceId,
-              description: desc
-            });
-          } catch (txErr) {
-            console.error('PointTransaction creation error:', txErr);
-          }
-        }
-      }
-
-      // Check if course is 100% completed and award COURSE_COMPLETION points (+20)
-      if (newPercentage === 100) {
-        const courseCompletionRef = `${courseId}_completed`;
-        const existingCourseTx = await PointTransaction.findOne({
-          learnerId: req.user.id,
-          type: 'COURSE_COMPLETION',
-          referenceId: courseCompletionRef
-        });
-
-        if (!existingCourseTx) {
-          const learner = await Learner.findById(req.user.id);
-          if (learner && learner.role === 'learner') {
-            const completionPts = 20;
-            learner.points = (learner.points || 0) + completionPts;
-            await learner.save();
-            pointsAwarded += completionPts;
-
-            try {
-              await PointTransaction.create({
-                learnerId: req.user.id,
-                points: completionPts,
-                type: 'COURSE_COMPLETION',
-                referenceId: courseCompletionRef,
-                description: `Completed 100% of course: "${course.title}" (+${completionPts} points)`
-              });
-            } catch (courseTxErr) {
-              console.error('Course completion PointTransaction error:', courseTxErr);
-            }
-          }
-        }
-      }
+    let awardedBadges = [];
+    if (wantsCompleted && req.user && req.user.role === 'learner') {
+      const { checkAndAwardLearningProgressPoints } = require('../services/pointsService');
+      const pointRewardResult = await checkAndAwardLearningProgressPoints(course, enrolment, req.user.id);
+      pointsAwarded = pointRewardResult.totalPointsAwarded || 0;
+      awardedBadges = pointRewardResult.rewards || [];
     }
 
     courseCache.invalidateCourse(courseId);
 
+    const pointsMsg = pointsAwarded > 0 ? ' +' + pointsAwarded + ' points awarded 🎉' : '';
     return res.status(200).json({
       success: true,
-      message: newlyCompleted
-        ? `Module completed! ${pointsAwarded > 0 ? `+${pointsAwarded} points awarded 🎉` : ''}`
-        : 'Module marked as incomplete.',
+      message: wantsCompleted
+        ? 'Lesson completed!' + pointsMsg
+        : 'Lesson marked as incomplete.',
       enrolment,
       pointsAwarded,
-      isCompleted: newlyCompleted
+      awardedBadges,
+      isCompleted: wantsCompleted,
+      isCourseCompleted: newPercentage === 100
     });
   } catch (error) {
     console.error('Update progress error:', error);

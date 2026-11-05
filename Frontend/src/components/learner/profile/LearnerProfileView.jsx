@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Mail, Settings, Flame, Trophy, BookOpen, CheckCircle,
   ExternalLink, Calendar, Star, MessageSquare, Award,
-  Compass, Tag, Layers, CheckCircle2, X, Printer, Download, Sparkles
+  Compass, Tag, Layers, CheckCircle2, X, Printer, Download, Sparkles,
+  ChevronLeft, ChevronRight, History
 } from 'lucide-react';
 import { Avatar } from '../../common/Avatar/Avatar';
 import { useToast } from '../../../context/ToastContext';
@@ -298,6 +299,29 @@ const ActivityHeatmap = ({ activityData = [], loading = false }) => {
   );
 };
 
+// ─── Format Point Transaction Date & Badge Helpers ───
+const formatTransactionDate = (dateStr) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
+const getActivityBadge = (type) => {
+  const t = String(type || '').toUpperCase();
+  if (t.includes('COURSE')) return { label: 'Course Completion', className: 'badge-course' };
+  if (t.includes('MODULE')) return { label: 'Module Completion', className: 'badge-module' };
+  if (t.includes('LOGIN') || t.includes('CHECKIN')) return { label: 'Daily Login', className: 'badge-login' };
+  if (t.includes('QUIZ')) return { label: 'Quiz Completion', className: 'badge-quiz' };
+  return { label: 'Activity Reward', className: 'badge-default' };
+};
+
 // ─── Main LearnerProfileView Component ───
 export const LearnerProfileView = ({ user, onNavigateSettings }) => {
   const { toast } = useToast();
@@ -341,6 +365,33 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
   const [reviewsLoading, setReviewsLoading] = useState(true);
 
   const [selectedCertificateModal, setSelectedCertificateModal] = useState(null);
+
+  // ─── Points & Rewards History State ───
+  const [pointHistory, setPointHistory] = useState([]);
+  const [pointsPagination, setPointsPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
+  const [pointsLoading, setPointsLoading] = useState(true);
+
+  // Fetch verified point history ledger from DB
+  const fetchPointHistory = async (page = 1) => {
+    setPointsLoading(true);
+    try {
+      const token = sessionStorage.getItem('upskillr_token') || localStorage.getItem('upskillr_token');
+      const res = await fetch(`${API_BASE}/learners/me/point-history?page=${page}&limit=10`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPointHistory(data.transactions || []);
+        if (data.pagination) {
+          setPointsPagination(data.pagination);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load point history:', err);
+    } finally {
+      setPointsLoading(false);
+    }
+  };
 
   // Fetch full profile and learning stats from DB
   const fetchProfileAndStats = async () => {
@@ -440,10 +491,12 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
     fetchActivity();
     fetchCertificates();
     fetchReviews();
+    fetchPointHistory(1);
 
     const handleRefresh = () => {
       fetchProfileAndStats();
       fetchActivity();
+      fetchPointHistory(1);
     };
     window.addEventListener('upskillr_points_updated', handleRefresh);
     return () => window.removeEventListener('upskillr_points_updated', handleRefresh);
@@ -640,6 +693,107 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
           </div>
 
           <ActivityHeatmap activityData={activityData} loading={activityLoading} />
+        </section>
+
+        {/* ─── 3b. POINTS & REWARDS HISTORY ─── */}
+        <section className="profile-points-history-section" aria-label="Points & Rewards History">
+          <div className="section-title-line">
+            <div className="title-with-icon">
+              <Sparkles size={18} className="title-icon-accent" />
+              <h2 className="section-title">Points &amp; Rewards History</h2>
+            </div>
+            <span className="stats-verified-pill">Verified Ledger &bull; {stats.totalPoints} Total Points</span>
+          </div>
+
+          <div className="points-history-card">
+            {pointsLoading ? (
+              <div className="points-empty-state">
+                <p className="points-empty-subtext">Loading points history...</p>
+              </div>
+            ) : pointHistory.length === 0 ? (
+              <div className="points-empty-state">
+                <div className="points-empty-icon">
+                  <Star size={24} />
+                </div>
+                <h3 className="points-empty-title">No rewards recorded yet</h3>
+                <p className="points-empty-subtext">
+                  Start learning! Earn +1 point for daily logins, +5 points for completing modules, and +25 points for completing courses.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="points-history-table-wrap">
+                  <table className="points-history-table" aria-label="Points Transaction Ledger">
+                    <thead>
+                      <tr>
+                        <th>Activity Description</th>
+                        <th>Date &amp; Time</th>
+                        <th>Activity Category</th>
+                        <th style={{ textAlign: 'right' }}>Points Earned</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pointHistory.map((item) => {
+                        const badge = getActivityBadge(item.activityType || item.type);
+                        const isCourse = String(item.type || '').toUpperCase().includes('COURSE');
+                        return (
+                          <tr key={item._id}>
+                            <td>
+                              <span className="points-desc-main">{item.description}</span>
+                            </td>
+                            <td style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                              {formatTransactionDate(item.createdAt)}
+                            </td>
+                            <td>
+                              <span className={`points-type-badge ${badge.className}`}>
+                                {badge.label}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <span className={`points-val-chip ${isCourse ? 'chip-course' : ''}`}>
+                                <Star size={13} fill="currentColor" />
+                                +{item.points}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {pointsPagination.totalPages > 1 && (
+                  <div className="points-pagination-bar">
+                    <span className="points-pagination-info">
+                      Showing page {pointsPagination.page} of {pointsPagination.totalPages} ({pointsPagination.total} total rewards)
+                    </span>
+                    <div className="points-pagination-controls">
+                      <button
+                        type="button"
+                        className="btn-points-page"
+                        disabled={pointsPagination.page <= 1}
+                        onClick={() => fetchPointHistory(pointsPagination.page - 1)}
+                        aria-label="Previous points page"
+                      >
+                        <ChevronLeft size={16} />
+                        <span>Previous</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-points-page"
+                        disabled={pointsPagination.page >= pointsPagination.totalPages}
+                        onClick={() => fetchPointHistory(pointsPagination.page + 1)}
+                        aria-label="Next points page"
+                      >
+                        <span>Next</span>
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </section>
 
         {/* ─── 4. DEVELOPER & SOCIAL PROFILES ─── */}

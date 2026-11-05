@@ -28,6 +28,7 @@ router.post('/me/check-in', learnerController.performDailyCheckin);
 router.get('/me/streak', learnerController.getPoints);
 router.get('/me/points', learnerController.getPoints);
 router.get('/me/point-history', learnerController.getPointHistory);
+router.get('/me/points-history', learnerController.getPointHistory);
 
 // Enrolled Courses Route
 router.get('/me/courses', courseController.getLearnerEnrolments);

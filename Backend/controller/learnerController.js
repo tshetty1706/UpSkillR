@@ -124,6 +124,9 @@ exports.getLearnerProfileAndStats = async (req, res) => {
       (sum, e) => sum + (e.completedLessons ? e.completedLessons.length : 0), 0
     );
     const checkedInToday = isSameDay(learner.lastCheckInDate);
+    const { syncLearnerPoints } = require('../services/pointsService');
+    const verifiedPoints = await syncLearnerPoints(learnerId);
+    learner.points = verifiedPoints;
 
     return res.status(200).json({
       success: true,
@@ -433,22 +436,34 @@ exports.getPointHistory = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied. Point history is restricted to learners only.' });
     }
 
-    // Only count genuine, valid learner activity types
-    const VALID_TYPES = ['MODULE_COMPLETION', 'QUIZ_COMPLETION', 'COURSE_COMPLETION', 'DAILY_CHECKIN'];
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const skip = (page - 1) * limit;
 
-    const transactions = await PointTransaction.find({
-      learnerId: req.user.id,
-      type: { $in: VALID_TYPES }
-    })
+    const filter = { learnerId: req.user.id };
+    const totalCount = await PointTransaction.countDocuments(filter);
+    const transactions = await PointTransaction.find(filter)
       .sort({ createdAt: -1 })
-      .limit(50);
+      .skip(skip)
+      .limit(limit);
+
+    const { syncLearnerPoints } = require('../services/pointsService');
+    const totalPoints = await syncLearnerPoints(req.user.id);
 
     return res.status(200).json({
       success: true,
+      totalPoints,
+      pagination: {
+        page,
+        limit,
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limit) || 1
+      },
       transactions: transactions.map(t => ({
         _id: t._id,
         points: t.points,
         type: t.type,
+        activityType: t.activityType || (t.type ? t.type.toLowerCase() : 'activity'),
         referenceId: t.referenceId,
         description: t.description,
         createdAt: t.createdAt

@@ -3,7 +3,7 @@ const path = require('path');
 const Course = require('../model/Course');
 const mongoose = require('mongoose');
 const { notifyStudentsOnNewContent } = require('./notificationController');
-const { courseCache } = require('./courseController');
+const { courseCache, normalizeVideoContentItem } = require('./courseController');
 
 // Helper to generate fractional / lexicographical sort key (LexoRank style)
 const generateSortKey = (prevKey, nextKey) => {
