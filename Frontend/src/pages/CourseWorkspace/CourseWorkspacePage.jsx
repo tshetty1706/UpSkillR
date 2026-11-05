@@ -5,7 +5,7 @@ import {
   ChevronDown, ChevronUp, Star, Users, ExternalLink, Download,
   Clock, Check, Sparkles, AlertCircle, RefreshCw, MessageSquare,
   ShieldCheck, Lock, ChevronLeft, ChevronRight, X, FileDown,
-  Bookmark, Sun, Moon, Menu, Trophy
+  Bookmark, Sun, Moon, Menu, Trophy, PenLine, Folder
 } from 'lucide-react';
 import { Avatar } from '../../components/common/Avatar/Avatar';
 import { CourseRatingModal } from '../../components/learner/dashboard/LearnerDashboardOverview/CourseRatingModal';
@@ -81,6 +81,17 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
 
   // Modals state
   const [isRatingOpen, setIsRatingOpen] = useState(false);
+
+  // ─── Workspace Bookmarks & Personal Notes State ───
+  const [isCurrentBookmarked, setIsCurrentBookmarked] = useState(false);
+  const [currentBookmarkId, setCurrentBookmarkId] = useState(null);
+  const [workspaceFolders, setWorkspaceFolders] = useState([]);
+  const [isWorkspaceNoteModalOpen, setIsWorkspaceNoteModalOpen] = useState(false);
+  const [workspaceNoteTitle, setWorkspaceNoteTitle] = useState('');
+  const [workspaceNoteContent, setWorkspaceNoteContent] = useState('');
+  const [workspaceNoteFolderId, setWorkspaceNoteFolderId] = useState('');
+  const [savingWorkspaceNote, setSavingWorkspaceNote] = useState(false);
+  const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
 
   // ─── 1. Fetch Course Data, Progress & Announcements ───
   const fetchWorkspaceData = useCallback(async () => {
@@ -294,7 +305,8 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
     if (!modulesList.length) return;
 
     // Check query params if navigated to specific module/lesson
-    const urlParams = new URLSearchParams(window.location.search);
+    const searchStr = window.location.search || (window.location.href.includes('?') ? '?' + window.location.href.split('?')[1] : '');
+    const urlParams = new URLSearchParams(searchStr);
     const paramMod = urlParams.get('module');
     const paramLes = urlParams.get('lesson');
 
@@ -396,6 +408,170 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
       setQuizSubmitted(false);
     }
   }, [activeLesson?._id, selectedItemIdx]);
+
+  // ─── Track Bookmark State for Current Resource ───
+  const currentResourceId = activeContentItem?._id || activeLesson?._id;
+
+  const checkCurrentBookmark = useCallback(async () => {
+    if (!courseId || !currentResourceId) return;
+    const token = sessionStorage.getItem('upskillr_token');
+    if (!token) return;
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/learners/me/bookmarks/check?courseId=${courseId}&resourceId=${currentResourceId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const json = await res.json();
+      if (json.success) {
+        setIsCurrentBookmarked(json.isBookmarked);
+        setCurrentBookmarkId(json.bookmarkId);
+      }
+    } catch (e) {
+      console.warn('Failed to verify bookmark status:', e);
+    }
+  }, [courseId, currentResourceId]);
+
+  useEffect(() => {
+    checkCurrentBookmark();
+  }, [checkCurrentBookmark]);
+
+  // Fetch available folders for bookmarking
+  const fetchWorkspaceFolders = useCallback(async () => {
+    const token = sessionStorage.getItem('upskillr_token');
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/learners/me/folders`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const json = await res.json();
+      if (json.success && Array.isArray(json.folders)) {
+        setWorkspaceFolders(json.folders);
+      }
+    } catch (e) {}
+  }, []);
+
+  useEffect(() => {
+    fetchWorkspaceFolders();
+  }, [fetchWorkspaceFolders]);
+
+  // Toggle bookmark or assign to folder
+  const handleToggleLessonBookmark = async (folderId = null) => {
+    const token = sessionStorage.getItem('upskillr_token');
+    if (!token) {
+      toast.warning('Please log in to save bookmarks.');
+      return;
+    }
+
+    if (!currentResourceId) return;
+
+    try {
+      if (isCurrentBookmarked && currentBookmarkId && !folderId) {
+        if (!window.confirm('Remove this lesson from your Learning Library?')) {
+          return;
+        }
+        setIsCurrentBookmarked(false);
+        toast.info('Removed from My Learning Library.');
+        await fetch(`${API_BASE}/learners/me/bookmarks/${currentBookmarkId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setCurrentBookmarkId(null);
+      } else {
+        const payload = {
+          courseId,
+          resourceId: currentResourceId,
+          resourceType: contentType,
+          title: activeContentItem?.title || activeLesson?.title || 'Lesson',
+          courseTitle: course?.title,
+          courseThumbnail: course?.thumbnail,
+          moduleId: activeModule?._id || selectedModuleIdx,
+          moduleTitle: activeModule?.title || `Module ${selectedModuleIdx + 1}`,
+          lessonId: activeLesson?._id || selectedLessonIdx,
+          lessonTitle: activeLesson?.title || `Lesson ${selectedLessonIdx + 1}`,
+          contentPreview: activeContentItem?.markdownContent || activeContentItem?.description || '',
+          duration: activeLesson?.duration || '',
+          totalMarks: activeContentItem?.quiz?.totalMarks || null,
+          totalQuestions: activeContentItem?.quiz?.questions?.length || null,
+          folderId: folderId || null,
+          url: `/learn/${courseId}?module=${selectedModuleIdx}&lesson=${selectedLessonIdx}`,
+          action: 'add'
+        };
+
+        const res = await fetch(`${API_BASE}/learners/me/bookmarks`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+        if (json.success) {
+          setIsCurrentBookmarked(true);
+          setCurrentBookmarkId(json.bookmark?._id || null);
+          toast.success(folderId ? 'Saved to folder in Learning Library!' : 'Saved to My Learning Library!');
+        } else {
+          toast.error(json.message || 'Failed to save bookmark.');
+        }
+      }
+    } catch (err) {
+      console.error('Error toggling bookmark:', err);
+      toast.error('Unable to update bookmark.');
+    }
+  };
+
+  // Save personal note from workspace
+  const handleSaveWorkspaceNote = async (e) => {
+    e.preventDefault();
+    if (!workspaceNoteTitle.trim() || !workspaceNoteContent.trim()) return;
+
+    const token = sessionStorage.getItem('upskillr_token');
+    if (!token) {
+      toast.warning('Please log in to save notes.');
+      return;
+    }
+
+    setSavingWorkspaceNote(true);
+    try {
+      const payload = {
+        title: workspaceNoteTitle.trim(),
+        content: workspaceNoteContent.trim(),
+        courseId,
+        courseTitle: course?.title,
+        moduleId: activeModule?._id || selectedModuleIdx,
+        moduleTitle: activeModule?.title || `Module ${selectedModuleIdx + 1}`,
+        lessonId: activeLesson?._id || selectedLessonIdx,
+        lessonTitle: activeLesson?.title || `Lesson ${selectedLessonIdx + 1}`,
+        folderId: workspaceNoteFolderId || null,
+        url: `/learn/${courseId}?module=${selectedModuleIdx}&lesson=${selectedLessonIdx}`
+      };
+
+      const res = await fetch(`${API_BASE}/learners/me/notes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success('Personal note saved to My Learning Library!');
+        setIsWorkspaceNoteModalOpen(false);
+        setWorkspaceNoteTitle('');
+        setWorkspaceNoteContent('');
+        setWorkspaceNoteFolderId('');
+      } else {
+        toast.error(json.message || 'Failed to save note.');
+      }
+    } catch (err) {
+      console.error('Error saving workspace note:', err);
+      toast.error('Failed to save personal note.');
+    } finally {
+      setSavingWorkspaceNote(false);
+    }
+  };
 
   // Record access position to backend on lesson switch
   const recordAccessPosition = useCallback(async (mIdx, lIdx, videoTime = 0) => {
@@ -1331,6 +1507,90 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
                 </div>
 
                 <div className="content-lesson-header-right">
+                  {/* Workspace Bookmark Action Group */}
+                  <div className="workspace-bookmark-action-group">
+                    <button
+                      type="button"
+                      className={`btn-action-bookmark ${isCurrentBookmarked ? 'is-bookmarked' : ''}`}
+                      onClick={() => handleToggleLessonBookmark()}
+                      title={isCurrentBookmarked ? 'Remove Bookmark' : 'Save to My Learning Library'}
+                      aria-label={isCurrentBookmarked ? 'Bookmarked' : 'Bookmark Lesson'}
+                    >
+                      <Bookmark size={16} fill={isCurrentBookmarked ? 'currentColor' : 'none'} />
+                      <span>{isCurrentBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="btn-bookmark-folder-trigger"
+                      onClick={() => setIsFolderPickerOpen((prev) => !prev)}
+                      title="Save to specific folder"
+                      aria-label="Select folder for bookmark"
+                    >
+                      <Folder size={14} />
+                      <ChevronDown size={11} />
+                    </button>
+
+                    {/* Folder dropdown popover */}
+                    {isFolderPickerOpen && (
+                      <div className="bookmark-folder-popover">
+                        <div className="folder-popover-header">
+                          <span>Save to Folder:</span>
+                          <button
+                            type="button"
+                            className="btn-popover-close"
+                            onClick={() => setIsFolderPickerOpen(false)}
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                        <div className="folder-popover-list">
+                          <button
+                            type="button"
+                            className="folder-popover-opt"
+                            onClick={() => {
+                              handleToggleLessonBookmark(null);
+                              setIsFolderPickerOpen(false);
+                            }}
+                          >
+                            <Layers size={13} />
+                            <span>Unorganized</span>
+                          </button>
+                          {workspaceFolders.map((f) => (
+                            <button
+                              key={f._id}
+                              type="button"
+                              className="folder-popover-opt"
+                              onClick={() => {
+                                handleToggleLessonBookmark(f._id);
+                                setIsFolderPickerOpen(false);
+                              }}
+                            >
+                              <Folder size={13} style={{ color: f.color || '#10b981' }} />
+                              <span>{f.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add Personal Note Button */}
+                  <button
+                    type="button"
+                    className="btn-action-workspace-note"
+                    onClick={() => {
+                      setWorkspaceNoteTitle(`Note: ${activeContentItem?.title || activeLesson?.title || 'Lesson'}`);
+                      setWorkspaceNoteContent('');
+                      setIsWorkspaceNoteModalOpen(true);
+                    }}
+                    title="Add Personal Note for this lesson"
+                    aria-label="Add Personal Note"
+                  >
+                    <PenLine size={16} />
+                    <span>Add Note</span>
+                  </button>
+
                   {/* ONE Single Primary Mark as Complete Button */}
                   <button
                     type="button"
@@ -1406,6 +1666,10 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
                       setCodeOutput('');
                     }
                   }}
+                  bookmarkState={{
+                    isBookmarked: isCurrentBookmarked,
+                    onToggleBookmark: handleToggleLessonBookmark
+                  }}
                 />
               </div>
 
@@ -1465,6 +1729,99 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
           )}
         </main>
       </div>
+
+      {/* ─── WORKSPACE PERSONAL NOTE MODAL ─── */}
+      {isWorkspaceNoteModalOpen && (
+        <div className="library-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ws-note-title">
+          <div className="library-modal-container note-modal-size">
+            <div className="library-modal-header">
+              <div className="modal-title-row">
+                <PenLine size={20} className="modal-title-icon" />
+                <h2 id="ws-note-title" className="library-modal-title">Personal Note on this Lesson</h2>
+              </div>
+              <button
+                type="button"
+                className="btn-modal-close"
+                onClick={() => setIsWorkspaceNoteModalOpen(false)}
+                aria-label="Close note modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveWorkspaceNote} className="library-modal-body">
+              <div className="workspace-note-context-box">
+                <span className="context-course-title">{course?.title}</span>
+                <span className="context-arrow">→</span>
+                <span className="context-lesson-title">{activeContentItem?.title || activeLesson?.title}</span>
+              </div>
+
+              <div className="library-form-group">
+                <label className="library-form-label">
+                  Note Title <span className="required-star">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="library-form-input"
+                  value={workspaceNoteTitle}
+                  onChange={(e) => setWorkspaceNoteTitle(e.target.value)}
+                  placeholder="e.g., Key concept or formula to remember"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="library-form-group">
+                <label className="library-form-label">Folder (Optional)</label>
+                <select
+                  className="library-form-select"
+                  value={workspaceNoteFolderId}
+                  onChange={(e) => setWorkspaceNoteFolderId(e.target.value)}
+                >
+                  <option value="">Unorganized (No Folder)</option>
+                  {workspaceFolders.map((f) => (
+                    <option key={f._id} value={f._id}>
+                      📁 {f.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="library-form-group">
+                <label className="library-form-label">
+                  Note Content <span className="required-star">*</span>
+                </label>
+                <textarea
+                  className="library-form-textarea"
+                  rows={6}
+                  value={workspaceNoteContent}
+                  onChange={(e) => setWorkspaceNoteContent(e.target.value)}
+                  placeholder="Write your notes, code snippets, or revision points here..."
+                  required
+                />
+              </div>
+
+              <div className="library-modal-footer">
+                <button
+                  type="button"
+                  className="btn-modal-cancel"
+                  onClick={() => setIsWorkspaceNoteModalOpen(false)}
+                  disabled={savingWorkspaceNote}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-modal-save"
+                  disabled={savingWorkspaceNote || !workspaceNoteTitle.trim() || !workspaceNoteContent.trim()}
+                >
+                  {savingWorkspaceNote ? 'Saving...' : 'Save to Library'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ─── COURSE RATING & FEEDBACK MODAL ─── */}
       <CourseRatingModal

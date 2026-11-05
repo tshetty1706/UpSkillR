@@ -9,9 +9,10 @@ const bookmarkSchema = new mongoose.Schema({
   },
   resourceType: {
     type: String,
-    enum: ['course', 'lesson', 'video', 'note'],
+    enum: ['course', 'lesson', 'video', 'article', 'note', 'quiz'],
     default: 'course',
-    required: true
+    required: true,
+    index: true
   },
   courseId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -22,6 +23,24 @@ const bookmarkSchema = new mongoose.Schema({
   resourceId: {
     type: String,
     default: null
+  },
+  moduleId: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  moduleTitle: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  lessonId: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  lessonTitle: {
+    type: String,
+    default: '',
+    trim: true
   },
   title: {
     type: String,
@@ -41,6 +60,29 @@ const bookmarkSchema = new mongoose.Schema({
     type: String,
     default: 'General'
   },
+  contentPreview: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  duration: {
+    type: String,
+    default: ''
+  },
+  totalMarks: {
+    type: Number,
+    default: null
+  },
+  totalQuestions: {
+    type: Number,
+    default: null
+  },
+  folderId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'BookmarkFolder',
+    default: null,
+    index: true
+  },
   url: {
     type: String,
     default: ''
@@ -48,14 +90,17 @@ const bookmarkSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
 });
 
-// Compound index to guarantee uniqueness per learner, course, and resource
+// Compound index to guarantee uniqueness per learner, course, resource, and type
 bookmarkSchema.index(
   { learnerId: 1, courseId: 1, resourceId: 1, resourceType: 1 },
   { unique: true }
 );
 
 module.exports = mongoose.model('Bookmark', bookmarkSchema, 'bookmarks');
-

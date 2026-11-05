@@ -22,7 +22,8 @@ export const LessonContentRenderer = ({
   course,
   videoState = {},
   quizState = {},
-  codeState = {}
+  codeState = {},
+  bookmarkState = {}
 }) => {
   if (!lesson) {
     return null;
@@ -65,6 +66,7 @@ export const LessonContentRenderer = ({
           lesson={lesson}
           contentItem={contentItem}
           course={course}
+          bookmarkState={bookmarkState}
         />
       );
 

@@ -8,6 +8,7 @@ export const QuizWorkspaceContainer = ({
   lesson,
   contentItem,
   course,
+  bookmarkState = {},
   onNavigate
 }) => {
   const courseId = course?._id || course?.id;
@@ -179,6 +180,8 @@ export const QuizWorkspaceContainer = ({
           onStartQuiz={handleStartQuiz}
           onViewQuizInfo={() => setActiveView('info')}
           isStarting={isStarting}
+          isBookmarked={Boolean(bookmarkState.isBookmarked)}
+          onToggleBookmark={bookmarkState.onToggleBookmark}
         />
       ) : (
         <QuizInfoView
@@ -189,6 +192,8 @@ export const QuizWorkspaceContainer = ({
           onStartQuiz={handleStartQuiz}
           onViewLeaderboard={() => setActiveView('results')}
           isStarting={isStarting}
+          isBookmarked={Boolean(bookmarkState.isBookmarked)}
+          onToggleBookmark={bookmarkState.onToggleBookmark}
         />
       )}
     </div>

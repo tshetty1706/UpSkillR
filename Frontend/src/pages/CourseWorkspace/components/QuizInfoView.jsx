@@ -8,7 +8,8 @@ import {
   PlayCircle,
   RotateCcw,
   BarChart3,
-  HelpCircle
+  HelpCircle,
+  Bookmark
 } from 'lucide-react';
 
 export const QuizInfoView = ({
@@ -18,7 +19,9 @@ export const QuizInfoView = ({
   firstAttempt,
   onStartQuiz,
   onViewLeaderboard,
-  isStarting = false
+  isStarting = false,
+  isBookmarked = false,
+  onToggleBookmark
 }) => {
   const durationMins = quiz?.durationMinutes || 10;
   const totalQuestions = quiz?.totalQuestions || 0;
@@ -48,6 +51,19 @@ export const QuizInfoView = ({
         </div>
 
         <div className="gfg-action-btn-group">
+          {onToggleBookmark && (
+            <button
+              type="button"
+              className={`btn-gfg-secondary ${isBookmarked ? 'is-bookmarked' : ''}`}
+              onClick={() => onToggleBookmark()}
+              title={isBookmarked ? 'Remove Quiz from Library' : 'Bookmark Quiz'}
+              aria-label={isBookmarked ? 'Bookmarked Quiz' : 'Bookmark Quiz'}
+            >
+              <Bookmark size={18} fill={isBookmarked ? 'currentColor' : 'none'} />
+              <span>{isBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
+            </button>
+          )}
+
           {hasAttempted && (
             <button
               type="button"

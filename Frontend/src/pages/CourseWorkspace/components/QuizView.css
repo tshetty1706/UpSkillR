@@ -95,6 +95,16 @@
   border-color: var(--brand-primary, #10b981);
 }
 
+.btn-gfg-secondary.is-bookmarked {
+  color: var(--brand-primary, #10b981);
+  border-color: var(--brand-primary, #10b981);
+  background-color: rgba(16, 185, 129, 0.12);
+}
+
+.btn-gfg-secondary.is-bookmarked:hover {
+  background-color: rgba(16, 185, 129, 0.2);
+}
+
 /* Main Quiz Info Card */
 .gfg-quiz-card {
   background-color: var(--surface);

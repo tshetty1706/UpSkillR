@@ -8,7 +8,8 @@ import {
   HelpCircle,
   Clock,
   Award,
-  Users
+  Users,
+  Bookmark
 } from 'lucide-react';
 
 export const QuizResultsLeaderboardView = ({
@@ -21,7 +22,9 @@ export const QuizResultsLeaderboardView = ({
   isLoadingLeaderboard = false,
   onStartQuiz,
   onViewQuizInfo,
-  isStarting = false
+  isStarting = false,
+  isBookmarked = false,
+  onToggleBookmark
 }) => {
   const formatTime = (secs) => {
     if (!secs) return '0s';
@@ -46,6 +49,19 @@ export const QuizResultsLeaderboardView = ({
         </div>
 
         <div className="results-action-buttons">
+          {onToggleBookmark && (
+            <button
+              type="button"
+              className={`btn-gfg-secondary ${isBookmarked ? 'is-bookmarked' : ''}`}
+              onClick={() => onToggleBookmark()}
+              title={isBookmarked ? 'Remove Quiz from Library' : 'Bookmark Quiz'}
+              aria-label={isBookmarked ? 'Bookmarked Quiz' : 'Bookmark Quiz'}
+            >
+              <Bookmark size={17} fill={isBookmarked ? 'currentColor' : 'none'} />
+              <span>{isBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
+            </button>
+          )}
+
           <button
             type="button"
             className="btn-gfg-secondary"
