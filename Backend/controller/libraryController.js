@@ -511,12 +511,19 @@ exports.getNoteById = async (req, res) => {
     const learnerId = req.user.id;
     const { id } = req.params;
 
+    if (!id || id === 'undefined' || id === 'null' || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or missing note ID'
+      });
+    }
+
     const note = await PersonalNote.findOne({ _id: id, learnerId })
       .populate('folderId', '_id name color')
       .lean();
 
     if (!note) {
-      return res.status(404).json({ success: false, message: 'Note not found.' });
+      return res.status(404).json({ success: false, message: 'Note not found or access denied.' });
     }
 
     return res.status(200).json({ success: true, note });
@@ -598,6 +605,14 @@ exports.updateNote = async (req, res) => {
   try {
     const learnerId = req.user.id;
     const { id } = req.params;
+
+    if (!id || id === 'undefined' || id === 'null' || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or missing note ID'
+      });
+    }
+
     const {
       title,
       content,
@@ -613,11 +628,22 @@ exports.updateNote = async (req, res) => {
 
     const note = await PersonalNote.findOne({ _id: id, learnerId });
     if (!note) {
-      return res.status(404).json({ success: false, message: 'Note not found.' });
+      return res.status(404).json({ success: false, message: 'Note not found or access denied.' });
     }
 
-    if (title !== undefined) note.title = title.trim();
-    if (content !== undefined) note.content = content.trim();
+    if (title !== undefined) {
+      if (!title.trim()) {
+        return res.status(400).json({ success: false, message: 'Note title cannot be empty.' });
+      }
+      note.title = title.trim();
+    }
+
+    if (content !== undefined) {
+      if (!content.trim()) {
+        return res.status(400).json({ success: false, message: 'Note content cannot be empty.' });
+      }
+      note.content = content.trim();
+    }
 
     if (courseId !== undefined) {
       if (courseId && mongoose.Types.ObjectId.isValid(courseId)) {
@@ -635,9 +661,9 @@ exports.updateNote = async (req, res) => {
     }
 
     if (moduleId !== undefined) note.moduleId = moduleId;
-    if (moduleTitle !== undefined) note.moduleTitle = moduleTitle.trim();
+    if (moduleTitle !== undefined) note.moduleTitle = moduleTitle ? moduleTitle.trim() : '';
     if (lessonId !== undefined) note.lessonId = lessonId;
-    if (lessonTitle !== undefined) note.lessonTitle = lessonTitle.trim();
+    if (lessonTitle !== undefined) note.lessonTitle = lessonTitle ? lessonTitle.trim() : '';
     if (url !== undefined) note.url = url;
 
     if (folderId !== undefined) {
@@ -670,9 +696,16 @@ exports.deleteNote = async (req, res) => {
     const learnerId = req.user.id;
     const { id } = req.params;
 
+    if (!id || id === 'undefined' || id === 'null' || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or missing note ID'
+      });
+    }
+
     const note = await PersonalNote.findOneAndDelete({ _id: id, learnerId });
     if (!note) {
-      return res.status(404).json({ success: false, message: 'Note not found.' });
+      return res.status(404).json({ success: false, message: 'Note not found or access denied.' });
     }
 
     return res.status(200).json({

@@ -38,6 +38,13 @@ const NoteModal = ({ isOpen, onClose, onSave, editingNote, enrolledCourses, fold
   const [folderId, setFolderId] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const isEditing = Boolean(
+    editingNote &&
+    (editingNote._id || editingNote.id) &&
+    editingNote._id !== 'undefined' &&
+    editingNote.id !== 'undefined'
+  );
+
   useEffect(() => {
     if (editingNote) {
       setTitle(editingNote.title || '');
@@ -67,10 +74,11 @@ const NoteModal = ({ isOpen, onClose, onSave, editingNote, enrolledCourses, fold
         (c) => String(c._id) === String(courseId)
       );
       await onSave({
+        ...(editingNote || {}),
         title: title.trim(),
         content: content.trim(),
         courseId: courseId || null,
-        courseTitle: selectedCourse ? selectedCourse.title : '',
+        courseTitle: selectedCourse ? selectedCourse.title : (editingNote?.courseTitle || ''),
         folderId: folderId || null
       });
       onClose();
@@ -86,7 +94,7 @@ const NoteModal = ({ isOpen, onClose, onSave, editingNote, enrolledCourses, fold
           <div className="modal-title-row">
             <PenLine size={20} className="modal-title-icon" />
             <h2 id="note-modal-title" className="library-modal-title">
-              {editingNote ? 'Edit Personal Note' : 'Add Personal Quick Note'}
+              {isEditing ? 'Edit Personal Note' : 'Add Personal Quick Note'}
             </h2>
           </div>
           <button type="button" className="btn-modal-close" onClick={onClose} aria-label="Close modal">
@@ -171,7 +179,7 @@ const NoteModal = ({ isOpen, onClose, onSave, editingNote, enrolledCourses, fold
               Cancel
             </button>
             <button type="submit" className="btn-modal-save" disabled={saving || !title.trim() || !content.trim()}>
-              {saving ? 'Saving...' : editingNote ? 'Update Note' : 'Save Note'}
+              {saving ? 'Saving...' : isEditing ? 'Update Note' : 'Save Note'}
             </button>
           </div>
         </form>
@@ -590,32 +598,67 @@ export const LearnerBookmarksView = ({ onNavigate, onExploreCourses }) => {
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
+    const rawNoteId = noteData?._id || editingNote?._id || editingNote?.id;
+    const isUpdate = Boolean(
+      rawNoteId &&
+      typeof rawNoteId === 'string' &&
+      rawNoteId.trim() !== '' &&
+      rawNoteId !== 'undefined' &&
+      rawNoteId !== 'null'
+    );
+
     try {
-      if (editingNote) {
-        const res = await fetch(`${API_BASE}/learners/me/notes/${editingNote._id}`, {
+      if (isUpdate) {
+        const payload = {
+          title: noteData.title,
+          content: noteData.content,
+          courseId: noteData.courseId || null,
+          courseTitle: noteData.courseTitle || '',
+          folderId: noteData.folderId || null,
+          moduleId: noteData.moduleId !== undefined ? noteData.moduleId : (editingNote?.moduleId || null),
+          moduleTitle: noteData.moduleTitle !== undefined ? noteData.moduleTitle : (editingNote?.moduleTitle || ''),
+          lessonId: noteData.lessonId !== undefined ? noteData.lessonId : (editingNote?.lessonId || null),
+          lessonTitle: noteData.lessonTitle !== undefined ? noteData.lessonTitle : (editingNote?.lessonTitle || ''),
+          url: noteData.url || editingNote?.url || ''
+        };
+
+        const res = await fetch(`${API_BASE}/learners/me/notes/${rawNoteId}`, {
           method: 'PATCH',
           headers,
           credentials: 'include',
-          body: JSON.stringify(noteData)
+          body: JSON.stringify(payload)
         });
         const resData = await res.json();
-        if (resData.success) {
+        if (res.ok && resData.success) {
           toast.success('Note updated.');
           setNotes((prev) =>
-            prev.map((n) => (n._id === editingNote._id ? resData.note : n))
+            prev.map((n) => (n._id === rawNoteId ? resData.note : n))
           );
         } else {
           toast.error(resData.message || 'Failed to update note.');
         }
       } else {
+        const payload = {
+          title: noteData.title,
+          content: noteData.content,
+          courseId: noteData.courseId || null,
+          courseTitle: noteData.courseTitle || '',
+          folderId: noteData.folderId || null,
+          moduleId: noteData.moduleId || null,
+          moduleTitle: noteData.moduleTitle || '',
+          lessonId: noteData.lessonId || null,
+          lessonTitle: noteData.lessonTitle || '',
+          url: noteData.url || ''
+        };
+
         const res = await fetch(`${API_BASE}/learners/me/notes`, {
           method: 'POST',
           headers,
           credentials: 'include',
-          body: JSON.stringify(noteData)
+          body: JSON.stringify(payload)
         });
         const resData = await res.json();
-        if (resData.success) {
+        if (res.ok && resData.success) {
           toast.success('Personal note created.');
           setNotes((prev) => [resData.note, ...prev]);
         } else {
@@ -630,7 +673,13 @@ export const LearnerBookmarksView = ({ onNavigate, onExploreCourses }) => {
   };
 
   const handleDeleteNote = async (note) => {
-    setNotes((prev) => prev.filter((n) => n._id !== note._id));
+    const rawNoteId = note?._id || note?.id;
+    if (!rawNoteId || rawNoteId === 'undefined' || rawNoteId === 'null') {
+      toast.error('Invalid note ID');
+      return;
+    }
+
+    setNotes((prev) => prev.filter((n) => (n._id || n.id) !== rawNoteId));
     toast.info(`Deleted note "${note.title}".`);
 
     const token = sessionStorage.getItem('upskillr_token');
@@ -638,11 +687,15 @@ export const LearnerBookmarksView = ({ onNavigate, onExploreCourses }) => {
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     try {
-      await fetch(`${API_BASE}/learners/me/notes/${note._id}`, {
+      const res = await fetch(`${API_BASE}/learners/me/notes/${rawNoteId}`, {
         method: 'DELETE',
         headers,
         credentials: 'include'
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        toast.error(data.message || 'Failed to delete note.');
+      }
       fetchLibraryData();
     } catch (err) {
       console.error('Error deleting note:', err);
@@ -788,7 +841,12 @@ export const LearnerBookmarksView = ({ onNavigate, onExploreCourses }) => {
       title: `Note on: ${bookmark.title}`,
       content: '',
       courseId,
-      courseTitle: bookmark.courseTitle,
+      courseTitle: bookmark.courseTitle || '',
+      moduleId: bookmark.moduleId || null,
+      moduleTitle: bookmark.moduleTitle || '',
+      lessonId: bookmark.lessonId || null,
+      lessonTitle: bookmark.lessonTitle || '',
+      url: bookmark.url || '',
       folderId: bookmark.folderId?._id || bookmark.folderId || ''
     });
     setIsNoteModalOpen(true);
