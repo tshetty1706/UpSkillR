@@ -375,6 +375,7 @@ export const LearnerDashboard = ({ user }) => {
               <LearnerAchievementsView
                 gamification={gamification}
                 enrolments={enrolments}
+                onExploreCourses={() => handleSelectView('explore', '/learner/explore')}
               />
             )}
 

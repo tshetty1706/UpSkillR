@@ -73,6 +73,9 @@ router.get('/me/activity', learnerController.getLearnerActivity);
 // Certificates (derived from completed enrolments)
 router.get('/me/certificates', learnerController.getLearnerCertificates);
 
+// Verified Learning Milestones
+router.get('/me/milestones', learnerController.getLearnerMilestones);
+
 // Notifications (New modules / lessons uploaded)
 const notificationController = require('../controller/notificationController');
 router.get('/me/notifications', notificationController.getLearnerNotifications);

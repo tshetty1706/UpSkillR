@@ -987,3 +987,128 @@ exports.confirmDeleteAccount = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Server error deleting account.' });
   }
 };
+
+// ─── 14. GET /api/learners/me/milestones — Verified Learning Milestones ───
+exports.getLearnerMilestones = async (req, res) => {
+  try {
+    const learnerId = req.user.id;
+    const learner = await Learner.findById(learnerId).select('points currentStreak longestStreak createdAt lastCheckInDate');
+    if (!learner) return res.status(404).json({ success: false, message: 'Learner not found' });
+
+    // Completed enrolments sorted by completedAt ascending
+    const completedEnrolments = await Enrolment.find({
+      learnerId,
+      $or: [{ status: 'completed' }, { progressPercentage: { $gte: 100 } }]
+    }).sort({ completedAt: 1, lastAccessedAt: 1 });
+
+    const coursesCompletedCount = completedEnrolments.length;
+
+    // Total modules completed across all enrolments
+    const allEnrolments = await Enrolment.find({ learnerId }).select('completedLessons enrolledAt');
+    let totalModulesCompleted = 0;
+    allEnrolments.forEach(e => {
+      totalModulesCompleted += (e.completedLessons || []).length;
+    });
+
+    // Module completion transactions to find earliest module date
+    const firstModuleTx = await PointTransaction.findOne({
+      learnerId,
+      type: { $in: ['MODULE_COMPLETION', 'module_completion'] }
+    }).sort({ createdAt: 1 });
+
+    const longestStreak = Math.max(learner.longestStreak || 0, learner.currentStreak || 0);
+    const currentStreak = learner.currentStreak || 0;
+
+    const milestones = [
+      {
+        id: 'first_course',
+        title: 'First Course Completed',
+        description: 'Complete your first full course on UpSkillR',
+        category: 'course',
+        target: 1,
+        current: coursesCompletedCount,
+        earned: coursesCompletedCount >= 1,
+        achievedAt: coursesCompletedCount >= 1 ? (completedEnrolments[0]?.completedAt || completedEnrolments[0]?.lastAccessedAt || null) : null
+      },
+      {
+        id: 'first_module',
+        title: 'First Module Completed',
+        description: 'Finish all lessons in any course module',
+        category: 'module',
+        target: 1,
+        current: totalModulesCompleted,
+        earned: totalModulesCompleted >= 1,
+        achievedAt: totalModulesCompleted >= 1 ? (firstModuleTx?.createdAt || allEnrolments[0]?.enrolledAt || null) : null
+      },
+      {
+        id: 'streak_3',
+        title: '3-Day Learning Streak',
+        description: 'Learn 3 consecutive days without missing a check-in',
+        category: 'streak',
+        target: 3,
+        current: Math.min(longestStreak, 3),
+        earned: longestStreak >= 3,
+        achievedAt: longestStreak >= 3 ? (learner.lastCheckInDate || null) : null
+      },
+      {
+        id: 'streak_7',
+        title: '7-Day Learning Streak',
+        description: 'Build a consistent habit of 7 consecutive learning days',
+        category: 'streak',
+        target: 7,
+        current: Math.min(longestStreak, 7),
+        earned: longestStreak >= 7,
+        achievedAt: longestStreak >= 7 ? (learner.lastCheckInDate || null) : null
+      },
+      {
+        id: 'streak_30',
+        title: '30-Day Learning Streak',
+        description: 'Achieve the master tier of 30 consecutive active days',
+        category: 'streak',
+        target: 30,
+        current: Math.min(longestStreak, 30),
+        earned: longestStreak >= 30,
+        achievedAt: longestStreak >= 30 ? (learner.lastCheckInDate || null) : null
+      },
+      {
+        id: 'courses_5',
+        title: '5 Courses Completed',
+        description: 'Demonstrate broad expertise by completing 5 full courses',
+        category: 'course',
+        target: 5,
+        current: coursesCompletedCount,
+        earned: coursesCompletedCount >= 5,
+        achievedAt: coursesCompletedCount >= 5 ? (completedEnrolments[4]?.completedAt || null) : null
+      },
+      {
+        id: 'courses_10',
+        title: '10 Courses Completed',
+        description: 'Join the top elite tier by completing 10 full courses',
+        category: 'course',
+        target: 10,
+        current: coursesCompletedCount,
+        earned: coursesCompletedCount >= 10,
+        achievedAt: coursesCompletedCount >= 10 ? (completedEnrolments[9]?.completedAt || null) : null
+      }
+    ];
+
+    const earnedCount = milestones.filter(m => m.earned).length;
+
+    return res.status(200).json({
+      success: true,
+      earnedCount,
+      totalCount: milestones.length,
+      milestones,
+      stats: {
+        coursesCompleted: coursesCompletedCount,
+        modulesCompleted: totalModulesCompleted,
+        currentStreak,
+        longestStreak,
+        points: learner.points || 0
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching learner milestones:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch milestones.' });
+  }
+};
