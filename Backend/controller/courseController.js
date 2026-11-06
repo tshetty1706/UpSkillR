@@ -2295,17 +2295,38 @@ exports.updateLessonProgress = async (req, res) => {
       awardedBadges = pointRewardResult.rewards || [];
     }
 
+    let issuedCertificate = null;
+    if (wantsCompleted && newPercentage === 100 && req.user && req.user.role === 'learner') {
+      try {
+        const { issueCourseCertificate } = require('../services/certificateService');
+        issuedCertificate = await issueCourseCertificate({
+          course,
+          enrolment,
+          learnerId: req.user.id,
+          learnerUser: req.user
+        });
+      } catch (certErr) {
+        console.error('Certificate issuance error on course completion:', certErr);
+      }
+    }
+
     courseCache.invalidateCourse(courseId);
 
     const pointsMsg = pointsAwarded > 0 ? ' +' + pointsAwarded + ' points awarded 🎉' : '';
+    const certMsg = issuedCertificate ? ' 🎓 Course completion certificate issued!' : '';
     return res.status(200).json({
       success: true,
       message: wantsCompleted
-        ? 'Lesson completed!' + pointsMsg
+        ? 'Lesson completed!' + pointsMsg + certMsg
         : 'Lesson marked as incomplete.',
       enrolment,
       pointsAwarded,
       awardedBadges,
+      issuedCertificate: issuedCertificate ? {
+        certificateId: issuedCertificate.certificateId,
+        certificateImageUrl: issuedCertificate.certificateImageUrl,
+        verificationUrl: issuedCertificate.verificationUrl
+      } : null,
       isCompleted: wantsCompleted,
       isCourseCompleted: newPercentage === 100
     });
@@ -2996,6 +3017,7 @@ exports.updateCourseOverview = async (req, res) => {
     if (certificate !== undefined) {
       overview.certificate = Boolean(certificate);
       course.certificate = Boolean(certificate);
+      course.certificateSettings = { enabled: Boolean(certificate) };
     }
     if (instructorMessage !== undefined) overview.instructorMessage = (instructorMessage || '').trim();
     if (optionalLinks !== undefined) overview.optionalLinks = Array.isArray(optionalLinks) ? optionalLinks : [];

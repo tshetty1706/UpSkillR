@@ -190,7 +190,13 @@ const courseSchema = new mongoose.Schema({
   },
   certificate: {
     type: Boolean,
-    default: true
+    default: false
+  },
+  certificateSettings: {
+    enabled: {
+      type: Boolean,
+      default: false
+    }
   },
   whatYouWillLearn: {
     type: [String],

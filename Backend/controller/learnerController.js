@@ -2,6 +2,8 @@ const { Learner } = require('../model/User');
 const Enrolment = require('../model/Enrolment');
 const PointTransaction = require('../model/PointTransaction');
 const CourseReview = require('../model/CourseReview');
+const Certificate = require('../model/Certificate');
+const { issueCourseCertificate } = require('../services/certificateService');
 
 // ─── Platform URL validation regexes ───
 const PLATFORM_REGEXES = {
@@ -544,27 +546,64 @@ exports.getLearnerActivity = async (req, res) => {
   }
 };
 
-// ─── 10. GET /api/learners/me/certificates — Derived from completed enrolments ───
+// ─── 10. GET /api/learners/me/certificates — Verified persistent course certificates ───
 exports.getLearnerCertificates = async (req, res) => {
   try {
     const learnerId = req.user.id;
+
+    // 1. Fetch all issued Certificate documents
+    const issuedCerts = await Certificate.find({ learnerId })
+      .populate('courseId', 'title thumbnail category instructorName')
+      .sort({ issuedAt: -1 });
+
+    const issuedCourseIds = new Set(issuedCerts.map(c => String(c.courseId?._id || c.courseId)));
+
+    // 2. Fetch completed enrolments
     const completedEnrolments = await Enrolment.find({
       learnerId,
       $or: [{ status: 'completed' }, { progressPercentage: { $gte: 100 } }]
-    }).populate('courseId', 'title thumbnail category certificate instructorName');
+    }).populate('courseId', 'title thumbnail category certificate certificateSettings instructorName instructorId');
 
-    const certificates = completedEnrolments
-      .filter(e => e.courseId)
-      .map(e => ({
-        _id: e._id,
-        courseId: e.courseId?._id || e.courseId,
-        courseTitle: e.courseId?.title || e.courseTitle || 'Completed Course',
-        courseThumbnail: e.courseId?.thumbnail || '',
-        category: e.courseId?.category || 'General',
-        instructorName: e.courseId?.instructorName || 'UpSkillr Instructor',
-        hasCertificate: e.courseId?.certificate !== false,
-        completedAt: e.completedAt
-      }));
+    // For any completed course where certificate is enabled but not yet issued, auto-issue it!
+    for (const enr of completedEnrolments) {
+      if (!enr.courseId) continue;
+      const cIdStr = String(enr.courseId._id || enr.courseId);
+      const isEnabled = Boolean(enr.courseId.certificate === true || enr.courseId.certificateSettings?.enabled === true);
+      if (isEnabled && !issuedCourseIds.has(cIdStr)) {
+        try {
+          const newCert = await issueCourseCertificate({
+            course: enr.courseId,
+            enrolment: enr,
+            learnerId,
+            learnerUser: req.user
+          });
+          if (newCert) {
+            issuedCerts.push(newCert);
+            issuedCourseIds.add(cIdStr);
+          }
+        } catch (genErr) {
+          console.warn('Auto-issuing certificate for completed course error:', genErr.message);
+        }
+      }
+    }
+
+    const certificates = issuedCerts.map(c => ({
+      _id: c._id,
+      certificateId: c.certificateId,
+      courseId: c.courseId?._id || c.courseId,
+      courseTitle: c.courseNameSnapshot || c.courseId?.title || 'Completed Course',
+      courseThumbnail: c.courseId?.thumbnail || '',
+      category: c.courseId?.category || 'General',
+      studentName: c.studentNameSnapshot,
+      instructorName: c.instructorNameSnapshot || c.courseId?.instructorName || 'UpSkillr Instructor',
+      instructorDesignation: c.instructorDesignationSnapshot || 'Course Instructor',
+      completionDate: c.completionDate,
+      issuedAt: c.issuedAt,
+      certificateImageUrl: c.certificateImageUrl,
+      verificationUrl: c.verificationUrl,
+      verificationStatus: c.verificationStatus,
+      hasCertificate: true
+    }));
 
     return res.status(200).json({ success: true, count: certificates.length, certificates });
   } catch (error) {

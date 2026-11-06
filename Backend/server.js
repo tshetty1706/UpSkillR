@@ -9,6 +9,7 @@ const courseRoutes = require('./routes/courseRoutes');
 const instructorApplicationRoutes = require('./routes/instructorApplicationRoutes');
 const learnerRoutes = require('./routes/learnerRoutes');
 const mediaRoutes = require('./routes/mediaRoutes');
+const certificateRoutes = require('./routes/certificateRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -36,6 +37,7 @@ app.use('/api/courses', courseRoutes);
 app.use('/api/learners', learnerRoutes);
 app.use('/api/instructor/application', instructorApplicationRoutes);
 app.use('/api/media', mediaRoutes);
+app.use('/api/certificates', certificateRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

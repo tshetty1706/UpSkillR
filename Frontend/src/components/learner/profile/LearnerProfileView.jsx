@@ -894,10 +894,19 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
                     <span>Course Completed</span>
                   </div>
 
+                  {cert.certificateId && (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', margin: '0.25rem 0' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>ID:</span>
+                      <code style={{ fontFamily: 'monospace', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontWeight: 600 }}>
+                        {cert.certificateId}
+                      </code>
+                    </div>
+                  )}
+
                   <div className="cert-details-meta">
-                    {cert.completedAt && (
+                    {(cert.completionDate || cert.completedAt) && (
                       <span className="cert-date-text">
-                        Completed: {new Date(cert.completedAt).toLocaleDateString(undefined, {
+                        Completed: {new Date(cert.completionDate || cert.completedAt).toLocaleDateString(undefined, {
                           month: 'long',
                           day: 'numeric',
                           year: 'numeric'
@@ -909,7 +918,7 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
                     )}
                   </div>
 
-                  <div className="cert-action-bar">
+                  <div className="cert-action-bar" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <button
                       type="button"
                       className="btn-view-cert"
@@ -918,6 +927,18 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
                       <Award size={15} />
                       <span>View Certificate</span>
                     </button>
+                    {cert.certificateId && (
+                      <a
+                        href={`/verify-certificate/${cert.certificateId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn-verify-chip"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.75rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, textDecoration: 'none' }}
+                      >
+                        <span>Verify</span>
+                        <ExternalLink size={13} />
+                      </a>
+                    )}
                   </div>
                 </div>
               ))}
@@ -937,6 +958,7 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
           <div
             className="cert-modal-content"
             onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '850px' }}
           >
             <div className="cert-modal-header">
               <div className="cert-modal-title-row">
@@ -953,44 +975,80 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
               </button>
             </div>
 
-            {/* Printable Certificate Canvas */}
-            <div className="certificate-document-canvas">
-              <div className="cert-canvas-border">
-                <div className="cert-seal-badge">
-                  <Award size={40} className="cert-award-icon" />
-                </div>
-                <span className="cert-brand-heading">UpSkillR Verified Certificate</span>
-                <p className="cert-presents-text">This certifies that</p>
-                <h2 className="cert-learner-name">{profile.fullName || user?.fullName || 'Learner'}</h2>
-                <p className="cert-body-p">has successfully completed the comprehensive course curriculum for</p>
-                <h3 className="cert-course-name">{selectedCertificateModal.courseTitle}</h3>
-                <div className="cert-footer-meta">
-                  <div className="cert-date-col">
-                    <span className="meta-lbl">Date of Completion</span>
-                    <span className="meta-val">
-                      {new Date(selectedCertificateModal.completedAt || Date.now()).toLocaleDateString(undefined, {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </span>
+            {/* If Cloudinary Certificate Image is available, display authentic high-res certificate! */}
+            {selectedCertificateModal.certificateImageUrl ? (
+              <div className="certificate-modal-image-wrapper" style={{ padding: '1rem', background: '#090d16', borderRadius: '8px', margin: '0.5rem 0' }}>
+                <img
+                  src={selectedCertificateModal.certificateImageUrl}
+                  alt={`Certificate for ${selectedCertificateModal.courseTitle}`}
+                  className="certificate-modal-image"
+                  style={{ width: '100%', height: 'auto', display: 'block', borderRadius: '6px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}
+                />
+              </div>
+            ) : (
+              /* Printable Certificate Canvas Fallback */
+              <div className="certificate-document-canvas">
+                <div className="cert-canvas-border">
+                  <div className="cert-seal-badge">
+                    <Award size={40} className="cert-award-icon" />
                   </div>
-                  <div className="cert-id-col">
-                    <span className="meta-lbl">Instructor</span>
-                    <span className="meta-val">{selectedCertificateModal.instructorName || 'UpSkillR Instructor'}</span>
+                  <span className="cert-brand-heading">UpSkillR Verified Certificate</span>
+                  <p className="cert-presents-text">This certifies that</p>
+                  <h2 className="cert-learner-name">{profile.fullName || user?.fullName || 'Learner'}</h2>
+                  <p className="cert-body-p">has successfully completed the comprehensive course curriculum for</p>
+                  <h3 className="cert-course-name">{selectedCertificateModal.courseTitle}</h3>
+                  <div className="cert-footer-meta">
+                    <div className="cert-date-col">
+                      <span className="meta-lbl">Date of Completion</span>
+                      <span className="meta-val">
+                        {new Date(selectedCertificateModal.completionDate || selectedCertificateModal.completedAt || Date.now()).toLocaleDateString(undefined, {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                    <div className="cert-id-col">
+                      <span className="meta-lbl">Instructor</span>
+                      <span className="meta-val">{selectedCertificateModal.instructorName || 'UpSkillR Instructor'}</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            <div className="cert-modal-actions">
+            <div className="cert-modal-actions" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              {selectedCertificateModal.certificateImageUrl && (
+                <a
+                  href={selectedCertificateModal.certificateImageUrl}
+                  download={`UpSkillR_Certificate_${selectedCertificateModal.certificateId || 'course'}.png`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-print-cert"
+                  style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <Download size={16} />
+                  <span>Download PNG</span>
+                </a>
+              )}
+              {selectedCertificateModal.certificateId && (
+                <a
+                  href={`/verify-certificate/${selectedCertificateModal.certificateId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, textDecoration: 'none' }}
+                >
+                  <ExternalLink size={15} />
+                  <span>Verify Online</span>
+                </a>
+              )}
               <button
                 type="button"
                 className="btn-print-cert"
                 onClick={handlePrintCertificate}
               >
                 <Printer size={16} />
-                <span>Print Certificate</span>
+                <span>Print</span>
               </button>
               <button
                 type="button"

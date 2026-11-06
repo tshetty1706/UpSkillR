@@ -18,6 +18,7 @@ import { QuizTakingPage } from './pages/QuizTaking/QuizTakingPage.jsx';
 import { NotFound } from './components/common/NotFound/NotFound';
 import { InstructorApplication } from './components/instructor/application/InstructorApplication';
 import { InstructorExploreCourses } from './components/home/InstructorExploreCourses/InstructorExploreCourses';
+import { CertificateVerificationPage } from './pages/CertificateVerification/CertificateVerificationPage';
 
 function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -319,6 +320,19 @@ function App() {
         <div className="app-main">
           <Navbar user={currentUser} />
           <InstructorExploreCourses instructorId={instructorId} user={currentUser} />
+          <Footer />
+        </div>
+      );
+    }
+
+    // Public Certificate Verification Route: /verify-certificate/:certificateId or /verify/:certificateId
+    const certVerifyMatch = currentPath.match(/^\/(?:verify-certificate|verify)(?:\/([^/?#]+))?/i);
+    if (certVerifyMatch) {
+      const certificateId = certVerifyMatch[1] || '';
+      return (
+        <div className="app-main">
+          <Navbar user={currentUser} />
+          <CertificateVerificationPage certificateId={certificateId} user={currentUser} />
           <Footer />
         </div>
       );
