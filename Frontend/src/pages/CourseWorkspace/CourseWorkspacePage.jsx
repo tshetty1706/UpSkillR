@@ -24,6 +24,19 @@ import './CourseWorkspacePage.css';
 /**
  * Helper to check if an announcement is created within last 7 days
  */
+/**
+ * Format total seconds into user-friendly duration badge ('1 min', '15 min', etc.)
+ * Prevents videos under 60 seconds from being formatted as '0 min'.
+ */
+const formatDurationBadge = (totalSeconds) => {
+  const secs = Number(totalSeconds);
+  if (isNaN(secs) || secs <= 0) return null;
+  if (secs < 60) {
+    return '1 min';
+  }
+  return `${Math.round(secs / 60)} min`;
+};
+
 const isAnnouncementNew = (item) => {
   if (!item) return false;
   if (typeof item.isNew === 'boolean') return item.isNew;
@@ -68,6 +81,14 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
   const [videoDuration, setVideoDuration] = useState(0);
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
   const lastSavedTimeRef = useRef(0);
+
+  // 80% Video Watch Tracking State
+  const [videoWatchStatus, setVideoWatchStatus] = useState({
+    percentage: 0,
+    isEligible: false,
+    uniqueWatchedDuration: 0,
+    totalDuration: 0
+  });
 
   // Interactive Quiz state in Panel 3
   const [quizAnswers, setQuizAnswers] = useState({});
@@ -185,7 +206,7 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
               type: les.type || rawItems[0]?.type || 'article',
               items: rawItems,
               notes: Array.isArray(les.notes) ? les.notes : [],
-              duration: les.duration || (rawItems[0]?.video?.duration ? `${Math.round(rawItems[0].video.duration / 60)} min` : null)
+              duration: (les.duration && les.duration !== '0 min') ? les.duration : (rawItems[0]?.video?.duration ? formatDurationBadge(rawItems[0].video.duration) : null)
             };
           })
         };
@@ -647,6 +668,45 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
     return false;
   }, [enrolment, isLessonCompleted]);
 
+  // ─── Synchronize 80% Video Watch Status for Active Lesson ───
+  useEffect(() => {
+    if (!activeLesson) return;
+    const targetId = activeContentItem?._id || activeLesson._id;
+    const isDone = isItemCompleted(activeContentItem, activeLesson, selectedModuleIdx, selectedLessonIdx);
+    if (isDone) {
+      setVideoWatchStatus({ percentage: 100, isEligible: true, uniqueWatchedDuration: 0, totalDuration: 0 });
+      return;
+    }
+
+    if (enrolment?.videoWatchData) {
+      const keys = [String(targetId), String(activeLesson._id), `${selectedModuleIdx}-${selectedLessonIdx}`];
+      let rec = null;
+      for (const k of keys) {
+        if (enrolment.videoWatchData[k]) {
+          rec = enrolment.videoWatchData[k];
+          break;
+        }
+      }
+      if (rec) {
+        const pct = rec.watchPercentage || 0;
+        setVideoWatchStatus({
+          percentage: pct,
+          isEligible: pct >= 80,
+          uniqueWatchedDuration: rec.uniqueWatchedDuration || 0,
+          totalDuration: rec.totalDuration || 0
+        });
+        return;
+      }
+    }
+
+    setVideoWatchStatus({
+      percentage: 0,
+      isEligible: false,
+      uniqueWatchedDuration: 0,
+      totalDuration: 0
+    });
+  }, [activeContentItem?._id, activeLesson?._id, selectedModuleIdx, selectedLessonIdx, enrolment?.videoWatchData, isItemCompleted]);
+
   // ─── Mark Complete Action ───
   const handleToggleComplete = async () => {
     if (!activeLesson) return;
@@ -658,6 +718,15 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
 
     const currentlyDone = isItemCompleted(activeContentItem, activeLesson, selectedModuleIdx, selectedLessonIdx);
     const newStatus = !currentlyDone;
+
+    // 80% Video Watch Requirement Guard
+    if (newStatus && contentType === 'video') {
+      const isEligible = Boolean(videoWatchStatus.isEligible || (videoWatchStatus.percentage >= 80));
+      if (!isEligible) {
+        toast.warning('You need to watch at least 80% of this video to mark the lesson as complete.');
+        return;
+      }
+    }
 
     const targetIdentifier = activeContentItem?._id || activeLesson._id || `${selectedModuleIdx}-${selectedLessonIdx}`;
 
@@ -1523,12 +1592,18 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
                         {getContentTypeIcon(contentType, 13)}
                         <span className="badge-type-label">{contentTypeMeta.label}</span>
                       </span>
-                      {activeLesson?.duration && (
-                        <span className="content-duration-badge">
-                          <Clock size={13} />
-                          <span>{activeLesson.duration}</span>
-                        </span>
-                      )}
+                      {(() => {
+                        const effectiveDur = (activeLesson?.duration && activeLesson.duration !== '0 min')
+                          ? activeLesson.duration
+                          : (videoDuration > 0 ? formatDurationBadge(videoDuration) : null);
+                        if (!effectiveDur) return null;
+                        return (
+                          <span className="content-duration-badge">
+                            <Clock size={13} />
+                            <span>{effectiveDur}</span>
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -1618,24 +1693,58 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
                     <span>Add Note</span>
                   </button>
 
-                  {/* ONE Single Primary Mark as Complete Button */}
-                  <button
-                    type="button"
-                    className={`btn-action-complete ${isLessonCompleted(selectedModuleIdx, selectedLessonIdx, activeLesson) ? 'is-completed' : ''}`}
-                    onClick={handleToggleComplete}
-                    aria-label={
-                      isLessonCompleted(selectedModuleIdx, selectedLessonIdx, activeLesson)
-                        ? 'Completed'
-                        : 'Mark as Complete'
-                    }
-                  >
-                    <CheckCircle2 size={16} />
-                    <span>
-                      {isLessonCompleted(selectedModuleIdx, selectedLessonIdx, activeLesson)
-                        ? 'Completed ✓'
-                        : 'Mark as Complete'}
-                    </span>
-                  </button>
+                  {/* ONE Single Primary Mark as Complete Button with 80% Watch Requirement Enforcement */}
+                  {(() => {
+                    const isDone = isItemCompleted(activeContentItem, activeLesson, selectedModuleIdx, selectedLessonIdx);
+                    const isVideoContent = contentType === 'video';
+                    const isEligible = isDone || !isVideoContent || Boolean(videoWatchStatus.isEligible || (videoWatchStatus.percentage >= 80));
+                    return (
+                      <div className="complete-btn-container">
+                        <button
+                          type="button"
+                          className={`btn-action-complete ${isDone ? 'is-completed' : ''} ${!isEligible ? 'is-locked' : ''}`}
+                          onClick={handleToggleComplete}
+                          disabled={!isEligible}
+                          title={
+                            isDone
+                              ? 'Lesson is completed (Click to unmark)'
+                              : !isEligible
+                              ? 'You need to watch at least 80% of this video to mark the lesson as complete.'
+                              : 'Mark as Complete'
+                          }
+                          aria-label={
+                            isDone
+                              ? 'Completed'
+                              : !isEligible
+                              ? 'Locked: 80% Video Watch Required'
+                              : 'Mark as Complete'
+                          }
+                        >
+                          {isDone ? (
+                            <>
+                              <CheckCircle2 size={16} />
+                              <span>Completed ✓</span>
+                            </>
+                          ) : !isEligible ? (
+                            <>
+                              <Lock size={15} />
+                              <span>Watch 80% to Complete</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 size={16} />
+                              <span>Mark as Complete</span>
+                            </>
+                          )}
+                        </button>
+                        {!isDone && isVideoContent && !isEligible && (
+                          <span className="complete-lock-pill" title="Current video watch percentage">
+                            {videoWatchStatus.percentage || 0}% / 80%
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -1649,6 +1758,17 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
                   course={course}
                   videoState={{
                     videoRef,
+                    isCompleted: isItemCompleted(activeContentItem, activeLesson, selectedModuleIdx, selectedLessonIdx),
+                    onWatchEligibilityChange: (status) => {
+                      if (status) {
+                        setVideoWatchStatus({
+                          percentage: status.percentage || 0,
+                          isEligible: Boolean(status.isEligible),
+                          uniqueWatchedDuration: status.uniqueWatchedDuration || 0,
+                          totalDuration: status.totalDuration || 0
+                        });
+                      }
+                    },
                     onTimeUpdate: handleVideoTimeUpdate,
                     onPlay: () => setIsPlaying(true),
                     onPause: () => {

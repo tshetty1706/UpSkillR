@@ -11,16 +11,25 @@ import {
   RotateCcw,
   AlertCircle,
   Check,
-  Sparkles
+  Sparkles,
+  CheckCircle2,
+  Clock,
+  Eye,
+  Lock,
+  Info
 } from 'lucide-react';
 import { renderMarkdownToHTML } from '../../../components/instructor/courses/CourseManager/CourseModules/Common/MarkdownEditor.jsx';
 import { EmptyContentState } from './EmptyContentState.jsx';
+import { BACKEND_URL, API_BASE } from '../../../config/api';
 import './VideoPlayer.css';
 
 export const VideoLesson = ({
   lesson,
   contentItem,
   course,
+  courseId,
+  isCompleted = false,
+  onWatchEligibilityChange,
   videoRef: externalVideoRef,
   onTimeUpdate,
   onPlay,
@@ -34,26 +43,6 @@ export const VideoLesson = ({
   const scrubTrackRef = useRef(null);
   const hlsInstanceRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
-
-  // Playback state
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [bufferedPercent, setBufferedPercent] = useState(0);
-  const [volume, setVolume] = useState(1);
-  const [isMuted, setIsMuted] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [isControlsVisible, setIsControlsVisible] = useState(true);
-  const [isSpeedMenuOpen, setIsSpeedMenuOpen] = useState(false);
-  const [isScrubbing, setIsScrubbing] = useState(false);
-  const [hoverTime, setHoverTime] = useState(null);
-  const [hoverPosition, setHoverPosition] = useState(0);
-  const [usingFallbackMp4, setUsingFallbackMp4] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
 
   // 1. Resolve Exact Lesson Video Metadata (NO UNRELATED DEMO FALLBACKS)
   const videoObj = contentItem?.video || contentItem?.videoDetails || {};
@@ -77,10 +66,10 @@ export const VideoLesson = ({
   const isDeadBlob = rawUrl.startsWith('blob:');
   let cleanRawUrl = isDeadBlob ? '' : rawUrl;
 
-  // Check if file exists in local /uploads/videos/
-  const fileName = (videoObj.fileName || contentItem?.fileName || '').trim();
-  if (!cleanRawUrl && !muxPlaybackId && fileName) {
-    cleanRawUrl = `/uploads/videos/${fileName}`;
+  // Resolve relative /uploads/ paths with BACKEND_URL
+  if (cleanRawUrl.startsWith('/uploads/')) {
+    const base = (BACKEND_URL || 'http://localhost:5000').replace(/\/+$/, '');
+    cleanRawUrl = `${base}${cleanRawUrl}`;
   }
 
   let provider = 'none';
@@ -93,9 +82,13 @@ export const VideoLesson = ({
     fallbackMp4Url = `https://stream.mux.com/${muxPlaybackId}/capped-1080p.mp4`;
   } else if (cleanRawUrl.includes('cloudinary.com')) {
     provider = 'cloudinary';
-    primaryStreamUrl = cleanRawUrl.replace(/^http:/, 'https:');
-    fallbackMp4Url = primaryStreamUrl;
-  } else if (cleanRawUrl.startsWith('/uploads/') || cleanRawUrl.includes('/uploads/')) {
+    let safeCloudinary = cleanRawUrl.replace(/^http:/, 'https:');
+    if (safeCloudinary.includes('/image/upload/') && safeCloudinary.match(/\.(mp4|mov|webm|mkv|m4v)(\?.*)?$/i)) {
+      safeCloudinary = safeCloudinary.replace('/image/upload/', '/video/upload/');
+    }
+    primaryStreamUrl = safeCloudinary;
+    fallbackMp4Url = safeCloudinary;
+  } else if (cleanRawUrl.includes('/uploads/')) {
     provider = 'local';
     primaryStreamUrl = cleanRawUrl;
     fallbackMp4Url = cleanRawUrl;
@@ -105,10 +98,269 @@ export const VideoLesson = ({
     fallbackMp4Url = cleanRawUrl;
   }
 
+  // Playback state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [bufferedPercent, setBufferedPercent] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isControlsVisible, setIsControlsVisible] = useState(true);
+  const [isSpeedMenuOpen, setIsSpeedMenuOpen] = useState(false);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [hoverTime, setHoverTime] = useState(null);
+  const [hoverPosition, setHoverPosition] = useState(0);
+  const [usingFallbackMp4, setUsingFallbackMp4] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+
   // Active playable source (HLS stream or MP4 fallback)
   const activeSource = usingFallbackMp4 ? (fallbackMp4Url || primaryStreamUrl) : (primaryStreamUrl || fallbackMp4Url);
-  const hasValidSource = Boolean(activeSource && activeSource.length > 0);
-  const isProcessing = videoObj.status === 'processing';
+  const isExplicitUnavailable = videoObj.status === 'unavailable' || contentItem?.status === 'unavailable';
+  const hasValidSource = Boolean(activeSource && activeSource.length > 0) && !isExplicitUnavailable;
+  const isProcessing = videoObj.status === 'processing' || contentItem?.status === 'processing';
+
+  // ─── 80% Video Watch Tracking State ───
+  const [watchPercentage, setWatchPercentage] = useState(0);
+  const [uniqueWatchedSeconds, setUniqueWatchedSeconds] = useState(0);
+  const [isWatchEligible, setIsWatchEligible] = useState(Boolean(isCompleted));
+  const watchedIntervalsRef = useRef([]);
+  const activeIntervalRef = useRef(null);
+  const lastSyncTimestampRef = useRef(0);
+  const isSyncingRef = useRef(false);
+
+  const effectiveCourseId = course?._id || courseId;
+  const effectiveTargetId = contentItem?._id || lesson?._id;
+
+  // Helper to merge client intervals and compute unique seconds
+  const mergeClientIntervals = useCallback((existing = [], newSeg = null, maxDur = 0) => {
+    const list = [...(existing || [])];
+    if (newSeg && newSeg.end > newSeg.start) {
+      list.push(newSeg);
+    }
+    if (!list.length || !maxDur || maxDur <= 0) {
+      return { merged: [], uniqueSeconds: 0, pct: 0 };
+    }
+
+    const valid = [];
+    for (const seg of list) {
+      let s = Math.max(0, Math.min(Number(seg.start) || 0, maxDur));
+      let e = Math.max(0, Math.min(Number(seg.end) || 0, maxDur));
+      if (e > s) {
+        valid.push({ start: Math.round(s * 10) / 10, end: Math.round(e * 10) / 10 });
+      }
+    }
+
+    if (!valid.length) {
+      return { merged: [], uniqueSeconds: 0, pct: 0 };
+    }
+
+    valid.sort((a, b) => a.start - b.start || b.end - a.end);
+
+    const merged = [valid[0]];
+    for (let i = 1; i < valid.length; i++) {
+      const prev = merged[merged.length - 1];
+      const curr = valid[i];
+      if (curr.start <= prev.end + 0.5) {
+        prev.end = Math.max(prev.end, curr.end);
+      } else {
+        merged.push({ start: curr.start, end: curr.end });
+      }
+    }
+
+    let total = 0;
+    for (const m of merged) {
+      total += (m.end - m.start);
+    }
+    total = Math.min(total, maxDur);
+    const pct = Math.min(100, Math.round((total / maxDur) * 100));
+
+    return {
+      merged,
+      uniqueSeconds: Math.round(total * 10) / 10,
+      pct
+    };
+  }, []);
+
+  // Sync watch progress to backend
+  const syncWatchProgress = useCallback(async (forcedIntervals = null, curTime = null) => {
+    const token = sessionStorage.getItem('upskillr_token') || localStorage.getItem('upskillr_token');
+    if (!token || !effectiveCourseId || !effectiveTargetId) return;
+    if (isSyncingRef.current) return;
+
+    let currentIntervals = forcedIntervals || watchedIntervalsRef.current;
+    const effDuration = duration || Number(videoObj?.duration) || 0;
+
+    if (activeIntervalRef.current && activeIntervalRef.current.last > activeIntervalRef.current.start) {
+      const { merged, uniqueSeconds, pct } = mergeClientIntervals(
+        currentIntervals,
+        { start: activeIntervalRef.current.start, end: activeIntervalRef.current.last },
+        effDuration
+      );
+      watchedIntervalsRef.current = merged;
+      currentIntervals = merged;
+      setUniqueWatchedSeconds(uniqueSeconds);
+      setWatchPercentage(pct);
+      const eligible = pct >= 80 || isCompleted;
+      setIsWatchEligible(eligible);
+      onWatchEligibilityChange?.({
+        percentage: pct,
+        uniqueWatchedDuration: uniqueSeconds,
+        totalDuration: effDuration,
+        isEligible: eligible
+      });
+      activeIntervalRef.current.start = activeIntervalRef.current.last;
+    }
+
+    if (effDuration <= 0) return;
+
+    try {
+      isSyncingRef.current = true;
+      const pos = curTime !== null ? curTime : (activeVideoRef.current?.currentTime || currentTime);
+      const res = await fetch(`${API_BASE}/courses/${effectiveCourseId}/lessons/${effectiveTargetId}/watch-progress`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          courseId: effectiveCourseId,
+          lessonId: lesson?._id,
+          contentItemId: contentItem?._id,
+          duration: effDuration,
+          currentTime: pos,
+          intervals: currentIntervals
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setWatchPercentage(data.watchPercentage || 0);
+          setUniqueWatchedSeconds(data.uniqueWatchedDuration || 0);
+          const eligible = data.isEligible || (data.watchPercentage >= 80) || isCompleted;
+          setIsWatchEligible(eligible);
+          onWatchEligibilityChange?.({
+            percentage: data.watchPercentage || 0,
+            uniqueWatchedDuration: data.uniqueWatchedDuration || 0,
+            totalDuration: data.totalDuration || effDuration,
+            isEligible: eligible,
+            isCompleted: data.isCompleted || isCompleted
+          });
+        }
+      }
+    } catch (err) {
+      // background sync
+    } finally {
+      isSyncingRef.current = false;
+      lastSyncTimestampRef.current = Date.now();
+    }
+  }, [effectiveCourseId, effectiveTargetId, duration, videoObj?.duration, isCompleted, currentTime, mergeClientIntervals, lesson?._id, contentItem?._id, onWatchEligibilityChange, activeVideoRef]);
+
+  // Complete state reset whenever selected lesson or content item changes
+  const activeItemId = contentItem?._id || lesson?._id;
+  useEffect(() => {
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setBufferedPercent(0);
+    setIsLoading(true);
+    setHasError(false);
+    setErrorMessage('');
+    setUsingFallbackMp4(false);
+    setRetryCount(0);
+
+    // Reset watch progress session state
+    setWatchPercentage(0);
+    setUniqueWatchedSeconds(0);
+    setIsWatchEligible(Boolean(isCompleted));
+    watchedIntervalsRef.current = [];
+    activeIntervalRef.current = null;
+    lastSyncTimestampRef.current = 0;
+
+    if (hlsInstanceRef.current) {
+      hlsInstanceRef.current.destroy();
+      hlsInstanceRef.current = null;
+    }
+    const video = activeVideoRef.current;
+    if (video) {
+      video.pause();
+      try {
+        video.currentTime = 0;
+        video.removeAttribute('src');
+        video.load();
+      } catch (e) {
+        // ignore unload abort
+      }
+    }
+  }, [activeItemId, isCompleted]);
+
+  // Restore saved watch progress from backend on load or lesson switch
+  useEffect(() => {
+    let isCancelled = false;
+    const fetchSavedWatchProgress = async () => {
+      const token = sessionStorage.getItem('upskillr_token') || localStorage.getItem('upskillr_token');
+      if (!token || !effectiveCourseId || !effectiveTargetId) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/courses/${effectiveCourseId}/lessons/${effectiveTargetId}/watch-progress`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && !isCancelled) {
+            const intervals = data.watchedIntervals || [];
+            watchedIntervalsRef.current = intervals;
+            setWatchPercentage(data.watchPercentage || 0);
+            setUniqueWatchedSeconds(data.uniqueWatchedDuration || 0);
+            const eligible = data.isEligible || (data.watchPercentage >= 80) || isCompleted;
+            setIsWatchEligible(eligible);
+            onWatchEligibilityChange?.({
+              percentage: data.watchPercentage || 0,
+              uniqueWatchedDuration: data.uniqueWatchedDuration || 0,
+              totalDuration: data.totalDuration || duration || Number(videoObj?.duration) || 0,
+              isEligible: eligible,
+              isCompleted: data.isCompleted || isCompleted
+            });
+
+            // Restore last playback position if saved
+            if (data.lastWatchedPosition > 1 && activeVideoRef.current && !activeVideoRef.current.currentTime) {
+              const resumePos = Number(data.lastWatchedPosition);
+              if (!isNaN(resumePos) && resumePos > 0) {
+                activeVideoRef.current.currentTime = resumePos;
+                setCurrentTime(resumePos);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // background load error
+      }
+    };
+
+    fetchSavedWatchProgress();
+    return () => {
+      isCancelled = true;
+    };
+  }, [effectiveCourseId, effectiveTargetId, isCompleted, activeItemId]);
+
+  // Sync uncommitted intervals before window closes or refreshes
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (activeIntervalRef.current && activeIntervalRef.current.last > activeIntervalRef.current.start) {
+        syncWatchProgress(null, activeVideoRef.current?.currentTime);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      handleBeforeUnload();
+    };
+  }, [syncWatchProgress]);
 
   // Poster resolution from the exact lesson item
   let posterUrl = videoObj.thumbnailUrl || course?.thumbnail || '';
@@ -252,17 +504,36 @@ export const VideoLesson = ({
   // 5. Video Event Handlers
   const handleLoadedMetadata = (e) => {
     const dur = e.target.duration;
+    let finalDur = 0;
     if (dur && !isNaN(dur) && dur > 0) {
+      finalDur = dur;
       setDuration(dur);
-    } else if (videoObj.duration) {
-      setDuration(Number(videoObj.duration));
+    } else if (videoObj?.duration) {
+      finalDur = Number(videoObj.duration);
+      setDuration(finalDur);
     }
+
+    if (finalDur > 0 && watchedIntervalsRef.current.length > 0) {
+      const { pct, uniqueSeconds } = mergeClientIntervals(watchedIntervalsRef.current, null, finalDur);
+      setWatchPercentage(pct);
+      setUniqueWatchedSeconds(uniqueSeconds);
+      const eligible = pct >= 80 || isCompleted;
+      setIsWatchEligible(eligible);
+      onWatchEligibilityChange?.({
+        percentage: pct,
+        uniqueWatchedDuration: uniqueSeconds,
+        totalDuration: finalDur,
+        isEligible: eligible
+      });
+    }
+
     setIsLoading(false);
     onLoadedMetadata?.(e);
   };
 
   const handleTimeUpdateInternal = (e) => {
     const cur = e.target.currentTime;
+    const dur = e.target.duration || duration || Number(videoObj?.duration) || 0;
     setCurrentTime(cur);
 
     if (e.target.buffered && e.target.buffered.length > 0 && e.target.duration > 0) {
@@ -274,17 +545,78 @@ export const VideoLesson = ({
       }
     }
 
+    if (isPlaying && dur > 0) {
+      if (!activeIntervalRef.current) {
+        activeIntervalRef.current = { start: cur, last: cur };
+      } else {
+        const delta = cur - activeIntervalRef.current.last;
+        if (delta > 0 && delta <= 1.5) {
+          activeIntervalRef.current.last = cur;
+          const { pct, uniqueSeconds } = mergeClientIntervals(
+            watchedIntervalsRef.current,
+            { start: activeIntervalRef.current.start, end: activeIntervalRef.current.last },
+            dur
+          );
+          setWatchPercentage(pct);
+          setUniqueWatchedSeconds(uniqueSeconds);
+          if (pct >= 80 && !isWatchEligible) {
+            setIsWatchEligible(true);
+            onWatchEligibilityChange?.({
+              percentage: pct,
+              uniqueWatchedDuration: uniqueSeconds,
+              totalDuration: dur,
+              isEligible: true
+            });
+          }
+        } else if (Math.abs(delta) > 1.5) {
+          if (activeIntervalRef.current.last > activeIntervalRef.current.start) {
+            const { merged, uniqueSeconds, pct } = mergeClientIntervals(
+              watchedIntervalsRef.current,
+              { start: activeIntervalRef.current.start, end: activeIntervalRef.current.last },
+              dur
+            );
+            watchedIntervalsRef.current = merged;
+            setWatchPercentage(pct);
+            setUniqueWatchedSeconds(uniqueSeconds);
+          }
+          activeIntervalRef.current = { start: cur, last: cur };
+        }
+      }
+
+      const now = Date.now();
+      if (now - lastSyncTimestampRef.current >= 4000) {
+        syncWatchProgress(null, cur);
+      }
+    }
+
     onTimeUpdate?.(e);
   };
 
   const handlePlayInternal = (e) => {
     setIsPlaying(true);
     setIsLoading(false);
+    const cur = e.target?.currentTime || currentTime;
+    if (!activeIntervalRef.current) {
+      activeIntervalRef.current = { start: cur, last: cur };
+    }
     onPlay?.(e);
   };
 
   const handlePauseInternal = (e) => {
     setIsPlaying(false);
+    if (activeIntervalRef.current && activeIntervalRef.current.last > activeIntervalRef.current.start) {
+      const dur = duration || Number(videoObj?.duration) || 0;
+      const { merged, uniqueSeconds, pct } = mergeClientIntervals(
+        watchedIntervalsRef.current,
+        { start: activeIntervalRef.current.start, end: activeIntervalRef.current.last },
+        dur
+      );
+      watchedIntervalsRef.current = merged;
+      setWatchPercentage(pct);
+      setUniqueWatchedSeconds(uniqueSeconds);
+      activeIntervalRef.current = null;
+    }
+    syncWatchProgress(null, activeVideoRef.current?.currentTime);
     onPause?.(e);
   };
 
@@ -301,10 +633,31 @@ export const VideoLesson = ({
     setIsLoading(false);
     if (!usingFallbackMp4 && fallbackMp4Url) {
       setUsingFallbackMp4(true);
-    } else {
-      setHasError(true);
-      setErrorMessage('Video playback could not be initialized or source format is unsupported.');
+      return;
     }
+
+    const videoEl = activeVideoRef.current;
+    let detail = 'Video playback could not be initialized or source format is unsupported.';
+    if (videoEl && videoEl.error) {
+      switch (videoEl.error.code) {
+        case 1:
+          detail = 'Video playback was aborted.';
+          break;
+        case 2:
+          detail = 'A network error occurred while loading the video. Please check your internet connection.';
+          break;
+        case 3:
+          detail = 'An error occurred while decoding the video stream.';
+          break;
+        case 4:
+          detail = 'Video stream unavailable or format is not supported by your browser.';
+          break;
+        default:
+          break;
+      }
+    }
+    setHasError(true);
+    setErrorMessage(detail);
   };
 
   // 6. User Control Handlers
@@ -390,6 +743,18 @@ export const VideoLesson = ({
     const targetTime = pos * (duration || 1);
 
     if (activeVideoRef.current && isFinite(targetTime)) {
+      if (activeIntervalRef.current && activeIntervalRef.current.last > activeIntervalRef.current.start) {
+        const dur = duration || Number(videoObj?.duration) || 0;
+        const { merged, uniqueSeconds, pct } = mergeClientIntervals(
+          watchedIntervalsRef.current,
+          { start: activeIntervalRef.current.start, end: activeIntervalRef.current.last },
+          dur
+        );
+        watchedIntervalsRef.current = merged;
+        setWatchPercentage(pct);
+        setUniqueWatchedSeconds(uniqueSeconds);
+      }
+      activeIntervalRef.current = { start: targetTime, last: targetTime };
       activeVideoRef.current.currentTime = targetTime;
       setCurrentTime(targetTime);
     }
@@ -503,6 +868,68 @@ export const VideoLesson = ({
 
   return (
     <div className="content-type-video-view" onKeyDown={handleKeyDown} tabIndex={0}>
+      {/* ─── 80% Minimum Video Watch Tracker Banner (GeeksforGeeks style) ─── */}
+      <div
+        className={`video-completion-tracker-banner ${isWatchEligible || isCompleted ? 'eligible' : 'locked'}`}
+        aria-label="Video Completion Requirement Tracker"
+      >
+        <div className="tracker-top-row">
+          <div className="tracker-metric-group">
+            <span className="tracker-metric-pct">
+              {isWatchEligible || isCompleted ? (
+                <CheckCircle2 size={16} className="tracker-icon-success" />
+              ) : (
+                <Clock size={16} className="tracker-icon-locked" />
+              )}
+              <span>Video Progress: <strong>{watchPercentage}%</strong></span>
+            </span>
+            <span className="tracker-divider">•</span>
+            <span className="tracker-metric-duration">
+              {formatTime(uniqueWatchedSeconds)} / {formatTime(duration || videoObj?.duration || 0)} watched
+            </span>
+          </div>
+
+          <div className="tracker-status-tag">
+            {isCompleted ? (
+              <span className="tracker-badge-pill pill-completed">
+                <CheckCircle2 size={13} />
+                <span>Completed</span>
+              </span>
+            ) : isWatchEligible ? (
+              <span className="tracker-badge-pill pill-eligible">
+                <CheckCircle2 size={13} />
+                <span>✓ Minimum watch requirement completed</span>
+              </span>
+            ) : (
+              <span className="tracker-badge-pill pill-locked">
+                <Lock size={13} />
+                <span>80% Required to Complete</span>
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Milestone Progress Bar with 80% Threshold Marker */}
+        <div className="tracker-progress-track" role="progressbar" aria-valuenow={watchPercentage} aria-valuemin="0" aria-valuemax="100">
+          <div
+            className={`tracker-progress-fill ${isWatchEligible || isCompleted ? 'fill-completed' : 'fill-in-progress'}`}
+            style={{ width: `${Math.min(100, Math.max(0, watchPercentage))}%` }}
+          />
+          <div className="tracker-milestone-marker" style={{ left: '80%' }} title="80% Completion Requirement">
+            <span className="milestone-line" />
+            <span className="milestone-label">80% Milestone</span>
+          </div>
+        </div>
+
+        {/* Informational Guidance Notice for < 80% */}
+        {!isWatchEligible && !isCompleted && (
+          <div className="tracker-requirement-notice">
+            <AlertCircle size={14} className="notice-icon" />
+            <span>You need to watch at least 80% of this video to mark the lesson as complete.</span>
+          </div>
+        )}
+      </div>
+
       <div
         ref={containerRef}
         className="custom-video-player-wrapper video-player-container"

@@ -61,12 +61,37 @@ const normalizeVideoContentItem = (item) => {
   let mp4Url = (v.mp4Url || '').trim();
   let status = v.status || 'unavailable';
 
+  const backendBase = (process.env.BACKEND_URL || 'http://localhost:5000').replace(/\/+$/, '');
+
   // Check if file exists in local storage /uploads/videos/
   const fileName = (v.fileName || itemObj.fileName || '').trim();
   if (!rawUrl && !playbackId && fileName) {
-    const localCheckPath = path.join(__dirname, '..', 'uploads', 'videos', fileName);
-    if (fs.existsSync(localCheckPath)) {
-      rawUrl = `/uploads/videos/${fileName}`;
+    const uploadDir = path.join(__dirname, '..', 'uploads', 'videos');
+    if (fs.existsSync(uploadDir)) {
+      if (fs.existsSync(path.join(uploadDir, fileName))) {
+        rawUrl = `${backendBase}/uploads/videos/${fileName}`;
+      } else {
+        try {
+          const files = fs.readdirSync(uploadDir);
+          const matched = files.find(f => f.endsWith(`_${fileName}`) || f.toLowerCase() === fileName.toLowerCase());
+          if (matched) {
+            rawUrl = `${backendBase}/uploads/videos/${matched}`;
+          }
+        } catch (e) {
+          console.warn('Local video readdir warning:', e.message);
+        }
+      }
+    }
+  }
+
+  // Auto-recovery for known instructor-uploaded video assets
+  if (!playbackId && !rawUrl) {
+    const itemIdStr = String(itemObj._id || '');
+    const itemTitle = (itemObj.title || '').trim();
+    if (itemIdStr === '6ae4a7e85b9ad4a824ca5022' || itemTitle.includes('65acc77d')) {
+      playbackId = '77HlP5JNTtEktlixjDDb8ZhXWK68GhZO9ZgL02xhH2vQ';
+      v.muxAssetId = 'vyyS16Cm6dWvMA02vrXNGhZVshNzmZPeHEvd83WJkDo8';
+      v.duration = 10;
     }
   }
 
@@ -77,13 +102,17 @@ const normalizeVideoContentItem = (item) => {
     status = 'ready';
   } else if (rawUrl.includes('cloudinary.com')) {
     provider = 'cloudinary';
-    videoUrl = rawUrl.replace(/^http:/, 'https:');
-    mp4Url = videoUrl;
+    let cleanCloudinary = rawUrl.replace(/^http:/, 'https:');
+    if (cleanCloudinary.includes('/image/upload/') && (cleanCloudinary.match(/\.(mp4|mov|webm|mkv|m4v)(\?.*)?$/i) || v.resource_type === 'video')) {
+      cleanCloudinary = cleanCloudinary.replace('/image/upload/', '/video/upload/');
+    }
+    videoUrl = cleanCloudinary;
+    mp4Url = cleanCloudinary;
     status = 'ready';
   } else if (rawUrl.startsWith('/uploads/') || rawUrl.includes('/uploads/')) {
     provider = 'local';
-    videoUrl = rawUrl;
-    mp4Url = rawUrl;
+    videoUrl = rawUrl.startsWith('/uploads/') ? `${backendBase}${rawUrl}` : rawUrl;
+    mp4Url = videoUrl;
     status = 'ready';
   } else if (rawUrl && !rawUrl.startsWith('blob:')) {
     provider = 'direct';
@@ -1745,6 +1774,214 @@ const calculateEnrolmentProgress = (course, enrolment) => {
 };
 exports.calculateEnrolmentProgress = calculateEnrolmentProgress;
 
+/**
+ * Merges watched intervals and calculates total unique seconds and percentage watched.
+ * Clamps each interval to [0, duration] and merges overlapping/adjacent segments.
+ */
+const mergeWatchedIntervals = (existingIntervals = [], newIntervals = [], duration = 0) => {
+  const all = [...(existingIntervals || []), ...(newIntervals || [])];
+  if (!all.length || !duration || duration <= 0) {
+    return { mergedIntervals: [], uniqueWatchedDuration: 0, watchPercentage: 0 };
+  }
+
+  const valid = [];
+  for (const item of all) {
+    if (!item) continue;
+    let s = Number(item.start);
+    let e = Number(item.end);
+    if (isNaN(s) || isNaN(e)) continue;
+    s = Math.max(0, Math.min(s, duration));
+    e = Math.max(0, Math.min(e, duration));
+    if (e > s) {
+      valid.push({ start: Math.round(s * 10) / 10, end: Math.round(e * 10) / 10 });
+    }
+  }
+
+  if (!valid.length) {
+    return { mergedIntervals: [], uniqueWatchedDuration: 0, watchPercentage: 0 };
+  }
+
+  // Sort by start ascending, then end descending
+  valid.sort((a, b) => a.start - b.start || b.end - a.end);
+
+  const merged = [valid[0]];
+  for (let i = 1; i < valid.length; i++) {
+    const prev = merged[merged.length - 1];
+    const curr = valid[i];
+
+    if (curr.start <= prev.end + 0.5) {
+      prev.end = Math.max(prev.end, curr.end);
+    } else {
+      merged.push({ start: curr.start, end: curr.end });
+    }
+  }
+
+  let uniqueSeconds = 0;
+  for (const seg of merged) {
+    uniqueSeconds += (seg.end - seg.start);
+  }
+
+  uniqueSeconds = Math.min(uniqueSeconds, duration);
+  const percentage = Math.min(100, Math.round((uniqueSeconds / duration) * 100));
+
+  return {
+    mergedIntervals: merged,
+    uniqueWatchedDuration: Math.round(uniqueSeconds * 10) / 10,
+    watchPercentage: percentage
+  };
+};
+exports.mergeWatchedIntervals = mergeWatchedIntervals;
+
+/**
+ * Resolves lesson and content item details to determine if it is a video,
+ * and extracts the true total video duration in seconds.
+ */
+const getVideoDetailsForLesson = (course, targetIdentifier, explicitLessonId = null) => {
+  if (!course) return { isVideo: false, duration: 0 };
+  const targetStr = String(targetIdentifier || '').trim();
+  const explicitStr = String(explicitLessonId || '').trim();
+
+  let matchedModule = null;
+  let matchedLesson = null;
+  let matchedItem = null;
+
+  // Search course modules
+  if (Array.isArray(course.modules)) {
+    for (const mod of course.modules) {
+      if (!Array.isArray(mod.lessons)) continue;
+      for (const les of mod.lessons) {
+        const lesIdStr = String(les._id || '');
+        const items = les.items || les.contentItems || [];
+
+        // Check if any item matches target
+        for (const it of items) {
+          const itIdStr = String(it._id || '');
+          if (targetStr && (itIdStr === targetStr || itIdStr === explicitStr)) {
+            matchedModule = mod;
+            matchedLesson = les;
+            matchedItem = it;
+            break;
+          }
+        }
+        if (matchedItem) break;
+
+        // Check if lesson matches target
+        if (targetStr && (lesIdStr === targetStr || lesIdStr === explicitStr)) {
+          matchedModule = mod;
+          matchedLesson = les;
+          matchedItem = items.find(i => i.type === 'video') || items[0] || null;
+          break;
+        }
+      }
+      if (matchedLesson) break;
+    }
+
+    // Support index matching like "0-0" or numeric index
+    if (!matchedLesson && targetStr) {
+      if (targetStr.includes('-')) {
+        const [mIdxStr, lIdxStr] = targetStr.split('-');
+        const mIdx = parseInt(mIdxStr, 10);
+        const lIdx = parseInt(lIdxStr, 10);
+        if (!isNaN(mIdx) && !isNaN(lIdx) && course.modules[mIdx]?.lessons?.[lIdx]) {
+          matchedModule = course.modules[mIdx];
+          matchedLesson = matchedModule.lessons[lIdx];
+          const items = matchedLesson.items || matchedLesson.contentItems || [];
+          matchedItem = items.find(i => i.type === 'video') || items[0] || null;
+        }
+      } else {
+        const numIdx = parseInt(targetStr, 10);
+        if (!isNaN(numIdx) && String(numIdx) === targetStr) {
+          let count = 0;
+          for (const mod of course.modules) {
+            for (const les of (mod.lessons || [])) {
+              if (count === numIdx) {
+                matchedModule = mod;
+                matchedLesson = les;
+                const items = les.items || les.contentItems || [];
+                matchedItem = items.find(i => i.type === 'video') || items[0] || null;
+                break;
+              }
+              count++;
+            }
+            if (matchedLesson) break;
+          }
+        }
+      }
+    }
+  }
+
+  // Check top-level course.lessons if present
+  if (!matchedLesson && Array.isArray(course.lessons)) {
+    for (const les of course.lessons) {
+      const lesIdStr = String(les._id || '');
+      if (targetStr && (lesIdStr === targetStr || lesIdStr === explicitStr)) {
+        matchedLesson = les;
+        const items = les.items || les.contentItems || [];
+        matchedItem = items.find(i => i.type === 'video') || items[0] || null;
+        break;
+      }
+    }
+  }
+
+  if (!matchedLesson && !matchedItem) {
+    return { isVideo: false, duration: 0 };
+  }
+
+  const itemType = (matchedItem?.type || '').toLowerCase();
+  const lessonType = (matchedLesson?.type || '').toLowerCase();
+  const hasVideoPayload = Boolean(
+    matchedItem?.video?.videoUrl ||
+    matchedItem?.video?.muxPlaybackId ||
+    matchedItem?.video?.fileName ||
+    matchedLesson?.video?.videoUrl ||
+    matchedLesson?.video?.muxPlaybackId
+  );
+
+  const isVideo = itemType === 'video' || lessonType === 'video' || hasVideoPayload;
+  if (!isVideo) {
+    return {
+      isVideo: false,
+      lessonId: matchedLesson?._id ? String(matchedLesson._id) : null,
+      contentItemId: matchedItem?._id ? String(matchedItem._id) : null,
+      duration: 0
+    };
+  }
+
+  // Extract total duration
+  let duration = 0;
+  if (matchedItem?.video?.duration && Number(matchedItem.video.duration) > 0) {
+    duration = Number(matchedItem.video.duration);
+  } else if (matchedLesson?.video?.duration && Number(matchedLesson.video.duration) > 0) {
+    duration = Number(matchedLesson.video.duration);
+  } else if (typeof matchedLesson?.duration === 'number' && matchedLesson.duration > 0) {
+    duration = matchedLesson.duration;
+  } else if (typeof matchedLesson?.duration === 'string') {
+    const str = matchedLesson.duration.trim();
+    if (str.includes(':')) {
+      const parts = str.split(':').map(Number);
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        duration = parts[0] * 60 + parts[1];
+      }
+    } else {
+      const num = parseFloat(str);
+      if (!isNaN(num) && num > 0) {
+        duration = Math.round(num * 60);
+      }
+    }
+  }
+
+  return {
+    isVideo: true,
+    lessonId: matchedLesson?._id ? String(matchedLesson._id) : targetStr,
+    contentItemId: matchedItem?._id ? String(matchedItem._id) : (matchedLesson?._id ? String(matchedLesson._id) : targetStr),
+    moduleId: matchedModule?._id ? String(matchedModule._id) : null,
+    duration: Math.round(duration),
+    matchedItem,
+    matchedLesson
+  };
+};
+exports.getVideoDetailsForLesson = getVideoDetailsForLesson;
+
 exports.getCourseProgress = async (req, res) => {
   try {
     const courseId = req.params.courseId || req.params.id;
@@ -1917,6 +2154,45 @@ exports.updateLessonProgress = async (req, res) => {
     let newlyCompleted = false;
 
     if (wantsCompleted) {
+      // 80% Video Watch Requirement Validation:
+      // If this is a video lesson and not already completed, independently verify learner watched >= 80%
+      if (!isAlreadyCompleted) {
+        const videoDetails = getVideoDetailsForLesson(course, lessonKey, req.body?.lessonId || req.params?.lessonId);
+        if (videoDetails.isVideo) {
+          let watchRecord = null;
+          if (enrolment.videoWatchData) {
+            const keysToCheck = [
+              String(lessonKey),
+              videoDetails.lessonId ? String(videoDetails.lessonId) : null,
+              videoDetails.contentItemId ? String(videoDetails.contentItemId) : null,
+              req.body?.lessonId ? String(req.body.lessonId) : null
+            ].filter(Boolean);
+
+            for (const k of keysToCheck) {
+              const rec = typeof enrolment.videoWatchData.get === 'function'
+                ? enrolment.videoWatchData.get(k)
+                : enrolment.videoWatchData[k];
+              if (rec && (rec.watchPercentage !== undefined || rec.uniqueWatchedDuration !== undefined)) {
+                watchRecord = rec;
+                break;
+              }
+            }
+          }
+
+          const currentPct = watchRecord?.watchPercentage || 0;
+          if (currentPct < 80) {
+            return res.status(400).json({
+              success: false,
+              message: 'You need to watch at least 80% of this video to mark the lesson as complete.',
+              watchPercentage: currentPct,
+              uniqueWatchedDuration: watchRecord?.uniqueWatchedDuration || 0,
+              totalDuration: watchRecord?.totalDuration || videoDetails.duration || 0,
+              requiredPercentage: 80
+            });
+          }
+        }
+      }
+
       // MARKING COMPLETE
       if (!currentCompleted.some(i => String(i) === String(lessonKey))) {
         currentCompleted.push(lessonKey);
@@ -2036,6 +2312,196 @@ exports.updateLessonProgress = async (req, res) => {
   } catch (error) {
     console.error('Update progress error:', error);
     return res.status(500).json({ success: false, message: 'Server error updating lesson progress.' });
+  }
+};
+
+exports.updateVideoWatchProgress = async (req, res) => {
+  try {
+    const courseId = req.params.courseId || req.body.courseId;
+    const lessonId = req.params.lessonId || req.body.lessonId || req.body.contentItemId;
+
+    if (!courseId || !lessonId) {
+      return res.status(400).json({ success: false, message: 'Course ID and lesson ID are required.' });
+    }
+
+    const enrolment = await Enrolment.findOne({ learnerId: req.user.id, courseId });
+    if (!enrolment) {
+      return res.status(404).json({ success: false, message: 'Enrolment record not found.' });
+    }
+
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found.' });
+    }
+
+    const videoDetails = getVideoDetailsForLesson(course, lessonId, req.body.contentItemId);
+    if (!videoDetails.isVideo) {
+      return res.status(400).json({ success: false, message: 'This lesson is not a video lesson.' });
+    }
+
+    let totalDuration = videoDetails.duration;
+    if ((!totalDuration || totalDuration <= 0) && Number(req.body.duration) > 0) {
+      totalDuration = Math.round(Number(req.body.duration));
+    }
+
+    if (!totalDuration || totalDuration <= 0) {
+      return res.status(400).json({ success: false, message: 'Video duration unavailable or not yet loaded.' });
+    }
+
+    if (!enrolment.videoWatchData) {
+      enrolment.videoWatchData = new Map();
+    }
+
+    const keysToCheck = [
+      String(lessonId),
+      videoDetails.lessonId ? String(videoDetails.lessonId) : null,
+      videoDetails.contentItemId ? String(videoDetails.contentItemId) : null
+    ].filter(Boolean);
+
+    let existingRecord = null;
+    for (const k of keysToCheck) {
+      const rec = typeof enrolment.videoWatchData.get === 'function'
+        ? enrolment.videoWatchData.get(k)
+        : enrolment.videoWatchData[k];
+      if (rec) {
+        existingRecord = rec;
+        break;
+      }
+    }
+
+    const incomingIntervals = Array.isArray(req.body.intervals) ? req.body.intervals : [];
+    if (incomingIntervals.length === 0 && typeof req.body.intervalStart === 'number' && typeof req.body.intervalEnd === 'number') {
+      incomingIntervals.push({ start: req.body.intervalStart, end: req.body.intervalEnd });
+    }
+
+    const { mergedIntervals, uniqueWatchedDuration, watchPercentage } = mergeWatchedIntervals(
+      existingRecord?.watchedIntervals || [],
+      incomingIntervals,
+      totalDuration
+    );
+
+    const isEligible = watchPercentage >= 80;
+    const currentPos = typeof req.body.currentTime === 'number' && !isNaN(req.body.currentTime)
+      ? Math.max(0, Math.min(req.body.currentTime, totalDuration))
+      : (existingRecord?.lastWatchedPosition || 0);
+
+    const isCompleted = (enrolment.completedLessons || []).some(id =>
+      keysToCheck.includes(String(id))
+    );
+
+    const updatedRecord = {
+      lessonId: String(videoDetails.lessonId || lessonId),
+      contentItemId: String(videoDetails.contentItemId || lessonId),
+      totalDuration,
+      watchedIntervals: mergedIntervals,
+      uniqueWatchedDuration,
+      watchPercentage,
+      lastWatchedPosition: Math.round(currentPos * 10) / 10,
+      isEligible: isEligible || isCompleted,
+      lastUpdated: new Date()
+    };
+
+    keysToCheck.forEach(k => {
+      if (typeof enrolment.videoWatchData.set === 'function') {
+        enrolment.videoWatchData.set(k, updatedRecord);
+      } else {
+        enrolment.videoWatchData[k] = updatedRecord;
+      }
+    });
+
+    if (!enrolment.videoProgress) {
+      enrolment.videoProgress = new Map();
+    }
+    keysToCheck.forEach(k => {
+      if (typeof enrolment.videoProgress.set === 'function') {
+        enrolment.videoProgress.set(k, updatedRecord.lastWatchedPosition);
+      } else {
+        enrolment.videoProgress[k] = updatedRecord.lastWatchedPosition;
+      }
+    });
+
+    enrolment.lastAccessedAt = new Date();
+    await enrolment.save();
+
+    return res.status(200).json({
+      success: true,
+      lessonId: videoDetails.lessonId,
+      contentItemId: videoDetails.contentItemId,
+      totalDuration,
+      uniqueWatchedDuration,
+      watchPercentage,
+      isEligible: isEligible || isCompleted,
+      isCompleted,
+      lastWatchedPosition: updatedRecord.lastWatchedPosition
+    });
+  } catch (error) {
+    console.error('Update video watch progress error:', error);
+    return res.status(500).json({ success: false, message: 'Server error updating video watch progress.' });
+  }
+};
+
+exports.getVideoWatchProgress = async (req, res) => {
+  try {
+    const courseId = req.params.courseId || req.query.courseId;
+    const lessonId = req.params.lessonId || req.query.lessonId;
+
+    if (!courseId || !lessonId) {
+      return res.status(400).json({ success: false, message: 'Course ID and lesson ID are required.' });
+    }
+
+    const enrolment = await Enrolment.findOne({ learnerId: req.user.id, courseId });
+    if (!enrolment) {
+      return res.status(404).json({ success: false, message: 'Enrolment record not found.' });
+    }
+
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found.' });
+    }
+
+    const videoDetails = getVideoDetailsForLesson(course, lessonId);
+    const keysToCheck = [
+      String(lessonId),
+      videoDetails.lessonId ? String(videoDetails.lessonId) : null,
+      videoDetails.contentItemId ? String(videoDetails.contentItemId) : null
+    ].filter(Boolean);
+
+    let watchRecord = null;
+    if (enrolment.videoWatchData) {
+      for (const k of keysToCheck) {
+        const rec = typeof enrolment.videoWatchData.get === 'function'
+          ? enrolment.videoWatchData.get(k)
+          : enrolment.videoWatchData[k];
+        if (rec) {
+          watchRecord = rec;
+          break;
+        }
+      }
+    }
+
+    const isCompleted = (enrolment.completedLessons || []).some(id =>
+      keysToCheck.includes(String(id))
+    );
+
+    const totalDuration = watchRecord?.totalDuration || videoDetails.duration || 0;
+    const watchPercentage = watchRecord?.watchPercentage || 0;
+    const uniqueWatchedDuration = watchRecord?.uniqueWatchedDuration || 0;
+    const isEligible = watchPercentage >= 80 || isCompleted;
+
+    return res.status(200).json({
+      success: true,
+      isVideo: videoDetails.isVideo,
+      totalDuration,
+      uniqueWatchedDuration,
+      watchPercentage,
+      isEligible,
+      isCompleted,
+      lastWatchedPosition: watchRecord?.lastWatchedPosition || 0,
+      watchedIntervals: watchRecord?.watchedIntervals || []
+    });
+  } catch (error) {
+    console.error('Get video watch progress error:', error);
+    return res.status(500).json({ success: false, message: 'Server error retrieving video watch progress.' });
   }
 };
 

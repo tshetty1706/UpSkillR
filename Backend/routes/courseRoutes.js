@@ -95,6 +95,9 @@ router.post('/:courseId/lessons/:lessonId/complete', protect, requireLearner, co
 router.post('/:courseId/modules/:moduleId/complete', protect, requireLearner, courseController.updateLessonProgress);
 router.post('/:courseId/modules/:moduleId/lessons/:lessonId/progress', protect, requireLearner, courseController.updateLessonProgress);
 router.post('/:courseId/modules/:moduleId/lessons/:lessonId/complete', protect, requireLearner, courseController.updateLessonProgress);
+router.post('/:courseId/lessons/:lessonId/watch-progress', protect, requireLearner, courseController.updateVideoWatchProgress);
+router.get('/:courseId/lessons/:lessonId/watch-progress', protect, requireLearner, courseController.getVideoWatchProgress);
+router.post('/:courseId/watch-progress', protect, requireLearner, courseController.updateVideoWatchProgress);
 router.post('/rate', protect, requireLearner, reviewController.submitCourseReview);
 
 // ─── Course Reviews & Ratings (FR-09) ───
