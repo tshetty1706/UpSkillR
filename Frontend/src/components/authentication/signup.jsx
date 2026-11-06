@@ -165,7 +165,7 @@ export default function SignUp() {
             navigate('/instructor/application');
           }
         } else {
-          navigate('/learner');
+          navigate('/learner/dashboard');
         }
       } catch (e) {
         console.error('Failed to parse user data from OAuth callback', e);

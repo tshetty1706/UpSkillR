@@ -2,6 +2,8 @@ const { Learner } = require('../model/User');
 const Enrolment = require('../model/Enrolment');
 const PointTransaction = require('../model/PointTransaction');
 const CourseReview = require('../model/CourseReview');
+const Certificate = require('../model/Certificate');
+const { issueCourseCertificate } = require('../services/certificateService');
 
 // ─── Platform URL validation regexes ───
 const PLATFORM_REGEXES = {
@@ -86,6 +88,27 @@ const processDailyLoginStreak = async (learner) => {
 };
 exports.processDailyLoginStreak = processDailyLoginStreak;
 
+// ─── 30-Day Username Change Restriction Helpers ───
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+const getUsernameEligibility = (learner) => {
+  if (!learner || !learner.username) {
+    return { canChange: true, daysRemaining: 0, nextEligibleDate: null };
+  }
+  // Safe migration for existing accounts with username but no timestamp
+  const lastChanged = learner.usernameLastChangedAt || learner.createdAt;
+  if (!lastChanged) {
+    return { canChange: true, daysRemaining: 0, nextEligibleDate: null };
+  }
+  const diff = Date.now() - new Date(lastChanged).getTime();
+  if (diff >= THIRTY_DAYS_MS) {
+    return { canChange: true, daysRemaining: 0, nextEligibleDate: null };
+  }
+  const daysRemaining = Math.max(1, Math.ceil((THIRTY_DAYS_MS - diff) / (1000 * 60 * 60 * 24)));
+  const nextEligibleDate = new Date(new Date(lastChanged).getTime() + THIRTY_DAYS_MS);
+  return { canChange: false, daysRemaining, nextEligibleDate };
+};
+
 // ─── 1. GET /api/learners/me — Profile + Stats ───
 // Idempotent read: Never creates transactions or alters streaks on passive profile fetch
 exports.getLearnerProfileAndStats = async (req, res) => {
@@ -103,6 +126,9 @@ exports.getLearnerProfileAndStats = async (req, res) => {
       (sum, e) => sum + (e.completedLessons ? e.completedLessons.length : 0), 0
     );
     const checkedInToday = isSameDay(learner.lastCheckInDate);
+    const { syncLearnerPoints } = require('../services/pointsService');
+    const verifiedPoints = await syncLearnerPoints(learnerId);
+    learner.points = verifiedPoints;
 
     return res.status(200).json({
       success: true,
@@ -122,7 +148,9 @@ exports.getLearnerProfileAndStats = async (req, res) => {
         points: learner.points || 0,
         currentStreak: learner.currentStreak || 0,
         longestStreak: learner.longestStreak || 0,
-        lastCheckInDate: learner.lastCheckInDate
+        lastCheckInDate: learner.lastCheckInDate,
+        usernameLastChangedAt: learner.usernameLastChangedAt || learner.createdAt || null,
+        usernameEligibility: getUsernameEligibility(learner),
       },
       stats: {
         totalPoints: learner.points || 0,
@@ -165,30 +193,67 @@ exports.checkUsernameAvailability = async (req, res) => {
   }
 };
 
-// ─── 3. Update Username ───
+// ─── 3. Update Username with 30-Day Restriction ───
 exports.updateUsername = async (req, res) => {
   try {
     const learnerId = req.user.id;
     const rawUsername = req.body.username || '';
     const cleanUsername = rawUsername.replace(/^@/, '').trim().toLowerCase();
-    if (!cleanUsername) return res.status(400).json({ success: false, message: 'Username is required' });
+
+    if (!cleanUsername) {
+      return res.status(400).json({ success: false, message: 'Username is required' });
+    }
+
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(cleanUsername)) {
       return res.status(400).json({
         success: false,
         message: 'Username must be 3-20 characters long and contain only letters, numbers, and underscores.'
       });
     }
-    const existing = await Learner.findOne({ username: cleanUsername, _id: { $ne: learnerId } });
-    if (existing) return res.status(400).json({ success: false, message: 'Username is already taken.' });
 
     const learner = await Learner.findById(learnerId);
     if (!learner) return res.status(404).json({ success: false, message: 'Learner not found' });
 
+    if (learner.username === cleanUsername) {
+      return res.status(400).json({ success: false, message: 'New username must be different from current username.' });
+    }
+
+    // ─── 30-Day Restriction Enforcement ───
+    if (learner.username) {
+      let lastChanged = learner.usernameLastChangedAt || learner.createdAt;
+      if (lastChanged) {
+        const timeSince = Date.now() - new Date(lastChanged).getTime();
+        if (timeSince < THIRTY_DAYS_MS) {
+          const daysRemaining = Math.max(1, Math.ceil((THIRTY_DAYS_MS - timeSince) / (1000 * 60 * 60 * 24)));
+          return res.status(403).json({
+            success: false,
+            message: `Username can only be changed once every 30 days. You can change your username again in ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}.`,
+            daysRemaining,
+            nextEligibleDate: new Date(new Date(lastChanged).getTime() + THIRTY_DAYS_MS)
+          });
+        }
+      }
+    }
+
+    // Check uniqueness across learners
+    const existing = await Learner.findOne({ username: cleanUsername, _id: { $ne: learnerId } });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'Username is already taken by another learner.' });
+    }
+
     learner.username = cleanUsername;
+    learner.usernameLastChangedAt = new Date();
     await learner.save();
 
+    const eligibility = getUsernameEligibility(learner);
+
     return res.status(200).json({
-      success: true, message: 'Username updated successfully!', username: cleanUsername, user: learner
+      success: true,
+      message: 'Username updated successfully!',
+      username: cleanUsername,
+      usernameLastChangedAt: learner.usernameLastChangedAt,
+      usernameEligibility: eligibility,
+      user: learner
     });
   } catch (error) {
     console.error('Update username error:', error);
@@ -209,15 +274,14 @@ exports.updateLearnerProfile = async (req, res) => {
     // ─── Basic fields ───
     if (fullName && fullName.trim()) learner.fullName = fullName.trim();
 
+    // Security: Username editing is strictly restricted to the dedicated 30-day updateUsername endpoint
     if (username !== undefined && username !== null) {
       const cleanUsername = username.replace(/^@/, '').trim().toLowerCase();
-      if (cleanUsername) {
-        if (!/^[a-zA-Z0-9_]{3,20}$/.test(cleanUsername)) {
-          return res.status(400).json({ success: false, message: 'Username must be 3-20 characters long and contain only letters, numbers, and underscores.' });
-        }
-        const existing = await Learner.findOne({ username: cleanUsername, _id: { $ne: learnerId } });
-        if (existing) return res.status(400).json({ success: false, message: 'Username is already taken.' });
-        learner.username = cleanUsername;
+      if (cleanUsername && cleanUsername !== learner.username) {
+        return res.status(400).json({
+          success: false,
+          message: 'Username cannot be modified through general profile editing. Please use the dedicated Edit Username feature subject to the 30-day restriction.'
+        });
       }
     }
 
@@ -374,22 +438,34 @@ exports.getPointHistory = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied. Point history is restricted to learners only.' });
     }
 
-    // Only count genuine, valid learner activity types
-    const VALID_TYPES = ['MODULE_COMPLETION', 'QUIZ_COMPLETION', 'COURSE_COMPLETION', 'DAILY_CHECKIN'];
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const skip = (page - 1) * limit;
 
-    const transactions = await PointTransaction.find({
-      learnerId: req.user.id,
-      type: { $in: VALID_TYPES }
-    })
+    const filter = { learnerId: req.user.id };
+    const totalCount = await PointTransaction.countDocuments(filter);
+    const transactions = await PointTransaction.find(filter)
       .sort({ createdAt: -1 })
-      .limit(50);
+      .skip(skip)
+      .limit(limit);
+
+    const { syncLearnerPoints } = require('../services/pointsService');
+    const totalPoints = await syncLearnerPoints(req.user.id);
 
     return res.status(200).json({
       success: true,
+      totalPoints,
+      pagination: {
+        page,
+        limit,
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limit) || 1
+      },
       transactions: transactions.map(t => ({
         _id: t._id,
         points: t.points,
         type: t.type,
+        activityType: t.activityType || (t.type ? t.type.toLowerCase() : 'activity'),
         referenceId: t.referenceId,
         description: t.description,
         createdAt: t.createdAt
@@ -470,31 +546,569 @@ exports.getLearnerActivity = async (req, res) => {
   }
 };
 
-// ─── 10. GET /api/learners/me/certificates — Derived from completed enrolments ───
+// ─── 10. GET /api/learners/me/certificates — Verified persistent course certificates ───
 exports.getLearnerCertificates = async (req, res) => {
   try {
     const learnerId = req.user.id;
+
+    // 1. Fetch all issued Certificate documents
+    const issuedCerts = await Certificate.find({ learnerId })
+      .populate('courseId', 'title thumbnail category instructorName')
+      .sort({ issuedAt: -1 });
+
+    const issuedCourseIds = new Set(issuedCerts.map(c => String(c.courseId?._id || c.courseId)));
+
+    // 2. Fetch completed enrolments
     const completedEnrolments = await Enrolment.find({
       learnerId,
       $or: [{ status: 'completed' }, { progressPercentage: { $gte: 100 } }]
-    }).populate('courseId', 'title thumbnail category certificate instructorName');
+    }).populate('courseId', 'title thumbnail category certificate certificateSettings instructorName instructorId');
 
-    const certificates = completedEnrolments
-      .filter(e => e.courseId)
-      .map(e => ({
-        _id: e._id,
-        courseId: e.courseId?._id || e.courseId,
-        courseTitle: e.courseId?.title || e.courseTitle || 'Completed Course',
-        courseThumbnail: e.courseId?.thumbnail || '',
-        category: e.courseId?.category || 'General',
-        instructorName: e.courseId?.instructorName || 'UpSkillr Instructor',
-        hasCertificate: e.courseId?.certificate !== false,
-        completedAt: e.completedAt
-      }));
+    // For any completed course where certificate is enabled but not yet issued, auto-issue it!
+    for (const enr of completedEnrolments) {
+      if (!enr.courseId) continue;
+      const cIdStr = String(enr.courseId._id || enr.courseId);
+      const isEnabled = Boolean(enr.courseId.certificate === true || enr.courseId.certificateSettings?.enabled === true);
+      if (isEnabled && !issuedCourseIds.has(cIdStr)) {
+        try {
+          const newCert = await issueCourseCertificate({
+            course: enr.courseId,
+            enrolment: enr,
+            learnerId,
+            learnerUser: req.user
+          });
+          if (newCert) {
+            issuedCerts.push(newCert);
+            issuedCourseIds.add(cIdStr);
+          }
+        } catch (genErr) {
+          console.warn('Auto-issuing certificate for completed course error:', genErr.message);
+        }
+      }
+    }
+
+    const certificates = issuedCerts.map(c => ({
+      _id: c._id,
+      certificateId: c.certificateId,
+      courseId: c.courseId?._id || c.courseId,
+      courseTitle: c.courseNameSnapshot || c.courseId?.title || 'Completed Course',
+      courseThumbnail: c.courseId?.thumbnail || '',
+      category: c.courseId?.category || 'General',
+      studentName: c.studentNameSnapshot,
+      instructorName: c.instructorNameSnapshot || c.courseId?.instructorName || 'UpSkillr Instructor',
+      instructorDesignation: c.instructorDesignationSnapshot || 'Course Instructor',
+      completionDate: c.completionDate,
+      issuedAt: c.issuedAt,
+      certificateImageUrl: c.certificateImageUrl,
+      verificationUrl: c.verificationUrl,
+      verificationStatus: c.verificationStatus,
+      hasCertificate: true
+    }));
 
     return res.status(200).json({ success: true, count: certificates.length, certificates });
   } catch (error) {
     console.error('Error fetching certificates:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch certificates.' });
+  }
+};
+
+
+const Bookmark = require('../model/Bookmark');
+const Course = require('../model/Course');
+
+// ─── 11. Bookmarks Endpoints ───
+exports.getLearnerBookmarks = async (req, res) => {
+  try {
+    const learnerId = req.user.id;
+    const bookmarks = await Bookmark.find({ learnerId }).sort({ createdAt: -1 });
+    return res.status(200).json({ success: true, count: bookmarks.length, bookmarks });
+  } catch (err) {
+    console.error('Error fetching bookmarks:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch bookmarks.' });
+  }
+};
+
+exports.addOrToggleBookmark = async (req, res) => {
+  try {
+    const learnerId = req.user.id;
+    const { courseId, resourceId = null, resourceType = 'course', title, courseTitle, courseThumbnail, category, url } = req.body;
+
+    if (!courseId) {
+      return res.status(400).json({ success: false, message: 'courseId is required.' });
+    }
+
+    // Check if exists
+    const query = {
+      learnerId,
+      courseId,
+      resourceType: resourceType || 'course',
+      resourceId: resourceId || null
+    };
+
+    const existing = await Bookmark.findOne(query);
+    if (existing) {
+      // Toggle off: remove
+      await Bookmark.findByIdAndDelete(existing._id);
+      return res.status(200).json({ success: true, action: 'removed', isBookmarked: false, message: 'Bookmark removed.' });
+    }
+
+    // If title or thumbnail missing, lookup course
+    let resolvedTitle = title;
+    let resolvedCourseTitle = courseTitle;
+    let resolvedThumb = courseThumbnail;
+    let resolvedCategory = category;
+
+    if (!resolvedTitle || !resolvedThumb) {
+      const course = await Course.findById(courseId);
+      if (course) {
+        resolvedCourseTitle = resolvedCourseTitle || course.title;
+        resolvedTitle = resolvedTitle || course.title;
+        resolvedThumb = resolvedThumb || course.thumbnail;
+        resolvedCategory = resolvedCategory || course.category;
+      }
+    }
+
+    const bookmark = await Bookmark.create({
+      learnerId,
+      courseId,
+      resourceId: resourceId || null,
+      resourceType: resourceType || 'course',
+      title: resolvedTitle || 'Bookmarked Resource',
+      courseTitle: resolvedCourseTitle || resolvedTitle || 'Course',
+      courseThumbnail: resolvedThumb || '',
+      category: resolvedCategory || 'General',
+      url: url || `/courses/${courseId}`
+    });
+
+    return res.status(201).json({ success: true, action: 'added', isBookmarked: true, bookmark, message: 'Bookmark added.' });
+  } catch (err) {
+    console.error('Error saving bookmark:', err);
+    return res.status(500).json({ success: false, message: 'Failed to save bookmark.' });
+  }
+};
+
+exports.deleteLearnerBookmark = async (req, res) => {
+  try {
+    const learnerId = req.user.id;
+    const { id } = req.params;
+    const { courseId, resourceId, resourceType } = req.query;
+
+    if (id) {
+      await Bookmark.findOneAndDelete({ _id: id, learnerId });
+    } else if (courseId) {
+      const q = { learnerId, courseId };
+      if (resourceType) q.resourceType = resourceType;
+      if (resourceId) q.resourceId = resourceId;
+      await Bookmark.findOneAndDelete(q);
+    } else {
+      return res.status(400).json({ success: false, message: 'Bookmark ID or courseId is required.' });
+    }
+
+    return res.status(200).json({ success: true, message: 'Bookmark removed successfully.' });
+  } catch (err) {
+    console.error('Error deleting bookmark:', err);
+    return res.status(500).json({ success: false, message: 'Failed to remove bookmark.' });
+  }
+};
+
+// ─── 12. Record Course Activity / Access ───
+exports.recordCourseAccess = async (req, res) => {
+  try {
+    const learnerId = req.user.id;
+    const courseId = req.params.courseId || req.body.courseId;
+    const { moduleId, lessonId, videoTime } = req.body;
+
+    if (!courseId) {
+      return res.status(400).json({ success: false, message: 'courseId is required.' });
+    }
+
+    const enrolment = await Enrolment.findOne({ learnerId, courseId });
+    if (enrolment) {
+      enrolment.lastAccessedAt = new Date();
+      if (moduleId !== undefined && moduleId !== null) {
+        enrolment.lastAccessedModuleId = moduleId;
+      }
+      if (lessonId !== undefined && lessonId !== null) {
+        enrolment.lastAccessedLessonId = lessonId;
+      }
+      if (lessonId && videoTime !== undefined && videoTime !== null) {
+        if (!enrolment.videoProgress) enrolment.videoProgress = new Map();
+        enrolment.videoProgress.set(String(lessonId), Number(videoTime));
+      }
+      await enrolment.save();
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Course access updated.',
+      lastAccessedModuleId: enrolment?.lastAccessedModuleId,
+      lastAccessedLessonId: enrolment?.lastAccessedLessonId
+    });
+  } catch (err) {
+    console.error('Error recording course access:', err);
+    return res.status(500).json({ success: false, message: 'Failed to record access.' });
+  }
+};
+
+
+// ─── 13. Secure Account Deletion (Password + Email OTP) ───
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
+const nodemailer = require('nodemailer');
+
+const RESET_SECRET = process.env.RESET_TOKEN_SECRET || process.env.JWT_SECRET || 'upskillr_secure_secret_token_reset_key_32_bytes!';
+
+const hashDeleteOtp = (otp) => {
+  return crypto.createHmac('sha256', RESET_SECRET).update(String(otp).trim()).digest('hex');
+};
+
+const generateSecureOtp = () => {
+  return crypto.randomInt(100000, 1000000).toString();
+};
+
+let deleteMailTransporter = null;
+const getDeleteMailTransporter = () => {
+  const emailUser = process.env.EMAIL_USER;
+  const emailPass = process.env.EMAIL_PASS;
+  if (!emailUser || !emailPass) return null;
+  if (!deleteMailTransporter) {
+    deleteMailTransporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      maxConnections: 3,
+      family: 4,
+      auth: { user: emailUser, pass: emailPass }
+    });
+  }
+  return deleteMailTransporter;
+};
+
+const sendDeletionOtpEmail = async (email, otp, name) => {
+  const transporter = getDeleteMailTransporter();
+  const emailUser = process.env.EMAIL_USER;
+  if (!transporter || !emailUser) {
+    console.warn('[DELETE ACCOUNT] SMTP credentials missing in .env');
+    return false;
+  }
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f5f7; margin:0; padding: 24px;">
+      <div style="max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
+        <div style="background-color: #dc2626; color: #ffffff; padding: 20px 24px;">
+          <h2 style="margin: 0; font-size: 1.25rem; font-weight: 700;">UpSkillR Security Alert</h2>
+          <p style="margin: 4px 0 0 0; font-size: 0.85rem; opacity: 0.9;">Account Deletion Verification Code</p>
+        </div>
+        <div style="padding: 24px; color: #1f2937;">
+          <p style="font-size: 1rem; margin-top: 0;">Hi <strong>${name || "Learner"}</strong>,</p>
+          <p style="font-size: 0.95rem; line-height: 1.5; color: #374151;">
+            We received a request to permanently delete your UpSkillR student account. If you confirm this action, your enrolled courses, certificates, achievements, and all personal learning data will be permanently erased.
+          </p>
+          <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 20px 0; text-align: center;">
+            <span style="display: block; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: #991b1b; font-weight: 600; margin-bottom: 6px;">Your 6-Digit Deletion Code</span>
+            <span style="font-size: 2rem; font-weight: 800; letter-spacing: 6px; color: #b91c1c; font-family: monospace;">${otp}</span>
+            <span style="display: block; font-size: 0.78rem; color: #7f1d1d; margin-top: 6px;">Valid for 10 minutes. Never share this code with anyone.</span>
+          </div>
+          <p style="font-size: 0.85rem; color: #6b7280; line-height: 1.4;">
+            If you did NOT request to delete your account, please change your password immediately and secure your account.
+          </p>
+        </div>
+        <div style="border-top: 1px solid #e5e7eb; padding: 14px 24px; background: #fafafa; text-align: center; font-size: 0.75rem; color: #9ca3af;">
+          UpSkillR Security &amp; Privacy Team &bull; Automated notification
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: `"UpSkillR Security" <${emailUser}>`,
+      to: email,
+      subject: "[Urgent] Your UpSkillR Account Deletion Code",
+      html,
+      text: `Your UpSkillR account deletion code is: ${otp}. It is valid for 10 minutes.`
+    });
+    return true;
+  } catch (err) {
+    console.error('[DELETE ACCOUNT EMAIL ERROR]', err);
+    return false;
+  }
+};
+
+exports.verifyDeleteAccountPassword = async (req, res) => {
+  try {
+    const learnerId = req.user.id;
+    const { password } = req.body;
+    const learner = await Learner.findById(learnerId);
+    if (!learner) {
+      return res.status(404).json({ success: false, message: 'Learner account not found.' });
+    }
+
+    const isOAuth = learner.authProvider !== 'local' && !learner.password;
+    if (!isOAuth) {
+      if (!password) {
+        return res.status(400).json({ success: false, message: 'Please enter your current account password.' });
+      }
+      const isMatch = await bcrypt.compare(password, learner.password);
+      if (!isMatch) {
+        return res.status(400).json({ success: false, message: 'Incorrect password. Please verify and try again.' });
+      }
+    }
+
+    // Generate secure 6-digit OTP
+    const otp = generateSecureOtp();
+    const hashedOtp = hashDeleteOtp(otp);
+
+    learner.deleteAccountOtp = hashedOtp;
+    learner.deleteAccountOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    learner.deleteAccountOtpAttempts = 0;
+    learner.deleteAccountOtpCooldown = new Date(Date.now() + 60 * 1000); // 60 seconds
+    await learner.save();
+
+    await sendDeletionOtpEmail(learner.email, otp, learner.fullName);
+
+    return res.status(200).json({
+      success: true,
+      message: `Verification code sent to ${learner.email}.`,
+      email: learner.email,
+      cooldownSeconds: 60
+    });
+  } catch (err) {
+    console.error('verifyDeleteAccountPassword error:', err);
+    return res.status(500).json({ success: false, message: 'Server error verifying password.' });
+  }
+};
+
+exports.resendDeleteAccountOtp = async (req, res) => {
+  try {
+    const learnerId = req.user.id;
+    const learner = await Learner.findById(learnerId);
+    if (!learner) {
+      return res.status(404).json({ success: false, message: 'Learner account not found.' });
+    }
+
+    if (learner.deleteAccountOtpCooldown && new Date(learner.deleteAccountOtpCooldown) > new Date()) {
+      const remainingSec = Math.ceil((new Date(learner.deleteAccountOtpCooldown).getTime() - Date.now()) / 1000);
+      return res.status(429).json({
+        success: false,
+        message: `Please wait ${remainingSec}s before requesting a new code.`,
+        remainingSec
+      });
+    }
+
+    const otp = generateSecureOtp();
+    const hashedOtp = hashDeleteOtp(otp);
+
+    learner.deleteAccountOtp = hashedOtp;
+    learner.deleteAccountOtpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    learner.deleteAccountOtpAttempts = 0;
+    learner.deleteAccountOtpCooldown = new Date(Date.now() + 60 * 1000);
+    await learner.save();
+
+    await sendDeletionOtpEmail(learner.email, otp, learner.fullName);
+
+    return res.status(200).json({
+      success: true,
+      message: `A fresh verification code has been sent to ${learner.email}.`,
+      cooldownSeconds: 60
+    });
+  } catch (err) {
+    console.error('resendDeleteAccountOtp error:', err);
+    return res.status(500).json({ success: false, message: 'Server error resending code.' });
+  }
+};
+
+exports.confirmDeleteAccount = async (req, res) => {
+  try {
+    const learnerId = req.user.id;
+    const { otp } = req.body;
+
+    if (!otp || String(otp).trim().length !== 6) {
+      return res.status(400).json({ success: false, message: 'Please enter the 6-digit verification code.' });
+    }
+
+    const learner = await Learner.findById(learnerId);
+    if (!learner) {
+      return res.status(404).json({ success: false, message: 'Learner account not found.' });
+    }
+
+    if (!learner.deleteAccountOtp || !learner.deleteAccountOtpExpires) {
+      return res.status(400).json({ success: false, message: 'No active account deletion request found. Please restart the process.' });
+    }
+
+    if (new Date() > new Date(learner.deleteAccountOtpExpires)) {
+      return res.status(400).json({ success: false, message: 'Verification code has expired. Please request a new one.' });
+    }
+
+    if (learner.deleteAccountOtpAttempts >= 5) {
+      return res.status(429).json({ success: false, message: 'Too many incorrect attempts. Please restart the deletion process.' });
+    }
+
+    const incomingHash = hashDeleteOtp(otp);
+    if (incomingHash !== learner.deleteAccountOtp) {
+      learner.deleteAccountOtpAttempts = (learner.deleteAccountOtpAttempts || 0) + 1;
+      await learner.save();
+      const remaining = 5 - learner.deleteAccountOtpAttempts;
+      return res.status(400).json({
+        success: false,
+        message: `Incorrect verification code. ${remaining > 0 ? `${remaining} attempt(s) remaining.` : "Code locked."}`
+      });
+    }
+
+    // OTP Verified! Permanently delete account & associated data
+    await Enrolment.deleteMany({ learnerId });
+    await PointTransaction.deleteMany({ learnerId });
+    await Bookmark.deleteMany({ learnerId });
+    await CourseReview.deleteMany({ learnerId });
+
+    // Remove learner avatar from Cloudinary if present
+    if (learner.avatar) {
+      try {
+        const { deleteCloudinaryAsset } = require('../utils/cloudinary');
+        if (deleteCloudinaryAsset) await deleteCloudinaryAsset(learner.avatar);
+      } catch (e) {}
+    }
+
+    await Learner.findByIdAndDelete(learnerId);
+
+    // Clear authentication cookie if present
+    res.clearCookie('upskillr_token');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Your UpSkillR account has been permanently deleted.'
+    });
+  } catch (err) {
+    console.error('confirmDeleteAccount error:', err);
+    return res.status(500).json({ success: false, message: 'Server error deleting account.' });
+  }
+};
+
+// ─── 14. GET /api/learners/me/milestones — Verified Learning Milestones ───
+exports.getLearnerMilestones = async (req, res) => {
+  try {
+    const learnerId = req.user.id;
+    const learner = await Learner.findById(learnerId).select('points currentStreak longestStreak createdAt lastCheckInDate');
+    if (!learner) return res.status(404).json({ success: false, message: 'Learner not found' });
+
+    // Completed enrolments sorted by completedAt ascending
+    const completedEnrolments = await Enrolment.find({
+      learnerId,
+      $or: [{ status: 'completed' }, { progressPercentage: { $gte: 100 } }]
+    }).sort({ completedAt: 1, lastAccessedAt: 1 });
+
+    const coursesCompletedCount = completedEnrolments.length;
+
+    // Total modules completed across all enrolments
+    const allEnrolments = await Enrolment.find({ learnerId }).select('completedLessons enrolledAt');
+    let totalModulesCompleted = 0;
+    allEnrolments.forEach(e => {
+      totalModulesCompleted += (e.completedLessons || []).length;
+    });
+
+    // Module completion transactions to find earliest module date
+    const firstModuleTx = await PointTransaction.findOne({
+      learnerId,
+      type: { $in: ['MODULE_COMPLETION', 'module_completion'] }
+    }).sort({ createdAt: 1 });
+
+    const longestStreak = Math.max(learner.longestStreak || 0, learner.currentStreak || 0);
+    const currentStreak = learner.currentStreak || 0;
+
+    const milestones = [
+      {
+        id: 'first_course',
+        title: 'First Course Completed',
+        description: 'Complete your first full course on UpSkillR',
+        category: 'course',
+        target: 1,
+        current: coursesCompletedCount,
+        earned: coursesCompletedCount >= 1,
+        achievedAt: coursesCompletedCount >= 1 ? (completedEnrolments[0]?.completedAt || completedEnrolments[0]?.lastAccessedAt || null) : null
+      },
+      {
+        id: 'first_module',
+        title: 'First Module Completed',
+        description: 'Finish all lessons in any course module',
+        category: 'module',
+        target: 1,
+        current: totalModulesCompleted,
+        earned: totalModulesCompleted >= 1,
+        achievedAt: totalModulesCompleted >= 1 ? (firstModuleTx?.createdAt || allEnrolments[0]?.enrolledAt || null) : null
+      },
+      {
+        id: 'streak_3',
+        title: '3-Day Learning Streak',
+        description: 'Learn 3 consecutive days without missing a check-in',
+        category: 'streak',
+        target: 3,
+        current: Math.min(longestStreak, 3),
+        earned: longestStreak >= 3,
+        achievedAt: longestStreak >= 3 ? (learner.lastCheckInDate || null) : null
+      },
+      {
+        id: 'streak_7',
+        title: '7-Day Learning Streak',
+        description: 'Build a consistent habit of 7 consecutive learning days',
+        category: 'streak',
+        target: 7,
+        current: Math.min(longestStreak, 7),
+        earned: longestStreak >= 7,
+        achievedAt: longestStreak >= 7 ? (learner.lastCheckInDate || null) : null
+      },
+      {
+        id: 'streak_30',
+        title: '30-Day Learning Streak',
+        description: 'Achieve the master tier of 30 consecutive active days',
+        category: 'streak',
+        target: 30,
+        current: Math.min(longestStreak, 30),
+        earned: longestStreak >= 30,
+        achievedAt: longestStreak >= 30 ? (learner.lastCheckInDate || null) : null
+      },
+      {
+        id: 'courses_5',
+        title: '5 Courses Completed',
+        description: 'Demonstrate broad expertise by completing 5 full courses',
+        category: 'course',
+        target: 5,
+        current: coursesCompletedCount,
+        earned: coursesCompletedCount >= 5,
+        achievedAt: coursesCompletedCount >= 5 ? (completedEnrolments[4]?.completedAt || null) : null
+      },
+      {
+        id: 'courses_10',
+        title: '10 Courses Completed',
+        description: 'Join the top elite tier by completing 10 full courses',
+        category: 'course',
+        target: 10,
+        current: coursesCompletedCount,
+        earned: coursesCompletedCount >= 10,
+        achievedAt: coursesCompletedCount >= 10 ? (completedEnrolments[9]?.completedAt || null) : null
+      }
+    ];
+
+    const earnedCount = milestones.filter(m => m.earned).length;
+
+    return res.status(200).json({
+      success: true,
+      earnedCount,
+      totalCount: milestones.length,
+      milestones,
+      stats: {
+        coursesCompleted: coursesCompletedCount,
+        modulesCompleted: totalModulesCompleted,
+        currentStreak,
+        longestStreak,
+        points: learner.points || 0
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching learner milestones:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch milestones.' });
   }
 };

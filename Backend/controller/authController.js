@@ -777,9 +777,18 @@ exports.manualLogin = async (req, res) => {
 
     // Credentials valid & account verified!
     // Complete manual login directly (single OTP verification was completed during signup)
+    let dailyReward = { awarded: false, points: 0 };
     if (user.role === 'learner') {
       try {
-        await processDailyLoginStreak(user);
+        const timeZone = req.headers['x-timezone'] || req.body?.timezone || user.timezone;
+        const { awardDailyLoginPoint } = require('../services/pointsService');
+        dailyReward = await awardDailyLoginPoint(user._id, timeZone);
+        const refreshedUser = await Learner.findById(user._id).select('points currentStreak longestStreak');
+        if (refreshedUser) {
+          user.points = refreshedUser.points;
+          user.currentStreak = refreshedUser.currentStreak;
+          user.longestStreak = refreshedUser.longestStreak;
+        }
       } catch (streakErr) {
         console.warn('Auto streak update error on manual login:', streakErr.message);
       }
@@ -801,6 +810,7 @@ exports.manualLogin = async (req, res) => {
       success: true,
       message: 'Logged in successfully!',
       token,
+      dailyReward,
       user: {
         id: user._id,
         fullName: user.fullName,
@@ -923,9 +933,18 @@ exports.verifyLoginOtp = async (req, res) => {
     user.otpPurpose = null;
     user.otpAttempts = 0;
 
+    let dailyReward = { awarded: false, points: 0 };
     if (user.role === 'learner') {
       try {
-        await processDailyLoginStreak(user);
+        const timeZone = req.headers['x-timezone'] || req.body?.timezone || user.timezone;
+        const { awardDailyLoginPoint } = require('../services/pointsService');
+        dailyReward = await awardDailyLoginPoint(user._id, timeZone);
+        const refreshedUser = await Learner.findById(user._id).select('points currentStreak longestStreak');
+        if (refreshedUser) {
+          user.points = refreshedUser.points;
+          user.currentStreak = refreshedUser.currentStreak;
+          user.longestStreak = refreshedUser.longestStreak;
+        }
       } catch (streakErr) {
         console.warn('Auto streak update error on manual login OTP verify:', streakErr.message);
       }
@@ -949,6 +968,7 @@ exports.verifyLoginOtp = async (req, res) => {
       success: true,
       message: 'Logged in successfully!',
       token,
+      dailyReward,
       user: {
         id: user._id,
         fullName: user.fullName,
@@ -1487,7 +1507,8 @@ exports.googleOAuthCallback = async (req, res) => {
 
     if (user.role === 'learner') {
       try {
-        await processDailyLoginStreak(user);
+        const { awardDailyLoginPoint } = require('../services/pointsService');
+        await awardDailyLoginPoint(user._id, user.timezone);
       } catch (streakErr) {
         console.warn('Auto streak update error on Google OAuth:', streakErr.message);
       }
@@ -1669,7 +1690,8 @@ exports.githubOAuthCallback = async (req, res) => {
 
     if (user.role === 'learner') {
       try {
-        await processDailyLoginStreak(user);
+        const { awardDailyLoginPoint } = require('../services/pointsService');
+        await awardDailyLoginPoint(user._id, user.timezone);
       } catch (streakErr) {
         console.warn('Auto streak update error on GitHub OAuth:', streakErr.message);
       }

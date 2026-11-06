@@ -5,7 +5,7 @@ const answerSchema = new mongoose.Schema({
   questionText: { type: String, required: true },
   questionType: {
     type: String,
-    enum: ['mcq', 'true_false', 'short_answer', 'long_answer'],
+    enum: ['mcq', 'multiple_choice', 'multiple_response', 'true_false', 'short_answer', 'long_answer'],
     required: true
   },
   studentAnswer: { type: mongoose.Schema.Types.Mixed, default: '' },
@@ -70,14 +70,50 @@ const assessmentSubmissionSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  startedAt: {
+    type: Date,
+    default: Date.now
+  },
   attemptNumber: {
     type: Number,
     default: 1
   },
+  timeTakenSeconds: {
+    type: Number,
+    default: 0
+  },
+  durationMinutes: {
+    type: Number,
+    default: 0
+  },
+  isFirstAttempt: {
+    type: Boolean,
+    default: false
+  },
+  isOfficial: {
+    type: Boolean,
+    default: false
+  },
+  correctCount: {
+    type: Number,
+    default: 0
+  },
+  incorrectCount: {
+    type: Number,
+    default: 0
+  },
+  unansweredCount: {
+    type: Number,
+    default: 0
+  },
+  totalQuestions: {
+    type: Number,
+    default: 0
+  },
   status: {
     type: String,
-    enum: ['submitted', 'graded', 'pending_review'],
-    default: 'pending_review'
+    enum: ['in_progress', 'submitted', 'graded', 'pending_review'],
+    default: 'submitted'
   },
   totalScore: {
     type: Number,

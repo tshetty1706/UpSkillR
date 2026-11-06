@@ -1,0 +1,89 @@
+import React from 'react';
+import { BookOpen, Sun, Moon, LogOut, Menu } from 'lucide-react';
+import { useTheme } from '../../../context/ThemeContext';
+import { NotificationBell } from '../../common/NotificationBell/NotificationBell';
+import './LearnerTopNav.css';
+
+export const LearnerTopNav = ({
+  user,
+  onToggleMobileSidebar,
+  onLogoutClick,
+  onLogoClick,
+  onNavigateToCourse
+}) => {
+  const { toggleTheme, isDarkMode } = useTheme();
+
+  const handleBrandClick = (e) => {
+    e.preventDefault();
+    if (onLogoClick) {
+      onLogoClick();
+    } else {
+      window.history.pushState({}, '', '/learner/dashboard');
+      window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/learner/dashboard' } }));
+    }
+  };
+
+  return (
+    <header className="learner-topnav" aria-label="Learner Top Navigation Bar">
+      <div className="learner-topnav-container">
+        {/* Left Section: Mobile Menu Trigger (when sidebar exists) + Brand Identity */}
+        <div className="learner-topnav-left">
+          {onToggleMobileSidebar && (
+            <button
+              type="button"
+              className="mobile-sidebar-toggle-btn"
+              onClick={onToggleMobileSidebar}
+              aria-label="Toggle navigation menu"
+            >
+              <Menu size={22} />
+            </button>
+          )}
+
+          <a
+            href="/learner/dashboard"
+            className="learner-brand-link"
+            onClick={handleBrandClick}
+            aria-label="UpSkillr Learner Dashboard Home"
+          >
+            <div className="brand-logo-badge">
+              <BookOpen size={20} className="brand-book-icon" />
+            </div>
+            <span className="brand-title-text">UpSkillR</span>
+            <span className="brand-role-chip">Learner</span>
+          </a>
+        </div>
+
+        {/* Right Section: Theme Toggle, Notifications & Logout (NO PROFILE ACCESS IN NAVBAR) */}
+        <div className="learner-topnav-right">
+          {/* Theme Switcher Button */}
+          <button
+            type="button"
+            className="topnav-icon-btn theme-toggle-btn"
+            onClick={toggleTheme}
+            aria-label={isDarkMode ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+            title={isDarkMode ? 'Light Mode' : 'Dark Mode'}
+          >
+            {isDarkMode ? <Sun size={19} /> : <Moon size={19} />}
+          </button>
+
+          {/* Notifications Bell */}
+          <NotificationBell onNavigateToCourse={onNavigateToCourse} />
+
+          {/* Logout Action */}
+          <button
+            type="button"
+            className="topnav-logout-btn"
+            onClick={onLogoutClick}
+            aria-label="Log out of account"
+            title="Log out"
+          >
+            <LogOut size={16} />
+            <span className="logout-text">Log out</span>
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+};
+
+export default LearnerTopNav;

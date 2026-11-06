@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Login_Page from '../../assets/illustrations/Login_Page.svg';
 import { useTheme } from '../../context/ThemeContext';
+import { useToast } from '../../context/ToastContext';
 import {
   Mail,
   Lock,
@@ -21,6 +22,7 @@ const API_BASE_URL = 'http://localhost:5000/api/auth';
 
 export default function Login() {
   const { theme, toggleTheme } = useTheme();
+  const { toast } = useToast();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -154,7 +156,7 @@ export default function Login() {
             navigate('/instructor/application');
           }
         } else {
-          navigate('/learner');
+          navigate('/learner/dashboard');
         }
       } catch (e) {
         console.error('Failed to parse user data from OAuth callback', e);
@@ -333,6 +335,11 @@ export default function Login() {
       localStorage.removeItem('upskillr_token');
       localStorage.removeItem('upskillr_user');
 
+      if (data.dailyReward?.awarded) {
+        toast.success(data.dailyReward.message || '+1 Point — Daily Login Reward!');
+        window.dispatchEvent(new CustomEvent('upskillr_points_updated', { detail: { points: 1 } }));
+      }
+
       const isInstructor = data.user?.role === 'instructor';
       if (isInstructor) {
         if (data.user?.applicationStatus === 'submitted') {
@@ -346,7 +353,7 @@ export default function Login() {
           sessionStorage.removeItem('upskillr_redirect_after_login');
           navigate(redirectPath);
         } else {
-          navigate('/learner');
+          navigate('/learner/dashboard');
         }
       }
     } catch (err) {
@@ -394,6 +401,11 @@ export default function Login() {
       localStorage.removeItem('upskillr_token');
       localStorage.removeItem('upskillr_user');
 
+      if (data.dailyReward?.awarded) {
+        toast.success(data.dailyReward.message || '+1 Point — Daily Login Reward!');
+        window.dispatchEvent(new CustomEvent('upskillr_points_updated', { detail: { points: 1 } }));
+      }
+
       const isInstructor = data.user?.role === 'instructor';
       if (isInstructor) {
         if (data.user?.applicationStatus === 'submitted') {
@@ -407,7 +419,7 @@ export default function Login() {
           sessionStorage.removeItem('upskillr_redirect_after_login');
           navigate(redirectPath);
         } else {
-          navigate('/learner');
+          navigate('/learner/dashboard');
         }
       }
     } catch (err) {

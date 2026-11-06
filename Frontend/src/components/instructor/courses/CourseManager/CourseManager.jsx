@@ -25,8 +25,12 @@ import {
   Plus,
   Bell,
   Eye,
-  MessageSquare
+  MessageSquare,
+  UserCheck,
+  ShieldCheck,
+  ExternalLink
 } from 'lucide-react';
+import { CertificatePreviewModal } from '../../../common/CertificatePreviewModal';
 import './CourseManager.css';
 import { useToast } from '../../../../context/ToastContext';
 import { DynamicTagInput } from '../courseCreation/Common/DynamicTagInput';
@@ -101,6 +105,37 @@ export const CourseManager = ({
     instructorMessage: '',
     faqs: []
   });
+
+  const [showCertPreview, setShowCertPreview] = useState(false);
+  const [showRecipientsModal, setShowRecipientsModal] = useState(false);
+  const [certStats, setCertStats] = useState({ totalIssued: 0, recipients: [], certificateEnabled: false });
+
+  const storedUser = JSON.parse(sessionStorage.getItem('upskillr_user') || '{}');
+  const [instructorInfo, setInstructorInfo] = useState({
+    fullName: storedUser.fullName || 'UpSkillr Instructor',
+    designation: storedUser.designation || 'Course Instructor'
+  });
+
+  const fetchCertificateStats = async (targetId) => {
+    const cId = targetId || courseId || course?._id;
+    if (!cId) return;
+    try {
+      const token = sessionStorage.getItem('upskillr_token');
+      const res = await fetch(`${API_BASE}/certificates/course/${cId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCertStats({
+          totalIssued: data.totalIssued || 0,
+          recipients: data.recipients || [],
+          certificateEnabled: data.certificateEnabled
+        });
+      }
+    } catch (e) {
+      console.warn('Could not load course certificate stats:', e.message);
+    }
+  };
 
   const handlePreviewOverview = () => {
     const targetCourseId = courseId || course?._id;
@@ -213,6 +248,7 @@ export const CourseManager = ({
         setOverview(fallbackOverview);
         setOverviewForm(fallbackOverview);
       }
+      fetchCertificateStats(fetchedCourse._id || courseId);
     } catch (err) {
       console.error('Failed to load course workspace', err);
       setAccessDenied(true);
@@ -1121,21 +1157,50 @@ export const CourseManager = ({
                   </div>
                 </div>
 
-                {/* Certificate Status */}
+                {/* Certificate Status & Stats */}
                 <div className="workspace-info-card certificate-card">
                   <div className="cert-card-left">
                     <Award size={28} className="accent-green" />
                     <div>
-                      <h4 className="cert-heading">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                        <h4 className="cert-heading" style={{ margin: 0 }}>Course Completion Certificate</h4>
+                        <span className={`cert-status-pill ${overview?.certificate !== false ? 'status-enabled' : 'status-disabled'}`}>
+                          {overview?.certificate !== false ? 'Enabled' : 'Disabled'}
+                        </span>
+                      </div>
+                      <p className="cert-subtext" style={{ marginTop: '0.35rem' }}>
                         {overview?.certificate !== false
-                          ? 'Course Completion Certificate Enabled'
-                          : 'No Certificate Configured'}
-                      </h4>
-                      <p className="cert-subtext">
-                        {overview?.certificate !== false
-                          ? 'Learners will automatically receive a verified digital certificate upon completing all lessons and assessments.'
-                          : 'Learners will not be issued a certificate for this course.'}
+                          ? 'Learners receive a verified UpSkillR digital certificate with QR code and instructor signature upon finishing 100% of curriculum.'
+                          : 'Certificates are disabled for this course. Learners complete normally without an issued certificate.'}
                       </p>
+
+                      {overview?.certificate !== false && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.85rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            Certificates Issued: <strong style={{ color: '#10b981' }}>{certStats.totalIssued}</strong>
+                          </span>
+                          {certStats.totalIssued > 0 && (
+                            <button
+                              type="button"
+                              className="btn-cert-recipients-trigger"
+                              onClick={() => setShowRecipientsModal(true)}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.75rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                            >
+                              <Users size={14} />
+                              <span>View Recipients ({certStats.totalIssued})</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="btn-cert-preview-trigger"
+                            onClick={() => setShowCertPreview(true)}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.75rem', background: '#10b981', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            <Eye size={14} />
+                            <span>Preview Certificate</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1261,22 +1326,75 @@ export const CourseManager = ({
                   />
                 </div>
 
-                {/* Certificate Toggle */}
-                <div className="workspace-toggle-row">
-                  <label className="switch-container">
-                    <input
-                      type="checkbox"
-                      checked={overviewForm.certificate !== false}
-                      onChange={(e) => setOverviewForm({ ...overviewForm, certificate: e.target.checked })}
-                    />
-                    <span className="slider-round" />
-                  </label>
-                  <div className="toggle-text-wrap">
-                    <span className="toggle-title">Issue Course Completion Certificate</span>
-                    <span className="toggle-desc">
-                      Verified certificate awarded upon finishing lessons and assessments.
-                    </span>
+                {/* Certificate Settings Section */}
+                <div className="workspace-certificate-settings-box" style={{ padding: '1.25rem', background: 'var(--surface-muted, #f8faf9)', border: '1px solid var(--border, #c6d3cb)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Award size={20} className="accent-green" />
+                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>Certificate Settings</h3>
                   </div>
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                    Configure whether learners receive an official UpSkillR course completion certificate upon finishing 100% of curriculum.
+                  </p>
+
+                  <div className="workspace-toggle-row" style={{ margin: 0 }}>
+                    <label className="switch-container" aria-label="Provide Course Completion Certificates">
+                      <input
+                        type="checkbox"
+                        checked={overviewForm.certificate === true}
+                        onChange={(e) => setOverviewForm({ ...overviewForm, certificate: e.target.checked })}
+                      />
+                      <span className="slider-round" />
+                    </label>
+                    <div className="toggle-text-wrap">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span className="toggle-title">Provide Course Completion Certificates</span>
+                        <span className={`cert-status-pill ${overviewForm.certificate === true ? 'status-enabled' : 'status-disabled'}`}>
+                          {overviewForm.certificate === true ? 'Enabled' : 'Disabled (Default)'}
+                        </span>
+                      </div>
+                      <span className="toggle-desc">
+                        {overviewForm.certificate === true
+                          ? 'A verified UpSkillR course completion certificate will be automatically generated with QR verification when learners complete all lessons.'
+                          : 'Learners can complete the course normally, but no certificate will be generated.'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {overviewForm.certificate === true && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.85rem 1rem', background: 'rgba(16, 185, 129, 0.06)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '8px' }}>
+                      <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', fontSize: '0.85rem' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <UserCheck size={15} style={{ color: '#10b981' }} />
+                          <span style={{ color: 'var(--text-secondary)' }}>Instructor:</span>
+                          <strong>{instructorInfo.fullName}</strong>
+                        </div>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <ShieldCheck size={15} style={{ color: '#10b981' }} />
+                          <span style={{ color: 'var(--text-secondary)' }}>Designation:</span>
+                          <strong>{instructorInfo.designation}</strong>
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: '0.8rem', color: '#047857', background: '#ecfdf5', padding: '0.45rem 0.65rem', borderRadius: '6px' }}>
+                        ✦ Handwritten cursive signature is automatically generated from your profile name. No signature image upload is required.
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="btn-cert-preview-trigger"
+                          onClick={() => setShowCertPreview(true)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.85rem', background: '#10b981', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          <Eye size={15} />
+                          <span>Preview Learner Certificate</span>
+                        </button>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                          Preview with your credentials and handwritten cursive signature.
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Personal Message to Learner */}
@@ -1600,6 +1718,131 @@ export const CourseManager = ({
           </section>
         )}
       </main>
+
+      {/* Certificate Preview Modal */}
+      <CertificatePreviewModal
+        isOpen={showCertPreview}
+        onClose={() => setShowCertPreview(false)}
+        courseTitle={course?.title || overviewForm.fullDescription?.slice(0, 40) || 'Course Completion'}
+        instructorName={instructorInfo.fullName}
+        instructorDesignation={instructorInfo.designation}
+      />
+
+      {/* Course Certificate Recipients Modal */}
+      {showRecipientsModal && (
+        <div className="cert-preview-overlay" onClick={() => setShowRecipientsModal(false)} role="dialog" aria-modal="true">
+          <div className="cert-preview-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '750px' }}>
+            <div className="cert-preview-header">
+              <div className="cert-preview-header-title">
+                <Users size={20} className="cert-header-icon" />
+                <div>
+                  <h3>Issued Certificates ({certStats.totalIssued})</h3>
+                  <p>Learners who have successfully earned a completion certificate for this course</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-cert-preview-close"
+                onClick={() => setShowRecipientsModal(false)}
+                aria-label="Close recipients modal"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ padding: '1.25rem', overflowY: 'auto', maxHeight: '60vh' }}>
+              {certStats.recipients?.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
+                  No learners have completed this course yet.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {certStats.recipients.map((rec, i) => (
+                    <div
+                      key={rec.certificateId || i}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.85rem 1rem',
+                        background: 'var(--surface-muted, #0f172a)',
+                        border: '1px solid var(--border, #334155)',
+                        borderRadius: '8px',
+                        gap: '1rem',
+                        flexWrap: 'wrap'
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{rec.studentName}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          ID: <span style={{ fontFamily: 'monospace', color: '#10b981' }}>{rec.certificateId}</span> • Issued: {new Date(rec.issuedAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <a
+                          href={`/verify-certificate/${rec.certificateId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            padding: '0.4rem 0.75rem',
+                            background: 'rgba(16, 185, 129, 0.1)',
+                            color: '#10b981',
+                            borderRadius: '6px',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            textDecoration: 'none'
+                          }}
+                        >
+                          <span>Verify</span>
+                          <ExternalLink size={13} />
+                        </a>
+                        {rec.certificateImageUrl && (
+                          <a
+                            href={rec.certificateImageUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0.4rem 0.75rem',
+                              background: '#10b981',
+                              color: '#ffffff',
+                              borderRadius: '6px',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              textDecoration: 'none'
+                            }}
+                          >
+                            <span>View PNG</span>
+                            <ExternalLink size={13} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="cert-preview-footer">
+              <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                Certificates are permanently stored and digitally verified.
+              </span>
+              <button
+                type="button"
+                className="btn-cert-preview-done"
+                onClick={() => setShowRecipientsModal(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

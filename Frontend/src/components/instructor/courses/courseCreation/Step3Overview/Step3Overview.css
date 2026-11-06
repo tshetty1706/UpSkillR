@@ -183,6 +183,158 @@
   line-height: 1.4;
 }
 
+/* Certificate Settings Enhanced Section */
+.certificate-settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.25rem;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, #c6d3cb);
+  border-radius: var(--radius-md, 12px);
+}
+
+.section-subtitle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.section-inner-heading {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f1a13);
+}
+
+.cert-title-status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.cert-status-pill {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cert-status-pill.status-enabled {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.cert-status-pill.status-disabled {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
+.cert-enabled-details-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem 1.25rem;
+  background: rgba(16, 185, 129, 0.05);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 8px;
+  animation: certFadeIn 0.2s ease-out;
+}
+
+.cert-instructor-profile-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+
+.profile-chip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-primary, #0f1a13);
+}
+
+.profile-chip-icon {
+  color: #10b981;
+}
+
+.chip-label {
+  color: var(--text-secondary, #64748b);
+  font-weight: 500;
+}
+
+.chip-value {
+  font-weight: 600;
+}
+
+.cert-signature-notice {
+  font-size: 0.8rem;
+  color: #047857;
+  background: #ecfdf5;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  line-height: 1.4;
+}
+
+.cert-preview-action-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.btn-cert-preview-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #10b981;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-cert-preview-trigger:hover {
+  background: #059669;
+}
+
+.cert-preview-hint {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.dark .certificate-settings-section {
+  background: var(--surface-elevated, #162420);
+  border-color: var(--border, #243831);
+}
+
+.dark .cert-status-pill.status-enabled {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.4);
+}
+
+.dark .cert-status-pill.status-disabled {
+  background: rgba(100, 116, 139, 0.2);
+  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+.dark .cert-signature-notice {
+  background: rgba(16, 185, 129, 0.1);
+  color: #6ee7b7;
+}
+
 /* Syllabus Preview Banner */
 .syllabus-preview-banner {
   display: flex;

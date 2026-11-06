@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, BookOpen, AlertCircle, RefreshCw, ChevronRight } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { CourseOverviewTemplate } from '../../components/instructor/courses/courseCreation/OverviewTemplate/CourseOverviewTemplate';
+import { CourseLearningPage } from '../CourseLearning/CourseLearningPage';
 import './CourseOverviewPage.css';
 
 export const CourseOverviewPage = ({ courseId, user = null }) => {
@@ -74,8 +75,9 @@ export const CourseOverviewPage = ({ courseId, user = null }) => {
   };
 
   const handleGoToLearning = () => {
-    window.history.pushState({}, '', '/learner');
-    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/learner' } }));
+    const path = `/learn/${courseId}`;
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
   };
 
   const handleEnroll = async () => {
@@ -102,6 +104,7 @@ export const CourseOverviewPage = ({ courseId, user = null }) => {
       if (json.success) {
         setIsEnrolled(true);
         toast.success(json.message || `Successfully enrolled in ${data?.course?.title || 'course'}!`);
+        fetchCourseOverview();
       } else {
         toast.error(json.message || 'Enrollment failed.');
       }
@@ -142,8 +145,9 @@ export const CourseOverviewPage = ({ courseId, user = null }) => {
 
   return (
     <div className="course-overview-page-wrapper">
-      {/* Top Navigation / Breadcrumbs Bar */}
-      <nav className="course-overview-top-nav" aria-label="Course Overview Navigation">
+      {/* Top Navigation / Breadcrumbs Bar (only when not enrolled) */}
+      {!isEnrolled && (
+        <nav className="course-overview-top-nav" aria-label="Course Overview Navigation">
         <div className="course-overview-nav-container">
           <button
             type="button"
@@ -178,6 +182,7 @@ export const CourseOverviewPage = ({ courseId, user = null }) => {
           </div>
         </div>
       </nav>
+      )}
 
       {/* Loading Skeleton State */}
       {loading && (
@@ -234,8 +239,11 @@ export const CourseOverviewPage = ({ courseId, user = null }) => {
         </div>
       )}
 
-      {/* Full-Page Course Overview Content */}
-      {!loading && !error && data && (
+      {/* When student is enrolled, display the Course Details Page (Reference Image 2) */}
+      {!loading && !error && isEnrolled ? (
+        <CourseLearningPage courseId={courseId} user={user} />
+      ) : !loading && !error && data ? (
+        /* When student is not yet enrolled, display the Course Overview with Enroll action */
         <CourseOverviewTemplate
           course={data.course}
           overview={data.overview}
@@ -251,7 +259,7 @@ export const CourseOverviewPage = ({ courseId, user = null }) => {
           isPreviewMode={false}
           user={user}
         />
-      )}
+      ) : null}
     </div>
   );
 };

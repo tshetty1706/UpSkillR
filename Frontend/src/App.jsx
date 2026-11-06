@@ -12,9 +12,13 @@ import { LearnerDashboard } from './pages/Learner/LearnerDashboard';
 import { ExploreCourses } from './components/home/ExploreCourses/ExploreCourses';
 import { ExploreInstructors } from './components/home/ExploreInstructors/ExploreInstructors';
 import { CourseOverviewPage } from './pages/CourseOverview/CourseOverviewPage';
+import { CourseLearningPage } from './pages/CourseLearning/CourseLearningPage';
+import { CourseWorkspacePage } from './pages/CourseWorkspace/CourseWorkspacePage.jsx';
+import { QuizTakingPage } from './pages/QuizTaking/QuizTakingPage.jsx';
 import { NotFound } from './components/common/NotFound/NotFound';
 import { InstructorApplication } from './components/instructor/application/InstructorApplication';
 import { InstructorExploreCourses } from './components/home/InstructorExploreCourses/InstructorExploreCourses';
+import { CertificateVerificationPage } from './pages/CertificateVerification/CertificateVerificationPage';
 
 function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -63,7 +67,7 @@ function App() {
           setCurrentUser(user);
           const targetPath = user.role === 'instructor'
             ? (user.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
-            : '/learner';
+            : '/learner/dashboard';
           window.history.replaceState({}, document.title, targetPath);
           setCurrentPath(targetPath);
           setAuthChecking(false);
@@ -94,7 +98,7 @@ function App() {
           if (window.location.pathname === '/dashboard' || window.location.pathname === '/login') {
             const targetPath = data.user.role === 'instructor'
               ? (data.user.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
-              : '/learner';
+              : '/learner/dashboard';
             window.history.replaceState({}, document.title, targetPath);
             setCurrentPath(targetPath);
           }
@@ -184,7 +188,7 @@ function App() {
       if (currentUser) {
         const targetPath = currentUser.role === 'instructor'
           ? (currentUser.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
-          : '/learner';
+          : '/learner/dashboard';
         if (currentPath !== targetPath) {
           window.history.replaceState({}, '', targetPath);
         }
@@ -209,7 +213,7 @@ function App() {
       if (currentUser) {
         const targetPath = currentUser.role === 'instructor'
           ? (currentUser.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
-          : '/learner';
+          : '/learner/dashboard';
         if (currentPath !== targetPath) {
           window.history.replaceState({}, '', targetPath);
         }
@@ -225,7 +229,7 @@ function App() {
       if (currentUser) {
         const targetPath = currentUser.role === 'instructor'
           ? (currentUser.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
-          : '/learner';
+          : '/learner/dashboard';
         if (currentPath !== targetPath) {
           window.history.replaceState({}, '', targetPath);
         }
@@ -241,7 +245,7 @@ function App() {
       if (currentUser) {
         const targetPath = currentUser.role === 'instructor'
           ? (currentUser.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
-          : '/learner';
+          : '/learner/dashboard';
         if (currentPath !== targetPath) {
           window.history.replaceState({}, '', targetPath);
         }
@@ -288,7 +292,10 @@ function App() {
 
       return <InstructorDashboard user={currentUser} onLogout={handleLogout} />;
     }
-    if (path.startsWith('/learner/') || path === '/learner') {
+    if (path.startsWith('/learner/') || path === '/learner' || (currentUser?.role === 'learner' && (path === '/profile' || path === '/settings'))) {
+      if (path === '/profile') window.history.replaceState({}, '', '/learner/profile');
+      if (path === '/settings') window.history.replaceState({}, '', '/learner/settings');
+      if (path === '/learner') window.history.replaceState({}, '', '/learner/dashboard');
       if (!currentUser) {
         if (authChecking) {
           return (
@@ -311,8 +318,21 @@ function App() {
       const instructorId = instructorExploreMatch[1];
       return (
         <div className="app-main">
-          <Navbar />
+          <Navbar user={currentUser} />
           <InstructorExploreCourses instructorId={instructorId} user={currentUser} />
+          <Footer />
+        </div>
+      );
+    }
+
+    // Public Certificate Verification Route: /verify-certificate/:certificateId or /verify/:certificateId
+    const certVerifyMatch = currentPath.match(/^\/(?:verify-certificate|verify)(?:\/([^/?#]+))?/i);
+    if (certVerifyMatch) {
+      const certificateId = certVerifyMatch[1] || '';
+      return (
+        <div className="app-main">
+          <Navbar user={currentUser} />
+          <CertificateVerificationPage certificateId={certificateId} user={currentUser} />
           <Footer />
         </div>
       );
@@ -321,21 +341,60 @@ function App() {
     if (path === '/instructors') {
       return (
         <div className="app-main">
-          <Navbar />
+          <Navbar user={currentUser} />
           <ExploreInstructors />
           <Footer />
         </div>
       );
     }
+    
+    // Dedicated Standalone Distraction-Free Quiz Taking Page
+    const quizAttemptMatch = currentPath.match(/^\/quiz\/([^/?#]+)\/([^/?#]+)\/attempt\/([^/?#]+)/i);
+    if (quizAttemptMatch) {
+      const courseId = quizAttemptMatch[1];
+      const quizId = quizAttemptMatch[2];
+      const attemptId = quizAttemptMatch[3];
+      if (!currentUser) {
+        if (authChecking) {
+          return (
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', color: 'var(--brand-primary)', fontWeight: 600 }}>
+              <div>Loading quiz attempt...</div>
+            </div>
+          );
+        }
+        sessionStorage.setItem('upskillr_redirect_after_login', currentPath);
+        return <Login />;
+      }
+      return <QuizTakingPage courseId={courseId} quizId={quizId} attemptId={attemptId} user={currentUser} />;
+    }
+
+    // Dedicated Course Learning Workspace: /learn/:courseId (3-Panel Focused Workspace)
+    const courseLearnMatch = currentPath.match(/^\/learn\/([^/?#]+)/i);
+    if (courseLearnMatch) {
+      const courseId = courseLearnMatch[1];
+      if (!currentUser) {
+        if (authChecking) {
+          return (
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', color: 'var(--brand-primary)', fontWeight: 600 }}>
+              <div>Loading learning workspace...</div>
+            </div>
+          );
+        }
+        sessionStorage.setItem('upskillr_redirect_after_login', `/learn/${courseId}`);
+        return <Login />;
+      }
+      return <CourseWorkspacePage courseId={courseId} user={currentUser} />;
+    }
+
     // Course Overview Route: /courses/:courseId or /course/:courseId
     const courseOverviewMatch = currentPath.match(/^\/(?:courses|course)\/([^/?#]+)/i);
     if (courseOverviewMatch) {
       const courseId = courseOverviewMatch[1];
       return (
         <div className="app-main">
-          <Navbar />
+          <Navbar user={currentUser} />
           <CourseOverviewPage courseId={courseId} user={currentUser} />
-          <Footer />
+          {currentUser?.role !== 'learner' && <Footer />}
         </div>
       );
     }
@@ -343,7 +402,7 @@ function App() {
     if (path === '/explore' || path === '/courses') {
       return (
         <div className="app-main">
-          <Navbar />
+          <Navbar user={currentUser} />
           <ExploreCourses />
           <Footer />
         </div>
@@ -352,7 +411,7 @@ function App() {
     if (path === '/') {
       return (
         <div className="app-main">
-          <Navbar />
+          <Navbar user={currentUser} />
           <HomePage />
           <Footer />
         </div>

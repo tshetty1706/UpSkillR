@@ -442,11 +442,34 @@ export const DedicatedVideoEditor = ({
           toast?.success?.('Video processed and ready for streaming!');
         }
       } else {
-        const mockPlayId = credData.playbackId || `mock_stream_${Date.now()}`;
-        setMuxAssetId(credData.assetId || `mock_asset_${Date.now()}`);
-        setMuxPlaybackId(mockPlayId);
-        setThumbnailUrl(`https://image.mux.com/${mockPlayId}/thumbnail.jpg?time=2`);
-        toast?.success?.('Video uploaded and configured!');
+        // Direct server-side upload fallback to persistent storage
+        setUploadProgress(40);
+        setUploadStatusText('Uploading video to persistent storage...');
+
+        const formData = new FormData();
+        formData.append('video', file);
+
+        const uploadDirectRes = await fetch(`${apiBase}/courses/${courseId}/curriculum/upload/video`, {
+          method: 'POST',
+          headers: {
+            ...authHeaders
+          },
+          body: formData
+        });
+
+        const uploadDirectData = await uploadDirectRes.json();
+        if (uploadDirectRes.ok && uploadDirectData.success && uploadDirectData.url) {
+          setExternalUrl(uploadDirectData.url);
+          setMuxAssetId(uploadDirectData.assetId || `local_${Date.now()}`);
+          setMuxPlaybackId('');
+          if (clientDuration > 0) {
+            setDuration(clientDuration);
+            setTrimEnd(clientDuration);
+          }
+          toast?.success?.('Video uploaded to course storage successfully!');
+        } else {
+          throw new Error(uploadDirectData.message || 'Direct video upload to server failed.');
+        }
       }
 
       setUploadProgress(100);
@@ -508,6 +531,15 @@ export const DedicatedVideoEditor = ({
       const token = sessionStorage.getItem('upskillr_token');
       const authHeaders = token ? { Authorization: `Bearer ${token}` } : getAuthHeader();
 
+      const isBlob = typeof externalUrl === 'string' && externalUrl.startsWith('blob:');
+      const resolvedVideoUrl = (!isBlob && externalUrl)
+        ? externalUrl
+        : (muxPlaybackId ? `https://stream.mux.com/${muxPlaybackId}.m3u8` : '');
+      const resolvedMp4Url = muxPlaybackId ? `https://stream.mux.com/${muxPlaybackId}/capped-1080p.mp4` : resolvedVideoUrl;
+      const cleanThumbnail = (thumbnailUrl && !thumbnailUrl.startsWith('blob:'))
+        ? thumbnailUrl
+        : (muxPlaybackId ? `https://image.mux.com/${muxPlaybackId}/thumbnail.jpg?time=2` : '');
+
       const payload = {
         title: title.trim(),
         description: description.trim(),
@@ -516,13 +548,14 @@ export const DedicatedVideoEditor = ({
         video: {
           muxAssetId: muxAssetId || '',
           muxPlaybackId: muxPlaybackId || '',
-          videoUrl: externalUrl || (muxPlaybackId ? `https://stream.mux.com/${muxPlaybackId}.m3u8` : ''),
-          url: externalUrl || (muxPlaybackId ? `https://stream.mux.com/${muxPlaybackId}.m3u8` : ''),
-          fileUrl: externalUrl || (muxPlaybackId ? `https://stream.mux.com/${muxPlaybackId}.m3u8` : ''),
+          videoUrl: resolvedVideoUrl,
+          url: resolvedVideoUrl,
+          fileUrl: resolvedVideoUrl,
+          mp4Url: resolvedMp4Url,
           duration: Number(duration) || 564,
           allowFreePreview: Boolean(allowFreePreview),
           addToLessonNotes: Boolean(addToLessonNotes),
-          thumbnailUrl: thumbnailUrl || '',
+          thumbnailUrl: cleanThumbnail,
           thumbnails: thumbnailOptions || [],
           fileName: fileName || '',
           status: 'ready'

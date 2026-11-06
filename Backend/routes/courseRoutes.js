@@ -9,6 +9,8 @@ const courseContentController = require('../controller/courseContentController')
 const assessmentReviewController = require('../controller/assessmentReviewController');
 const analyticsController = require('../controller/analyticsController');
 const reviewController = require('../controller/reviewController');
+const learnerController = require('../controller/learnerController');
+const quizController = require('../controller/quizController');
 const {
   protect,
   requireLearner,
@@ -86,8 +88,16 @@ router.post('/enrol', protect, requireLearner, courseController.enrolInCourse);
 router.post('/:courseId/enroll', protect, requireLearner, courseController.enrolInCourse);
 router.get('/learner/my-enrolments', protect, requireLearner, courseController.getLearnerEnrolments);
 router.get('/:courseId/progress', protect, requireLearner, courseController.getCourseProgress);
+router.post('/:courseId/progress', protect, requireLearner, courseController.updateLessonProgress);
 router.post('/progress', protect, requireLearner, courseController.updateLessonProgress);
+router.post('/:courseId/lessons/:lessonId/progress', protect, requireLearner, courseController.updateLessonProgress);
+router.post('/:courseId/lessons/:lessonId/complete', protect, requireLearner, courseController.updateLessonProgress);
 router.post('/:courseId/modules/:moduleId/complete', protect, requireLearner, courseController.updateLessonProgress);
+router.post('/:courseId/modules/:moduleId/lessons/:lessonId/progress', protect, requireLearner, courseController.updateLessonProgress);
+router.post('/:courseId/modules/:moduleId/lessons/:lessonId/complete', protect, requireLearner, courseController.updateLessonProgress);
+router.post('/:courseId/lessons/:lessonId/watch-progress', protect, requireLearner, courseController.updateVideoWatchProgress);
+router.get('/:courseId/lessons/:lessonId/watch-progress', protect, requireLearner, courseController.getVideoWatchProgress);
+router.post('/:courseId/watch-progress', protect, requireLearner, courseController.updateVideoWatchProgress);
 router.post('/rate', protect, requireLearner, reviewController.submitCourseReview);
 
 // ─── Course Reviews & Ratings (FR-09) ───
@@ -96,6 +106,17 @@ router.get('/:courseId/my-review', protect, requireLearner, reviewController.get
 router.post('/:courseId/review', protect, requireLearner, reviewController.submitCourseReview);
 router.patch('/:courseId/review', protect, requireLearner, reviewController.updateCourseReview);
 router.put('/:courseId/review', protect, requireLearner, reviewController.updateCourseReview);
+router.delete('/:courseId/review', protect, requireLearner, reviewController.deleteCourseReview);
+router.post('/:courseId/access', protect, requireLearner, learnerController.recordCourseAccess);
+
+// ─── Dedicated Quiz System Routes ───
+router.get('/:courseId/quizzes/:quizId/info', protect, requireLearner, quizController.getQuizInfo);
+router.post('/:courseId/quizzes/:quizId/start', protect, requireLearner, quizController.startQuizAttempt);
+router.get('/:courseId/quizzes/:quizId/attempt/:attemptId', protect, requireLearner, quizController.getQuizAttempt);
+router.post('/:courseId/quizzes/:quizId/attempt/:attemptId/submit', protect, requireLearner, quizController.submitQuizAttempt);
+router.get('/:courseId/quizzes/:quizId/leaderboard', protect, requireLearner, quizController.getQuizLeaderboard);
+router.get('/:courseId/course-leaderboard', protect, requireLearner, quizController.getCourseLeaderboard);
+
 
 // ─── 3. Instructor Course Management (Collection Level) ───
 router.get('/instructor/my-courses', protect, requireSubmittedInstructor, courseController.getInstructorCourses);

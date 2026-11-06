@@ -7,6 +7,11 @@ const pointTransactionSchema = new mongoose.Schema({
     required: [true, 'learnerId is required'],
     index: true
   },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Learner',
+    index: true
+  },
   points: {
     type: Number,
     required: [true, 'points value is required'],
@@ -15,10 +20,19 @@ const pointTransactionSchema = new mongoose.Schema({
   type: {
     type: String,
     enum: {
-      values: ['MODULE_COMPLETION', 'QUIZ_COMPLETION', 'COURSE_COMPLETION', 'DAILY_CHECKIN'],
+      values: [
+        'MODULE_COMPLETION', 'module_completion',
+        'COURSE_COMPLETION', 'course_completion',
+        'DAILY_CHECKIN', 'DAILY_LOGIN', 'daily_login',
+        'QUIZ_COMPLETION', 'quiz_completion'
+      ],
       message: '{VALUE} is not a valid learner activity type'
     },
     required: true
+  },
+  activityType: {
+    type: String,
+    trim: true
   },
   referenceId: {
     type: String,
@@ -34,13 +48,34 @@ const pointTransactionSchema = new mongoose.Schema({
     default: Date.now,
     index: true
   }
+}, {
+  timestamps: { createdAt: true, updatedAt: false },
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
 // Sparse compound index to prevent duplicate point rewards for same transaction
 pointTransactionSchema.index({ learnerId: 1, type: 1, referenceId: 1 }, { unique: true, sparse: true });
+pointTransactionSchema.index({ userId: 1, activityType: 1, referenceId: 1 }, { unique: true, sparse: true });
 
-// Pre-validate hook: Strictly restrict PointTransaction to genuine learners only
+// Pre-validate hook: Normalize aliases & restrict PointTransaction to genuine learners only
 pointTransactionSchema.pre('validate', async function () {
+  // Sync learnerId & userId aliases
+  if (!this.learnerId && this.userId) {
+    this.learnerId = this.userId;
+  }
+  if (!this.userId && this.learnerId) {
+    this.userId = this.learnerId;
+  }
+
+  // Sync type & activityType aliases
+  if (!this.activityType && this.type) {
+    this.activityType = this.type.toLowerCase();
+  }
+  if (!this.type && this.activityType) {
+    this.type = this.activityType.toUpperCase();
+  }
+
   if (!this.learnerId) {
     throw new Error('PointTransaction is restricted to learners only: learnerId is required.');
   }
@@ -61,4 +96,3 @@ pointTransactionSchema.pre('validate', async function () {
 });
 
 module.exports = mongoose.model('PointTransaction', pointTransactionSchema, 'point_transactions');
-

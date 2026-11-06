@@ -1,5 +1,20 @@
 const mongoose = require('mongoose');
 
+const videoWatchRecordSchema = new mongoose.Schema({
+  lessonId: { type: String },
+  contentItemId: { type: String },
+  totalDuration: { type: Number, default: 0 },
+  watchedIntervals: [{
+    start: { type: Number, required: true },
+    end: { type: Number, required: true }
+  }],
+  uniqueWatchedDuration: { type: Number, default: 0 },
+  watchPercentage: { type: Number, default: 0 },
+  lastWatchedPosition: { type: Number, default: 0 },
+  isEligible: { type: Boolean, default: false },
+  lastUpdated: { type: Date, default: Date.now }
+}, { _id: false });
+
 const enrolmentSchema = new mongoose.Schema({
   learnerId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -47,6 +62,24 @@ const enrolmentSchema = new mongoose.Schema({
   lastAccessedAt: {
     type: Date,
     default: Date.now
+  },
+  lastAccessedModuleId: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  lastAccessedLessonId: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  videoProgress: {
+    type: Map,
+    of: Number,
+    default: () => new Map()
+  },
+  videoWatchData: {
+    type: Map,
+    of: videoWatchRecordSchema,
+    default: () => new Map()
   },
   rating: {
     type: Number,

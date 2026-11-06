@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,9 +14,12 @@ import {
   Plus,
   Trash2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  ShieldCheck,
+  UserCheck
 } from 'lucide-react';
 import { DynamicTagInput } from '../Common/DynamicTagInput';
+import { CertificatePreviewModal } from '../../../../common/CertificatePreviewModal';
 import './Step3Overview.css';
 
 export const Step3Overview = ({
@@ -28,6 +31,34 @@ export const Step3Overview = ({
 }) => {
   const [errors, setErrors] = useState({});
   const [showOptionalFields, setShowOptionalFields] = useState(false);
+  const [showCertPreview, setShowCertPreview] = useState(false);
+
+  const storedUser = JSON.parse(sessionStorage.getItem('upskillr_user') || '{}');
+  const [instructorInfo, setInstructorInfo] = useState({
+    fullName: storedUser.fullName || 'UpSkillr Instructor',
+    designation: storedUser.designation || 'Course Instructor'
+  });
+
+  useEffect(() => {
+    if (!storedUser.designation) {
+      const token = sessionStorage.getItem('upskillr_token');
+      if (token) {
+        fetch('http://localhost:5000/api/auth/instructor/profile', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success && data.instructor) {
+              setInstructorInfo({
+                fullName: data.instructor.fullName || storedUser.fullName || 'UpSkillr Instructor',
+                designation: data.instructor.designation || 'Course Instructor'
+              });
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, []);
 
   const validate = () => {
     const newErrors = {};
@@ -199,33 +230,82 @@ export const Step3Overview = ({
             />
           </div>
 
-          {/* Certificate Toggle */}
-          <div className="certificate-toggle-box">
-            <div className="cert-left-meta">
-              <label className="cert-switch">
-                <input
-                  type="checkbox"
-                  checked={overviewData.certificate !== false}
-                  onChange={(e) => onChange({ ...overviewData, certificate: e.target.checked })}
-                />
-                <span className="cert-slider" />
-              </label>
-              <div className="cert-icon-wrap">
-                <Award size={24} className="accent-green" />
+          {/* Certificate Settings */}
+          <div className="certificate-settings-section">
+            <div className="section-subtitle-wrap">
+              <Award size={20} className="accent-green" />
+              <h3 className="section-inner-heading">Certificate Settings</h3>
+            </div>
+            <p className="field-subnote">
+              Configure whether learners receive an official UpSkillR course completion certificate upon finishing 100% of the course curriculum.
+            </p>
+
+            <div className="certificate-toggle-box">
+              <div className="cert-left-meta">
+                <label className="cert-switch" aria-label="Provide Course Completion Certificates">
+                  <input
+                    type="checkbox"
+                    checked={overviewData.certificate === true}
+                    onChange={(e) => onChange({ ...overviewData, certificate: e.target.checked })}
+                  />
+                  <span className="cert-slider" />
+                </label>
+                <div className="cert-icon-wrap">
+                  <Award size={24} className="accent-green" />
+                </div>
+              </div>
+              <div className="cert-text-wrap">
+                <div className="cert-title-status-row">
+                  <h4 className="cert-title">Provide Course Completion Certificates</h4>
+                  <span className={`cert-status-pill ${overviewData.certificate === true ? 'status-enabled' : 'status-disabled'}`}>
+                    {overviewData.certificate === true ? 'Enabled' : 'Disabled (Default)'}
+                  </span>
+                </div>
+                <p className="cert-desc">
+                  {overviewData.certificate === true
+                    ? 'A verified UpSkillR course completion certificate will be automatically generated with QR verification when learners complete all lessons.'
+                    : 'Learners can complete the course normally, but no certificate will be generated.'}
+                </p>
               </div>
             </div>
-            <div className="cert-text-wrap">
-              <h4 className="cert-title">
-                {overviewData.certificate !== false
-                  ? 'Yes, learners will receive a certificate'
-                  : 'No certificate awarded for this course'}
-              </h4>
-              <p className="cert-desc">
-                {overviewData.certificate !== false
-                  ? 'A verified UpSkillr course completion certificate will be awarded upon finishing all lessons.'
-                  : 'Learners will not be issued a certificate upon completion.'}
-              </p>
-            </div>
+
+            {/* If Certificate is Enabled: Show Instructor Profile Details & Live Certificate Preview */}
+            {overviewData.certificate === true && (
+              <div className="cert-enabled-details-box">
+                <div className="cert-instructor-profile-row">
+                  <div className="profile-chip-item">
+                    <UserCheck size={16} className="profile-chip-icon" />
+                    <span className="chip-label">Instructor Name:</span>
+                    <strong className="chip-value">{instructorInfo.fullName}</strong>
+                  </div>
+                  <div className="profile-chip-item">
+                    <ShieldCheck size={16} className="profile-chip-icon" />
+                    <span className="chip-label">Designation:</span>
+                    <strong className="chip-value">{instructorInfo.designation}</strong>
+                  </div>
+                </div>
+
+                <div className="cert-signature-notice">
+                  <span>
+                    ✦ An authentic handwritten cursive signature will be automatically generated using your name. No signature image upload is required.
+                  </span>
+                </div>
+
+                <div className="cert-preview-action-row">
+                  <button
+                    type="button"
+                    className="btn-cert-preview-trigger"
+                    onClick={() => setShowCertPreview(true)}
+                  >
+                    <Eye size={16} />
+                    <span>Preview Learner Certificate</span>
+                  </button>
+                  <span className="cert-preview-hint">
+                    Includes your name, designation, cursive signature & verification QR code.
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Syllabus Preview Banner */}
@@ -417,6 +497,15 @@ export const Step3Overview = ({
           <span>Share Your Knowledge Empower Many ✦</span>
         </div>
       </aside>
+
+      {/* Certificate Preview Modal */}
+      <CertificatePreviewModal
+        isOpen={showCertPreview}
+        onClose={() => setShowCertPreview(false)}
+        courseTitle={overviewData.title || overviewData.fullDescription?.slice(0, 40) || 'Course Completion'}
+        instructorName={instructorInfo.fullName}
+        instructorDesignation={instructorInfo.designation}
+      />
     </div>
   );
 };
