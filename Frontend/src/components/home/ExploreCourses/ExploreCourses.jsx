@@ -6,6 +6,7 @@ import './ExploreCourses.css';
 import { useToast } from '../../../context/ToastContext';
 import exploreCoursesSvg from '../../../assets/illustrations/explore_courses.svg?raw';
 import { CourseCard } from '../../common/CourseCard/CourseCard';
+import { recordCourseReturnUrl } from '../../../utils/navigationHelper';
 
 export const ExploreCourses = () => {
   const { toast } = useToast();
@@ -18,6 +19,7 @@ export const ExploreCourses = () => {
   const categoryScrollRef = useRef(null);
 
   const handleNavigateToCourse = (courseId) => {
+    recordCourseReturnUrl(window.location.pathname + window.location.search);
     const path = `/courses/${courseId}`;
     window.history.pushState({}, '', path);
     window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));

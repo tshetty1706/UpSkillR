@@ -11,12 +11,12 @@ const notificationSchema = new mongoose.Schema(
     courseId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Course',
-      required: [true, 'Course ID is required'],
+      default: null,
       index: true
     },
     courseTitle: {
       type: String,
-      required: [true, 'Course title is required'],
+      default: '',
       trim: true
     },
     title: {
@@ -31,7 +31,7 @@ const notificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['NEW_MODULE', 'NEW_LESSON', 'COURSE_UPDATE'],
+      enum: ['NEW_MODULE', 'NEW_LESSON', 'COURSE_UPDATE', 'BADGE_UNLOCKED'],
       default: 'NEW_LESSON'
     },
     moduleTitle: {

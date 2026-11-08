@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   MoreVertical,
   CheckCircle2,
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { CourseThumbnail } from '../../common/CourseThumbnail';
 import { calculateCourseProgress } from '../dashboard/MyLearningSection';
+import { recordCourseReturnUrl } from '../../../utils/navigationHelper';
 import './LearnerMyLearningView.css';
 
 export const LearnerMyLearningView = ({
@@ -22,9 +23,76 @@ export const LearnerMyLearningView = ({
   onExploreCourses,
   loading = false
 }) => {
-  const [activeTab, setActiveTab] = useState('enrolled'); // 'enrolled' | 'completed' | 'not_started'
+  const getInitialTab = () => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam && ['enrolled', 'completed', 'not_started'].includes(tabParam)) {
+        return tabParam;
+      }
+      const savedTab = sessionStorage.getItem('upskillr_mylearning_tab');
+      if (savedTab && ['enrolled', 'completed', 'not_started'].includes(savedTab)) {
+        return savedTab;
+      }
+    } catch (e) {}
+    return 'enrolled';
+  };
+
+  const [activeTab, setActiveTabState] = useState(getInitialTab);
   const [openMenuCourseId, setOpenMenuCourseId] = useState(null);
   const [expandedCourseId, setExpandedCourseId] = useState(null);
+
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab);
+    try {
+      sessionStorage.setItem('upskillr_mylearning_tab', tab);
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.set('tab', tab);
+      window.history.replaceState({}, '', currentUrl.pathname + currentUrl.search);
+    } catch (e) {}
+  };
+
+  // Sync activeTab if browser URL query string changes
+  useEffect(() => {
+    const syncTabFromUrl = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const tabParam = params.get('tab');
+        if (tabParam && ['enrolled', 'completed', 'not_started'].includes(tabParam)) {
+          setActiveTabState(tabParam);
+          sessionStorage.setItem('upskillr_mylearning_tab', tabParam);
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener('popstate', syncTabFromUrl);
+    window.addEventListener('upskillr_navigate', syncTabFromUrl);
+    return () => {
+      window.removeEventListener('popstate', syncTabFromUrl);
+      window.removeEventListener('upskillr_navigate', syncTabFromUrl);
+    };
+  }, []);
+
+  // Ensure current URL has the active tab query param on mount or tab change
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('tab') !== activeTab) {
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('tab', activeTab);
+        window.history.replaceState({}, '', currentUrl.pathname + currentUrl.search);
+      }
+      sessionStorage.setItem('upskillr_mylearning_tab', activeTab);
+    } catch (e) {}
+  }, [activeTab]);
+
+  const recordCurrentReturn = () => {
+    try {
+      const fullUrl = `/learner/my-learning?tab=${activeTab}`;
+      recordCourseReturnUrl(fullUrl);
+      sessionStorage.setItem('upskillr_mylearning_tab', activeTab);
+    } catch (e) {}
+  };
 
   // Group enrolments into the 3 strict categories
   const { enrolledCourses, completedCourses, notStartedCourses } = useMemo(() => {
@@ -65,6 +133,7 @@ export const LearnerMyLearningView = ({
   };
 
   const handleActionClick = (enrolment) => {
+    recordCurrentReturn();
     const { category, course } = enrolment.computed;
     const courseId = course._id || enrolment.courseId;
 
@@ -232,12 +301,16 @@ export const LearnerMyLearningView = ({
                   {/* Thumbnail */}
                   <div
                     className="course-thumb-box"
-                    onClick={() => onNavigateToCourse && onNavigateToCourse(course._id)}
+                    onClick={() => {
+                      recordCurrentReturn();
+                      onNavigateToCourse && onNavigateToCourse(course._id);
+                    }}
                     role="button"
                     tabIndex={0}
                     aria-label={`View ${course.title}`}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
+                        recordCurrentReturn();
                         onNavigateToCourse && onNavigateToCourse(course._id);
                       }
                     }}
@@ -254,7 +327,10 @@ export const LearnerMyLearningView = ({
                     <h2
                       className="course-title-text"
                       title={course.title}
-                      onClick={() => onNavigateToCourse && onNavigateToCourse(course._id)}
+                      onClick={() => {
+                        recordCurrentReturn();
+                        onNavigateToCourse && onNavigateToCourse(course._id);
+                      }}
                     >
                       {course.title}
                     </h2>
@@ -315,6 +391,7 @@ export const LearnerMyLearningView = ({
                             role="menuitem"
                             onClick={() => {
                               setOpenMenuCourseId(null);
+                              recordCurrentReturn();
                               if (onViewCourseDetails) {
                                 onViewCourseDetails(course._id);
                               } else {

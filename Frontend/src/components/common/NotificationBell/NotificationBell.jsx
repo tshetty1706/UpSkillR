@@ -4,6 +4,7 @@ import {
   BookOpen,
   Layers,
   Video,
+  Award,
   CheckCheck,
   Check,
   ExternalLink,
@@ -156,7 +157,12 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
       handleMarkAsRead(notif._id);
     }
     setIsOpen(false);
-    if (onNavigateToCourse) {
+    if (notif.type === 'BADGE_UNLOCKED') {
+      window.history.pushState({}, '', '/learner/achievements');
+      window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/learner/achievements' } }));
+      return;
+    }
+    if (onNavigateToCourse && notif.courseId) {
       onNavigateToCourse(notif.courseId);
     } else {
       // Navigate to explore/course overview
@@ -214,12 +220,13 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
                 </div>
                 <p className="empty-title">All caught up!</p>
                 <p className="empty-desc">
-                  When instructors upload new modules or lessons to courses, you'll see your alerts right here.
+                  When you earn badges or instructors upload new modules, you'll see your alerts right here.
                 </p>
               </div>
             ) : (
               <ul className="notification-list">
                 {notifications.map((notif) => {
+                  const isBadge = notif.type === 'BADGE_UNLOCKED';
                   const isModule = notif.type === 'NEW_MODULE';
                   return (
                     <li
@@ -231,14 +238,14 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
                         {!notif.isRead && <span className="unread-dot" title="Unread" />}
                       </div>
 
-                      <div className={`notif-icon-box ${isModule ? 'module-box' : 'lesson-box'}`}>
-                        {isModule ? <Layers size={17} /> : <Video size={17} />}
+                      <div className={`notif-icon-box ${isBadge ? 'badge-box' : isModule ? 'module-box' : 'lesson-box'}`}>
+                        {isBadge ? <Award size={17} /> : isModule ? <Layers size={17} /> : <Video size={17} />}
                       </div>
 
                       <div className="notif-content-column">
                         <div className="notif-meta-row">
-                          <span className={`notif-type-tag ${isModule ? 'tag-module' : 'tag-lesson'}`}>
-                            {isModule ? 'New Module' : 'New Lesson'}
+                          <span className={`notif-type-tag ${isBadge ? 'tag-badge' : isModule ? 'tag-module' : 'tag-lesson'}`}>
+                            {isBadge ? 'Badge Unlocked' : isModule ? 'New Module' : 'New Lesson'}
                           </span>
                           <span className="notif-time-ago">
                             <Clock size={11} />
@@ -246,15 +253,23 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
                           </span>
                         </div>
 
-                        <p className="notif-course-title">{notif.courseTitle}</p>
+                        <p className="notif-course-title">
+                          {isBadge ? (notif.title || 'Badge Unlocked!') : notif.courseTitle}
+                        </p>
                         <p className="notif-detail-text">
-                          {notif.moduleTitle && isModule && (
-                            <strong>{notif.moduleTitle}</strong>
+                          {isBadge ? (
+                            <strong>{notif.message}</strong>
+                          ) : (
+                            <>
+                              {notif.moduleTitle && isModule && (
+                                <strong>{notif.moduleTitle}</strong>
+                              )}
+                              {notif.lessonTitle && !isModule && (
+                                <strong>{notif.lessonTitle}</strong>
+                              )}
+                              {!notif.moduleTitle && !notif.lessonTitle && notif.message}
+                            </>
                           )}
-                          {notif.lessonTitle && !isModule && (
-                            <strong>{notif.lessonTitle}</strong>
-                          )}
-                          {!notif.moduleTitle && !notif.lessonTitle && notif.message}
                         </p>
 
                         <div className="notif-action-row">
@@ -270,7 +285,7 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
                             </button>
                           )}
                           <span className="notif-view-course-link">
-                            <span>Open</span>
+                            <span>{isBadge ? 'View Badges' : 'Open'}</span>
                             <ExternalLink size={11} />
                           </span>
                         </div>

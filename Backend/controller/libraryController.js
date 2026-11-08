@@ -379,6 +379,25 @@ exports.addOrToggleBookmark = async (req, res) => {
 
     const populated = await Bookmark.findById(bookmark._id).populate('folderId', '_id name color');
 
+    try {
+      const { logLearnerActivity } = require('../services/activityService');
+      logLearnerActivity(learnerId, {
+        activityType: 'bookmark_added',
+        title: 'Bookmark Added',
+        description: `Bookmarked "${resolvedTitle || lessonTitle || 'Resource'}" to learning library`,
+        courseId,
+        courseTitle: resolvedCourseTitle || 'Course',
+        moduleId,
+        moduleTitle,
+        lessonId,
+        lessonTitle,
+        referenceId: `bm_${bookmark._id}`,
+        points: 0,
+        metadata: { resourceType: normType },
+        createdAt: new Date()
+      }).catch(() => {});
+    } catch (_) {}
+
     return res.status(201).json({
       success: true,
       action: 'added',
@@ -589,6 +608,24 @@ exports.createNote = async (req, res) => {
     });
 
     const populated = await PersonalNote.findById(note._id).populate('folderId', '_id name color');
+
+    try {
+      const { logLearnerActivity } = require('../services/activityService');
+      logLearnerActivity(learnerId, {
+        activityType: 'note_created',
+        title: 'Personal Note Created',
+        description: `Created personal note: "${title.trim()}"`,
+        courseId: validCourseId,
+        courseTitle: resolvedCourseTitle ? resolvedCourseTitle.trim() : '',
+        moduleId,
+        moduleTitle: moduleTitle ? moduleTitle.trim() : '',
+        lessonId,
+        lessonTitle: lessonTitle ? lessonTitle.trim() : '',
+        referenceId: `note_${note._id}`,
+        points: 0,
+        createdAt: new Date()
+      }).catch(() => {});
+    } catch (_) {}
 
     return res.status(201).json({
       success: true,

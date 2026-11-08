@@ -147,6 +147,30 @@ const learnerSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  badges: [
+    {
+      badgeId: {
+        type: String,
+        required: true
+      },
+      name: {
+        type: String,
+        required: true
+      },
+      category: {
+        type: String,
+        default: 'streak'
+      },
+      threshold: {
+        type: Number,
+        required: true
+      },
+      unlockedAt: {
+        type: Date,
+        default: Date.now
+      }
+    }
+  ],
   isVerified: {
     type: Boolean,
     default: false
@@ -207,6 +231,27 @@ const learnerSchema = new mongoose.Schema({
   deleteAccountOtpCooldown: {
     type: Date,
     default: null
+  },
+  deleteAccountOtpPurpose: {
+    type: String,
+    default: 'ACCOUNT_DELETION'
+  },
+  deleteAccountAuthToken: {
+    type: String,
+    default: null
+  },
+  deleteAccountAuthExpires: {
+    type: Date,
+    default: null
+  },
+  deleteAccountAuthUsed: {
+    type: Boolean,
+    default: false
+  },
+  deletionStatus: {
+    type: String,
+    enum: ['active', 'pending_deletion', 'deleted', null],
+    default: 'active'
   },
   passwordChangedAt: {
     type: Date,

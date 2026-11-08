@@ -11,6 +11,7 @@ const videoWatchRecordSchema = new mongoose.Schema({
   uniqueWatchedDuration: { type: Number, default: 0 },
   watchPercentage: { type: Number, default: 0 },
   lastWatchedPosition: { type: Number, default: 0 },
+  maxWatchedTime: { type: Number, default: 0 },
   isEligible: { type: Boolean, default: false },
   lastUpdated: { type: Date, default: Date.now }
 }, { _id: false });

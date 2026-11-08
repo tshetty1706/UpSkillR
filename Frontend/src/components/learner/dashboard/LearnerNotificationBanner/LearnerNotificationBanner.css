@@ -36,6 +36,16 @@
   justify-content: center;
 }
 
+.banner-bell-badge.badge-award-bell {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+}
+
+.banner-badge-icon {
+  animation: bell-ring 3s infinite ease-in-out;
+  transform-origin: center center;
+}
+
 .banner-bell-icon {
   animation: bell-ring 3s infinite ease-in-out;
   transform-origin: top center;
@@ -94,6 +104,12 @@
   background: var(--brand-light, #E4EFE7);
   color: var(--brand-primary, #116830);
   border: 1px solid rgba(17, 104, 48, 0.2);
+}
+
+.banner-tag.tag-badge {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+  border-color: rgba(245, 158, 11, 0.3);
 }
 
 .banner-course-name {
@@ -300,6 +316,11 @@
 .expanded-item-icon.lesson {
   background: var(--brand-light, #E4EFE7);
   color: var(--brand-primary, #116830);
+}
+
+.expanded-item-icon.badge {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
 }
 
 .expanded-item-info {

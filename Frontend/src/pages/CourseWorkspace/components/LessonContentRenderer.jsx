@@ -23,7 +23,10 @@ export const LessonContentRenderer = ({
   videoState = {},
   quizState = {},
   codeState = {},
-  bookmarkState = {}
+  bookmarkState = {},
+  moduleIdx,
+  lessonIdx,
+  itemIdx
 }) => {
   if (!lesson) {
     return null;
@@ -71,6 +74,9 @@ export const LessonContentRenderer = ({
           contentItem={contentItem}
           course={course}
           bookmarkState={bookmarkState}
+          moduleIdx={moduleIdx}
+          lessonIdx={lessonIdx}
+          itemIdx={itemIdx}
         />
       );
 

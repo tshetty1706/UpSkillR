@@ -67,6 +67,28 @@ function findQuizInCourse(course, quizId) {
             assessmentId: quizItem._id
           };
         }
+
+        const lesType = String(les.type || '').trim().toLowerCase();
+        if (lesType === 'quiz' || lesType.includes('quiz') || les.quiz || (les.questions && les.questions.length > 0)) {
+          return {
+            type: 'lesson_quiz',
+            quizObj: les.quiz || {},
+            questions: les.quiz?.questions || les.questions || [],
+            title: les.title || 'Lesson Quiz',
+            description: les.description || '',
+            instructions: les.quiz?.instructions || '',
+            passThresholdPercent: les.quiz?.passThresholdPercent ?? 70,
+            durationMinutes: les.quiz?.durationMinutes ?? les.quiz?.timeLimit ?? null,
+            totalMarks: les.quiz?.totalMarks ?? null,
+            module: mod,
+            moduleIndex: mIdx,
+            lesson: les,
+            lessonIndex: lIdx,
+            item: null,
+            itemIndex: -1,
+            assessmentId: les._id
+          };
+        }
       }
     }
   }
@@ -246,21 +268,25 @@ exports.getQuizInfo = async (req, res) => {
     const attemptsCount = submissions.length;
     let firstAttempt = null;
 
+    const formattedAttempts = submissions.map(s => ({
+      attemptId: s._id,
+      attemptNumber: s.attemptNumber || 1,
+      totalScore: s.totalScore || 0,
+      maxScore: s.maxScore || totalMarks,
+      percentage: s.percentage || 0,
+      gradeResult: s.gradeResult || 'pending',
+      correctCount: s.correctCount || 0,
+      incorrectCount: s.incorrectCount || 0,
+      unansweredCount: s.unansweredCount || 0,
+      timeTakenSeconds: s.timeTakenSeconds || 0,
+      submittedAt: s.submittedAt,
+      isOfficial: Boolean(s.isOfficial || s.isFirstAttempt || s.attemptNumber === 1),
+      isFirstAttempt: Boolean(s.isFirstAttempt || s.attemptNumber === 1)
+    }));
+
     if (attemptsCount > 0) {
       // Find the official first attempt (either isOfficial: true or lowest attemptNumber)
-      const official = submissions.find(s => s.isOfficial || s.isFirstAttempt) || submissions[0];
-      firstAttempt = {
-        attemptNumber: official.attemptNumber || 1,
-        totalScore: official.totalScore || 0,
-        maxScore: official.maxScore || totalMarks,
-        percentage: official.percentage || 0,
-        gradeResult: official.gradeResult || 'pending',
-        correctCount: official.correctCount || 0,
-        incorrectCount: official.incorrectCount || 0,
-        unansweredCount: official.unansweredCount || 0,
-        timeTakenSeconds: official.timeTakenSeconds || 0,
-        submittedAt: official.submittedAt
-      };
+      firstAttempt = formattedAttempts.find(s => s.isOfficial || s.isFirstAttempt) || formattedAttempts[0];
     }
 
     // Check if there is an active in-progress attempt within valid window
@@ -297,6 +323,7 @@ exports.getQuizInfo = async (req, res) => {
       hasAttempted: attemptsCount > 0,
       attemptsCount,
       firstAttempt,
+      attempts: formattedAttempts,
       activeAttemptId
     });
   } catch (err) {
@@ -340,6 +367,11 @@ exports.startQuizAttempt = async (req, res) => {
     const isStillValid = attempt && (Date.now() - new Date(attempt.startedAt).getTime() < maxMs);
 
     if (!isStillValid) {
+      if (attempt) {
+        attempt.status = 'expired';
+        await attempt.save().catch(() => {});
+      }
+
       // Determine attempt number
       const previousCount = await AssessmentSubmission.countDocuments({
         assessmentId: quizInfo.assessmentId,
@@ -407,7 +439,7 @@ exports.startQuizAttempt = async (req, res) => {
   }
 };
 
-// ─── 3. Get Active Quiz Attempt State (For Refresh / Page Reload) ───
+// ─── 3. Get Active Quiz Attempt State (For Refresh / Page Reload / Review) ───
 exports.getQuizAttempt = async (req, res) => {
   try {
     const { courseId, quizId, attemptId } = req.params;
@@ -423,6 +455,69 @@ exports.getQuizAttempt = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Quiz not found.' });
     }
 
+    const isSubmitted = attempt.status === 'submitted' || attempt.status === 'graded';
+
+    // If attempt is finalized, return full result summary and question-by-question review
+    if (isSubmitted) {
+      const reviewQuestions = (attempt.answers || []).map((ans, idx) => {
+        const qOriginal = quizInfo?.questions ? (quizInfo.questions.find(q => String(q._id) === String(ans.questionId)) || quizInfo.questions[idx]) : null;
+        return {
+          questionId: ans.questionId,
+          questionIndex: idx,
+          questionText: ans.questionText || qOriginal?.questionText || `Question ${idx + 1}`,
+          type: ans.questionType || qOriginal?.type || 'mcq',
+          options: (ans.options && ans.options.length > 0) ? ans.options : (qOriginal?.options || []),
+          optionImages: (ans.optionImages && ans.optionImages.length > 0) ? ans.optionImages : (qOriginal?.optionImages || []),
+          studentAnswer: ans.studentAnswer,
+          correctAnswer: ans.correctAnswer !== undefined && ans.correctAnswer !== '' ? ans.correctAnswer : (qOriginal?.correctAnswerIndex ?? qOriginal?.correctAnswer),
+          isCorrect: Boolean(ans.isCorrect),
+          isAnswered: ans.isAnswered !== undefined ? ans.isAnswered : (ans.studentAnswer !== undefined && ans.studentAnswer !== null && ans.studentAnswer !== ''),
+          marksAwarded: ans.marksAwarded || 0,
+          maxMarks: ans.maxMarks || qOriginal?.marks || 1,
+          explanation: ans.feedback || qOriginal?.explanation || ''
+        };
+      });
+
+      return res.json({
+        success: true,
+        attemptId: attempt._id,
+        startedAt: attempt.startedAt,
+        durationMinutes: attempt.durationMinutes || 10,
+        serverTime: Date.now(),
+        status: attempt.status,
+        isSubmitted: true,
+        result: {
+          attemptId: attempt._id,
+          attemptNumber: attempt.attemptNumber || 1,
+          totalScore: attempt.totalScore || 0,
+          maxScore: attempt.maxScore || resolveQuizMarks(quizInfo),
+          percentage: attempt.percentage || 0,
+          gradeResult: attempt.gradeResult || 'pending',
+          correctCount: attempt.correctCount || 0,
+          incorrectCount: attempt.incorrectCount || 0,
+          unansweredCount: attempt.unansweredCount || 0,
+          totalQuestions: reviewQuestions.length || attempt.totalQuestions || quizInfo.questions.length,
+          timeTakenSeconds: attempt.timeTakenSeconds || 0,
+          submittedAt: attempt.submittedAt,
+          isFirstAttempt: Boolean(attempt.isFirstAttempt || attempt.attemptNumber === 1),
+          isOfficial: Boolean(attempt.isOfficial || attempt.isFirstAttempt || attempt.attemptNumber === 1)
+        },
+        review: {
+          questions: reviewQuestions
+        },
+        quiz: {
+          id: quizInfo.assessmentId,
+          title: quizInfo.title,
+          courseTitle: course?.title || '',
+          moduleTitle: quizInfo.module?.title || '',
+          lessonTitle: quizInfo.lesson?.title || '',
+          totalQuestions: reviewQuestions.length || quizInfo.questions.length,
+          totalMarks: resolveQuizMarks(quizInfo)
+        }
+      });
+    }
+
+    // Active in-progress attempt: sanitize questions (NEVER expose answers or explanations)
     const sanitizedQuestions = quizInfo.questions.map((q, idx) => ({
       _id: q._id || `q_${idx + 1}`,
       questionIndex: idx,
@@ -440,10 +535,12 @@ exports.getQuizAttempt = async (req, res) => {
       durationMinutes: attempt.durationMinutes || 10,
       serverTime: Date.now(),
       status: attempt.status,
-      isSubmitted: attempt.status === 'submitted' || attempt.status === 'graded',
+      isSubmitted: false,
       quiz: {
         id: quizInfo.assessmentId,
         title: quizInfo.title,
+        description: quizInfo.description,
+        instructions: quizInfo.instructions,
         courseTitle: course?.title || '',
         moduleTitle: quizInfo.module?.title || '',
         lessonTitle: quizInfo.lesson?.title || '',
@@ -469,30 +566,56 @@ exports.submitQuizAttempt = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Attempt not found or unauthorized.' });
     }
 
-    // If already submitted, return the saved result
-    if (attempt.status === 'submitted' || attempt.status === 'graded') {
-      return res.json({
-        success: true,
-        alreadySubmitted: true,
-        result: {
-          totalScore: attempt.totalScore,
-          maxScore: attempt.maxScore,
-          percentage: attempt.percentage,
-          gradeResult: attempt.gradeResult,
-          correctCount: attempt.correctCount,
-          incorrectCount: attempt.incorrectCount,
-          unansweredCount: attempt.unansweredCount,
-          timeTakenSeconds: attempt.timeTakenSeconds,
-          isFirstAttempt: attempt.isFirstAttempt,
-          attemptNumber: attempt.attemptNumber
-        }
-      });
-    }
-
     const course = await Course.findById(courseId);
     const quizInfo = findQuizInCourse(course, quizId);
     if (!quizInfo) {
       return res.status(404).json({ success: false, message: 'Quiz questions not found.' });
+    }
+
+    // If already submitted, return the saved result with full review (idempotent / double-submit safe)
+    if (attempt.status === 'submitted' || attempt.status === 'graded') {
+      const reviewQuestions = (attempt.answers || []).map((ans, idx) => {
+        const qOriginal = quizInfo?.questions ? (quizInfo.questions.find(q => String(q._id) === String(ans.questionId)) || quizInfo.questions[idx]) : null;
+        return {
+          questionId: ans.questionId,
+          questionIndex: idx,
+          questionText: ans.questionText || qOriginal?.questionText || `Question ${idx + 1}`,
+          type: ans.questionType || qOriginal?.type || 'mcq',
+          options: (ans.options && ans.options.length > 0) ? ans.options : (qOriginal?.options || []),
+          optionImages: (ans.optionImages && ans.optionImages.length > 0) ? ans.optionImages : (qOriginal?.optionImages || []),
+          studentAnswer: ans.studentAnswer,
+          correctAnswer: ans.correctAnswer !== undefined && ans.correctAnswer !== '' ? ans.correctAnswer : (qOriginal?.correctAnswerIndex ?? qOriginal?.correctAnswer),
+          isCorrect: Boolean(ans.isCorrect),
+          isAnswered: ans.isAnswered !== undefined ? ans.isAnswered : (ans.studentAnswer !== undefined && ans.studentAnswer !== null && ans.studentAnswer !== ''),
+          marksAwarded: ans.marksAwarded || 0,
+          maxMarks: ans.maxMarks || qOriginal?.marks || 1,
+          explanation: ans.feedback || qOriginal?.explanation || ''
+        };
+      });
+
+      return res.json({
+        success: true,
+        alreadySubmitted: true,
+        result: {
+          attemptId: attempt._id,
+          attemptNumber: attempt.attemptNumber || 1,
+          totalScore: attempt.totalScore || 0,
+          maxScore: attempt.maxScore || resolveQuizMarks(quizInfo),
+          percentage: attempt.percentage || 0,
+          gradeResult: attempt.gradeResult || 'pending',
+          correctCount: attempt.correctCount || 0,
+          incorrectCount: attempt.incorrectCount || 0,
+          unansweredCount: attempt.unansweredCount || 0,
+          totalQuestions: reviewQuestions.length || attempt.totalQuestions || quizInfo.questions.length,
+          timeTakenSeconds: attempt.timeTakenSeconds || 0,
+          submittedAt: attempt.submittedAt,
+          isFirstAttempt: Boolean(attempt.isFirstAttempt || attempt.attemptNumber === 1),
+          isOfficial: Boolean(attempt.isOfficial || attempt.isFirstAttempt || attempt.attemptNumber === 1)
+        },
+        review: {
+          questions: reviewQuestions
+        }
+      });
     }
 
     const questions = quizInfo.questions || [];
@@ -525,7 +648,7 @@ exports.submitQuizAttempt = async (req, res) => {
           const studentNum = Number(studentAns);
           if (!isNaN(studentNum)) {
             isCorrect = studentNum === correctIdx;
-          } else if (q.correctAnswer) {
+          } else if (q.correctAnswer !== undefined && q.correctAnswer !== null) {
             isCorrect = String(studentAns).trim().toLowerCase() === String(q.correctAnswer).trim().toLowerCase();
           }
         }
@@ -546,9 +669,12 @@ exports.submitQuizAttempt = async (req, res) => {
         questionId: q._id || new mongoose.Types.ObjectId(),
         questionText: q.questionText || `Question ${qIdx + 1}`,
         questionType: q.type || 'mcq',
-        studentAnswer: studentAns,
-        correctAnswer: isMulti ? (q.correctOptionIndexes || []) : (q.correctAnswer || q.correctAnswerIndex),
+        options: Array.isArray(q.options) ? q.options : [],
+        optionImages: Array.isArray(q.optionImages) ? q.optionImages : [],
+        studentAnswer: isAnswered ? studentAns : null,
+        correctAnswer: isMulti ? (q.correctOptionIndexes || []) : (q.correctAnswerIndex !== undefined ? q.correctAnswerIndex : q.correctAnswer),
         isCorrect,
+        isAnswered,
         marksAwarded,
         maxMarks: qMarks,
         feedback: q.explanation || ''
@@ -571,7 +697,8 @@ exports.submitQuizAttempt = async (req, res) => {
       assessmentId: quizInfo.assessmentId,
       learnerId: req.user.id,
       isOfficial: true,
-      status: { $in: ['submitted', 'graded'] }
+      status: { $in: ['submitted', 'graded'] },
+      _id: { $ne: attempt._id }
     });
 
     const isFirstOfficial = !priorOfficial;
@@ -593,44 +720,121 @@ exports.submitQuizAttempt = async (req, res) => {
 
     await attempt.save();
 
-    // If this is the FIRST official attempt, update course enrolment progress
-    if (isFirstOfficial) {
-      const enrolment = await Enrolment.findOne({ courseId, learnerId: req.user.id });
-      if (enrolment) {
-        const itemIdentifier = String(quizInfo.assessmentId);
-        if (!enrolment.completedLessons.includes(itemIdentifier)) {
-          enrolment.completedLessons.push(itemIdentifier);
-        }
+    try {
+      const { logLearnerActivity } = require('../services/activityService');
+      const isRetake = (attempt.attemptNumber || 1) > 1;
+      logLearnerActivity(req.user.id, {
+        activityType: isRetake ? 'quiz_retaken' : 'quiz_attempted',
+        title: isRetake ? `Quiz Retaken (Attempt #${attempt.attemptNumber})` : 'Quiz Attempted',
+        description: `Completed "${attempt.assessmentTitle || 'Quiz'}" with score ${totalScore}/${maxScore} (${attempt.percentage}%)`,
+        courseId: course?._id || courseId,
+        courseTitle: course?.title || 'Course',
+        lessonTitle: attempt.assessmentTitle || 'Quiz',
+        referenceId: `quiz_sub_${attempt._id}`,
+        points: isFirstOfficial ? 10 : 0,
+        metadata: {
+          attemptNumber: attempt.attemptNumber || 1,
+          totalScore,
+          maxScore,
+          percentage: attempt.percentage,
+          gradeResult: attempt.gradeResult
+        },
+        createdAt: new Date()
+      }).catch(() => {});
+    } catch (_) {}
 
-        // Calculate total content count and progress percentage
-        let totalItemsCount = 0;
-        for (const m of course.modules || []) {
-          for (const l of m.lessons || []) {
-            const its = l.items || l.contentItems || [];
-            totalItemsCount += its.length > 0 ? its.length : 1;
-          }
-        }
-        if (totalItemsCount > 0) {
-          enrolment.progress = Math.min(100, Math.round((enrolment.completedLessons.length / totalItemsCount) * 100));
-        }
-        enrolment.lastAccessed = now;
-        await enrolment.save();
+    // Update course enrolment progress for this quiz
+    const enrolment = await Enrolment.findOne({ courseId, learnerId: req.user.id });
+    if (enrolment) {
+      if (!Array.isArray(enrolment.completedLessons)) {
+        enrolment.completedLessons = [];
+      }
 
-        try {
-          const { checkAndAwardLearningProgressPoints } = require('../services/pointsService');
-          const pointRewardResult = await checkAndAwardLearningProgressPoints(course, enrolment, req.user.id);
-          if (pointRewardResult.totalPointsAwarded > 0) {
-            // Points awarded for completing module or course via quiz
-          }
-        } catch (pointErr) {
-          console.error('Quiz point reward error:', pointErr);
+      const itemIdentifier = String(quizInfo.assessmentId);
+      if (!enrolment.completedLessons.some(id => String(id) === itemIdentifier)) {
+        enrolment.completedLessons.push(itemIdentifier);
+      }
+      if (quizInfo.item?._id) {
+        const directItemId = String(quizInfo.item._id);
+        if (!enrolment.completedLessons.some(id => String(id) === directItemId)) {
+          enrolment.completedLessons.push(directItemId);
         }
       }
+
+      // If quiz belongs to a lesson, check if all sibling items are done, and if so mark parent lesson
+      if (quizInfo.lesson?._id) {
+        const lessonItems = quizInfo.lesson.items || quizInfo.lesson.contentItems || [];
+        const allItemsDone = lessonItems.length === 0 || lessonItems.every(it =>
+          enrolment.completedLessons.some(id => String(id) === String(it._id))
+        );
+        const parentLessonId = String(quizInfo.lesson._id);
+        if (allItemsDone && !enrolment.completedLessons.some(id => String(id) === parentLessonId)) {
+          enrolment.completedLessons.push(parentLessonId);
+        }
+      }
+
+      const { calculateEnrolmentProgress } = require('./courseController');
+      const progressResult = calculateEnrolmentProgress(course, enrolment);
+      enrolment.progressPercentage = progressResult.progressPercentage;
+      enrolment.status = progressResult.status;
+      enrolment.lastAccessedAt = now;
+      if (progressResult.status === 'completed' && !enrolment.completedAt) {
+        enrolment.completedAt = now;
+      }
+      await enrolment.save();
+
+      // Certificate issuance if course is 100% completed
+      if (progressResult.progressPercentage === 100 && req.user && req.user.role === 'learner') {
+        try {
+          const { issueCourseCertificate } = require('../services/certificateService');
+          await issueCourseCertificate({
+            course,
+            enrolment,
+            learnerId: req.user.id,
+            learnerUser: req.user
+          });
+        } catch (certErr) {
+          console.error('Quiz certificate issuance error:', certErr);
+        }
+
+        try {
+          const { evaluateAndAwardCourseCompletionBadges } = require('../services/badgeService');
+          const Learner = require('../model/Learner');
+          const learnerDoc = await Learner.findById(req.user.id);
+          if (learnerDoc) {
+            await evaluateAndAwardCourseCompletionBadges(learnerDoc);
+          }
+        } catch (bErr) {
+          console.warn('Quiz badge evaluation warning:', bErr.message);
+        }
+      }
+
+      try {
+        const { checkAndAwardLearningProgressPoints } = require('../services/pointsService');
+        await checkAndAwardLearningProgressPoints(course, enrolment, req.user.id);
+      } catch (pointErr) {
+        console.error('Quiz point reward error:', pointErr);
+      }
+    }
+
+    // Evaluate Quiz Master and Perfectionist badges whenever a quiz is submitted
+    try {
+      const { evaluateAndAwardQuizMasterBadges, evaluateAndAwardPerfectionistBadges } = require('../services/badgeService');
+      const Learner = require('../model/Learner');
+      const learnerDoc = await Learner.findById(req.user.id);
+      if (learnerDoc) {
+        await evaluateAndAwardQuizMasterBadges(learnerDoc);
+        await evaluateAndAwardPerfectionistBadges(learnerDoc);
+      }
+    } catch (qBadgeErr) {
+      console.warn('Quiz badge evaluation warning:', qBadgeErr.message);
     }
 
     return res.json({
       success: true,
       result: {
+        attemptId: attempt._id,
+        attemptNumber: attempt.attemptNumber,
         totalScore,
         maxScore,
         percentage,
@@ -638,14 +842,85 @@ exports.submitQuizAttempt = async (req, res) => {
         correctCount,
         incorrectCount,
         unansweredCount,
+        totalQuestions: questions.length,
         timeTakenSeconds,
+        submittedAt: attempt.submittedAt,
         isFirstAttempt: isFirstOfficial,
-        attemptNumber: attempt.attemptNumber
+        isOfficial: isFirstOfficial
+      },
+      review: {
+        questions: evaluatedAnswers.map((ans, idx) => ({
+          questionId: ans.questionId,
+          questionIndex: idx,
+          questionText: ans.questionText,
+          type: ans.questionType,
+          options: ans.options || [],
+          optionImages: ans.optionImages || [],
+          studentAnswer: ans.studentAnswer,
+          correctAnswer: ans.correctAnswer,
+          isCorrect: ans.isCorrect,
+          isAnswered: ans.isAnswered,
+          marksAwarded: ans.marksAwarded,
+          maxMarks: ans.maxMarks,
+          explanation: ans.feedback || ''
+        }))
       }
     });
   } catch (err) {
     console.error('submitQuizAttempt error:', err);
     return res.status(500).json({ success: false, message: 'Failed to process quiz submission.' });
+  }
+};
+
+// ─── 5. Learner's Personal Quiz Attempts History ───
+exports.getMyQuizAttempts = async (req, res) => {
+  try {
+    const { courseId, quizId } = req.params;
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found.' });
+    }
+
+    const quizInfo = findQuizInCourse(course, quizId);
+    if (!quizInfo) {
+      return res.status(404).json({ success: false, message: 'Quiz not found.' });
+    }
+
+    const submissions = await AssessmentSubmission.find({
+      assessmentId: quizInfo.assessmentId,
+      learnerId: req.user.id,
+      status: { $in: ['submitted', 'graded'] }
+    }).sort({ attemptNumber: 1, submittedAt: 1 });
+
+    const totalMarks = resolveQuizMarks(quizInfo);
+
+    const attempts = submissions.map(s => ({
+      attemptId: s._id,
+      attemptNumber: s.attemptNumber || 1,
+      totalScore: s.totalScore || 0,
+      maxScore: s.maxScore || totalMarks,
+      percentage: s.percentage || 0,
+      gradeResult: s.gradeResult || 'pending',
+      correctCount: s.correctCount || 0,
+      incorrectCount: s.incorrectCount || 0,
+      unansweredCount: s.unansweredCount || 0,
+      timeTakenSeconds: s.timeTakenSeconds || 0,
+      submittedAt: s.submittedAt,
+      isOfficial: Boolean(s.isOfficial || s.isFirstAttempt || s.attemptNumber === 1),
+      isFirstAttempt: Boolean(s.isFirstAttempt || s.attemptNumber === 1)
+    }));
+
+    const officialAttempt = attempts.find(a => a.isOfficial || a.isFirstAttempt) || attempts[0] || null;
+
+    return res.json({
+      success: true,
+      attempts,
+      officialAttempt,
+      totalAttempts: attempts.length
+    });
+  } catch (err) {
+    console.error('getMyQuizAttempts error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve quiz attempts.' });
   }
 };
 

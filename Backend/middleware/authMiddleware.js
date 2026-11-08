@@ -47,13 +47,27 @@ const protect = async (req, res, next) => {
       });
     }
 
-    // Verify token has not been revoked by a subsequent password reset
-    let user = await Learner.findById(decoded.id).select('passwordChangedAt');
+    // Verify user exists and token has not been revoked by password reset or account deletion
+    let user = await Learner.findById(decoded.id).select('passwordChangedAt deletionStatus');
     if (!user) {
       user = await Instructor.findById(decoded.id).select('passwordChangedAt');
     }
 
-    if (user && user.passwordChangedAt && decoded.iat) {
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized. Account not found or has been permanently deleted.'
+      });
+    }
+
+    if (user.deletionStatus === 'pending_deletion' && !req.originalUrl?.includes('/delete-account/confirm')) {
+      return res.status(403).json({
+        success: false,
+        message: 'This account is pending deletion and cannot perform operations.'
+      });
+    }
+
+    if (user.passwordChangedAt && decoded.iat) {
       const changedTimestamp = parseInt(user.passwordChangedAt.getTime() / 1000, 10);
       if (decoded.iat < changedTimestamp) {
         return res.status(401).json({

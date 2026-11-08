@@ -1,32 +1,52 @@
 const mongoose = require('mongoose');
 const PointTransaction = require('../model/PointTransaction');
 const { Learner } = require('../model/User');
-const { isConsecutiveDay, isSameDay } = require('../controller/learnerController');
 
 /**
- * Format a Date to YYYY-MM-DD in the learner's local timezone (or fallback)
+ * Format a Date to YYYY-MM-DD in the learner's local timezone (defaults to Asia/Kolkata)
  * Avoids UTC boundary flips where late-night logins cross midnight in UTC.
  */
-const getLocalDateString = (date = new Date(), timeZone) => {
+const getLocalDateString = (date = new Date(), timeZone = 'Asia/Kolkata') => {
   try {
-    if (timeZone) {
-      const formatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
-      return formatter.format(new Date(date));
-    }
+    const tz = timeZone || 'Asia/Kolkata';
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    return formatter.format(new Date(date));
   } catch (e) {
     // Fallback if invalid timezone string passed
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
+};
 
-  const d = new Date(date);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+/**
+ * Check if two dates are consecutive calendar days in the given timezone (default: Asia/Kolkata)
+ */
+const isConsecutiveDay = (lastDate, currentDate = new Date(), timeZone = 'Asia/Kolkata') => {
+  if (!lastDate) return false;
+  const tz = timeZone || 'Asia/Kolkata';
+  const lastStr = getLocalDateString(lastDate, tz);
+  const currentStr = getLocalDateString(currentDate, tz);
+  const d1 = new Date(lastStr + 'T00:00:00Z');
+  const d2 = new Date(currentStr + 'T00:00:00Z');
+  const diffDays = Math.round((d2.getTime() - d1.getTime()) / (24 * 3600 * 1000));
+  return diffDays === 1;
+};
+
+/**
+ * Check if two dates represent the same calendar day in the given timezone (default: Asia/Kolkata)
+ */
+const isSameDay = (d1, d2 = new Date(), timeZone = 'Asia/Kolkata') => {
+  if (!d1 || !d2) return false;
+  const tz = timeZone || 'Asia/Kolkata';
+  return getLocalDateString(d1, tz) === getLocalDateString(d2, tz);
 };
 
 /**
@@ -56,19 +76,32 @@ const syncLearnerPoints = async (learnerId) => {
 /**
  * Award 1 point for the first successful login of the calendar day
  * Strictly awards only once per calendar day per learner.
+ * Atomically records LOGIN activity in LearnerActivity and updates streaks.
  */
-const awardDailyLoginPoint = async (learnerId, timeZone) => {
+const awardDailyLoginPoint = async (learnerId, timeZone = 'Asia/Kolkata') => {
   try {
+    const tz = timeZone || 'Asia/Kolkata';
     const learner = await Learner.findById(learnerId);
     if (!learner || learner.role !== 'learner') {
       return { awarded: false, points: 0 };
     }
 
-    const todayStr = getLocalDateString(new Date(), timeZone);
+    const todayStr = getLocalDateString(new Date(), tz);
     const referenceId = `login_${todayStr}`;
     const legacyReferenceId = `checkin_${todayStr}`;
 
-    // 1. Check if learner already received reward for this calendar day
+    // 1. Ensure LearnerActivity record is logged atomically for today (idempotent upsert)
+    const { logLearnerActivity } = require('./activityService');
+    await logLearnerActivity(learner._id, {
+      activityType: 'daily_login',
+      title: 'Daily Login Check-in',
+      description: `Daily login recorded for ${todayStr}`,
+      points: 1,
+      referenceId,
+      createdAt: new Date()
+    });
+
+    // 2. Check if learner already received reward for this calendar day
     const existingTx = await PointTransaction.findOne({
       learnerId: learner._id,
       type: { $in: ['DAILY_LOGIN', 'DAILY_CHECKIN', 'daily_login'] },
@@ -80,16 +113,17 @@ const awardDailyLoginPoint = async (learnerId, timeZone) => {
         awarded: false,
         points: 0,
         currentStreak: learner.currentStreak || 0,
+        longestStreak: learner.longestStreak || 0,
         alreadyAwarded: true
       };
     }
 
-    // 2. Calculate daily streak
-    const isConsecutive = typeof isConsecutiveDay === 'function' && isConsecutiveDay(learner.lastCheckInDate);
+    // 3. Calculate daily streak
+    const isConsecutive = isConsecutiveDay(learner.lastCheckInDate, new Date(), tz);
     const newStreak = isConsecutive ? (learner.currentStreak || 0) + 1 : 1;
     const newLongest = Math.max(learner.longestStreak || 0, newStreak);
 
-    // 3. Atomically create PointTransaction ledger record (+1 point)
+    // 4. Atomically create PointTransaction ledger record (+1 point)
     let tx;
     try {
       tx = await PointTransaction.create({
@@ -108,26 +142,36 @@ const awardDailyLoginPoint = async (learnerId, timeZone) => {
           awarded: false,
           points: 0,
           currentStreak: learner.currentStreak || 0,
+          longestStreak: learner.longestStreak || 0,
           alreadyAwarded: true
         };
       }
       throw createErr;
     }
 
-    // 4. Safely update learner total points and streak
-    await Learner.findByIdAndUpdate(learner._id, {
-      $inc: { points: 1 },
-      $set: {
-        currentStreak: newStreak,
-        longestStreak: newLongest,
-        lastCheckInDate: new Date()
-      }
-    });
+    // 5. Safely update learner total points, streak and check for badge unlocks
+    learner.points = (learner.points || 0) + 1;
+    learner.currentStreak = newStreak;
+    learner.longestStreak = newLongest;
+    learner.lastCheckInDate = new Date();
+    await learner.save();
+
+    // Update the LearnerActivity description with streak info
+    const LearnerActivity = require('../model/LearnerActivity');
+    await LearnerActivity.updateOne(
+      { learnerId: learner._id, referenceId },
+      { $set: { description: `Daily login completed! Streak: ${newStreak} day${newStreak === 1 ? '' : 's'}` } }
+    ).catch(() => {});
+
+    const { evaluateAndAwardStreakBadges } = require('./badgeService');
+    const badgeResult = await evaluateAndAwardStreakBadges(learner);
 
     return {
       awarded: true,
       points: 1,
       currentStreak: newStreak,
+      longestStreak: newLongest,
+      newlyAwardedBadges: badgeResult?.newlyAwarded || [],
       message: '+1 Point — Daily Login Reward!',
       transaction: tx
     };
@@ -321,6 +365,17 @@ const checkAndAwardLearningProgressPoints = async (course, enrolment, learnerId)
       totalPointsAwarded += courseRes.points;
       rewards.push(courseRes.message);
     }
+
+    // Evaluate Knowledge Seeker course completion badges
+    try {
+      const learnerDoc = await Learner.findById(learnerId);
+      if (learnerDoc && learnerDoc.role === 'learner') {
+        const { evaluateAndAwardCourseCompletionBadges } = require('./badgeService');
+        await evaluateAndAwardCourseCompletionBadges(learnerDoc);
+      }
+    } catch (badgeErr) {
+      console.warn('Error auto-evaluating course completion badges:', badgeErr.message);
+    }
   }
 
   // 3. Maintain daily learning streak if points were awarded or valid activity occurred
@@ -345,6 +400,8 @@ const checkAndAwardLearningProgressPoints = async (course, enrolment, learnerId)
 
 module.exports = {
   getLocalDateString,
+  isConsecutiveDay,
+  isSameDay,
   awardDailyLoginPoint,
   awardModuleCompletionPoints,
   awardCourseCompletionPoints,

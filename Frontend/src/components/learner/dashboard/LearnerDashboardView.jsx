@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { RecentlyViewedCard } from './RecentlyViewedCard';
 import { calculateCourseProgress } from './MyLearningSection';
+import { TrendingInTechSection } from '../trending/TrendingInTechSection';
 import './LearnerDashboardView.css';
 
 export const LearnerDashboardView = ({
@@ -18,6 +19,7 @@ export const LearnerDashboardView = ({
   recentlyViewedCourse = null,
   onNavigateToCourse,
   onSelectView,
+  onSelectAnnouncement,
   loading = false
 }) => {
   // Extract user display name (First name or full name)
@@ -65,7 +67,7 @@ export const LearnerDashboardView = ({
         course={recentlyViewedCourse}
         title="Continue Learning"
         onContinue={onNavigateToCourse}
-        onMyLearning={() => onSelectView('my-learning', '/learner/my-learning')}
+        onMyLearning={() => onSelectView('my-learning', '/learner/my-learning?tab=enrolled')}
         onExplore={() => onSelectView('explore', '/learner/explore')}
         loading={loading}
       />
@@ -82,10 +84,10 @@ export const LearnerDashboardView = ({
             className="dashboard-stat-card in-progress"
             role="button"
             tabIndex={0}
-            onClick={() => onSelectView('my-learning', '/learner/my-learning')}
+            onClick={() => onSelectView('my-learning', '/learner/my-learning?tab=enrolled')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
-                onSelectView('my-learning', '/learner/my-learning');
+                onSelectView('my-learning', '/learner/my-learning?tab=enrolled');
               }
             }}
             title="View courses in progress"
@@ -104,10 +106,10 @@ export const LearnerDashboardView = ({
             className="dashboard-stat-card completed"
             role="button"
             tabIndex={0}
-            onClick={() => onSelectView('my-learning', '/learner/my-learning')}
+            onClick={() => onSelectView('my-learning', '/learner/my-learning?tab=completed')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
-                onSelectView('my-learning', '/learner/my-learning');
+                onSelectView('my-learning', '/learner/my-learning?tab=completed');
               }
             }}
             title="View completed courses"
@@ -126,10 +128,10 @@ export const LearnerDashboardView = ({
             className="dashboard-stat-card not-started"
             role="button"
             tabIndex={0}
-            onClick={() => onSelectView('my-learning', '/learner/my-learning')}
+            onClick={() => onSelectView('my-learning', '/learner/my-learning?tab=not_started')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
-                onSelectView('my-learning', '/learner/my-learning');
+                onSelectView('my-learning', '/learner/my-learning?tab=not_started');
               }
             }}
             title="View enrolled courses waiting to be started"
@@ -145,98 +147,19 @@ export const LearnerDashboardView = ({
         </div>
       </section>
 
-      {/* 4. Quick Navigation Section */}
-      <section className="dashboard-quicknav-section" aria-label="Quick Navigation">
-        <div className="dashboard-section-header">
-          <h2 className="dashboard-section-title">Quick Navigation</h2>
-        </div>
-
-        <div className="dashboard-quicknav-grid">
-          {/* Card 1: My Learning */}
-          <div
-            className="quicknav-card"
-            role="button"
-            tabIndex={0}
-            onClick={() => onSelectView('my-learning', '/learner/my-learning')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                onSelectView('my-learning', '/learner/my-learning');
-              }
-            }}
-            aria-label="Navigate to My Learning page"
-          >
-            <div className="quicknav-icon-wrap my-learning">
-              <BookOpen size={20} />
-            </div>
-            <div className="quicknav-info">
-              <h3 className="quicknav-title">My Learning</h3>
-              <p className="quicknav-desc">
-                Access your enrolled courses, view modules, and manage learning progress.
-              </p>
-            </div>
-            <div className="quicknav-arrow-wrap" aria-hidden="true">
-              <ArrowRight size={18} className="quicknav-arrow" />
-            </div>
-          </div>
-
-          {/* Card 2: Explore Courses */}
-          <div
-            className="quicknav-card"
-            role="button"
-            tabIndex={0}
-            onClick={() => onSelectView('explore', '/learner/explore')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                onSelectView('explore', '/learner/explore');
-              }
-            }}
-            aria-label="Navigate to Explore Courses page"
-          >
-            <div className="quicknav-icon-wrap explore">
-              <Compass size={20} />
-            </div>
-            <div className="quicknav-info">
-              <h3 className="quicknav-title">Explore Courses</h3>
-              <p className="quicknav-desc">
-                Discover new topics, view syllabus details, and enroll in available courses.
-              </p>
-            </div>
-            <div className="quicknav-arrow-wrap" aria-hidden="true">
-              <ArrowRight size={18} className="quicknav-arrow" />
-            </div>
-          </div>
-
-          {/* Card 3: Bookmarks */}
-          <div
-            className="quicknav-card"
-            role="button"
-            tabIndex={0}
-            onClick={() => onSelectView('bookmarks', '/learner/bookmarks')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                onSelectView('bookmarks', '/learner/bookmarks');
-              }
-            }}
-            aria-label="Navigate to Bookmarks page"
-          >
-            <div className="quicknav-icon-wrap bookmarks">
-              <Bookmark size={20} />
-            </div>
-            <div className="quicknav-info">
-              <h3 className="quicknav-title">Bookmarks</h3>
-              <p className="quicknav-desc">
-                Quickly revisit your saved lessons, articles, notes, and video bookmarks.
-              </p>
-            </div>
-            <div className="quicknav-arrow-wrap" aria-hidden="true">
-              <ArrowRight size={18} className="quicknav-arrow" />
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* 4. Trending in Tech Section (Platform Announcements & Industry Trends) */}
+      <TrendingInTechSection
+        onSelectAnnouncement={(announcement) => {
+          if (onSelectAnnouncement) {
+            onSelectAnnouncement(announcement);
+          } else if (onSelectView) {
+            onSelectView('trending-detail', `/learner/trending/${announcement.slug}`);
+          }
+        }}
+        onExploreCourses={() => onSelectView('explore', '/learner/explore')}
+      />
     </div>
   );
 };
 
-export default LearnerDashboardView;
-
+export default LearnerDashboardView; 

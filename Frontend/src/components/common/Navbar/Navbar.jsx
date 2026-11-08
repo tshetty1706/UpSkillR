@@ -6,6 +6,7 @@ import { Avatar } from '../Avatar/Avatar';
 import { NotificationBell } from '../NotificationBell/NotificationBell';
 import { LogoutModal } from '../LogoutModal/LogoutModal';
 import { LearnerTopNav } from '../../learner/dashboard/LearnerTopNav';
+import { recordCourseReturnUrl, isCourseInternalUrl } from '../../../utils/navigationHelper';
 
 export const Navbar = ({ user: propUser }) => {
   const { theme, toggleTheme, isDarkMode } = useTheme();
@@ -81,6 +82,9 @@ export const Navbar = ({ user: propUser }) => {
   const navigate = (path) => {
     const currentFull = window.location.pathname + window.location.search;
     if (currentFull === path) return;
+    if (isCourseInternalUrl(path) && !isCourseInternalUrl(currentFull)) {
+      recordCourseReturnUrl(currentFull);
+    }
     window.history.pushState({}, '', path);
     window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
     setCurrentPath(path);

@@ -19,9 +19,12 @@ import { NotFound } from './components/common/NotFound/NotFound';
 import { InstructorApplication } from './components/instructor/application/InstructorApplication';
 import { InstructorExploreCourses } from './components/home/InstructorExploreCourses/InstructorExploreCourses';
 import { CertificateVerificationPage } from './pages/CertificateVerification/CertificateVerificationPage';
+import { isCourseInternalUrl, recordCourseReturnUrl } from './utils/navigationHelper';
+import { AnnouncementDetailsView } from './components/learner/trending/AnnouncementDetailsView';
+import { getAnnouncementBySlug, MOCK_TRENDING_ANNOUNCEMENTS } from './data/trendingAnnouncements';
 
 function App() {
-  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname + window.location.search);
   // Session-only: do NOT initialize from persistent localStorage
   const [currentUser, setCurrentUser] = useState(() => {
     const sessionStored = sessionStorage.getItem('upskillr_user');
@@ -121,16 +124,24 @@ function App() {
     checkAuthStatus();
 
     const handlePopState = () => {
-      setCurrentPath(window.location.pathname);
+      setCurrentPath(window.location.pathname + window.location.search);
     };
 
     // Custom event listener for seamless internal SPA navigation
     const handleNavigate = (e) => {
-      if (e.detail && e.detail.path) {
-        setCurrentPath(e.detail.path);
-      } else {
-        setCurrentPath(window.location.pathname);
-      }
+      const nextPath = e?.detail?.path || (window.location.pathname + window.location.search);
+      
+      // Auto-record return URL when transitioning from an outside view into a course or workspace
+      try {
+        const isTargetCourse = isCourseInternalUrl(nextPath);
+        const currentUrl = window.location.pathname + window.location.search;
+        const isCurrentCourse = isCourseInternalUrl(currentUrl);
+        if (isTargetCourse && !isCurrentCourse) {
+          recordCourseReturnUrl(currentUrl);
+        }
+      } catch (err) {}
+
+      setCurrentPath(nextPath);
       const stored = sessionStorage.getItem('upskillr_user');
       if (stored) {
         try {
@@ -181,7 +192,8 @@ function App() {
   };
 
   const renderContent = () => {
-    const path = currentPath.toLowerCase();
+    const rawPath = (currentPath || '').toLowerCase();
+    const path = rawPath.split('?')[0].split('#')[0];
 
     // 0. General Dashboard Route
     if (path === '/dashboard') {
@@ -312,6 +324,44 @@ function App() {
       return <LearnerDashboard user={currentUser} />;
     }
 
+    // Public / Learner Trending Announcement Details Route: /trending/:slug or /learner/trending/:slug
+    const trendingSlugMatch = currentPath.match(/^\/(?:learner\/)?trending\/([^/?#]+)/i);
+    if (trendingSlugMatch) {
+      const slug = trendingSlugMatch[1];
+      if (currentUser?.role === 'learner') {
+        const targetPath = `/learner/trending/${slug}`;
+        if (currentPath !== targetPath) {
+          window.history.replaceState({}, '', targetPath);
+        }
+        return <LearnerDashboard user={currentUser} />;
+      }
+      const ann = getAnnouncementBySlug(slug) || MOCK_TRENDING_ANNOUNCEMENTS[0];
+      return (
+        <div className="app-main">
+          <Navbar user={currentUser} />
+          <div style={{ padding: '32px 16px', minHeight: 'calc(100vh - 160px)' }}>
+            <AnnouncementDetailsView
+              announcement={ann}
+              onBack={() => {
+                window.history.pushState({}, '', '/');
+                window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/' } }));
+              }}
+              onSelectAnnouncement={(a) => {
+                const p = `/trending/${a.slug}`;
+                window.history.pushState({}, '', p);
+                window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: p } }));
+              }}
+              onExploreCourses={() => {
+                window.history.pushState({}, '', '/explore');
+                window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/explore' } }));
+              }}
+            />
+          </div>
+          <Footer />
+        </div>
+      );
+    }
+
     // 3. Public Routing
     const instructorExploreMatch = currentPath.match(/^\/(?:explore-courses|explore)\/instructor\/([^/?#]+)/i);
     if (instructorExploreMatch) {
@@ -393,7 +443,7 @@ function App() {
       return (
         <div className="app-main">
           <Navbar user={currentUser} />
-          <CourseOverviewPage courseId={courseId} user={currentUser} />
+          <CourseLearningPage courseId={courseId} user={currentUser} />
           {currentUser?.role !== 'learner' && <Footer />}
         </div>
       );

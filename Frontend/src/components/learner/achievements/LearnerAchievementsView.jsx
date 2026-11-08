@@ -27,6 +27,154 @@ import {
 import { API_BASE } from '../../../config/api';
 import './LearnerAchievementsView.css';
 
+// ─── 4 Continuous Streak Badges Configuration ───
+const STREAK_BADGES_CONFIG = [
+  {
+    badgeId: 'streak_30',
+    name: 'Streak Achiever',
+    threshold: 30,
+    thresholdLabel: '30 Consecutive Days',
+    description: 'Your learning journey is becoming a habit! Maintain a 30-day continuous streak.',
+    image: '/assets/badges/streak-achiever.png'
+  },
+  {
+    badgeId: 'streak_150',
+    name: 'Bronze Streak',
+    threshold: 150,
+    thresholdLabel: '150 Consecutive Days',
+    description: 'Your dedication is impressive! Maintain 150 consecutive days of learning.',
+    image: '/assets/badges/bronze-streak.png'
+  },
+  {
+    badgeId: 'streak_500',
+    name: 'Silver Streak',
+    threshold: 500,
+    thresholdLabel: '500 Consecutive Days',
+    description: 'An exceptional commitment to learning. Maintain 500 consecutive days.',
+    image: '/assets/badges/silver-streak.png'
+  },
+  {
+    badgeId: 'streak_1000',
+    name: 'Master Streak',
+    threshold: 1000,
+    thresholdLabel: '1,000 Consecutive Days',
+    description: 'An extraordinary achievement! Maintain a continuous learning streak of 1,000 days.',
+    image: '/assets/badges/master-streak.png'
+  }
+];
+
+// ─── 3 Knowledge Seeker Badges Configuration (Course Completion) ───
+const KNOWLEDGE_SEEKER_CONFIG = [
+  {
+    badgeId: 'knowledge_seeker_bronze',
+    name: 'Knowledge Seeker Bronze',
+    threshold: 5,
+    requirement: 'Complete 5 courses',
+    description: 'Explore new subjects, expand your expertise, and complete 5 full courses.',
+    image: '/assets/badges/knowledge-seeker-bronze.png'
+  },
+  {
+    badgeId: 'knowledge_seeker_silver',
+    name: 'Knowledge Seeker Silver',
+    threshold: 10,
+    requirement: 'Complete 10 courses',
+    description: 'Demonstrate impressive dedication to lifelong learning by completing 10 full courses.',
+    image: '/assets/badges/knowledge-seeker-silver.png'
+  },
+  {
+    badgeId: 'knowledge_seeker_gold',
+    name: 'Knowledge Seeker Gold',
+    threshold: 20,
+    requirement: 'Complete 20 courses',
+    description: 'Reach the pinnacle of knowledge mastery by completing 20 full courses on UpSkillR.',
+    image: '/assets/badges/knowledge-seeker-gold.png'
+  }
+];
+
+// ─── 3 Quiz Master Badges Configuration (Quiz Performance) ───
+const QUIZ_MASTER_CONFIG = [
+  {
+    badgeId: 'quiz_master_bronze',
+    name: 'Quiz Master Bronze',
+    threshold: 3,
+    requirement: '100% in 3 unique quizzes',
+    description: 'Score 100% in 3 unique quizzes to prove your foundational mastery.',
+    image: '/assets/badges/quiz-master-bronze.png'
+  },
+  {
+    badgeId: 'quiz_master_silver',
+    name: 'Quiz Master Silver',
+    threshold: 10,
+    requirement: '100% in 10 unique quizzes',
+    description: 'Achieve perfect scores in 10 unique quizzes to demonstrate consistent excellence.',
+    image: '/assets/badges/quiz-master-silver.png'
+  },
+  {
+    badgeId: 'quiz_master_gold',
+    name: 'Quiz Master Gold',
+    threshold: 25,
+    requirement: '100% in 25 unique quizzes',
+    description: 'Attain the pinnacle of quiz mastery with perfect 100% scores in 25 unique quizzes.',
+    image: '/assets/badges/quiz-master-gold.png'
+  }
+];
+
+// ─── 3 Consistent Learner Badges Configuration (Lesson Completion) ───
+const CONSISTENT_LEARNER_CONFIG = [
+  {
+    badgeId: 'consistent_learner_bronze',
+    name: 'Consistent Learner Bronze',
+    threshold: 10,
+    requirement: 'Complete 10 unique lessons',
+    description: 'Complete 10 unique lessons across your courses to establish steady learning momentum.',
+    image: '/assets/badges/consistent-learner-bronze.png'
+  },
+  {
+    badgeId: 'consistent_learner_silver',
+    name: 'Consistent Learner Silver',
+    threshold: 50,
+    requirement: 'Complete 50 unique lessons',
+    description: 'Complete 50 unique lessons across your courses to show continuous growth and discipline.',
+    image: '/assets/badges/consistent-learner-silver.png'
+  },
+  {
+    badgeId: 'consistent_learner_gold',
+    name: 'Consistent Learner Gold',
+    threshold: 100,
+    requirement: 'Complete 100 unique lessons',
+    description: 'Reach the pinnacle of daily dedication by completing 100 unique lessons on UpSkillR.',
+    image: '/assets/badges/consistent-learner-gold.png'
+  }
+];
+
+// ─── 3 Perfectionist Badges Configuration (Academic Excellence - First Attempt 90%+) ───
+const PERFECTIONIST_CONFIG = [
+  {
+    badgeId: 'perfectionist_bronze',
+    name: 'Perfectionist Bronze',
+    threshold: 3,
+    requirement: 'Score 90%+ in 3 first attempts',
+    description: 'Score 90% or above in 3 unique quizzes on your first attempt.',
+    image: '/assets/badges/perfectionist-bronze.png'
+  },
+  {
+    badgeId: 'perfectionist_silver',
+    name: 'Perfectionist Silver',
+    threshold: 10,
+    requirement: 'Score 90%+ in 10 first attempts',
+    description: 'Score 90% or above in 10 unique quizzes on your first attempt.',
+    image: '/assets/badges/perfectionist-silver.png'
+  },
+  {
+    badgeId: 'perfectionist_gold',
+    name: 'Perfectionist Gold',
+    threshold: 25,
+    requirement: 'Score 90%+ in 25 first attempts',
+    description: 'Score 90% or above in 25 unique quizzes on your first attempt.',
+    image: '/assets/badges/perfectionist-gold.png'
+  }
+];
+
 export const LearnerAchievementsView = ({
   gamification: initialGamification = { points: 0, currentStreak: 0, longestStreak: 0 },
   enrolments = [],
@@ -38,9 +186,28 @@ export const LearnerAchievementsView = ({
     currentStreak: initialGamification.currentStreak || 0,
     longestStreak: initialGamification.longestStreak || 0,
     completedCourses: 0,
-    modulesCompleted: 0
+    modulesCompleted: 0,
+    badgesEarned: 0,
+    streakBadgesUnlocked: 0,
+    totalStreakBadges: 4,
+    knowledgeSeekerBadgesUnlocked: 0,
+    totalKnowledgeSeekerBadges: 3,
+    quizMasterBadgesUnlocked: 0,
+    totalQuizMasterBadges: 3,
+    perfectQuizzesCount: 0,
+    consistentLearnerBadgesUnlocked: 0,
+    totalConsistentLearnerBadges: 3,
+    lessonsCompleted: 0,
+    perfectionistBadgesUnlocked: 0,
+    totalPerfectionistBadges: 3,
+    perfectionistQuizzesCount: 0
   });
 
+  const [streakBadges, setStreakBadges] = useState([]);
+  const [knowledgeSeekerBadges, setKnowledgeSeekerBadges] = useState([]);
+  const [quizMasterBadges, setQuizMasterBadges] = useState([]);
+  const [consistentLearnerBadges, setConsistentLearnerBadges] = useState([]);
+  const [perfectionistBadges, setPerfectionistBadges] = useState([]);
   const [certificates, setCertificates] = useState([]);
   const [milestones, setMilestones] = useState([]);
   const [pointHistory, setPointHistory] = useState([]);
@@ -55,7 +222,7 @@ export const LearnerAchievementsView = ({
   const [selectedCertModal, setSelectedCertModal] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
 
-  // Fetch all achievements, certificates, and milestones
+  // Fetch all achievements, certificates, badges, and milestones
   const loadDashboardData = useCallback(async () => {
     setLoading(true);
     const token = sessionStorage.getItem('upskillr_token');
@@ -82,11 +249,17 @@ export const LearnerAchievementsView = ({
         .then((r) => r.json())
         .catch(() => null);
 
-      const [statsRes, certsRes, milestonesRes, historyRes] = await Promise.all([
+      // 5. Fetch Learning Streak Badges
+      const badgesPromise = fetch(`${API_BASE}/learners/me/badges`, { headers })
+        .then((r) => r.json())
+        .catch(() => null);
+
+      const [statsRes, certsRes, milestonesRes, historyRes, badgesRes] = await Promise.all([
         statsPromise,
         certsPromise,
         milestonesPromise,
-        historyPromise
+        historyPromise,
+        badgesPromise
       ]);
 
       // Set Stats
@@ -96,7 +269,21 @@ export const LearnerAchievementsView = ({
           currentStreak: statsRes.stats.currentStreak || 0,
           longestStreak: statsRes.stats.longestStreak || 0,
           completedCourses: statsRes.stats.coursesCompleted || 0,
-          modulesCompleted: statsRes.stats.modulesCompleted || 0
+          modulesCompleted: statsRes.stats.modulesCompleted || 0,
+          badgesEarned: statsRes.stats.badgesEarned ?? 0,
+          streakBadgesUnlocked: statsRes.stats.streakBadgesUnlocked ?? 0,
+          totalStreakBadges: statsRes.stats.totalStreakBadges ?? 4,
+          knowledgeSeekerBadgesUnlocked: statsRes.stats.knowledgeSeekerBadgesUnlocked ?? 0,
+          totalKnowledgeSeekerBadges: statsRes.stats.totalKnowledgeSeekerBadges ?? 3,
+          quizMasterBadgesUnlocked: statsRes.stats.quizMasterBadgesUnlocked ?? 0,
+          totalQuizMasterBadges: statsRes.stats.totalQuizMasterBadges ?? 3,
+          perfectQuizzesCount: statsRes.stats.perfectQuizzesCount ?? 0,
+          consistentLearnerBadgesUnlocked: statsRes.stats.consistentLearnerBadgesUnlocked ?? 0,
+          totalConsistentLearnerBadges: statsRes.stats.totalConsistentLearnerBadges ?? 3,
+          lessonsCompleted: statsRes.stats.lessonsCompleted ?? 0,
+          perfectionistBadgesUnlocked: statsRes.stats.perfectionistBadgesUnlocked ?? 0,
+          totalPerfectionistBadges: statsRes.stats.totalPerfectionistBadges ?? 3,
+          perfectionistQuizzesCount: statsRes.stats.perfectionistQuizzesCount ?? 0
         });
       } else {
         // Fallback calculation from enrolments prop
@@ -104,6 +291,59 @@ export const LearnerAchievementsView = ({
           (e) => e.progressPercentage === 100 || e.status === 'completed'
         ).length;
         setStats((prev) => ({ ...prev, completedCourses: completedCount }));
+      }
+
+      // Set Badges
+      if (badgesRes?.success) {
+        if (Array.isArray(badgesRes.streakBadges)) {
+          setStreakBadges(badgesRes.streakBadges);
+        } else if (Array.isArray(badgesRes.badges)) {
+          setStreakBadges(badgesRes.badges.filter(b => b.category === 'streak' || b.badgeId?.startsWith('streak_')));
+        }
+
+        if (Array.isArray(badgesRes.knowledgeSeekerBadges)) {
+          setKnowledgeSeekerBadges(badgesRes.knowledgeSeekerBadges);
+        } else if (Array.isArray(badgesRes.badges)) {
+          setKnowledgeSeekerBadges(badgesRes.badges.filter(b => b.category === 'course_completion' || b.badgeId?.startsWith('knowledge_seeker_')));
+        }
+
+        if (Array.isArray(badgesRes.quizMasterBadges)) {
+          setQuizMasterBadges(badgesRes.quizMasterBadges);
+        } else if (Array.isArray(badgesRes.badges)) {
+          setQuizMasterBadges(badgesRes.badges.filter(b => b.category === 'quiz_performance' || b.badgeId?.startsWith('quiz_master_')));
+        }
+
+        if (Array.isArray(badgesRes.consistentLearnerBadges)) {
+          setConsistentLearnerBadges(badgesRes.consistentLearnerBadges);
+        } else if (Array.isArray(badgesRes.badges)) {
+          setConsistentLearnerBadges(badgesRes.badges.filter(b => b.category === 'learning_consistency' || b.badgeId?.startsWith('consistent_learner_')));
+        }
+
+        if (Array.isArray(badgesRes.perfectionistBadges)) {
+          setPerfectionistBadges(badgesRes.perfectionistBadges);
+        } else if (Array.isArray(badgesRes.badges)) {
+          setPerfectionistBadges(badgesRes.badges.filter(b => b.category === 'quiz_excellence' || b.badgeId?.startsWith('perfectionist_')));
+        }
+
+        if (badgesRes.stats) {
+          setStats((prev) => ({
+            ...prev,
+            badgesEarned: badgesRes.stats.totalBadgesEarned ?? prev.badgesEarned ?? 0,
+            streakBadgesUnlocked: badgesRes.stats.streakBadgesUnlocked ?? prev.streakBadgesUnlocked ?? 0,
+            totalStreakBadges: badgesRes.stats.totalStreakBadges ?? 4,
+            knowledgeSeekerBadgesUnlocked: badgesRes.stats.knowledgeSeekerBadgesUnlocked ?? prev.knowledgeSeekerBadgesUnlocked ?? 0,
+            totalKnowledgeSeekerBadges: badgesRes.stats.totalKnowledgeSeekerBadges ?? 3,
+            quizMasterBadgesUnlocked: badgesRes.stats.quizMasterBadgesUnlocked ?? prev.quizMasterBadgesUnlocked ?? 0,
+            totalQuizMasterBadges: badgesRes.stats.totalQuizMasterBadges ?? 3,
+            perfectQuizzesCount: badgesRes.stats.perfectQuizzesCount ?? prev.perfectQuizzesCount ?? 0,
+            consistentLearnerBadgesUnlocked: badgesRes.stats.consistentLearnerBadgesUnlocked ?? prev.consistentLearnerBadgesUnlocked ?? 0,
+            totalConsistentLearnerBadges: badgesRes.stats.totalConsistentLearnerBadges ?? 3,
+            lessonsCompleted: badgesRes.stats.lessonsCompleted ?? prev.lessonsCompleted ?? 0,
+            perfectionistBadgesUnlocked: badgesRes.stats.perfectionistBadgesUnlocked ?? prev.perfectionistBadgesUnlocked ?? 0,
+            totalPerfectionistBadges: badgesRes.stats.totalPerfectionistBadges ?? 3,
+            perfectionistQuizzesCount: badgesRes.stats.perfectionistQuizzesCount ?? prev.perfectionistQuizzesCount ?? 0
+          }));
+        }
       }
 
       // Set Certificates
@@ -140,7 +380,11 @@ export const LearnerAchievementsView = ({
 
     const handlePointsUpdate = () => loadDashboardData();
     window.addEventListener('upskillr_points_updated', handlePointsUpdate);
-    return () => window.removeEventListener('upskillr_points_updated', handlePointsUpdate);
+    window.addEventListener('upskillr_badge_unlocked', handlePointsUpdate);
+    return () => {
+      window.removeEventListener('upskillr_points_updated', handlePointsUpdate);
+      window.removeEventListener('upskillr_badge_unlocked', handlePointsUpdate);
+    };
   }, [loadDashboardData]);
 
   // ─── 4. Filtered & Sorted Certificates ───
@@ -206,6 +450,146 @@ export const LearnerAchievementsView = ({
     }
   };
 
+  // Helper to format badge unlock date
+  const formatUnlockedDate = (dateStr) => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  // Compute 4 learning streak badges with verified backend records or live fallback
+  const displayBadges = useMemo(() => {
+    const effectiveStreak = Math.max(stats.currentStreak || 0, stats.longestStreak || 0);
+    return STREAK_BADGES_CONFIG.map((cfg) => {
+      const backendBadge = (streakBadges || []).find((b) => b.badgeId === cfg.badgeId);
+      const isUnlocked = backendBadge ? Boolean(backendBadge.isUnlocked || backendBadge.unlocked) : effectiveStreak >= cfg.threshold;
+      const unlockedAt = backendBadge?.unlockedAt || null;
+      const progress = backendBadge
+        ? (backendBadge.progress ?? backendBadge.currentProgress ?? Math.min(effectiveStreak, cfg.threshold))
+        : Math.min(effectiveStreak, cfg.threshold);
+      const progressPercent = backendBadge
+        ? (backendBadge.progressPercent ?? backendBadge.progressPercentage ?? Math.min(100, Math.round((progress / cfg.threshold) * 100)))
+        : Math.min(100, Math.round((progress / cfg.threshold) * 100));
+
+      return {
+        ...cfg,
+        isUnlocked,
+        unlockedAt,
+        progress,
+        progressPercent
+      };
+    });
+  }, [streakBadges, stats.currentStreak, stats.longestStreak]);
+
+  // Compute 3 knowledge seeker course completion badges with verified backend records or live fallback
+  const displayKnowledgeBadges = useMemo(() => {
+    const completedCount = stats.completedCourses || 0;
+    return KNOWLEDGE_SEEKER_CONFIG.map((cfg) => {
+      const backendBadge = (knowledgeSeekerBadges || []).find((b) => b.badgeId === cfg.badgeId);
+      const isUnlocked = backendBadge
+        ? Boolean(backendBadge.isUnlocked || backendBadge.unlocked)
+        : completedCount >= cfg.threshold;
+      const unlockedAt = backendBadge?.unlockedAt || null;
+      const progress = backendBadge
+        ? (backendBadge.progress ?? backendBadge.currentProgress ?? Math.min(completedCount, cfg.threshold))
+        : Math.min(completedCount, cfg.threshold);
+      const progressPercent = backendBadge
+        ? (backendBadge.progressPercent ?? backendBadge.progressPercentage ?? Math.min(100, Math.round((progress / cfg.threshold) * 100)))
+        : Math.min(100, Math.round((progress / cfg.threshold) * 100));
+
+      return {
+        ...cfg,
+        isUnlocked,
+        unlockedAt,
+        progress,
+        progressPercent
+      };
+    });
+  }, [knowledgeSeekerBadges, stats.completedCourses]);
+
+  // Compute 3 Quiz Master badges with verified backend records or live fallback
+  const displayQuizBadges = useMemo(() => {
+    const perfectCount = stats.perfectQuizzesCount || 0;
+    return QUIZ_MASTER_CONFIG.map((cfg) => {
+      const backendBadge = (quizMasterBadges || []).find((b) => b.badgeId === cfg.badgeId);
+      const isUnlocked = backendBadge
+        ? Boolean(backendBadge.isUnlocked || backendBadge.unlocked)
+        : perfectCount >= cfg.threshold;
+      const unlockedAt = backendBadge?.unlockedAt || null;
+      const progress = backendBadge
+        ? (backendBadge.progress ?? backendBadge.currentProgress ?? Math.min(perfectCount, cfg.threshold))
+        : Math.min(perfectCount, cfg.threshold);
+      const progressPercent = backendBadge
+        ? (backendBadge.progressPercent ?? backendBadge.progressPercentage ?? Math.min(100, Math.round((progress / cfg.threshold) * 100)))
+        : Math.min(100, Math.round((progress / cfg.threshold) * 100));
+
+      return {
+        ...cfg,
+        isUnlocked,
+        unlockedAt,
+        progress,
+        progressPercent
+      };
+    });
+  }, [quizMasterBadges, stats.perfectQuizzesCount]);
+
+  // Compute 3 Consistent Learner badges with verified backend records or live fallback
+  const displayConsistentBadges = useMemo(() => {
+    const completedLessons = stats.lessonsCompleted || 0;
+    return CONSISTENT_LEARNER_CONFIG.map((cfg) => {
+      const backendBadge = (consistentLearnerBadges || []).find((b) => b.badgeId === cfg.badgeId);
+      const isUnlocked = backendBadge
+        ? Boolean(backendBadge.isUnlocked || backendBadge.unlocked)
+        : completedLessons >= cfg.threshold;
+      const unlockedAt = backendBadge?.unlockedAt || null;
+      const progress = backendBadge
+        ? (backendBadge.progress ?? backendBadge.currentProgress ?? Math.min(completedLessons, cfg.threshold))
+        : Math.min(completedLessons, cfg.threshold);
+      const progressPercent = backendBadge
+        ? (backendBadge.progressPercent ?? backendBadge.progressPercentage ?? Math.min(100, Math.round((progress / cfg.threshold) * 100)))
+        : Math.min(100, Math.round((progress / cfg.threshold) * 100));
+
+      return {
+        ...cfg,
+        isUnlocked,
+        unlockedAt,
+        progress,
+        progressPercent
+      };
+    });
+  }, [consistentLearnerBadges, stats.lessonsCompleted]);
+
+  // Compute 3 Perfectionist badges with verified backend records or live fallback
+  const displayPerfectionistBadges = useMemo(() => {
+    const perfectCount = stats.perfectionistQuizzesCount || 0;
+    return PERFECTIONIST_CONFIG.map((cfg) => {
+      const backendBadge = (perfectionistBadges || []).find((b) => b.badgeId === cfg.badgeId);
+      const isUnlocked = backendBadge
+        ? Boolean(backendBadge.isUnlocked || backendBadge.unlocked)
+        : perfectCount >= cfg.threshold;
+      const unlockedAt = backendBadge?.unlockedAt || null;
+      const progress = backendBadge
+        ? (backendBadge.progress ?? backendBadge.currentProgress ?? Math.min(perfectCount, cfg.threshold))
+        : Math.min(perfectCount, cfg.threshold);
+      const progressPercent = backendBadge
+        ? (backendBadge.progressPercent ?? backendBadge.progressPercentage ?? Math.min(100, Math.round((progress / cfg.threshold) * 100)))
+        : Math.min(100, Math.round((progress / cfg.threshold) * 100));
+
+      return {
+        ...cfg,
+        isUnlocked,
+        unlockedAt,
+        progress,
+        progressPercent
+      };
+    });
+  }, [perfectionistBadges, stats.perfectionistQuizzesCount]);
+
   // Helper icon for milestones
   const getMilestoneIcon = (id) => {
     switch (id) {
@@ -263,6 +647,19 @@ export const LearnerAchievementsView = ({
         </div>
 
         <div className="achieve-stat-card">
+          <div className="achieve-icon-box badges-stat-icon">
+            <Award size={24} />
+          </div>
+          <div className="achieve-stat-meta">
+            <span className="achieve-stat-number">{stats.badgesEarned ?? 0}</span>
+            <span className="achieve-stat-label">Badges Earned</span>
+          </div>
+          <span className="stat-card-badge badges-badge">
+            {(stats.streakBadgesUnlocked || 0) + (stats.knowledgeSeekerBadgesUnlocked || 0) + (stats.quizMasterBadgesUnlocked || 0) + (stats.consistentLearnerBadgesUnlocked || 0) + (stats.perfectionistBadgesUnlocked || 0)} / {(stats.totalStreakBadges || 4) + (stats.totalKnowledgeSeekerBadges || 3) + (stats.totalQuizMasterBadges || 3) + (stats.totalConsistentLearnerBadges || 3) + (stats.totalPerfectionistBadges || 3)} Badges
+          </span>
+        </div>
+
+        <div className="achieve-stat-card">
           <div className="achieve-icon-box points-icon">
             <Star size={24} />
           </div>
@@ -275,7 +672,7 @@ export const LearnerAchievementsView = ({
 
         <div className="achieve-stat-card">
           <div className="achieve-icon-box completed-icon">
-            <Award size={24} />
+            <CheckCircle2 size={24} />
           </div>
           <div className="achieve-stat-meta">
             <span className="achieve-stat-number">{stats.completedCourses}</span>
@@ -285,7 +682,522 @@ export const LearnerAchievementsView = ({
         </div>
       </section>
 
-      {/* ─── 3. CERTIFICATES SECTION (MAIN FOCUS) ─── */}
+      {/* ─── 3. LEARNING STREAK BADGES SECTION ─── */}
+      <section className="achievements-streak-badges-section" aria-label="Learning Streak Badges">
+        <div className="streak-badges-header">
+          <div className="streak-title-lockup">
+            <div className="streak-title-icon-badge">
+              <Flame size={22} className="accent-flame" />
+            </div>
+            <div>
+              <h2 className="streak-section-title">Learning Streak Badges</h2>
+              <p className="streak-section-subtitle">
+                Stay consistent, keep learning, and unlock exclusive rewards as your learning streak grows.
+              </p>
+            </div>
+          </div>
+
+          <span className="streak-counter-badge">
+            {displayBadges.filter((b) => b.isUnlocked).length} / {displayBadges.length} Unlocked
+          </span>
+        </div>
+
+        <div className="streak-badges-grid">
+          {displayBadges.map((badge) => {
+            const formattedDate = formatUnlockedDate(badge.unlockedAt);
+            const isUnlocked = badge.isUnlocked;
+
+            return (
+              <div
+                key={badge.badgeId}
+                className={`streak-badge-card ${isUnlocked ? 'badge-card-unlocked' : 'badge-card-locked'}`}
+              >
+                {/* Header Row: Target & Status Chip */}
+                <div className="streak-badge-top-row">
+                  <span className="streak-req-chip">
+                    <Flame size={12} />
+                    <span>{badge.thresholdLabel}</span>
+                  </span>
+                  {isUnlocked ? (
+                    <span className="badge-status-pill status-unlocked">
+                      <CheckCircle2 size={12} />
+                      <span>Unlocked</span>
+                    </span>
+                  ) : (
+                    <span className="badge-status-pill status-locked">
+                      <Lock size={12} />
+                      <span>Locked</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Badge Image Frame (Original Aspect Ratio Preserved) */}
+                <div className="streak-badge-img-frame">
+                  <img
+                    src={badge.image}
+                    alt={`${badge.name} badge`}
+                    className={`streak-badge-img ${isUnlocked ? 'img-unlocked' : 'img-locked'}`}
+                    loading="lazy"
+                  />
+                  {!isUnlocked && (
+                    <div className="badge-lock-overlay" aria-hidden="true">
+                      <Lock size={22} className="lock-center-icon" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Badge Info */}
+                <div className="streak-badge-body">
+                  <h3 className="streak-badge-title">{badge.name}</h3>
+                  <p className="streak-badge-desc">{badge.description}</p>
+
+                  {/* Progress or Unlocked Date */}
+                  <div className="streak-badge-footer">
+                    {isUnlocked ? (
+                      <div className="streak-unlocked-meta">
+                        <Sparkles size={14} className="accent-green" />
+                        <span>{formattedDate ? `Earned on ${formattedDate}` : 'Unlocked & Permanent'}</span>
+                      </div>
+                    ) : (
+                      <div className="streak-progress-box">
+                        <div className="streak-progress-meta">
+                          <span className="streak-progress-label">Current Progress</span>
+                          <span className="streak-progress-value">
+                            {badge.progress.toLocaleString()} / {badge.threshold.toLocaleString()} days
+                          </span>
+                        </div>
+                        <div className="streak-progress-track">
+                          <div
+                            className="streak-progress-bar"
+                            style={{ width: `${badge.progressPercent}%` }}
+                            aria-valuenow={badge.progressPercent}
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ─── 4. KNOWLEDGE SEEKER BADGES SECTION ─── */}
+      <section className="achievements-streak-badges-section knowledge-seeker-section" aria-label="Knowledge Seeker Badges">
+        <div className="streak-badges-header">
+          <div className="streak-title-lockup">
+            <div className="streak-title-icon-badge knowledge-icon-badge">
+              <BookOpen size={22} className="accent-book" />
+            </div>
+            <div>
+              <h2 className="streak-section-title">Knowledge Seeker</h2>
+              <p className="streak-section-subtitle">
+                Explore new subjects, expand your expertise, and celebrate every course you complete.
+              </p>
+            </div>
+          </div>
+
+          <span className="streak-counter-badge knowledge-counter-badge">
+            {displayKnowledgeBadges.filter((b) => b.isUnlocked).length} / {displayKnowledgeBadges.length} Unlocked
+          </span>
+        </div>
+
+        <div className="knowledge-badges-grid">
+          {displayKnowledgeBadges.map((badge) => {
+            const formattedDate = formatUnlockedDate(badge.unlockedAt);
+            const isUnlocked = badge.isUnlocked;
+
+            return (
+              <div
+                key={badge.badgeId}
+                className={`streak-badge-card knowledge-badge-card ${isUnlocked ? 'badge-card-unlocked' : 'badge-card-locked'}`}
+              >
+                {/* Header Row: Target & Status Chip */}
+                <div className="streak-badge-top-row">
+                  <span className="streak-req-chip knowledge-req-chip">
+                    <BookOpen size={12} />
+                    <span>{badge.requirement}</span>
+                  </span>
+                  {isUnlocked ? (
+                    <span className="badge-status-pill status-unlocked">
+                      <CheckCircle2 size={12} />
+                      <span>Unlocked</span>
+                    </span>
+                  ) : (
+                    <span className="badge-status-pill status-locked">
+                      <Lock size={12} />
+                      <span>Locked</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Badge Image Frame (Original Aspect Ratio Preserved) */}
+                <div className="streak-badge-img-frame knowledge-img-frame">
+                  <img
+                    src={badge.image}
+                    alt={`${badge.name} badge`}
+                    className={`streak-badge-img ${isUnlocked ? 'img-unlocked' : 'img-locked'}`}
+                    loading="lazy"
+                  />
+                  {!isUnlocked && (
+                    <div className="badge-lock-overlay" aria-hidden="true">
+                      <Lock size={22} className="lock-center-icon" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Badge Info */}
+                <div className="streak-badge-body">
+                  <h3 className="streak-badge-title">{badge.name}</h3>
+                  <p className="streak-badge-desc">{badge.requirement}</p>
+
+                  {/* Progress or Unlocked Date */}
+                  <div className="streak-badge-footer">
+                    {isUnlocked ? (
+                      <div className="streak-unlocked-meta">
+                        <Sparkles size={14} className="accent-green" />
+                        <span>{formattedDate ? `Earned on ${formattedDate}` : 'Unlocked & Permanent'}</span>
+                      </div>
+                    ) : (
+                      <div className="streak-progress-box">
+                        <div className="streak-progress-meta">
+                          <span className="streak-progress-label">Progress</span>
+                          <span className="streak-progress-value">
+                            {badge.progress} / {badge.threshold} courses
+                          </span>
+                        </div>
+                        <div className="streak-progress-track">
+                          <div
+                            className="streak-progress-bar knowledge-progress-bar"
+                            style={{ width: `${badge.progressPercent}%` }}
+                            aria-valuenow={badge.progressPercent}
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ─── 4b. QUIZ MASTER BADGES SECTION ─── */}
+      <section className="achievements-streak-badges-section quiz-master-section" aria-label="Quiz Master Badges">
+        <div className="streak-badges-header">
+          <div className="streak-title-lockup">
+            <div className="streak-title-icon-badge quiz-icon-badge">
+              <CheckCircle2 size={22} className="accent-quiz" />
+            </div>
+            <div>
+              <h2 className="streak-section-title">Quiz Master</h2>
+              <p className="streak-section-subtitle">
+                Challenge yourself, test your knowledge, and achieve perfect scores to become a Quiz Master.
+              </p>
+            </div>
+          </div>
+
+          <span className="streak-counter-badge quiz-counter-badge">
+            {displayQuizBadges.filter((b) => b.isUnlocked).length} / {displayQuizBadges.length} Unlocked
+          </span>
+        </div>
+
+        <div className="quiz-badges-grid">
+          {displayQuizBadges.map((badge) => {
+            const formattedDate = formatUnlockedDate(badge.unlockedAt);
+            const isUnlocked = badge.isUnlocked;
+
+            return (
+              <div
+                key={badge.badgeId}
+                className={`streak-badge-card quiz-badge-card ${isUnlocked ? 'badge-card-unlocked' : 'badge-card-locked'}`}
+              >
+                {/* Header Row: Target & Status Chip */}
+                <div className="streak-badge-top-row">
+                  <span className="streak-req-chip quiz-req-chip">
+                    <CheckCircle2 size={12} />
+                    <span>{badge.requirement}</span>
+                  </span>
+                  {isUnlocked ? (
+                    <span className="badge-status-pill status-unlocked">
+                      <CheckCircle2 size={12} />
+                      <span>Unlocked</span>
+                    </span>
+                  ) : (
+                    <span className="badge-status-pill status-locked">
+                      <Lock size={12} />
+                      <span>Locked</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Badge Image Frame (Original Aspect Ratio Preserved) */}
+                <div className="streak-badge-img-frame quiz-img-frame">
+                  <img
+                    src={badge.image}
+                    alt={`${badge.name} badge`}
+                    className={`streak-badge-img ${isUnlocked ? 'img-unlocked' : 'img-locked'}`}
+                    loading="lazy"
+                  />
+                  {!isUnlocked && (
+                    <div className="badge-lock-overlay" aria-hidden="true">
+                      <Lock size={22} className="lock-center-icon" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Badge Info */}
+                <div className="streak-badge-body">
+                  <h3 className="streak-badge-title">{badge.name}</h3>
+                  <p className="streak-badge-desc">{badge.requirement}</p>
+
+                  {/* Progress or Unlocked Date */}
+                  <div className="streak-badge-footer">
+                    {isUnlocked ? (
+                      <div className="streak-unlocked-meta">
+                        <Sparkles size={14} className="accent-green" />
+                        <span>{formattedDate ? `Earned on ${formattedDate}` : 'Unlocked & Permanent'}</span>
+                      </div>
+                    ) : (
+                      <div className="streak-progress-box">
+                        <div className="streak-progress-meta">
+                          <span className="streak-progress-label">Progress</span>
+                          <span className="streak-progress-value">
+                            {badge.progress} / {badge.threshold} quizzes
+                          </span>
+                        </div>
+                        <div className="streak-progress-track">
+                          <div
+                            className="streak-progress-bar quiz-progress-bar"
+                            style={{ width: `${badge.progressPercent}%` }}
+                            aria-valuenow={badge.progressPercent}
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ─── 4c. CONSISTENT LEARNER BADGES SECTION ─── */}
+      <section className="achievements-streak-badges-section consistent-learner-section" aria-label="Consistent Learner Badges">
+        <div className="streak-badges-header">
+          <div className="streak-title-lockup">
+            <div className="streak-title-icon-badge consistent-icon-badge">
+              <Sparkles size={22} className="accent-consistent" />
+            </div>
+            <div>
+              <h2 className="streak-section-title">Consistent Learner</h2>
+              <p className="streak-section-subtitle">
+                Small steps every day lead to extraordinary progress. Keep completing lessons and become a Consistent Learner.
+              </p>
+            </div>
+          </div>
+
+          <span className="streak-counter-badge consistent-counter-badge">
+            {displayConsistentBadges.filter((b) => b.isUnlocked).length} / {displayConsistentBadges.length} Unlocked
+          </span>
+        </div>
+
+        <div className="consistent-badges-grid">
+          {displayConsistentBadges.map((badge) => {
+            const formattedDate = formatUnlockedDate(badge.unlockedAt);
+            const isUnlocked = badge.isUnlocked;
+
+            return (
+              <div
+                key={badge.badgeId}
+                className={`streak-badge-card consistent-badge-card ${isUnlocked ? 'badge-card-unlocked' : 'badge-card-locked'}`}
+              >
+                {/* Header Row: Target & Status Chip */}
+                <div className="streak-badge-top-row">
+                  <span className="streak-req-chip consistent-req-chip">
+                    <BookOpen size={12} />
+                    <span>{badge.requirement}</span>
+                  </span>
+                  {isUnlocked ? (
+                    <span className="badge-status-pill status-unlocked">
+                      <CheckCircle2 size={12} />
+                      <span>Unlocked</span>
+                    </span>
+                  ) : (
+                    <span className="badge-status-pill status-locked">
+                      <Lock size={12} />
+                      <span>Locked</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Badge Image Frame (Original Aspect Ratio Preserved) */}
+                <div className="streak-badge-img-frame consistent-img-frame">
+                  <img
+                    src={badge.image}
+                    alt={`${badge.name} badge`}
+                    className={`streak-badge-img ${isUnlocked ? 'img-unlocked' : 'img-locked'}`}
+                    loading="lazy"
+                  />
+                  {!isUnlocked && (
+                    <div className="badge-lock-overlay" aria-hidden="true">
+                      <Lock size={22} className="lock-center-icon" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Badge Info */}
+                <div className="streak-badge-body">
+                  <h3 className="streak-badge-title">{badge.name}</h3>
+                  <p className="streak-badge-desc">{badge.requirement}</p>
+
+                  {/* Progress or Unlocked Date */}
+                  <div className="streak-badge-footer">
+                    {isUnlocked ? (
+                      <div className="streak-unlocked-meta">
+                        <Sparkles size={14} className="accent-green" />
+                        <span>{formattedDate ? `Earned on ${formattedDate}` : 'Unlocked & Permanent'}</span>
+                      </div>
+                    ) : (
+                      <div className="streak-progress-box">
+                        <div className="streak-progress-meta">
+                          <span className="streak-progress-label">Progress</span>
+                          <span className="streak-progress-value">
+                            {badge.progress} / {badge.threshold} lessons
+                          </span>
+                        </div>
+                        <div className="streak-progress-track">
+                          <div
+                            className="streak-progress-bar consistent-progress-bar"
+                            style={{ width: `${badge.progressPercent}%` }}
+                            aria-valuenow={badge.progressPercent}
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ─── 4d. PERFECTIONIST BADGES SECTION ─── */}
+      <section className="achievements-streak-badges-section perfectionist-section" aria-label="Perfectionist Badges">
+        <div className="streak-badges-header">
+          <div className="streak-title-lockup">
+            <div className="streak-title-icon-badge perfectionist-icon-badge">
+              <Star size={22} className="accent-perfectionist" />
+            </div>
+            <div>
+              <h2 className="streak-section-title">Perfectionist</h2>
+              <p className="streak-section-subtitle">
+                Demonstrate excellence by scoring 90% or higher on your quizzes at first attempt.
+              </p>
+            </div>
+          </div>
+
+          <span className="streak-counter-badge perfectionist-counter-badge">
+            {displayPerfectionistBadges.filter((b) => b.isUnlocked).length} / {displayPerfectionistBadges.length} Unlocked
+          </span>
+        </div>
+
+        <div className="perfectionist-badges-grid">
+          {displayPerfectionistBadges.map((badge) => {
+            const formattedDate = formatUnlockedDate(badge.unlockedAt);
+            const isUnlocked = badge.isUnlocked;
+
+            return (
+              <div
+                key={badge.badgeId}
+                className={`streak-badge-card perfectionist-badge-card ${isUnlocked ? 'badge-card-unlocked' : 'badge-card-locked'}`}
+              >
+                {/* Header Row: Target & Status Chip */}
+                <div className="streak-badge-top-row">
+                  <span className="streak-req-chip perfectionist-req-chip">
+                    <Star size={12} />
+                    <span>{badge.requirement}</span>
+                  </span>
+                  {isUnlocked ? (
+                    <span className="badge-status-pill status-unlocked">
+                      <CheckCircle2 size={12} />
+                      <span>Unlocked</span>
+                    </span>
+                  ) : (
+                    <span className="badge-status-pill status-locked">
+                      <Lock size={12} />
+                      <span>Locked</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Badge Image Frame (Original Aspect Ratio Preserved) */}
+                <div className="streak-badge-img-frame perfectionist-img-frame">
+                  <img
+                    src={badge.image}
+                    alt={`${badge.name} badge`}
+                    className={`streak-badge-img ${isUnlocked ? 'img-unlocked' : 'img-locked'}`}
+                    loading="lazy"
+                  />
+                  {!isUnlocked && (
+                    <div className="badge-lock-overlay" aria-hidden="true">
+                      <Lock size={22} className="lock-center-icon" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Badge Info */}
+                <div className="streak-badge-body">
+                  <h3 className="streak-badge-title">{badge.name}</h3>
+                  <p className="streak-badge-desc">{badge.requirement}</p>
+
+                  {/* Progress or Unlocked Date */}
+                  <div className="streak-badge-footer">
+                    {isUnlocked ? (
+                      <div className="streak-unlocked-meta">
+                        <Sparkles size={14} className="accent-green" />
+                        <span>{formattedDate ? `Earned on ${formattedDate}` : 'Unlocked & Permanent'}</span>
+                      </div>
+                    ) : (
+                      <div className="streak-progress-box">
+                        <div className="streak-progress-meta">
+                          <span className="streak-progress-label">Progress</span>
+                          <span className="streak-progress-value">
+                            {badge.progress} / {badge.threshold} qualifying quizzes
+                          </span>
+                        </div>
+                        <div className="streak-progress-track">
+                          <div
+                            className="streak-progress-bar perfectionist-progress-bar"
+                            style={{ width: `${badge.progressPercent}%` }}
+                            aria-valuenow={badge.progressPercent}
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ─── 5. CERTIFICATES SECTION (MAIN FOCUS) ─── */}
       <section className="achievements-certificates-section" aria-label="Course Certificates">
         <div className="cert-section-header">
           <div className="cert-title-lockup">
@@ -518,93 +1430,6 @@ export const LearnerAchievementsView = ({
         )}
       </section>
 
-      {/* ─── 4. LEARNING MILESTONES SECTION ─── */}
-      <section className="achievements-milestones-section" aria-label="Learning Milestones">
-        <div className="milestones-header-row">
-          <div>
-            <h2 className="milestones-section-title">Learning Milestones</h2>
-            <p className="milestones-section-subtitle">
-              Milestones unlock automatically as you learn, complete modules, and finish courses.
-            </p>
-          </div>
-          <span className="milestone-badge-count">
-            {milestones.filter((m) => m.earned).length} / {milestones.length || 7} Unlocked
-          </span>
-        </div>
-
-        <div className="milestones-grid">
-          {milestones.map((milestone) => {
-            const isEarned = milestone.earned;
-            const progressPercent = milestone.target > 0
-              ? Math.min(100, Math.round((milestone.current / milestone.target) * 100))
-              : 0;
-
-            const achievedDateStr = milestone.achievedAt
-              ? new Date(milestone.achievedAt).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric'
-                })
-              : null;
-
-            return (
-              <div
-                key={milestone.id}
-                className={`milestone-card ${isEarned ? 'milestone-unlocked' : 'milestone-locked'}`}
-              >
-                <div className="milestone-icon-wrap">
-                  {getMilestoneIcon(milestone.id)}
-                  {isEarned ? (
-                    <span className="milestone-check-badge">
-                      <CheckCircle2 size={14} />
-                    </span>
-                  ) : (
-                    <span className="milestone-lock-badge">
-                      <Lock size={12} />
-                    </span>
-                  )}
-                </div>
-
-                <div className="milestone-body">
-                  <div className="milestone-title-row">
-                    <h3 className="milestone-title">{milestone.title}</h3>
-                    <span className={`milestone-status-chip ${isEarned ? 'chip-earned' : 'chip-locked'}`}>
-                      {isEarned ? 'UNLOCKED' : 'LOCKED'}
-                    </span>
-                  </div>
-
-                  <p className="milestone-description">{milestone.description}</p>
-
-                  {isEarned ? (
-                    <div className="milestone-achieved-text">
-                      <Sparkles size={13} className="accent-green" />
-                      <span>{achievedDateStr ? `Achieved on ${achievedDateStr}` : 'Completed & Verified'}</span>
-                    </div>
-                  ) : (
-                    <div className="milestone-progress-wrap">
-                      <div className="milestone-progress-bar">
-                        <div
-                          className="milestone-progress-fill"
-                          style={{ width: `${progressPercent}%` }}
-                        />
-                      </div>
-                      <span className="milestone-progress-label">
-                        {milestone.current} / {milestone.target}{' '}
-                        {milestone.category === 'streak'
-                          ? 'days'
-                          : milestone.category === 'module'
-                          ? 'modules'
-                          : 'courses'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
       {/* ─── 5. POINTS & REWARDS SYSTEM AUDIT LOG ─── */}
       <section className="achievements-rewards-section" aria-label="Points Rules and Activity">
         <div className="rewards-rules-header">
@@ -749,15 +1574,6 @@ export const LearnerAchievementsView = ({
                   <ExternalLink size={15} />
                   <span>Verify Online</span>
                 </a>
-
-                <button
-                  type="button"
-                  className="btn-viewer-print"
-                  onClick={handlePrintCertificate}
-                >
-                  <Printer size={15} />
-                  <span>Print</span>
-                </button>
 
                 <button
                   type="button"

@@ -198,7 +198,9 @@ export const LearnerSidebar = ({
           <ul className="sidebar-nav-list" role="menubar">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = activeView === item.id;
+              const isActive =
+                activeView === item.id ||
+                (item.id === 'dashboard' && activeView === 'trending-detail');
 
               return (
                 <li key={item.id} className="sidebar-nav-item" role="none">

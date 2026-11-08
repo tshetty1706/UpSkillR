@@ -124,9 +124,11 @@ export const VideoLesson = ({
   const hasValidSource = Boolean(activeSource && activeSource.length > 0) && !isExplicitUnavailable;
   const isProcessing = videoObj.status === 'processing' || contentItem?.status === 'processing';
 
-  // ─── 80% Video Watch Tracking State ───
+  // ─── 80% Video Watch Tracking & Forward Seek Lock State ───
   const [watchPercentage, setWatchPercentage] = useState(0);
   const [uniqueWatchedSeconds, setUniqueWatchedSeconds] = useState(0);
+  const [maxWatchedTime, setMaxWatchedTime] = useState(0);
+  const maxWatchedTimeRef = useRef(0);
   const [isWatchEligible, setIsWatchEligible] = useState(Boolean(isCompleted));
   const watchedIntervalsRef = useRef([]);
   const activeIntervalRef = useRef(null);
@@ -240,6 +242,13 @@ export const VideoLesson = ({
       if (res.ok) {
         const data = await res.json();
         if (data.success) {
+          if (data.maxWatchedTime !== undefined) {
+            const serverMax = Number(data.maxWatchedTime) || 0;
+            if (serverMax > maxWatchedTimeRef.current) {
+              maxWatchedTimeRef.current = serverMax;
+              setMaxWatchedTime(serverMax);
+            }
+          }
           setWatchPercentage(data.watchPercentage || 0);
           setUniqueWatchedSeconds(data.uniqueWatchedDuration || 0);
           const eligible = data.isEligible || (data.watchPercentage >= 80) || isCompleted;
@@ -277,6 +286,8 @@ export const VideoLesson = ({
     // Reset watch progress session state
     setWatchPercentage(0);
     setUniqueWatchedSeconds(0);
+    setMaxWatchedTime(0);
+    maxWatchedTimeRef.current = 0;
     setIsWatchEligible(Boolean(isCompleted));
     watchedIntervalsRef.current = [];
     activeIntervalRef.current = null;
@@ -317,6 +328,9 @@ export const VideoLesson = ({
             watchedIntervalsRef.current = intervals;
             setWatchPercentage(data.watchPercentage || 0);
             setUniqueWatchedSeconds(data.uniqueWatchedDuration || 0);
+            const savedMax = Number(data.maxWatchedTime) || Number(data.lastWatchedPosition) || 0;
+            maxWatchedTimeRef.current = savedMax;
+            setMaxWatchedTime(savedMax);
             const eligible = data.isEligible || (data.watchPercentage >= 80) || isCompleted;
             setIsWatchEligible(eligible);
             onWatchEligibilityChange?.({
@@ -327,12 +341,14 @@ export const VideoLesson = ({
               isCompleted: data.isCompleted || isCompleted
             });
 
-            // Restore last playback position if saved
+            // Restore last playback position if saved (clamped to legitimate max position)
             if (data.lastWatchedPosition > 1 && activeVideoRef.current && !activeVideoRef.current.currentTime) {
               const resumePos = Number(data.lastWatchedPosition);
               if (!isNaN(resumePos) && resumePos > 0) {
-                activeVideoRef.current.currentTime = resumePos;
-                setCurrentTime(resumePos);
+                const ceiling = isCompleted ? 999999 : Math.max(savedMax, resumePos);
+                const safePos = Math.min(resumePos, ceiling);
+                activeVideoRef.current.currentTime = safePos;
+                setCurrentTime(safePos);
               }
             }
           }
@@ -536,6 +552,12 @@ export const VideoLesson = ({
     const dur = e.target.duration || duration || Number(videoObj?.duration) || 0;
     setCurrentTime(cur);
 
+    // Track furthest legitimate playback reached
+    if (cur > maxWatchedTimeRef.current) {
+      maxWatchedTimeRef.current = cur;
+      setMaxWatchedTime(cur);
+    }
+
     if (e.target.buffered && e.target.buffered.length > 0 && e.target.duration > 0) {
       try {
         const bufferedEnd = e.target.buffered.end(e.target.buffered.length - 1);
@@ -590,6 +612,19 @@ export const VideoLesson = ({
     }
 
     onTimeUpdate?.(e);
+  };
+
+  // Guard native HTML5 video element against bypassing forward seek restrictions
+  const handleSeekingInternal = (e) => {
+    if (isCompleted) return;
+    const vid = e.target;
+    if (!vid) return;
+    const allowedLimit = Math.max(maxWatchedTimeRef.current, 0);
+    // Allow small tolerance (0.5s) for normal playback jitter
+    if (vid.currentTime > allowedLimit + 0.5) {
+      vid.currentTime = allowedLimit;
+      setCurrentTime(allowedLimit);
+    }
   };
 
   const handlePlayInternal = (e) => {
@@ -740,7 +775,16 @@ export const VideoLesson = ({
     if (!track) return;
     const rect = track.getBoundingClientRect();
     const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const targetTime = pos * (duration || 1);
+    const rawTargetTime = pos * (duration || 1);
+
+    // Forward seeking lock:
+    // If completed, allow seeking anywhere in the video.
+    // If not completed, limit forward seeking to the furthest legitimately watched position.
+    const allowedLimit = isCompleted
+      ? (duration || rawTargetTime)
+      : Math.max(maxWatchedTimeRef.current, 0);
+
+    const targetTime = Math.min(rawTargetTime, allowedLimit);
 
     if (activeVideoRef.current && isFinite(targetTime)) {
       if (activeIntervalRef.current && activeIntervalRef.current.last > activeIntervalRef.current.start) {
@@ -798,15 +842,29 @@ export const VideoLesson = ({
   const handleKeyDown = (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
+    const allowedLimit = isCompleted
+      ? (duration || 999999)
+      : Math.max(maxWatchedTimeRef.current, currentTime);
+
     if (e.key === ' ' || e.key === 'k') {
       e.preventDefault();
       togglePlayPause();
-    } else if (e.key === 'ArrowRight') {
+    } else if (e.key === 'ArrowRight' || e.key === 'l') {
       e.preventDefault();
-      if (activeVideoRef.current) activeVideoRef.current.currentTime = Math.min(duration, currentTime + 5);
-    } else if (e.key === 'ArrowLeft') {
+      if (activeVideoRef.current) {
+        const step = e.key === 'l' ? 10 : 5;
+        const target = Math.min(currentTime + step, allowedLimit);
+        activeVideoRef.current.currentTime = target;
+        setCurrentTime(target);
+      }
+    } else if (e.key === 'ArrowLeft' || e.key === 'j') {
       e.preventDefault();
-      if (activeVideoRef.current) activeVideoRef.current.currentTime = Math.max(0, currentTime - 5);
+      if (activeVideoRef.current) {
+        const step = e.key === 'j' ? 10 : 5;
+        const target = Math.max(0, currentTime - step);
+        activeVideoRef.current.currentTime = target;
+        setCurrentTime(target);
+      }
     } else if (e.key === 'f') {
       e.preventDefault();
       toggleFullscreen();
@@ -824,6 +882,7 @@ export const VideoLesson = ({
   };
 
   const playedPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const maxWatchedPercent = duration > 0 ? Math.min(100, (maxWatchedTime / duration) * 100) : 0;
 
   // 7. Explicit Video Processing or Unavailable Empty States
   if (isProcessing) {
@@ -868,68 +927,6 @@ export const VideoLesson = ({
 
   return (
     <div className="content-type-video-view" onKeyDown={handleKeyDown} tabIndex={0}>
-      {/* ─── 80% Minimum Video Watch Tracker Banner (GeeksforGeeks style) ─── */}
-      <div
-        className={`video-completion-tracker-banner ${isWatchEligible || isCompleted ? 'eligible' : 'locked'}`}
-        aria-label="Video Completion Requirement Tracker"
-      >
-        <div className="tracker-top-row">
-          <div className="tracker-metric-group">
-            <span className="tracker-metric-pct">
-              {isWatchEligible || isCompleted ? (
-                <CheckCircle2 size={16} className="tracker-icon-success" />
-              ) : (
-                <Clock size={16} className="tracker-icon-locked" />
-              )}
-              <span>Video Progress: <strong>{watchPercentage}%</strong></span>
-            </span>
-            <span className="tracker-divider">•</span>
-            <span className="tracker-metric-duration">
-              {formatTime(uniqueWatchedSeconds)} / {formatTime(duration || videoObj?.duration || 0)} watched
-            </span>
-          </div>
-
-          <div className="tracker-status-tag">
-            {isCompleted ? (
-              <span className="tracker-badge-pill pill-completed">
-                <CheckCircle2 size={13} />
-                <span>Completed</span>
-              </span>
-            ) : isWatchEligible ? (
-              <span className="tracker-badge-pill pill-eligible">
-                <CheckCircle2 size={13} />
-                <span>✓ Minimum watch requirement completed</span>
-              </span>
-            ) : (
-              <span className="tracker-badge-pill pill-locked">
-                <Lock size={13} />
-                <span>80% Required to Complete</span>
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Milestone Progress Bar with 80% Threshold Marker */}
-        <div className="tracker-progress-track" role="progressbar" aria-valuenow={watchPercentage} aria-valuemin="0" aria-valuemax="100">
-          <div
-            className={`tracker-progress-fill ${isWatchEligible || isCompleted ? 'fill-completed' : 'fill-in-progress'}`}
-            style={{ width: `${Math.min(100, Math.max(0, watchPercentage))}%` }}
-          />
-          <div className="tracker-milestone-marker" style={{ left: '80%' }} title="80% Completion Requirement">
-            <span className="milestone-line" />
-            <span className="milestone-label">80% Milestone</span>
-          </div>
-        </div>
-
-        {/* Informational Guidance Notice for < 80% */}
-        {!isWatchEligible && !isCompleted && (
-          <div className="tracker-requirement-notice">
-            <AlertCircle size={14} className="notice-icon" />
-            <span>You need to watch at least 80% of this video to mark the lesson as complete.</span>
-          </div>
-        )}
-      </div>
-
       <div
         ref={containerRef}
         className="custom-video-player-wrapper video-player-container"
@@ -942,6 +939,7 @@ export const VideoLesson = ({
           ref={activeVideoRef}
           className="custom-video-element workspace-video-element"
           onTimeUpdate={handleTimeUpdateInternal}
+          onSeeking={handleSeekingInternal}
           onPlay={handlePlayInternal}
           onPause={handlePauseInternal}
           onLoadedMetadata={handleLoadedMetadata}
@@ -1036,6 +1034,14 @@ export const VideoLesson = ({
                 className="video-buffer-fill"
                 style={{ width: `${bufferedPercent}%` }}
               />
+              {/* Watched portion indicator for uncompleted video */}
+              {!isCompleted && maxWatchedPercent > 0 && (
+                <div
+                  className="video-watched-fill"
+                  style={{ width: `${maxWatchedPercent}%` }}
+                  title={`Watched up to ${formatTime(maxWatchedTime)}`}
+                />
+              )}
               {/* Played fill */}
               <div
                 className="video-played-fill"
@@ -1051,10 +1057,16 @@ export const VideoLesson = ({
             {/* Hover Timestamp Preview */}
             {hoverTime !== null && (
               <div
-                className="video-time-hover-tooltip"
+                className={`video-time-hover-tooltip ${
+                  !isCompleted && hoverTime > (maxWatchedTimeRef.current || 0) + 0.5 ? 'is-locked' : ''
+                }`}
                 style={{ left: `${hoverPosition}%` }}
               >
-                {formatTime(hoverTime)}
+                {!isCompleted && hoverTime > (maxWatchedTimeRef.current || 0) + 0.5 ? (
+                  <span>🔒 {formatTime(hoverTime)} (Unwatched)</span>
+                ) : (
+                  <span>{formatTime(hoverTime)}</span>
+                )}
               </div>
             )}
           </div>

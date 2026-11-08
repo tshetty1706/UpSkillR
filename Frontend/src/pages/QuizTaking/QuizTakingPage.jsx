@@ -4,13 +4,18 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
+  XCircle,
   AlertCircle,
   HelpCircle,
   CheckSquare,
   Award,
   Loader2,
-  X
+  RotateCcw,
+  BookOpen,
+  Calendar,
+  Eye
 } from 'lucide-react';
+import { API_BASE } from '../../config/api';
 import './QuizTakingPage.css';
 
 export const QuizTakingPage = ({
@@ -27,22 +32,38 @@ export const QuizTakingPage = ({
   const [answers, setAnswers] = useState({});
   const [remainingSeconds, setRemainingSeconds] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRetaking, setIsRetaking] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const autoSubmittedRef = useRef(false);
+
+  // Results & Review State
+  const [isReviewMode, setIsReviewMode] = useState(false);
+  const [resultData, setResultData] = useState(null);
+  const [reviewQuestions, setReviewQuestions] = useState([]);
 
   const getAuthHeader = () => {
     const token = sessionStorage.getItem('upskillr_token') || localStorage.getItem('upskillr_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  // 1. Fetch Attempt State & Sanitized Questions from Backend
+  // Back to learning workspace preserving context
+  const handleBackToWorkspace = useCallback(() => {
+    let returnUrl = `/learn/${courseId}`;
+    const search = window.location.search;
+    if (search) {
+      returnUrl += search;
+    }
+    window.location.href = returnUrl;
+  }, [courseId]);
+
+  // 1. Fetch Attempt State & Questions / Results from Backend
   useEffect(() => {
     const fetchAttempt = async () => {
       try {
         setIsLoading(true);
         setError(null);
 
-        const res = await fetch(`http://localhost:5000/api/courses/${courseId}/quizzes/${quizId}/attempt/${attemptId}`, {
+        const res = await fetch(`${API_BASE}/courses/${courseId}/quizzes/${quizId}/attempt/${attemptId}`, {
           headers: {
             'Content-Type': 'application/json',
             ...getAuthHeader()
@@ -55,16 +76,20 @@ export const QuizTakingPage = ({
           throw new Error(data.message || 'Failed to retrieve quiz attempt.');
         }
 
-        // If attempt is already finalized, redirect back to workspace
-        if (data.isSubmitted) {
-          window.location.href = `/learn/${courseId}`;
+        setQuizData(data.quiz);
+
+        // If attempt is already submitted/graded, load directly into review mode!
+        if (data.isSubmitted && data.result) {
+          setResultData(data.result);
+          setReviewQuestions(data.review?.questions || []);
+          setIsReviewMode(true);
           return;
         }
 
-        setQuizData(data.quiz);
+        // Active attempt mode
         setQuestions(data.quiz?.questions || []);
 
-        // Calculate synchronized remaining time
+        // Calculate remaining seconds
         const startedTime = new Date(data.startedAt).getTime();
         const durationSec = (data.durationMinutes || 10) * 60;
         const now = Date.now();
@@ -83,7 +108,7 @@ export const QuizTakingPage = ({
     fetchAttempt();
   }, [courseId, quizId, attemptId]);
 
-  // 2. Submit Quiz Handler
+  // 2. Submit Quiz Handler (Displays results on SAME page without redirecting)
   const handleSubmitQuiz = useCallback(async (isAutoSubmit = false) => {
     if (isSubmitting || autoSubmittedRef.current) return;
 
@@ -95,7 +120,7 @@ export const QuizTakingPage = ({
       setIsSubmitting(true);
       setShowConfirmModal(false);
 
-      const res = await fetch(`http://localhost:5000/api/courses/${courseId}/quizzes/${quizId}/attempt/${attemptId}/submit`, {
+      const res = await fetch(`${API_BASE}/courses/${courseId}/quizzes/${quizId}/attempt/${attemptId}/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -110,8 +135,11 @@ export const QuizTakingPage = ({
         throw new Error(data.message || 'Failed to submit quiz.');
       }
 
-      // Submission saved! Redirect back to course learning workspace
-      window.location.href = `/learn/${courseId}`;
+      // DO NOT REDIRECT! Render results immediately on the same page.
+      setResultData(data.result);
+      setReviewQuestions(data.review?.questions || []);
+      setIsReviewMode(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       console.error('handleSubmitQuiz error:', err);
       alert(err.message || 'Submission error. Please try again.');
@@ -120,9 +148,38 @@ export const QuizTakingPage = ({
     }
   }, [courseId, quizId, attemptId, answers, isSubmitting]);
 
-  // 3. Countdown Timer Interval
+  // 3. Retake Quiz Handler (Starts a new practice attempt)
+  const handleRetakeQuiz = async () => {
+    if (isRetaking) return;
+    try {
+      setIsRetaking(true);
+      const res = await fetch(`${API_BASE}/courses/${courseId}/quizzes/${quizId}/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
+        credentials: 'include'
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to start quiz attempt.');
+      }
+
+      // Navigate to the new attempt with search params preserved
+      const newAttemptId = data.attemptId;
+      window.location.href = `/quiz/${courseId}/${quizId}/attempt/${newAttemptId}${window.location.search}`;
+    } catch (err) {
+      console.error('handleRetakeQuiz error:', err);
+      alert(err.message || 'Could not start quiz. Please try again.');
+      setIsRetaking(false);
+    }
+  };
+
+  // 4. Countdown Timer Interval
   useEffect(() => {
-    if (remainingSeconds === null || isSubmitting) return;
+    if (isReviewMode || remainingSeconds === null || isSubmitting) return;
 
     if (remainingSeconds <= 0) {
       if (!autoSubmittedRef.current) {
@@ -143,14 +200,38 @@ export const QuizTakingPage = ({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [remainingSeconds, isSubmitting, handleSubmitQuiz]);
+  }, [isReviewMode, remainingSeconds, isSubmitting, handleSubmitQuiz]);
 
-  // Format timer MM:SS
   const formatTimer = (sec) => {
     if (sec === null || sec === undefined) return '--:--';
     const m = Math.floor(sec / 60);
     const s = sec % 60;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const formatDurationText = (sec) => {
+    if (!sec && sec !== 0) return '0s';
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    if (m > 0 && s > 0) return `${m}m ${s}s`;
+    if (m > 0) return `${m}m`;
+    return `${s}s`;
+  };
+
+  const formatDate = (isoStr) => {
+    if (!isoStr) return '—';
+    try {
+      const d = new Date(isoStr);
+      return d.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return '—';
+    }
   };
 
   const getTimerClass = () => {
@@ -205,7 +286,7 @@ export const QuizTakingPage = ({
           <button
             type="button"
             className="btn-gfg-primary"
-            onClick={() => { window.location.href = `/learn/${courseId}`; }}
+            onClick={handleBackToWorkspace}
           >
             Return to Learning Workspace
           </button>
@@ -214,13 +295,328 @@ export const QuizTakingPage = ({
     );
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  // VIEW MODE: RESULTS & QUESTION-BY-QUESTION REVIEW
+  // ══════════════════════════════════════════════════════════════════
+  if (isReviewMode && resultData) {
+    const isPassed = resultData.gradeResult === 'passed';
+    const isFirst = resultData.isOfficial || resultData.isFirstAttempt || resultData.attemptNumber === 1;
+
+    return (
+      <div className="quiz-taking-page review-mode">
+        {/* Top Header Bar */}
+        <header className="quiz-top-bar review-header">
+          <div className="quiz-top-left">
+            <button
+              type="button"
+              className="btn-review-back"
+              onClick={handleBackToWorkspace}
+              title="Return to course learning workspace"
+            >
+              <ArrowLeft size={17} />
+              <span>Back to Learning Workspace</span>
+            </button>
+            <div className="quiz-header-divider"></div>
+            <div className="quiz-top-meta">
+              <h2 className="quiz-top-title">{quizData?.title || 'Quiz'} — Results & Review</h2>
+              <p className="quiz-top-subtitle">
+                Attempt {resultData.attemptNumber || 1} • {isFirst ? 'Official Score' : 'Practice Attempt'}
+              </p>
+            </div>
+          </div>
+
+          <div className="quiz-top-right">
+            <button
+              type="button"
+              className="btn-review-retake"
+              onClick={handleRetakeQuiz}
+              disabled={isRetaking}
+            >
+              <RotateCcw size={16} />
+              <span>{isRetaking ? 'Starting...' : 'Retake Quiz (Practice)'}</span>
+            </button>
+            <button
+              type="button"
+              className="btn-header-submit"
+              onClick={handleBackToWorkspace}
+            >
+              <ArrowLeft size={16} />
+              <span>Back to Workspace</span>
+            </button>
+          </div>
+        </header>
+
+        {/* Scrollable Results & Review Body */}
+        <div className="quiz-review-scroll-container">
+          <div className="quiz-review-content-wrapper">
+            {/* ─── Result Summary Hero Card ─── */}
+            <div className="review-summary-hero-card">
+              <div className="summary-hero-top-row">
+                <div className="summary-title-col">
+                  <span className="summary-overline">Quiz Results</span>
+                  <h1 className="summary-quiz-title">{quizData?.title || 'Quiz'}</h1>
+                </div>
+
+                <div className="summary-badges-col">
+                  <span className={`summary-badge-attempt ${isFirst ? 'official' : 'practice'}`}>
+                    <Award size={14} />
+                    {isFirst ? 'Attempt 1 • Official Score' : `Attempt ${resultData.attemptNumber} • Practice`}
+                  </span>
+                  <span className={`summary-badge-grade ${isPassed ? 'passed' : 'failed'}`}>
+                    {isPassed ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
+                    {isPassed ? 'Passed' : 'Needs Practice'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Large Score Display */}
+              <div className="summary-score-hero-display">
+                <div className="summary-score-numbers">
+                  <span className="score-obtained">{resultData.totalScore ?? 0}</span>
+                  <span className="score-max"> / {resultData.maxScore ?? quizData?.totalMarks ?? 0} Marks</span>
+                </div>
+                <div className="summary-score-percentage">
+                  {resultData.percentage ?? 0}%
+                </div>
+              </div>
+
+              {/* 6-Item Metrics Grid */}
+              <div className="summary-metrics-grid">
+                <div className="metric-box">
+                  <span className="metric-label">Total Questions</span>
+                  <span className="metric-value">{resultData.totalQuestions || reviewQuestions.length}</span>
+                </div>
+
+                <div className="metric-box">
+                  <span className="metric-label">Correct Answers</span>
+                  <span className="metric-value correct">{resultData.correctCount ?? 0}</span>
+                </div>
+
+                <div className="metric-box">
+                  <span className="metric-label">Incorrect Answers</span>
+                  <span className="metric-value incorrect">{resultData.incorrectCount ?? 0}</span>
+                </div>
+
+                <div className="metric-box">
+                  <span className="metric-label">Unanswered</span>
+                  <span className="metric-value">{resultData.unansweredCount ?? 0}</span>
+                </div>
+
+                <div className="metric-box">
+                  <span className="metric-label">Time Taken</span>
+                  <span className="metric-value">{formatDurationText(resultData.timeTakenSeconds)}</span>
+                </div>
+
+                <div className="metric-box">
+                  <span className="metric-label">Submitted On</span>
+                  <span className="metric-value date">{formatDate(resultData.submittedAt)}</span>
+                </div>
+              </div>
+
+              {/* Policy Callout Banner */}
+              <div className="summary-policy-banner">
+                <AlertCircle size={16} className="policy-banner-icon" />
+                <p className="policy-banner-text">
+                  <strong>First-Attempt Scoring Rule:</strong> Only your first attempt ({isFirst ? `${resultData.totalScore}/${resultData.maxScore}` : 'Attempt 1'}) serves as your official permanent quiz score for course progress. Subsequent attempts are recorded as practice to help you test and master your skills.
+                </p>
+              </div>
+            </div>
+
+            {/* ─── Question-by-Question Review Section ─── */}
+            <div className="review-questions-section">
+              <div className="review-section-header">
+                <h2 className="review-section-title">Question-by-Question Review</h2>
+                <p className="review-section-subtitle">
+                  Inspect your submitted answers, see the correct solutions in green, and review instructor explanations.
+                </p>
+              </div>
+
+              <div className="review-questions-list">
+                {reviewQuestions.map((q, idx) => {
+                  const isMulti = q.type === 'multiple_response';
+                  const isAnswered = Boolean(q.isAnswered);
+                  const isCorrect = Boolean(q.isCorrect);
+
+                  // Normalized student answers
+                  const studentAns = q.studentAnswer;
+                  // Normalized correct answers
+                  const correctAns = q.correctAnswer;
+
+                  return (
+                    <div
+                      key={q.questionId || idx}
+                      className={`review-question-card ${
+                        isCorrect ? 'card-correct' : !isAnswered ? 'card-unanswered' : 'card-incorrect'
+                      }`}
+                    >
+                      {/* Question Card Header */}
+                      <div className="review-card-header">
+                        <div className="review-q-number-pill">
+                          Question {idx + 1} of {reviewQuestions.length}
+                        </div>
+
+                        <div className="review-q-status-chips">
+                          {isCorrect ? (
+                            <span className="q-status-chip correct">
+                              <CheckCircle2 size={15} />
+                              Correct (+{q.marksAwarded} Marks)
+                            </span>
+                          ) : !isAnswered ? (
+                            <span className="q-status-chip unanswered">
+                              <HelpCircle size={15} />
+                              Unanswered (0 / {q.maxMarks || 1} Marks)
+                            </span>
+                          ) : (
+                            <span className="q-status-chip incorrect">
+                              <XCircle size={15} />
+                              Incorrect (0 / {q.maxMarks || 1} Marks)
+                            </span>
+                          )}
+
+                          <span className="q-marks-indicator">
+                            {q.marksAwarded} / {q.maxMarks || 1} Mark{(q.maxMarks || 1) > 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Question Text */}
+                      <h3 className="review-q-prompt">
+                        {q.questionText}
+                      </h3>
+
+                      {/* Options List */}
+                      <div className="review-options-list">
+                        {(q.options || []).map((opt, optIdx) => {
+                          // Check if student selected this option
+                          let isSelected = false;
+                          if (isMulti) {
+                            isSelected = Array.isArray(studentAns) && studentAns.map(Number).includes(optIdx);
+                          } else {
+                            isSelected = studentAns !== null && studentAns !== undefined && studentAns !== '' && (
+                              Number(studentAns) === optIdx ||
+                              String(studentAns).trim().toLowerCase() === String(opt).trim().toLowerCase()
+                            );
+                          }
+
+                          // Check if this option is the correct option
+                          let isCorrectOption = false;
+                          if (isMulti) {
+                            isCorrectOption = Array.isArray(correctAns) && correctAns.map(Number).includes(optIdx);
+                          } else {
+                            isCorrectOption = correctAns !== null && correctAns !== undefined && correctAns !== '' && (
+                              Number(correctAns) === optIdx ||
+                              String(correctAns).trim().toLowerCase() === String(opt).trim().toLowerCase()
+                            );
+                          }
+
+                          // Option card styling class:
+                          // - green if correct
+                          // - red if learner selected it and it is incorrect
+                          // - neutral otherwise
+                          let optionClass = 'review-option neutral';
+                          if (isCorrectOption) {
+                            optionClass = isSelected ? 'review-option correct-selected' : 'review-option correct-unselected';
+                          } else if (isSelected && !isCorrectOption) {
+                            optionClass = 'review-option incorrect-selected';
+                          }
+
+                          return (
+                            <div key={optIdx} className={optionClass}>
+                              <div className="opt-left-col">
+                                <span className="opt-letter-circle">
+                                  {String.fromCharCode(65 + optIdx)}
+                                </span>
+                                <span className="opt-text">{opt}</span>
+                              </div>
+
+                              <div className="opt-right-indicators">
+                                {isCorrectOption && isSelected && (
+                                  <span className="opt-pill-badge badge-correct-selected">
+                                    <CheckCircle2 size={14} />
+                                    Your Answer (Correct)
+                                  </span>
+                                )}
+
+                                {isCorrectOption && !isSelected && (
+                                  <span className="opt-pill-badge badge-correct-solution">
+                                    <CheckCircle2 size={14} />
+                                    Correct Answer
+                                  </span>
+                                )}
+
+                                {isSelected && !isCorrectOption && (
+                                  <span className="opt-pill-badge badge-incorrect-selected">
+                                    <XCircle size={14} />
+                                    Your Answer (Incorrect)
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Unanswered Notice if learner skipped */}
+                      {!isAnswered && (
+                        <div className="review-unanswered-notice">
+                          <AlertCircle size={15} />
+                          <span>You did not answer this question. The correct answer is highlighted in green above.</span>
+                        </div>
+                      )}
+
+                      {/* Instructor Explanation Box */}
+                      {q.explanation && q.explanation.trim() && (
+                        <div className="review-explanation-box">
+                          <div className="explanation-header">
+                            <BookOpen size={16} className="explanation-icon" />
+                            <span className="explanation-title">Instructor Explanation & Notes</span>
+                          </div>
+                          <p className="explanation-text">{q.explanation}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Bottom Actions Bar */}
+            <div className="review-bottom-actions-row">
+              <button
+                type="button"
+                className="btn-gfg-secondary"
+                onClick={handleBackToWorkspace}
+              >
+                <ArrowLeft size={16} />
+                Back to Learning Workspace
+              </button>
+
+              <button
+                type="button"
+                className="btn-gfg-primary"
+                onClick={handleRetakeQuiz}
+                disabled={isRetaking}
+              >
+                <RotateCcw size={16} />
+                {isRetaking ? 'Starting...' : 'Retake Quiz (Practice)'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // VIEW MODE: ACTIVE QUIZ TAKING WORKSPACE
+  // ══════════════════════════════════════════════════════════════════
   const currentQ = questions[currentIndex] || {};
   const currentKey = currentQ._id ? String(currentQ._id) : String(currentIndex);
   const isMulti = currentQ.type === 'multiple_response';
   const selectedAnswer = answers[currentKey];
 
   // Palette stats
-  const answeredCount = Object.keys(answers).length;
+  const answeredCount = Object.keys(answers).filter(k => answers[k] !== undefined && answers[k] !== null && answers[k] !== '').length;
   const totalQuestions = questions.length;
   const unansweredCount = Math.max(0, totalQuestions - answeredCount);
 
@@ -400,7 +796,7 @@ export const QuizTakingPage = ({
           <div className="quiz-confirm-dialog">
             <h3 className="confirm-dialog-title">Submit Quiz Attempt?</h3>
             <p className="confirm-dialog-body">
-              Are you sure you want to finalize your submission? Once submitted, your score and answers will be calculated by the server.
+              Are you sure you want to finalize your submission? Once submitted, your score and answers will be evaluated securely on the backend.
             </p>
 
             <div className="confirm-stat-row">

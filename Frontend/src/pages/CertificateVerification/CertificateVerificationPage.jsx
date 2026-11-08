@@ -296,14 +296,6 @@ export const CertificateVerificationPage = ({ certificateId: initialCertId, user
                       <Download size={15} />
                       <span>Download PNG</span>
                     </button>
-                    <button
-                      type="button"
-                      className="btn-visual-print"
-                      onClick={handlePrint}
-                    >
-                      <Printer size={15} />
-                      <span>Print</span>
-                    </button>
                   </div>
                 </div>
 

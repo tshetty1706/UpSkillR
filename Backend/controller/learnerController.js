@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { Learner } = require('../model/User');
 const Enrolment = require('../model/Enrolment');
 const PointTransaction = require('../model/PointTransaction');
@@ -13,7 +14,7 @@ const PLATFORM_REGEXES = {
   instagram: /^https:\/\/(www\.)?instagram\.com\/[A-Za-z0-9_.-]+\/?$/,
   facebook: /^https:\/\/(www\.)?facebook\.com\/[A-Za-z0-9_.-]+\/?$/,
   codeforces: /^https:\/\/(www\.)?codeforces\.com\/profile\/[A-Za-z0-9_.-]+\/?$/,
-  geeksforgeeks: /^https:\/\/(www\.|auth\.)?geeksforgeeks\.org\/user\/[A-Za-z0-9_.-]+\/?$/,
+  geeksforgeeks: /^https:\/\/(www\.|auth\.)?geeksforgeeks\.org\/profile\/[A-Za-z0-9_.-]+\/?$/,
   hackerrank: /^https:\/\/(www\.)?hackerrank\.com\/(profile\/)?[A-Za-z0-9_.-]+\/?$/
 };
 
@@ -23,10 +24,16 @@ const PLATFORM_LABELS = {
   geeksforgeeks: 'GeeksforGeeks', hackerrank: 'HackerRank'
 };
 
-// ─── Helper: YYYY-MM-DD date string ───
-const getDateString = (date = new Date()) => {
-  const d = new Date(date);
-  return d.toISOString().split('T')[0];
+// ─── Helper: Date string & consecutive/same day helpers (Timezone Aware, default Asia/Kolkata) ───
+const {
+  getLocalDateString,
+  isConsecutiveDay: tzConsecutiveDay,
+  isSameDay: tzSameDay,
+  awardDailyLoginPoint
+} = require('../services/pointsService');
+
+const getDateString = (date = new Date(), timeZone = 'Asia/Kolkata') => {
+  return getLocalDateString(date, timeZone);
 };
 
 // ─── Helper: build full social links object from learner doc ───
@@ -42,47 +49,27 @@ const buildSocialLinks = (learner) => ({
 });
 
 // ─── Helper: are two dates consecutive calendar days ───
-const isConsecutiveDay = (lastDate, currentDate = new Date()) => {
-  if (!lastDate) return false;
-  const last = new Date(lastDate);
-  const current = new Date(currentDate);
-  last.setUTCHours(0, 0, 0, 0);
-  current.setUTCHours(0, 0, 0, 0);
-  const diffDays = Math.round((current.getTime() - last.getTime()) / (1000 * 3600 * 24));
-  return diffDays === 1;
+const isConsecutiveDay = (lastDate, currentDate = new Date(), timeZone = 'Asia/Kolkata') => {
+  return tzConsecutiveDay(lastDate, currentDate, timeZone);
 };
 
 // ─── Helper: are two dates the same calendar day ───
-const isSameDay = (d1, d2 = new Date()) => {
-  if (!d1 || !d2) return false;
-  return getDateString(d1) === getDateString(d2);
+const isSameDay = (d1, d2 = new Date(), timeZone = 'Asia/Kolkata') => {
+  return tzSameDay(d1, d2, timeZone);
 };
 exports.isSameDay = isSameDay;
 exports.isConsecutiveDay = isConsecutiveDay;
 
 // ─── Helper: process daily login streak (+1 point) ───
-const processDailyLoginStreak = async (learner) => {
+const processDailyLoginStreak = async (learner, timeZone = 'Asia/Kolkata') => {
   if (!learner || learner.role !== 'learner') return learner;
-  if (isSameDay(learner.lastCheckInDate)) return learner;
-
-  const isConsecutive = isConsecutiveDay(learner.lastCheckInDate);
-  learner.currentStreak = isConsecutive ? (learner.currentStreak || 0) + 1 : 1;
-  learner.longestStreak = Math.max(learner.longestStreak || 0, learner.currentStreak);
-  learner.lastCheckInDate = new Date();
-  learner.points = (learner.points || 0) + 1;
-  await learner.save();
-
-  const todayStr = getDateString();
-  try {
-    await PointTransaction.create({
-      learnerId: learner._id,
-      points: 1,
-      type: 'DAILY_CHECKIN',
-      referenceId: `checkin_${todayStr}`,
-      description: 'Daily Learning Streak (+1 point)'
-    });
-  } catch (e) {
-    // Duplicate safe — compound unique index guards this
+  const tz = timeZone || learner.timezone || 'Asia/Kolkata';
+  const res = await awardDailyLoginPoint(learner._id, tz);
+  if (res.awarded) {
+    learner.points = (learner.points || 0) + 1;
+    learner.currentStreak = res.currentStreak;
+    learner.longestStreak = res.longestStreak;
+    learner.lastCheckInDate = new Date();
   }
   return learner;
 };
@@ -130,6 +117,11 @@ exports.getLearnerProfileAndStats = async (req, res) => {
     const verifiedPoints = await syncLearnerPoints(learnerId);
     learner.points = verifiedPoints;
 
+    // Evaluate all badges idempotently and obtain live badge progress
+    const { evaluateAllBadges, getLearnerBadgeProgress } = require('../services/badgeService');
+    await evaluateAllBadges(learner, coursesCompleted);
+    const badgeData = await getLearnerBadgeProgress(learner, coursesCompleted);
+
     return res.status(200).json({
       success: true,
       user: {
@@ -151,6 +143,12 @@ exports.getLearnerProfileAndStats = async (req, res) => {
         lastCheckInDate: learner.lastCheckInDate,
         usernameLastChangedAt: learner.usernameLastChangedAt || learner.createdAt || null,
         usernameEligibility: getUsernameEligibility(learner),
+        badges: badgeData.badges,
+        streakBadges: badgeData.streakBadges,
+        knowledgeSeekerBadges: badgeData.knowledgeSeekerBadges,
+        quizMasterBadges: badgeData.quizMasterBadges,
+        consistentLearnerBadges: badgeData.consistentLearnerBadges,
+        perfectionistBadges: badgeData.perfectionistBadges
       },
       stats: {
         totalPoints: learner.points || 0,
@@ -159,7 +157,21 @@ exports.getLearnerProfileAndStats = async (req, res) => {
         coursesEnrolled,
         coursesCompleted,
         modulesCompleted,
-        checkedInToday
+        checkedInToday,
+        badgesEarned: badgeData.stats.totalBadgesEarned,
+        streakBadgesUnlocked: badgeData.stats.streakBadgesUnlocked,
+        totalStreakBadges: badgeData.stats.totalStreakBadges,
+        knowledgeSeekerBadgesUnlocked: badgeData.stats.knowledgeSeekerBadgesUnlocked,
+        totalKnowledgeSeekerBadges: badgeData.stats.totalKnowledgeSeekerBadges,
+        quizMasterBadgesUnlocked: badgeData.stats.quizMasterBadgesUnlocked,
+        totalQuizMasterBadges: badgeData.stats.totalQuizMasterBadges,
+        perfectQuizzesCount: badgeData.stats.perfectQuizzesCount,
+        consistentLearnerBadgesUnlocked: badgeData.stats.consistentLearnerBadgesUnlocked,
+        totalConsistentLearnerBadges: badgeData.stats.totalConsistentLearnerBadges,
+        lessonsCompleted: badgeData.stats.lessonsCompleted,
+        perfectionistBadgesUnlocked: badgeData.stats.perfectionistBadgesUnlocked,
+        totalPerfectionistBadges: badgeData.stats.totalPerfectionistBadges,
+        perfectionistQuizzesCount: badgeData.stats.perfectionistQuizzesCount
       }
     });
   } catch (error) {
@@ -392,16 +404,17 @@ exports.performDailyCheckin = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Learner record not found.' });
     }
 
-    const alreadyDone = isSameDay(learner.lastCheckInDate);
-    if (!alreadyDone) await processDailyLoginStreak(learner);
+    const tz = req.headers['x-timezone'] || req.body?.timezone || learner.timezone || 'Asia/Kolkata';
+    const rewardRes = await awardDailyLoginPoint(learner._id, tz);
+    const refreshed = await Learner.findById(learnerId);
 
     return res.status(200).json({
       success: true,
-      message: alreadyDone ? 'Already recorded today!' : '🎉 Daily login streak +1 point awarded!',
+      message: rewardRes.awarded ? '🎉 Daily login streak +1 point awarded!' : 'Already recorded today!',
       checkedInToday: true,
-      points: learner.points || 0,
-      currentStreak: learner.currentStreak || 0,
-      longestStreak: learner.longestStreak || 0
+      points: refreshed?.points ?? learner.points ?? 0,
+      currentStreak: refreshed?.currentStreak ?? learner.currentStreak ?? 0,
+      longestStreak: refreshed?.longestStreak ?? learner.longestStreak ?? 0
     });
   } catch (error) {
     console.error('Daily check-in error:', error);
@@ -415,16 +428,17 @@ exports.getPoints = async (req, res) => {
     if (!req.user || req.user.role !== 'learner') {
       return res.status(403).json({ success: false, message: 'Access denied. Points are restricted to learners only.' });
     }
-    const learner = await Learner.findById(req.user.id).select('points currentStreak longestStreak lastCheckInDate role');
+    const learner = await Learner.findById(req.user.id).select('points currentStreak longestStreak lastCheckInDate timezone role');
     if (!learner || learner.role !== 'learner') {
       return res.status(404).json({ success: false, message: 'Learner record not found.' });
     }
+    const tz = req.headers['x-timezone'] || learner.timezone || 'Asia/Kolkata';
     return res.status(200).json({
       success: true,
       points: learner.points || 0,
       currentStreak: learner.currentStreak || 0,
       longestStreak: learner.longestStreak || 0,
-      checkedInToday: isSameDay(learner.lastCheckInDate)
+      checkedInToday: isSameDay(learner.lastCheckInDate, new Date(), tz)
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Failed to fetch points' });
@@ -506,36 +520,159 @@ exports.getLearnerReviews = async (req, res) => {
   }
 };
 
-// ─── 9. GET /api/learners/me/activity — Heatmap data from PointTransaction (Valid activities only) ───
+// ─── 9. GET /api/learners/me/activity — Heatmap data from LearnerActivity & PointTransaction ───
 exports.getLearnerActivity = async (req, res) => {
   try {
     if (!req.user || req.user.role !== 'learner') {
       return res.status(403).json({ success: false, message: 'Access denied. Learner role required.' });
     }
     const learnerId = req.user.id;
+    const timeZone = req.headers['x-timezone'] || req.user.timezone || 'Asia/Kolkata';
+    const { syncLearnerActivities } = require('../services/activityService');
+    const { getLocalDateString } = require('../services/pointsService');
+    const LearnerActivity = require('../model/LearnerActivity');
+    const PointTransaction = require('../model/PointTransaction');
+
+    // Auto-sync historical activities safely
+    await syncLearnerActivities(learnerId);
+
     const now = new Date();
     const oneYearAgo = new Date(now);
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    oneYearAgo.setDate(oneYearAgo.getDate() - 7);
 
-    // Only count genuine, valid learner activity types
-    const VALID_TYPES = ['MODULE_COMPLETION', 'QUIZ_COMPLETION', 'COURSE_COMPLETION', 'DAILY_CHECKIN'];
+    // Fetch activities and point transactions
+    const [activities, transactions] = await Promise.all([
+      LearnerActivity.find({
+        learnerId,
+        createdAt: { $gte: oneYearAgo }
+      }).sort({ createdAt: 1 }).lean(),
+      PointTransaction.find({
+        learnerId,
+        createdAt: { $gte: oneYearAgo }
+      }).sort({ createdAt: 1 }).lean()
+    ]);
 
-    const transactions = await PointTransaction.find({
-      learnerId,
-      type: { $in: VALID_TYPES },
-      createdAt: { $gte: oneYearAgo }
-    }).sort({ createdAt: 1 });
-
-    // Group by YYYY-MM-DD
+    // Group by YYYY-MM-DD in the user's timezone
     const activityMap = {};
-    for (const t of transactions) {
-      const dateStr = getDateString(t.createdAt);
+
+    const getDayBucket = (dateStr) => {
       if (!activityMap[dateStr]) {
-        activityMap[dateStr] = { date: dateStr, count: 0, activities: [], descriptions: [] };
+        activityMap[dateStr] = {
+          date: dateStr,
+          count: 0,
+          breakdown: {
+            dailyLogin: 0,
+            lessonCompleted: 0,
+            moduleCompleted: 0,
+            courseCompleted: 0,
+            quizCompleted: 0,
+            badgeUnlocked: 0,
+            certificateEarned: 0
+          },
+          pointsEarned: {
+            dailyLogin: 0,
+            module: 0,
+            course: 0,
+            total: 0
+          },
+          descriptions: [],
+          activities: []
+        };
       }
-      activityMap[dateStr].count += 1;
-      activityMap[dateStr].activities.push(t.type);
-      activityMap[dateStr].descriptions.push(t.description);
+      return activityMap[dateStr];
+    };
+
+    // 1. Process LearnerActivity entries
+    for (const act of activities) {
+      const dateStr = getLocalDateString(act.createdAt, timeZone);
+      const bucket = getDayBucket(dateStr);
+      const actType = (act.activityType || '').toLowerCase();
+
+      if (actType === 'daily_login' || actType === 'login' || actType === 'daily_checkin') {
+        if (!bucket.breakdown.dailyLogin) {
+          bucket.breakdown.dailyLogin = 1;
+          bucket.pointsEarned.dailyLogin = 1;
+          bucket.count += 1;
+          bucket.activities.push('LOGIN');
+          bucket.descriptions.push(act.description || 'Daily Login (+1 point)');
+        }
+      } else if (actType === 'lesson_completed' || actType === 'video_completed') {
+        bucket.breakdown.lessonCompleted += 1;
+        bucket.count += 1;
+        bucket.activities.push('LESSON_COMPLETED');
+        bucket.descriptions.push(act.description || `Lesson Completed: ${act.lessonTitle || 'Lesson'}`);
+      } else if (actType === 'module_completed') {
+        bucket.breakdown.moduleCompleted += 1;
+        bucket.pointsEarned.module += 5;
+        bucket.count += 1;
+        bucket.activities.push('MODULE_COMPLETED');
+        bucket.descriptions.push(act.description || `Module Completed: ${act.moduleTitle || 'Module'} (+5 points)`);
+      } else if (actType === 'course_completed') {
+        bucket.breakdown.courseCompleted += 1;
+        bucket.pointsEarned.course += 25;
+        bucket.count += 1;
+        bucket.activities.push('COURSE_COMPLETED');
+        bucket.descriptions.push(act.description || `Course Completed: ${act.courseTitle || 'Course'} (+25 points)`);
+      } else if (actType === 'quiz_attempted' || actType === 'quiz_retaken') {
+        bucket.breakdown.quizCompleted += 1;
+        bucket.count += 1;
+        bucket.activities.push(actType === 'quiz_retaken' ? 'QUIZ_RETAKEN' : 'QUIZ_ATTEMPT');
+        bucket.descriptions.push(act.description || `Quiz Completed: ${act.lessonTitle || 'Quiz'}`);
+      } else if (actType === 'badge_unlocked') {
+        bucket.breakdown.badgeUnlocked += 1;
+        bucket.count += 1;
+        bucket.activities.push('BADGE_UNLOCKED');
+        bucket.descriptions.push(act.description || `Badge Unlocked: ${act.title}`);
+      } else if (actType === 'certificate_earned') {
+        bucket.breakdown.certificateEarned += 1;
+        bucket.count += 1;
+        bucket.activities.push('CERTIFICATE_EARNED');
+        bucket.descriptions.push(act.description || `Certificate Earned: ${act.courseTitle || 'Certificate'}`);
+      } else {
+        bucket.count += 1;
+        bucket.activities.push(act.activityType);
+        if (act.description) bucket.descriptions.push(act.description);
+      }
+    }
+
+    // 2. Process PointTransaction entries (catch any legacy transactions not in LearnerActivity)
+    for (const tx of transactions) {
+      const dateStr = getLocalDateString(tx.createdAt, timeZone);
+      const bucket = getDayBucket(dateStr);
+      const txType = (tx.type || '').toUpperCase();
+
+      if (txType.includes('LOGIN') || txType.includes('CHECKIN')) {
+        if (!bucket.breakdown.dailyLogin) {
+          bucket.breakdown.dailyLogin = 1;
+          bucket.pointsEarned.dailyLogin = 1;
+          bucket.count += 1;
+          bucket.activities.push('LOGIN');
+          bucket.descriptions.push(tx.description || 'Daily Login (+1 point)');
+        }
+      } else if (txType.includes('MODULE')) {
+        if (bucket.breakdown.moduleCompleted === 0) {
+          bucket.breakdown.moduleCompleted += 1;
+          bucket.pointsEarned.module += 5;
+          bucket.count += 1;
+          bucket.activities.push('MODULE_COMPLETED');
+          bucket.descriptions.push(tx.description || 'Module Completed (+5 points)');
+        }
+      } else if (txType.includes('COURSE')) {
+        if (bucket.breakdown.courseCompleted === 0) {
+          bucket.breakdown.courseCompleted += 1;
+          bucket.pointsEarned.course += 25;
+          bucket.count += 1;
+          bucket.activities.push('COURSE_COMPLETED');
+          bucket.descriptions.push(tx.description || 'Course Completed (+25 points)');
+        }
+      }
+    }
+
+    // 3. Finalize total points for each bucket
+    for (const dateStr of Object.keys(activityMap)) {
+      const b = activityMap[dateStr];
+      b.pointsEarned.total = b.pointsEarned.dailyLogin + b.pointsEarned.module + b.pointsEarned.course;
     }
 
     const activityData = Object.values(activityMap).sort((a, b) => a.date.localeCompare(b.date));
@@ -543,6 +680,66 @@ exports.getLearnerActivity = async (req, res) => {
   } catch (error) {
     console.error('Error fetching activity heatmap data:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch activity data.' });
+  }
+};
+
+// ─── 9b. GET /api/learners/me/recent-activities — Paginated recent learning activities ───
+exports.getRecentActivities = async (req, res) => {
+  try {
+    if (!req.user || req.user.role !== 'learner') {
+      return res.status(403).json({ success: false, message: 'Access denied. Learner role required.' });
+    }
+
+    const learnerId = req.user.id;
+    const { syncLearnerActivities } = require('../services/activityService');
+    const LearnerActivity = require('../model/LearnerActivity');
+
+    // Auto-sync historical activities on first load or in background
+    await syncLearnerActivities(learnerId);
+
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const pageSize = Math.min(50, Math.max(1, parseInt(req.query.limit || req.query.pageSize, 10) || 5));
+    const skip = (page - 1) * pageSize;
+
+    const totalActivities = await LearnerActivity.countDocuments({ learnerId });
+    const totalPages = Math.ceil(totalActivities / pageSize) || 1;
+
+    const activities = await LearnerActivity.find({ learnerId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(pageSize)
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      activities: activities.map((a) => ({
+        _id: a._id,
+        activityType: a.activityType,
+        title: a.title,
+        description: a.description,
+        courseId: a.courseId,
+        courseTitle: a.courseTitle,
+        moduleId: a.moduleId,
+        moduleTitle: a.moduleTitle,
+        lessonId: a.lessonId,
+        lessonTitle: a.lessonTitle,
+        points: a.points,
+        referenceId: a.referenceId,
+        metadata: a.metadata,
+        createdAt: a.createdAt
+      })),
+      pagination: {
+        currentPage: page,
+        pageSize,
+        totalActivities,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching recent activities:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch recent activities.' });
   }
 };
 
@@ -751,144 +948,144 @@ exports.recordCourseAccess = async (req, res) => {
 };
 
 
-// ─── 13. Secure Account Deletion (Password + Email OTP) ───
-const crypto = require('crypto');
-const bcrypt = require('bcryptjs');
-const nodemailer = require('nodemailer');
+// ─── 13. Secure Permanent Account Deletion (Email OTP Only — Learners Only) ───
+const {
+  generateSecureOtp,
+  hashDeleteOtp,
+  hashToken,
+  checkDeleteOtpRateLimit,
+  recordDeleteOtpAttempt,
+  sendDeletionOtpEmail,
+  executePermanentDeletion
+} = require('../services/accountDeletionService');
 
-const RESET_SECRET = process.env.RESET_TOKEN_SECRET || process.env.JWT_SECRET || 'upskillr_secure_secret_token_reset_key_32_bytes!';
-
-const hashDeleteOtp = (otp) => {
-  return crypto.createHmac('sha256', RESET_SECRET).update(String(otp).trim()).digest('hex');
-};
-
-const generateSecureOtp = () => {
-  return crypto.randomInt(100000, 1000000).toString();
-};
-
-let deleteMailTransporter = null;
-const getDeleteMailTransporter = () => {
-  const emailUser = process.env.EMAIL_USER;
-  const emailPass = process.env.EMAIL_PASS;
-  if (!emailUser || !emailPass) return null;
-  if (!deleteMailTransporter) {
-    deleteMailTransporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      maxConnections: 3,
-      family: 4,
-      auth: { user: emailUser, pass: emailPass }
-    });
-  }
-  return deleteMailTransporter;
-};
-
-const sendDeletionOtpEmail = async (email, otp, name) => {
-  const transporter = getDeleteMailTransporter();
-  const emailUser = process.env.EMAIL_USER;
-  if (!transporter || !emailUser) {
-    console.warn('[DELETE ACCOUNT] SMTP credentials missing in .env');
-    return false;
-  }
-
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head><meta charset="utf-8"></head>
-    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f5f7; margin:0; padding: 24px;">
-      <div style="max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
-        <div style="background-color: #dc2626; color: #ffffff; padding: 20px 24px;">
-          <h2 style="margin: 0; font-size: 1.25rem; font-weight: 700;">UpSkillR Security Alert</h2>
-          <p style="margin: 4px 0 0 0; font-size: 0.85rem; opacity: 0.9;">Account Deletion Verification Code</p>
-        </div>
-        <div style="padding: 24px; color: #1f2937;">
-          <p style="font-size: 1rem; margin-top: 0;">Hi <strong>${name || "Learner"}</strong>,</p>
-          <p style="font-size: 0.95rem; line-height: 1.5; color: #374151;">
-            We received a request to permanently delete your UpSkillR student account. If you confirm this action, your enrolled courses, certificates, achievements, and all personal learning data will be permanently erased.
-          </p>
-          <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 20px 0; text-align: center;">
-            <span style="display: block; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: #991b1b; font-weight: 600; margin-bottom: 6px;">Your 6-Digit Deletion Code</span>
-            <span style="font-size: 2rem; font-weight: 800; letter-spacing: 6px; color: #b91c1c; font-family: monospace;">${otp}</span>
-            <span style="display: block; font-size: 0.78rem; color: #7f1d1d; margin-top: 6px;">Valid for 10 minutes. Never share this code with anyone.</span>
-          </div>
-          <p style="font-size: 0.85rem; color: #6b7280; line-height: 1.4;">
-            If you did NOT request to delete your account, please change your password immediately and secure your account.
-          </p>
-        </div>
-        <div style="border-top: 1px solid #e5e7eb; padding: 14px 24px; background: #fafafa; text-align: center; font-size: 0.75rem; color: #9ca3af;">
-          UpSkillR Security &amp; Privacy Team &bull; Automated notification
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-
+/**
+ * Step 2: Request Account Deletion OTP
+ * POST /api/learners/me/delete-account/send-otp
+ */
+exports.requestDeleteAccountOtp = async (req, res) => {
   try {
-    await transporter.sendMail({
-      from: `"UpSkillR Security" <${emailUser}>`,
-      to: email,
-      subject: "[Urgent] Your UpSkillR Account Deletion Code",
-      html,
-      text: `Your UpSkillR account deletion code is: ${otp}. It is valid for 10 minutes.`
-    });
-    return true;
-  } catch (err) {
-    console.error('[DELETE ACCOUNT EMAIL ERROR]', err);
-    return false;
-  }
-};
+    if (req.user.role !== 'learner') {
+      return res.status(403).json({
+        success: false,
+        message: 'Account deletion via this endpoint is only permitted for learner accounts.'
+      });
+    }
 
-exports.verifyDeleteAccountPassword = async (req, res) => {
-  try {
     const learnerId = req.user.id;
-    const { password } = req.body;
     const learner = await Learner.findById(learnerId);
     if (!learner) {
       return res.status(404).json({ success: false, message: 'Learner account not found.' });
     }
 
-    const isOAuth = learner.authProvider !== 'local' && !learner.password;
-    if (!isOAuth) {
-      if (!password) {
-        return res.status(400).json({ success: false, message: 'Please enter your current account password.' });
-      }
-      const isMatch = await bcrypt.compare(password, learner.password);
-      if (!isMatch) {
-        return res.status(400).json({ success: false, message: 'Incorrect password. Please verify and try again.' });
-      }
+    if (learner.deletionStatus === 'pending_deletion') {
+      return res.status(400).json({
+        success: false,
+        message: 'This account is currently pending permanent deletion.'
+      });
     }
 
-    // Generate secure 6-digit OTP
+    const clientIp = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    const rateLimitCheck = checkDeleteOtpRateLimit(clientIp, learner.email, req);
+    if (rateLimitCheck.limited) {
+      return res.status(429).json({
+        success: false,
+        message: rateLimitCheck.message,
+        retryAfter: rateLimitCheck.retryAfter
+      });
+    }
+
+    // Check 60-second cooldown
+    if (learner.deleteAccountOtpCooldown && new Date(learner.deleteAccountOtpCooldown) > new Date()) {
+      const remainingSec = Math.ceil((new Date(learner.deleteAccountOtpCooldown).getTime() - Date.now()) / 1000);
+      return res.status(429).json({
+        success: false,
+        message: `Please wait ${remainingSec}s before requesting a new code.`,
+        remainingSec,
+        cooldownSeconds: remainingSec
+      });
+    }
+
+    // Invalidate previous OTP and previous deletion authorization
     const otp = generateSecureOtp();
-    const hashedOtp = hashDeleteOtp(otp);
+    const hashedOtp = hashDeleteOtp(otp, learner._id);
 
     learner.deleteAccountOtp = hashedOtp;
-    learner.deleteAccountOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    learner.deleteAccountOtpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiration
     learner.deleteAccountOtpAttempts = 0;
-    learner.deleteAccountOtpCooldown = new Date(Date.now() + 60 * 1000); // 60 seconds
+    learner.deleteAccountOtpCooldown = new Date(Date.now() + 60 * 1000); // 60 seconds cooldown
+    learner.deleteAccountOtpPurpose = 'ACCOUNT_DELETION';
+    learner.deleteAccountAuthToken = null;
+    learner.deleteAccountAuthExpires = null;
+    learner.deleteAccountAuthUsed = false;
     await learner.save();
 
-    await sendDeletionOtpEmail(learner.email, otp, learner.fullName);
+    recordDeleteOtpAttempt(clientIp, learner.email);
 
-    return res.status(200).json({
+    const emailDelivered = await sendDeletionOtpEmail(learner.email, otp, learner.fullName);
+
+    const isDev = process.env.NODE_ENV !== 'production';
+    const responsePayload = {
       success: true,
-      message: `Verification code sent to ${learner.email}.`,
+      message: emailDelivered
+        ? `A 6-digit verification code has been sent to ${learner.email}.`
+        : `Email delivery failed (SMTP auth error: check EMAIL_PASS in Backend/.env). In development, your OTP code is: ${otp}`,
       email: learner.email,
-      cooldownSeconds: 60
-    });
+      emailDelivered,
+      cooldownSeconds: 60,
+      expiresInSeconds: 300
+    };
+
+    if (!emailDelivered || isDev) {
+      responsePayload.devOtp = otp;
+    }
+
+    return res.status(200).json(responsePayload);
   } catch (err) {
-    console.error('verifyDeleteAccountPassword error:', err);
-    return res.status(500).json({ success: false, message: 'Server error verifying password.' });
+    console.error('requestDeleteAccountOtp error:', err);
+    return res.status(500).json({ success: false, message: 'Server error sending verification code.' });
   }
 };
 
+/**
+ * Backward compatibility alias for legacy client calls
+ */
+exports.verifyDeleteAccountPassword = exports.requestDeleteAccountOtp;
+
+/**
+ * Step 2 (Resend): Resend Account Deletion OTP
+ * POST /api/learners/me/delete-account/resend-otp
+ */
 exports.resendDeleteAccountOtp = async (req, res) => {
   try {
+    if (req.user.role !== 'learner') {
+      return res.status(403).json({
+        success: false,
+        message: 'Account deletion via this endpoint is only permitted for learner accounts.'
+      });
+    }
+
     const learnerId = req.user.id;
     const learner = await Learner.findById(learnerId);
     if (!learner) {
       return res.status(404).json({ success: false, message: 'Learner account not found.' });
+    }
+
+    if (learner.deletionStatus === 'pending_deletion') {
+      return res.status(400).json({
+        success: false,
+        message: 'This account is currently pending permanent deletion.'
+      });
+    }
+
+    const clientIp = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    const rateLimitCheck = checkDeleteOtpRateLimit(clientIp, learner.email, req);
+    if (rateLimitCheck.limited) {
+      return res.status(429).json({
+        success: false,
+        message: rateLimitCheck.message,
+        retryAfter: rateLimitCheck.retryAfter
+      });
     }
 
     if (learner.deleteAccountOtpCooldown && new Date(learner.deleteAccountOtpCooldown) > new Date()) {
@@ -896,34 +1093,65 @@ exports.resendDeleteAccountOtp = async (req, res) => {
       return res.status(429).json({
         success: false,
         message: `Please wait ${remainingSec}s before requesting a new code.`,
-        remainingSec
+        remainingSec,
+        cooldownSeconds: remainingSec
       });
     }
 
     const otp = generateSecureOtp();
-    const hashedOtp = hashDeleteOtp(otp);
+    const hashedOtp = hashDeleteOtp(otp, learner._id);
 
     learner.deleteAccountOtp = hashedOtp;
-    learner.deleteAccountOtpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    learner.deleteAccountOtpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiration
     learner.deleteAccountOtpAttempts = 0;
-    learner.deleteAccountOtpCooldown = new Date(Date.now() + 60 * 1000);
+    learner.deleteAccountOtpCooldown = new Date(Date.now() + 60 * 1000); // 60 seconds cooldown
+    learner.deleteAccountOtpPurpose = 'ACCOUNT_DELETION';
+    learner.deleteAccountAuthToken = null;
+    learner.deleteAccountAuthExpires = null;
+    learner.deleteAccountAuthUsed = false;
     await learner.save();
 
-    await sendDeletionOtpEmail(learner.email, otp, learner.fullName);
+    recordDeleteOtpAttempt(clientIp, learner.email);
 
-    return res.status(200).json({
+    const emailDelivered = await sendDeletionOtpEmail(learner.email, otp, learner.fullName);
+
+    const isDev = process.env.NODE_ENV !== 'production';
+    const responsePayload = {
       success: true,
-      message: `A fresh verification code has been sent to ${learner.email}.`,
-      cooldownSeconds: 60
-    });
+      message: emailDelivered
+        ? `A fresh 6-digit verification code has been sent to ${learner.email}.`
+        : `Email delivery failed (SMTP auth error: check EMAIL_PASS in Backend/.env). In development, your OTP code is: ${otp}`,
+      email: learner.email,
+      emailDelivered,
+      cooldownSeconds: 60,
+      expiresInSeconds: 300
+    };
+
+    if (!emailDelivered || isDev) {
+      responsePayload.devOtp = otp;
+    }
+
+    return res.status(200).json(responsePayload);
   } catch (err) {
     console.error('resendDeleteAccountOtp error:', err);
-    return res.status(500).json({ success: false, message: 'Server error resending code.' });
+    return res.status(500).json({ success: false, message: 'Server error resending verification code.' });
   }
 };
 
-exports.confirmDeleteAccount = async (req, res) => {
+/**
+ * Step 3: Verify Deletion OTP
+ * POST /api/learners/me/delete-account/verify-otp
+ * Validates OTP and issues a single-use deletion authorization token
+ */
+exports.verifyDeleteAccountOtp = async (req, res) => {
   try {
+    if (req.user.role !== 'learner') {
+      return res.status(403).json({
+        success: false,
+        message: 'Account deletion via this endpoint is only permitted for learner accounts.'
+      });
+    }
+
     const learnerId = req.user.id;
     const { otp } = req.body;
 
@@ -937,54 +1165,144 @@ exports.confirmDeleteAccount = async (req, res) => {
     }
 
     if (!learner.deleteAccountOtp || !learner.deleteAccountOtpExpires) {
-      return res.status(400).json({ success: false, message: 'No active account deletion request found. Please restart the process.' });
+      return res.status(400).json({
+        success: false,
+        message: 'No active verification code found. Please request a verification code.'
+      });
     }
 
     if (new Date() > new Date(learner.deleteAccountOtpExpires)) {
-      return res.status(400).json({ success: false, message: 'Verification code has expired. Please request a new one.' });
+      return res.status(400).json({
+        success: false,
+        message: 'Verification code has expired. Please request a new code.'
+      });
     }
 
     if (learner.deleteAccountOtpAttempts >= 5) {
-      return res.status(429).json({ success: false, message: 'Too many incorrect attempts. Please restart the deletion process.' });
+      return res.status(429).json({
+        success: false,
+        message: 'Maximum verification attempts (5) exceeded. Please request a new verification code.'
+      });
     }
 
-    const incomingHash = hashDeleteOtp(otp);
+    const incomingHash = hashDeleteOtp(otp, learner._id);
     if (incomingHash !== learner.deleteAccountOtp) {
       learner.deleteAccountOtpAttempts = (learner.deleteAccountOtpAttempts || 0) + 1;
       await learner.save();
       const remaining = 5 - learner.deleteAccountOtpAttempts;
       return res.status(400).json({
         success: false,
-        message: `Incorrect verification code. ${remaining > 0 ? `${remaining} attempt(s) remaining.` : "Code locked."}`
+        message: `Incorrect verification code. ${remaining > 0 ? `${remaining} attempt(s) remaining.` : 'Code locked. Please request a new code.'}`,
+        attemptsRemaining: Math.max(0, remaining)
       });
     }
 
-    // OTP Verified! Permanently delete account & associated data
-    await Enrolment.deleteMany({ learnerId });
-    await PointTransaction.deleteMany({ learnerId });
-    await Bookmark.deleteMany({ learnerId });
-    await CourseReview.deleteMany({ learnerId });
+    // OTP Verified! Issue single-use short-lived deletion authorization token
+    const rawDeletionToken = crypto.randomBytes(32).toString('hex');
+    const hashedDeletionToken = hashToken(rawDeletionToken);
 
-    // Remove learner avatar from Cloudinary if present
-    if (learner.avatar) {
-      try {
-        const { deleteCloudinaryAsset } = require('../utils/cloudinary');
-        if (deleteCloudinaryAsset) await deleteCloudinaryAsset(learner.avatar);
-      } catch (e) {}
-    }
+    learner.deleteAccountAuthToken = hashedDeletionToken;
+    learner.deleteAccountAuthExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes validity
+    learner.deleteAccountAuthUsed = false;
 
-    await Learner.findByIdAndDelete(learnerId);
-
-    // Clear authentication cookie if present
-    res.clearCookie('upskillr_token');
+    // Invalidate consumed OTP
+    learner.deleteAccountOtp = null;
+    learner.deleteAccountOtpExpires = null;
+    learner.deleteAccountOtpAttempts = 0;
+    learner.deleteAccountOtpCooldown = null;
+    await learner.save();
 
     return res.status(200).json({
       success: true,
-      message: 'Your UpSkillR account has been permanently deleted.'
+      message: 'Verification code confirmed. Proceed to final confirmation.',
+      deletionToken: rawDeletionToken
+    });
+  } catch (err) {
+    console.error('verifyDeleteAccountOtp error:', err);
+    return res.status(500).json({ success: false, message: 'Server error verifying code.' });
+  }
+};
+
+/**
+ * Step 4: Final Permanent Deletion Confirmation
+ * POST /api/learners/me/delete-account/confirm
+ */
+exports.confirmDeleteAccount = async (req, res) => {
+  try {
+    if (req.user.role !== 'learner') {
+      return res.status(403).json({
+        success: false,
+        message: 'Account deletion via this endpoint is only permitted for learner accounts.'
+      });
+    }
+
+    const learnerId = req.user.id;
+    const { deletionToken } = req.body;
+
+    if (!deletionToken || typeof deletionToken !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Deletion authorization token is required.'
+      });
+    }
+
+    const learner = await Learner.findById(learnerId);
+    if (!learner) {
+      return res.status(404).json({ success: false, message: 'Learner account not found.' });
+    }
+
+    if (!learner.deleteAccountAuthToken || !learner.deleteAccountAuthExpires) {
+      return res.status(400).json({
+        success: false,
+        message: 'No active deletion authorization found. Please restart the deletion process.'
+      });
+    }
+
+    if (learner.deleteAccountAuthUsed) {
+      return res.status(400).json({
+        success: false,
+        message: 'This deletion authorization has already been used. Please restart the deletion process.'
+      });
+    }
+
+    if (new Date() > new Date(learner.deleteAccountAuthExpires)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Deletion authorization has expired. Please restart the deletion process.'
+      });
+    }
+
+    const incomingTokenHash = hashToken(deletionToken);
+    if (incomingTokenHash !== learner.deleteAccountAuthToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid deletion authorization token.'
+      });
+    }
+
+    // Mark authorization used and block further operations
+    learner.deleteAccountAuthUsed = true;
+    learner.deletionStatus = 'pending_deletion';
+    await learner.save();
+
+    // Execute durable permanent deletion workflow
+    const result = await executePermanentDeletion(learnerId, learner.email, learner.authProvider);
+
+    // Invalidate authentication cookies
+    res.clearCookie('upskillr_token', { path: '/' });
+    res.clearCookie('token', { path: '/' });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Your UpSkillR account has been permanently deleted.',
+      jobId: result.jobId
     });
   } catch (err) {
     console.error('confirmDeleteAccount error:', err);
-    return res.status(500).json({ success: false, message: 'Server error deleting account.' });
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Server error permanently deleting account.'
+    });
   }
 };
 
@@ -1094,21 +1412,77 @@ exports.getLearnerMilestones = async (req, res) => {
 
     const earnedCount = milestones.filter(m => m.earned).length;
 
+    // Get live badge progress
+    const { evaluateAllBadges, getLearnerBadgeProgress } = require('../services/badgeService');
+    await evaluateAllBadges(learner, coursesCompletedCount);
+    const badgeData = await getLearnerBadgeProgress(learner, coursesCompletedCount);
+
     return res.status(200).json({
       success: true,
       earnedCount,
       totalCount: milestones.length,
       milestones,
+      badges: badgeData.badges,
+      streakBadges: badgeData.streakBadges,
+      knowledgeSeekerBadges: badgeData.knowledgeSeekerBadges,
+      quizMasterBadges: badgeData.quizMasterBadges,
+      consistentLearnerBadges: badgeData.consistentLearnerBadges,
+      perfectionistBadges: badgeData.perfectionistBadges,
       stats: {
         coursesCompleted: coursesCompletedCount,
         modulesCompleted: totalModulesCompleted,
         currentStreak,
         longestStreak,
-        points: learner.points || 0
+        points: learner.points || 0,
+        badgesEarned: badgeData.stats.totalBadgesEarned,
+        streakBadgesUnlocked: badgeData.stats.streakBadgesUnlocked,
+        totalStreakBadges: badgeData.stats.totalStreakBadges,
+        knowledgeSeekerBadgesUnlocked: badgeData.stats.knowledgeSeekerBadgesUnlocked,
+        totalKnowledgeSeekerBadges: badgeData.stats.totalKnowledgeSeekerBadges,
+        quizMasterBadgesUnlocked: badgeData.stats.quizMasterBadgesUnlocked,
+        totalQuizMasterBadges: badgeData.stats.totalQuizMasterBadges,
+        perfectQuizzesCount: badgeData.stats.perfectQuizzesCount,
+        consistentLearnerBadgesUnlocked: badgeData.stats.consistentLearnerBadgesUnlocked,
+        totalConsistentLearnerBadges: badgeData.stats.totalConsistentLearnerBadges,
+        lessonsCompleted: badgeData.stats.lessonsCompleted,
+        perfectionistBadgesUnlocked: badgeData.stats.perfectionistBadgesUnlocked,
+        totalPerfectionistBadges: badgeData.stats.totalPerfectionistBadges,
+        perfectionistQuizzesCount: badgeData.stats.perfectionistQuizzesCount
       }
     });
   } catch (error) {
     console.error('Error fetching learner milestones:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch milestones.' });
+  }
+};
+
+/**
+ * ─── 15. GET /api/learners/me/badges — Dedicated Learning Streak, Knowledge Seeker, Quiz Master, Consistent Learner & Perfectionist Badges ───
+ */
+exports.getLearnerBadges = async (req, res) => {
+  try {
+    const learnerId = req.user.id;
+    const learner = await Learner.findById(learnerId);
+    if (!learner) {
+      return res.status(404).json({ success: false, message: 'Learner not found' });
+    }
+
+    const { evaluateAllBadges, getLearnerBadgeProgress } = require('../services/badgeService');
+    await evaluateAllBadges(learner);
+    const result = await getLearnerBadgeProgress(learner);
+
+    return res.status(200).json({
+      success: true,
+      badges: result.badges,
+      streakBadges: result.streakBadges,
+      knowledgeSeekerBadges: result.knowledgeSeekerBadges,
+      quizMasterBadges: result.quizMasterBadges,
+      consistentLearnerBadges: result.consistentLearnerBadges,
+      perfectionistBadges: result.perfectionistBadges,
+      stats: result.stats
+    });
+  } catch (error) {
+    console.error('Error fetching learner badges:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch badges.' });
   }
 };

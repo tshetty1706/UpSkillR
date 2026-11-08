@@ -18,6 +18,7 @@ export const QuizInfoView = ({
   attemptsCount,
   firstAttempt,
   onStartQuiz,
+  onViewAttempts,
   onViewLeaderboard,
   isStarting = false,
   isBookmarked = false,
@@ -38,13 +39,15 @@ export const QuizInfoView = ({
     return `${s} sec`;
   };
 
+  const handleViewAttempts = onViewAttempts || onViewLeaderboard;
+
   return (
     <div className="gfg-quiz-info-layout">
       {/* ─── Top Action Banner (Status & CTA) ─── */}
       <div className={`gfg-attempt-action-bar ${hasAttempted ? 'attempted' : ''}`}>
         <div className="gfg-action-text">
           {hasAttempted ? (
-            <span>You have already attempted this quiz.</span>
+            <span>You have attempted this quiz ({attemptsCount} attempt{attemptsCount > 1 ? 's' : ''}).</span>
           ) : (
             <span>Ready to test your knowledge? Click below to begin your attempt.</span>
           )}
@@ -64,14 +67,14 @@ export const QuizInfoView = ({
             </button>
           )}
 
-          {hasAttempted && (
+          {hasAttempted && handleViewAttempts && (
             <button
               type="button"
               className="btn-gfg-secondary"
-              onClick={onViewLeaderboard}
+              onClick={handleViewAttempts}
             >
               <BarChart3 size={18} />
-              View Leaderboard & Results
+              View My Attempts & Results
             </button>
           )}
 
@@ -84,7 +87,7 @@ export const QuizInfoView = ({
             {hasAttempted ? (
               <>
                 <RotateCcw size={18} />
-                {isStarting ? 'Starting...' : 'Retake Quiz'}
+                {isStarting ? 'Starting...' : 'Retake Quiz (Practice)'}
               </>
             ) : (
               <>

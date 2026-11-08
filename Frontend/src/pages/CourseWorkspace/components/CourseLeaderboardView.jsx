@@ -200,11 +200,6 @@ export const CourseLeaderboardView = ({ courseId, courseTitle, user }) => {
                 <span className="metric-cell-label">Total Score</span>
                 <span className="metric-cell-val font-mono text-brand">{currentUserRank.totalMarks} pts</span>
               </div>
-
-              <div className="standing-metric-cell">
-                <span className="metric-cell-label">Quizzes Completed</span>
-                <span className="metric-cell-val font-mono">{currentUserRank.quizzesAttempted} / {totalCourseQuizzes}</span>
-              </div>
             </div>
           </div>
         )}

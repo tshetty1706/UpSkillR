@@ -169,22 +169,23 @@ exports.normalizeVideoContentItem = normalizeVideoContentItem;
 const sanitizeCourseForLearner = (course) => {
   if (!course) return null;
   const courseObj = course.toObject ? course.toObject() : { ...course };
+  const isCoursePublished = (courseObj.status === 'published' || courseObj.state === 'published');
 
   // 1. Gather all published notes from course.notes, and any mod/lesson notes
   const rawCourseNotes = Array.isArray(courseObj.notes) ? courseObj.notes : [];
   const publishedCourseNotes = rawCourseNotes.filter(
-    n => (n.state === 'published' || n.status === 'published')
+    n => isCoursePublished || (n.state === 'published' || n.status === 'published')
   );
 
-  // 2. Filter modules to only published modules
+  // 2. Filter modules (for published courses, include all active modules)
   const rawModules = Array.isArray(courseObj.modules) ? courseObj.modules : [];
   const publishedModules = rawModules
-    .filter(m => (m.state === 'published' || m.status === 'published'))
+    .filter(m => isCoursePublished || (m.state === 'published' || m.status === 'published'))
     .map(mod => {
       const modObj = { ...mod };
 
-      // Map published module-level notes
-      const modDirectNotes = (modObj.notes || []).filter(n => n.state === 'published' || n.status === 'published');
+      // Map module-level notes
+      const modDirectNotes = (modObj.notes || []).filter(n => isCoursePublished || n.state === 'published' || n.status === 'published');
       const modAttachedNotes = publishedCourseNotes.filter(
         n => (n.scope === 'module' || n.attachableType === 'module') &&
              String(n.moduleId || n.attachableId) === String(modObj._id)
@@ -193,19 +194,22 @@ const sanitizeCourseForLearner = (course) => {
       [...modDirectNotes, ...modAttachedNotes].forEach(n => modNotesMap.set(String(n._id || n.title), n));
       modObj.notes = Array.from(modNotesMap.values());
 
-      // Filter lessons to only published lessons
+      // Filter lessons
       const rawLessons = Array.isArray(modObj.lessons) ? modObj.lessons : [];
-      modObj.lessons = rawLessons.filter(l => (l.state === 'published' || l.status === 'published' || !l.state || (Array.isArray(l.items) && l.items.some(i => i.state === 'published' || i.status === 'published'))))
+      modObj.lessons = rawLessons
+        .filter(l => isCoursePublished || l.state === 'published' || l.status === 'published' || !l.state || (Array.isArray(l.items) && l.items.some(i => i.state === 'published' || i.status === 'published')))
         .map(les => {
           const lesObj = { ...les };
 
-          // Filter items to only published items (videos, quizzes, etc.)
+          // Items (videos, quizzes, articles, etc.)
           const rawItems = Array.isArray(lesObj.items) ? lesObj.items : (Array.isArray(lesObj.contentItems) ? lesObj.contentItems : []);
-          lesObj.items = rawItems.filter(i => (i.state === 'published' || i.status === 'published')).map(item => normalizeVideoContentItem(item));
+          lesObj.items = rawItems
+            .filter(i => isCoursePublished || (i.state === 'published' || i.status === 'published'))
+            .map(item => normalizeVideoContentItem(item));
           lesObj.contentItems = lesObj.items;
 
-          // Map published lesson-level notes (articles, pdfs, images)
-          const lesDirectNotes = (lesObj.notes || []).filter(n => n.state === 'published' || n.status === 'published');
+          // Lesson-level notes
+          const lesDirectNotes = (lesObj.notes || []).filter(n => isCoursePublished || n.state === 'published' || n.status === 'published');
           const lesAttachedNotes = publishedCourseNotes.filter(
             n => (n.scope === 'lesson' || n.attachableType === 'lesson') &&
                  String(n.lessonId || n.attachableId) === String(lesObj._id)
@@ -224,6 +228,34 @@ const sanitizeCourseForLearner = (course) => {
   courseObj.moduleCount = publishedModules.length;
   courseObj.modulesCount = publishedModules.length;
   courseObj.notes = publishedCourseNotes;
+
+  // Normalize instructor information
+  if (courseObj.instructorId && typeof courseObj.instructorId === 'object') {
+    const inst = courseObj.instructorId;
+    const instName = inst.fullName || inst.name || courseObj.instructorName;
+    const instDesignation = inst.designation || inst.specialization || 'Software Engineer';
+    const instAvatar = inst.avatar || courseObj.instructorAvatar || null;
+    const instBio = inst.bio || '';
+
+    courseObj.instructorName = instName;
+    courseObj.instructorAvatar = instAvatar;
+    courseObj.instructorDesignation = instDesignation;
+    courseObj.instructor = {
+      _id: inst._id,
+      name: instName,
+      fullName: instName,
+      avatar: instAvatar,
+      designation: instDesignation,
+      bio: instBio
+    };
+  } else if (!courseObj.instructor && courseObj.instructorName) {
+    courseObj.instructor = {
+      name: courseObj.instructorName,
+      fullName: courseObj.instructorName,
+      avatar: courseObj.instructorAvatar || null,
+      designation: courseObj.instructorDesignation || 'Software Engineer'
+    };
+  }
 
   return courseObj;
 };
@@ -270,6 +302,34 @@ const sanitizeCourseForPublicOverview = (course) => {
   // Strict security: ensure no raw notes, items, or assessments leak in public overview
   delete courseObj.notes;
   delete courseObj.courseAssessments;
+
+  // Normalize instructor information
+  if (courseObj.instructorId && typeof courseObj.instructorId === 'object') {
+    const inst = courseObj.instructorId;
+    const instName = inst.fullName || inst.name || courseObj.instructorName;
+    const instDesignation = inst.designation || inst.specialization || 'Software Engineer';
+    const instAvatar = inst.avatar || courseObj.instructorAvatar || null;
+    const instBio = inst.bio || '';
+
+    courseObj.instructorName = instName;
+    courseObj.instructorAvatar = instAvatar;
+    courseObj.instructorDesignation = instDesignation;
+    courseObj.instructor = {
+      _id: inst._id,
+      name: instName,
+      fullName: instName,
+      avatar: instAvatar,
+      designation: instDesignation,
+      bio: instBio
+    };
+  } else if (!courseObj.instructor && courseObj.instructorName) {
+    courseObj.instructor = {
+      name: courseObj.instructorName,
+      fullName: courseObj.instructorName,
+      avatar: courseObj.instructorAvatar || null,
+      designation: courseObj.instructorDesignation || 'Software Engineer'
+    };
+  }
 
   return courseObj;
 };
@@ -600,6 +660,31 @@ exports.publishCourse = async (req, res) => {
     course.status = targetStatus;
     course.state = targetStatus;
     course.effective_visible = (targetStatus === 'published');
+
+    // When publishing, cascade published state to all modules, lessons, and items
+    if (targetStatus === 'published') {
+      (course.modules || []).forEach(m => {
+        m.state = 'published';
+        m.status = 'published';
+        (m.lessons || []).forEach(l => {
+          l.state = 'published';
+          l.status = 'published';
+          (l.items || l.contentItems || []).forEach(it => {
+            it.state = 'published';
+            it.status = 'published';
+          });
+        });
+      });
+      (course.lessons || []).forEach(l => {
+        l.state = 'published';
+        l.status = 'published';
+        (l.items || l.contentItems || []).forEach(it => {
+          it.state = 'published';
+          it.status = 'published';
+        });
+      });
+    }
+
     await course.save();
 
     return res.status(200).json({
@@ -1534,7 +1619,7 @@ exports.getPublishedCourses = async (req, res) => {
     // 1. Fetch courses using .lean() with field projection for fast JSON serialization
     const courses = await Course.find(filter)
       .select('title category skillLevel language price description shortDescription fullDescription certificate thumbnail instructorId instructorName rating reviewCount overviewViews courseAssessments modules createdAt updatedAt')
-      .populate('instructorId', 'fullName avatar')
+      .populate('instructorId', 'fullName avatar designation bio')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -1549,9 +1634,27 @@ exports.getPublishedCourses = async (req, res) => {
 
     const courseList = courses.map((c) => {
       c.learnersCount = enrolmentsCountMap[c._id.toString()] || 0;
-      if (c.instructorId) {
-        c.instructorAvatar = c.instructorId.avatar;
-        c.instructorName = c.instructorId.fullName || c.instructorName;
+      if (c.instructorId && typeof c.instructorId === 'object') {
+        const inst = c.instructorId;
+        c.instructorAvatar = inst.avatar;
+        c.instructorName = inst.fullName || c.instructorName;
+        c.instructorDesignation = inst.designation || inst.specialization || 'Software Engineer';
+        c.instructor = {
+          _id: inst._id,
+          name: inst.fullName || c.instructorName,
+          fullName: inst.fullName || c.instructorName,
+          avatar: inst.avatar,
+          designation: inst.designation || 'Software Engineer',
+          bio: inst.bio || ''
+        };
+      } else {
+        c.instructorDesignation = c.instructorDesignation || 'Software Engineer';
+        c.instructor = {
+          name: c.instructorName,
+          fullName: c.instructorName,
+          avatar: c.instructorAvatar || null,
+          designation: c.instructorDesignation
+        };
       }
 
       // Ensure normalized description
@@ -1685,6 +1788,20 @@ exports.enrolInCourse = async (req, res) => {
 
     await enrolment.save();
 
+    try {
+      const { logLearnerActivity } = require('../services/activityService');
+      logLearnerActivity(req.user.id, {
+        activityType: 'course_enrolled',
+        title: 'Enrolled in Course',
+        description: `Started learning ${course.title}`,
+        courseId: course._id,
+        courseTitle: course.title,
+        referenceId: `enrol_${enrolment._id}`,
+        points: 0,
+        createdAt: new Date()
+      }).catch(() => {});
+    } catch (_) {}
+
     return res.status(201).json({
       success: true,
       message: `Enrolled successfully in ${course.title}!`,
@@ -1698,75 +1815,122 @@ exports.enrolInCourse = async (req, res) => {
 
 /**
  * Accurately compute progress percentage and status for an enrolment given a course.
- * Ensures a course is NEVER marked 100% or completed if any visible lesson remains unfinished.
+ * 
+ * Formula:
+ * Course Progress = (Number of completed required content items / Total required content items) * 100
+ * Module Progress = (Completed required content items in that module / Total required content items in that module) * 100
+ * 
+ * Status Classification:
+ * - Not Started: No required content items completed (0%).
+ * - In Progress: At least one required content item completed, below 100%.
+ * - Completed: Every required content item across all published modules completed (exactly 100%).
+ * 
+ * A course below 100% must NEVER be marked or returned as completed.
  */
 const calculateEnrolmentProgress = (course, enrolment) => {
   if (!course || !enrolment) {
     return {
       progressPercentage: 0,
       status: 'active',
+      isCompleted: false,
+      completedContentsCount: 0,
+      totalContentsCount: 1,
       completedLessonsCount: 0,
       totalLessonsCount: 1,
+      modulesProgress: [],
       pubItemIds: new Set(),
-      lessonToItemsMap: new Map()
+      lessonToItemsMap: new Map(),
+      allVisibleLessons: []
     };
   }
 
   const sanitized = sanitizeCourseForLearner(course);
-  const pubModules = (sanitized?.modules || []).filter(m => m.state === 'published' || m.status === 'published');
-  const allVisibleLessons = [];
+  const pubModules = sanitized?.modules || [];
+  const completedList = (enrolment.completedLessons || []).map(k => String(k));
+
+  let totalRequiredItems = 0;
+  let completedRequiredItems = 0;
+  const modulesProgress = [];
   const pubItemIds = new Set();
   const lessonToItemsMap = new Map();
+  const allVisibleLessons = [];
 
-  pubModules.forEach(m => {
-    (m.lessons || []).forEach(l => {
+  pubModules.forEach((m) => {
+    let modTotal = 0;
+    let modDone = 0;
+    const lessons = Array.isArray(m.lessons) ? m.lessons : [];
+
+    lessons.forEach((l) => {
       allVisibleLessons.push(l);
-      const lItems = (l.items || l.contentItems || []).filter(i => i.state === 'published' || i.status === 'published');
+      const lItems = Array.isArray(l.items) && l.items.length > 0
+        ? l.items
+        : (Array.isArray(l.contentItems) && l.contentItems.length > 0 ? l.contentItems : []);
+
       const itemIds = lItems.map(i => String(i._id));
       lessonToItemsMap.set(String(l._id), itemIds);
       itemIds.forEach(id => pubItemIds.add(id));
+
+      if (lItems.length > 0) {
+        lItems.forEach((it) => {
+          modTotal += 1;
+          totalRequiredItems += 1;
+          if (completedList.includes(String(it._id))) {
+            modDone += 1;
+            completedRequiredItems += 1;
+          }
+        });
+      } else {
+        modTotal += 1;
+        totalRequiredItems += 1;
+        pubItemIds.add(String(l._id));
+        if (completedList.includes(String(l._id))) {
+          modDone += 1;
+          completedRequiredItems += 1;
+        }
+      }
+    });
+
+    const modPct = modTotal > 0 ? Math.round((modDone / modTotal) * 100) : 100;
+    modulesProgress.push({
+      _id: m._id,
+      title: m.title,
+      totalItems: modTotal,
+      completedItems: modDone,
+      progressPercentage: modPct,
+      isCompleted: modTotal > 0 && modDone >= modTotal
     });
   });
-
-  const completedList = (enrolment.completedLessons || []).map(k => String(k));
-  let completedLessonsCount = 0;
-
-  allVisibleLessons.forEach((l, idx) => {
-    const lIdStr = String(l._id);
-    const lItems = lessonToItemsMap.get(lIdStr) || [];
-    const isIdDone = completedList.includes(lIdStr);
-    const isIdxDone = completedList.includes(String(idx));
-    const areItemsDone = lItems.length > 0 && lItems.every(id => completedList.includes(id));
-    const anyItemDone = lItems.length > 0 && lItems.some(id => completedList.includes(id));
-
-    if (isIdDone || isIdxDone || areItemsDone || anyItemDone) {
-      completedLessonsCount += 1;
-    }
-  });
-
-  const totalLessonsCount = allVisibleLessons.length > 0
-    ? allVisibleLessons.length
-    : ((sanitized?.lessons && sanitized.lessons.length > 0) ? sanitized.lessons.length : (pubModules.length || 1));
 
   let progressPercentage = 0;
   let status = 'active';
 
-  if (completedLessonsCount >= totalLessonsCount && totalLessonsCount > 0) {
-    progressPercentage = 100;
-    status = 'completed';
-  } else if (completedLessonsCount > 0) {
-    progressPercentage = Math.min(Math.round((completedLessonsCount / totalLessonsCount) * 100), 99);
-    status = 'in_progress';
+  if (totalRequiredItems > 0) {
+    if (completedRequiredItems >= totalRequiredItems) {
+      progressPercentage = 100;
+      status = 'completed';
+    } else if (completedRequiredItems > 0) {
+      progressPercentage = Math.min(Math.round((completedRequiredItems / totalRequiredItems) * 100), 99);
+      status = 'in_progress';
+    } else {
+      progressPercentage = 0;
+      status = 'active';
+    }
   } else {
     progressPercentage = 0;
     status = 'active';
   }
 
+  const isCompleted = progressPercentage === 100 && status === 'completed';
+
   return {
     progressPercentage,
     status,
-    completedLessonsCount,
-    totalLessonsCount,
+    isCompleted,
+    completedContentsCount: completedRequiredItems,
+    totalContentsCount: Math.max(totalRequiredItems, 1),
+    completedLessonsCount: completedRequiredItems,
+    totalLessonsCount: Math.max(totalRequiredItems, 1),
+    modulesProgress,
     pubItemIds,
     lessonToItemsMap,
     allVisibleLessons
@@ -1781,7 +1945,7 @@ exports.calculateEnrolmentProgress = calculateEnrolmentProgress;
 const mergeWatchedIntervals = (existingIntervals = [], newIntervals = [], duration = 0) => {
   const all = [...(existingIntervals || []), ...(newIntervals || [])];
   if (!all.length || !duration || duration <= 0) {
-    return { mergedIntervals: [], uniqueWatchedDuration: 0, watchPercentage: 0 };
+    return { mergedIntervals: [], uniqueWatchedDuration: 0, watchPercentage: 0, maxWatchedTime: 0 };
   }
 
   const valid = [];
@@ -1798,7 +1962,7 @@ const mergeWatchedIntervals = (existingIntervals = [], newIntervals = [], durati
   }
 
   if (!valid.length) {
-    return { mergedIntervals: [], uniqueWatchedDuration: 0, watchPercentage: 0 };
+    return { mergedIntervals: [], uniqueWatchedDuration: 0, watchPercentage: 0, maxWatchedTime: 0 };
   }
 
   // Sort by start ascending, then end descending
@@ -1817,8 +1981,12 @@ const mergeWatchedIntervals = (existingIntervals = [], newIntervals = [], durati
   }
 
   let uniqueSeconds = 0;
+  let maxWatched = 0;
   for (const seg of merged) {
     uniqueSeconds += (seg.end - seg.start);
+    if (seg.end > maxWatched) {
+      maxWatched = seg.end;
+    }
   }
 
   uniqueSeconds = Math.min(uniqueSeconds, duration);
@@ -1827,7 +1995,8 @@ const mergeWatchedIntervals = (existingIntervals = [], newIntervals = [], durati
   return {
     mergedIntervals: merged,
     uniqueWatchedDuration: Math.round(uniqueSeconds * 10) / 10,
-    watchPercentage: percentage
+    watchPercentage: percentage,
+    maxWatchedTime: Math.min(duration, Math.round(maxWatched * 10) / 10)
   };
 };
 exports.mergeWatchedIntervals = mergeWatchedIntervals;
@@ -1929,18 +2098,19 @@ const getVideoDetailsForLesson = (course, targetIdentifier, explicitLessonId = n
 
   const itemType = (matchedItem?.type || '').toLowerCase();
   const lessonType = (matchedLesson?.type || '').toLowerCase();
-  const hasVideoPayload = Boolean(
-    matchedItem?.video?.videoUrl ||
-    matchedItem?.video?.muxPlaybackId ||
-    matchedItem?.video?.fileName ||
-    matchedLesson?.video?.videoUrl ||
-    matchedLesson?.video?.muxPlaybackId
+  const rawVideoUrl = matchedItem?.video?.videoUrl || matchedLesson?.video?.videoUrl || matchedLesson?.videoUrl || '';
+  const rawMuxId = matchedItem?.video?.muxPlaybackId || matchedLesson?.video?.muxPlaybackId || '';
+  const hasPlayableVideo = Boolean(
+    (typeof rawVideoUrl === 'string' && rawVideoUrl.trim().length > 0) ||
+    (typeof rawMuxId === 'string' && rawMuxId.trim().length > 0) ||
+    (typeof matchedItem?.video?.cloudinaryUrl === 'string' && matchedItem.video.cloudinaryUrl.trim().length > 0)
   );
 
-  const isVideo = itemType === 'video' || lessonType === 'video' || hasVideoPayload;
+  const isVideo = itemType === 'video' || lessonType === 'video' || hasPlayableVideo;
   if (!isVideo) {
     return {
       isVideo: false,
+      hasPlayableVideo: false,
       lessonId: matchedLesson?._id ? String(matchedLesson._id) : null,
       contentItemId: matchedItem?._id ? String(matchedItem._id) : null,
       duration: 0
@@ -1972,6 +2142,7 @@ const getVideoDetailsForLesson = (course, targetIdentifier, explicitLessonId = n
 
   return {
     isVideo: true,
+    hasPlayableVideo,
     lessonId: matchedLesson?._id ? String(matchedLesson._id) : targetStr,
     contentItemId: matchedItem?._id ? String(matchedItem._id) : (matchedLesson?._id ? String(matchedLesson._id) : targetStr),
     moduleId: matchedModule?._id ? String(matchedModule._id) : null,
@@ -1982,6 +2153,221 @@ const getVideoDetailsForLesson = (course, targetIdentifier, explicitLessonId = n
 };
 exports.getVideoDetailsForLesson = getVideoDetailsForLesson;
 
+/**
+ * Resolves whether the given target (item ID, lesson ID, or index) is or contains a quiz,
+ * and returns all relevant quiz assessment objects that must be submitted to complete the content.
+ */
+const getQuizDetailsForLesson = (course, targetIdentifier, explicitLessonId = null) => {
+  if (!course) return { isQuiz: false, quizzes: [] };
+  const targetStr = String(targetIdentifier || '').trim();
+
+  // Helper to determine if an item is truly a quiz
+  const isItemQuiz = (it) => {
+    if (!it) return false;
+    const rawType = String(it.type || '').trim().toLowerCase();
+    const nonQuizTypes = ['video', 'article', 'article_md', 'pdf', 'note', 'text', 'document', 'image', 'resource', 'code', 'exercise'];
+    if (nonQuizTypes.includes(rawType)) {
+      return false;
+    }
+    const hasQuestions = (Array.isArray(it.quiz?.questions) && it.quiz.questions.length > 0) ||
+                         (Array.isArray(it.questions) && it.questions.length > 0);
+    return rawType === 'quiz' || rawType.includes('quiz') || rawType === 'assessment' || hasQuestions;
+  };
+
+  // Helper to determine if a lesson is a quiz
+  const isLessonQuiz = (les) => {
+    if (!les) return false;
+    const lesType = String(les.type || '').trim().toLowerCase();
+    const nonQuizTypes = ['video', 'article', 'article_md', 'pdf', 'note', 'text', 'document'];
+    if (nonQuizTypes.includes(lesType)) {
+      return false;
+    }
+    const hasQuestions = (Array.isArray(les.quiz?.questions) && les.quiz.questions.length > 0) ||
+                         (Array.isArray(les.questions) && les.questions.length > 0);
+    return lesType === 'quiz' || lesType.includes('quiz') || hasQuestions;
+  };
+
+  const quizzes = [];
+
+  // STEP 1: First check if targetStr matches an individual content item!
+  // If targetStr matches a specific content item, this request is for that item ONLY.
+  if (Array.isArray(course.modules)) {
+    for (const mod of course.modules) {
+      for (const les of (mod.lessons || [])) {
+        const items = les.items || les.contentItems || [];
+        for (const it of items) {
+          if (targetStr && String(it._id || '') === targetStr) {
+            if (isItemQuiz(it)) {
+              quizzes.push({
+                assessmentId: it._id,
+                title: it.title || les.title || 'Quiz',
+                moduleId: mod._id || null,
+                lessonId: les._id || null,
+                isDirectItem: true
+              });
+              return { isQuiz: true, isDirectItem: true, quizzes };
+            }
+            return { isQuiz: false, isDirectItem: true, quizzes: [] };
+          }
+        }
+      }
+    }
+  }
+
+  // Also check top-level course.lessons for individual items
+  if (Array.isArray(course.lessons)) {
+    for (const les of course.lessons) {
+      const items = les.items || les.contentItems || [];
+      for (const it of items) {
+        if (targetStr && String(it._id || '') === targetStr) {
+          if (isItemQuiz(it)) {
+            quizzes.push({
+              assessmentId: it._id,
+              title: it.title || les.title || 'Quiz',
+              moduleId: null,
+              lessonId: les._id || null,
+              isDirectItem: true
+            });
+            return { isQuiz: true, isDirectItem: true, quizzes };
+          }
+          return { isQuiz: false, isDirectItem: true, quizzes: [] };
+        }
+      }
+    }
+  }
+
+  // STEP 2: Check course-level courseAssessments
+  if (Array.isArray(course.courseAssessments)) {
+    for (const ca of course.courseAssessments) {
+      if (String(ca._id) === targetStr) {
+        quizzes.push({
+          assessmentId: ca._id,
+          title: ca.title || 'Course Assessment',
+          moduleId: null,
+          lessonId: null,
+          isDirectItem: true
+        });
+        return { isQuiz: true, quizzes };
+      }
+    }
+  }
+
+  // STEP 3: If targetStr did NOT match any content item, check if it matches a LESSON (or combinedKey / index)
+  if (Array.isArray(course.modules)) {
+    for (let mIdx = 0; mIdx < course.modules.length; mIdx++) {
+      const mod = course.modules[mIdx];
+      for (let lIdx = 0; lIdx < (mod.lessons || []).length; lIdx++) {
+        const les = mod.lessons[lIdx];
+        const lesIdStr = String(les._id || '');
+        const items = les.items || les.contentItems || [];
+        const combinedKey = `${mIdx}-${lIdx}`;
+
+        const isLessonMatch = targetStr && (lesIdStr === targetStr || targetStr === combinedKey);
+
+        if (isLessonMatch) {
+          items.forEach(it => {
+            if (isItemQuiz(it)) {
+              quizzes.push({
+                assessmentId: it._id,
+                title: it.title || les.title || 'Quiz',
+                moduleId: mod._id || null,
+                lessonId: les._id || null,
+                isDirectItem: false
+              });
+            }
+          });
+
+          if (isLessonQuiz(les) && quizzes.length === 0) {
+            quizzes.push({
+              assessmentId: les._id,
+              title: les.title || 'Quiz',
+              moduleId: mod._id || null,
+              lessonId: les._id || null,
+              isDirectItem: false
+            });
+          }
+
+          return {
+            isQuiz: quizzes.length > 0,
+            isLessonLevel: true,
+            quizzes
+          };
+        }
+      }
+    }
+
+    // Check numeric index match (e.g. 0, 1) across flat lessons
+    const numIdx = parseInt(targetStr, 10);
+    if (!isNaN(numIdx) && String(numIdx) === targetStr) {
+      let count = 0;
+      for (const mod of course.modules) {
+        for (const les of (mod.lessons || [])) {
+          if (count === numIdx) {
+            const items = les.items || les.contentItems || [];
+            items.forEach(it => {
+              if (isItemQuiz(it)) {
+                quizzes.push({
+                  assessmentId: it._id,
+                  title: it.title || les.title || 'Quiz',
+                  moduleId: mod._id || null,
+                  lessonId: les._id || null,
+                  isDirectItem: false
+                });
+              }
+            });
+            if (isLessonQuiz(les) && quizzes.length === 0) {
+              quizzes.push({
+                assessmentId: les._id,
+                title: les.title || 'Quiz',
+                moduleId: mod._id || null,
+                lessonId: les._id || null,
+                isDirectItem: false
+              });
+            }
+            return { isQuiz: quizzes.length > 0, isLessonLevel: true, quizzes };
+          }
+          count++;
+        }
+      }
+    }
+  }
+
+  // 4. Check top-level course.lessons if present
+  if (Array.isArray(course.lessons)) {
+    for (const les of course.lessons) {
+      const lesIdStr = String(les._id || '');
+      const items = les.items || les.contentItems || [];
+
+      if (targetStr && lesIdStr === targetStr) {
+        items.forEach(it => {
+          if (isItemQuiz(it)) {
+            quizzes.push({
+              assessmentId: it._id,
+              title: it.title || les.title || 'Quiz',
+              moduleId: null,
+              lessonId: les._id || null,
+              isDirectItem: false
+            });
+          }
+        });
+        if (isLessonQuiz(les) && quizzes.length === 0) {
+          quizzes.push({
+            assessmentId: les._id,
+            title: les.title || 'Quiz',
+            moduleId: null,
+            lessonId: les._id || null,
+            isDirectItem: false
+          });
+        }
+        return { isQuiz: quizzes.length > 0, isLessonLevel: true, quizzes };
+      }
+    }
+  }
+
+  return { isQuiz: false, quizzes: [] };
+};
+exports.getQuizDetailsForLesson = getQuizDetailsForLesson;
+
 exports.getCourseProgress = async (req, res) => {
   try {
     const courseId = req.params.courseId || req.params.id;
@@ -1990,10 +2376,11 @@ exports.getCourseProgress = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Enrolment record not found.' });
     }
     const course = await Course.findById(courseId);
-    const { progressPercentage, status, completedLessonsCount, totalLessonsCount } = calculateEnrolmentProgress(course, enrolment);
+    const { progressPercentage, status, isCompleted, completedContentsCount, totalContentsCount, modulesProgress } = calculateEnrolmentProgress(course, enrolment);
 
     // Auto heal enrolment in database if out of sync
-    if (enrolment.progressPercentage !== progressPercentage || enrolment.status !== status) {
+    const shouldHealCompletedAt = (status !== 'completed' && enrolment.completedAt);
+    if (enrolment.progressPercentage !== progressPercentage || enrolment.status !== status || shouldHealCompletedAt) {
       enrolment.progressPercentage = progressPercentage;
       enrolment.status = status;
       if (status !== 'completed') enrolment.completedAt = null;
@@ -2006,11 +2393,15 @@ exports.getCourseProgress = async (req, res) => {
     return res.status(200).json({
       success: true,
       enrolment,
-      totalModules: totalLessonsCount,
-      completedModules: completedLessonsCount,
+      totalModules: totalContentsCount,
+      completedModules: completedContentsCount,
+      totalContentsCount,
+      completedContentsCount,
       progressPercentage,
       status,
-      completedAt: enrolment.completedAt
+      isCompleted,
+      completedAt: enrolment.completedAt,
+      modulesProgress
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Server error fetching progress.' });
@@ -2025,15 +2416,26 @@ exports.getLearnerEnrolments = async (req, res) => {
     const sanitisedEnrolments = enrolments.map(enrolment => {
       const eObj = enrolment;
       if (eObj.courseId) {
-        const { progressPercentage, status } = calculateEnrolmentProgress(eObj.courseId, eObj);
+        const { progressPercentage, status, isCompleted, completedContentsCount, totalContentsCount, modulesProgress } = calculateEnrolmentProgress(eObj.courseId, eObj);
         eObj.courseId = sanitizeCourseForLearner(eObj.courseId);
         eObj.progressPercentage = progressPercentage;
         eObj.status = status;
+        eObj.isCompleted = isCompleted;
+        eObj.completedContentsCount = completedContentsCount;
+        eObj.totalContentsCount = totalContentsCount;
+        eObj.modulesProgress = modulesProgress;
 
-        if (enrolment.status !== status || enrolment.progressPercentage !== progressPercentage) {
+        const shouldClearCompletedAt = (status !== 'completed' && eObj.completedAt);
+        if (shouldClearCompletedAt) {
+          eObj.completedAt = null;
+        }
+
+        if (enrolment.status !== status || enrolment.progressPercentage !== progressPercentage || shouldClearCompletedAt) {
+          const updateFields = { status, progressPercentage };
+          if (status !== 'completed') updateFields.completedAt = null;
           Enrolment.updateOne(
             { _id: enrolment._id },
-            { $set: { status, progressPercentage } }
+            { $set: updateFields }
           ).catch(err => console.error('Enrolment sync error:', err));
         }
       }
@@ -2070,20 +2472,23 @@ exports.updateLessonProgress = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Course not found.' });
     }
 
-    // Determine published items and lessons across published modules
-    const pubModules = (course.modules || []).filter(m => m.state === 'published' || m.status === 'published');
+    // Determine published items and lessons across modules
+    const isCoursePublished = (course.status === 'published' || course.state === 'published');
+    const pubModules = (course.modules || []).filter(m => isCoursePublished || m.state === 'published' || m.status === 'published');
     const pubItemIds = new Set();
     const lessonToItemsMap = new Map();
     const itemToLessonMap = new Map();
     const allLessonIds = new Set();
+    const allCourseItemIds = new Set();
     let publishedLessonsCount = 0;
 
     pubModules.forEach((m, mIdx) => {
-      (m.lessons || []).filter(l => l.state === 'published' || l.status === 'published').forEach((l) => {
+      const modLessons = (m.lessons || []).filter(l => isCoursePublished || l.state === 'published' || l.status === 'published');
+      modLessons.forEach((l) => {
         publishedLessonsCount++;
         const lIdStr = String(l._id);
         allLessonIds.add(lIdStr);
-        const lItems = (l.items || l.contentItems || []).filter(i => i.state === 'published' || i.status === 'published');
+        const lItems = (l.items || l.contentItems || []).filter(i => isCoursePublished || i.state === 'published' || i.status === 'published');
         const itemIds = lItems.map(i => String(i._id));
         lessonToItemsMap.set(lIdStr, itemIds);
         lessonToItemsMap.set(String(mIdx), itemIds); // Also support numeric module index
@@ -2094,8 +2499,40 @@ exports.updateLessonProgress = async (req, res) => {
       });
     });
 
+    // Also collect all valid IDs across all modules and lessons in the course so valid items are never purged
+    (course.modules || []).forEach((m) => {
+      if (m._id) allCourseItemIds.add(String(m._id));
+      (m.lessons || []).forEach(l => {
+        if (l._id) {
+          allCourseItemIds.add(String(l._id));
+          allLessonIds.add(String(l._id));
+        }
+        const lItems = l.items || l.contentItems || [];
+        const itemIds = lItems.map(i => String(i._id));
+        if (l._id && !lessonToItemsMap.has(String(l._id))) {
+          lessonToItemsMap.set(String(l._id), itemIds);
+        }
+        itemIds.forEach(id => {
+          allCourseItemIds.add(id);
+          pubItemIds.add(id);
+          if (l._id && !itemToLessonMap.has(id)) {
+            itemToLessonMap.set(id, String(l._id));
+          }
+        });
+      });
+    });
+
     (course.lessons || []).forEach(l => {
-      if (l._id) allLessonIds.add(String(l._id));
+      if (l._id) {
+        allCourseItemIds.add(String(l._id));
+        allLessonIds.add(String(l._id));
+      }
+      (l.items || l.contentItems || []).forEach(it => {
+        if (it._id) {
+          allCourseItemIds.add(String(it._id));
+          pubItemIds.add(String(it._id));
+        }
+      });
     });
 
     const totalLessons = Math.max(
@@ -2154,11 +2591,35 @@ exports.updateLessonProgress = async (req, res) => {
     let newlyCompleted = false;
 
     if (wantsCompleted) {
-      // 80% Video Watch Requirement Validation:
-      // If this is a video lesson and not already completed, independently verify learner watched >= 80%
+      // 1. Quiz Attempt Requirement Validation:
+      // Quizzes CANNOT be marked complete manually. Must have a valid submitted attempt by this authenticated learner in MongoDB.
+      const quizDetails = getQuizDetailsForLesson(course, lessonKey, req.body?.lessonId || req.params?.lessonId);
+      if (quizDetails.isQuiz && quizDetails.quizzes.length > 0) {
+        for (const q of quizDetails.quizzes) {
+          const submittedAttempt = await AssessmentSubmission.findOne({
+            courseId: course._id,
+            learnerId: req.user.id,
+            assessmentId: q.assessmentId,
+            status: { $in: ['submitted', 'graded'] }
+          });
+
+          if (!submittedAttempt) {
+            return res.status(400).json({
+              success: false,
+              message: `Quizzes cannot be marked as complete manually. You must attempt and submit the quiz "${q.title}" to complete it.`,
+              requiresQuizSubmission: true,
+              quizId: q.assessmentId,
+              quizTitle: q.title
+            });
+          }
+        }
+      }
+
+      // 2. 80% Video Watch Requirement Validation:
+      // If this is a playable video lesson and not already completed, verify learner watched >= 80%
       if (!isAlreadyCompleted) {
         const videoDetails = getVideoDetailsForLesson(course, lessonKey, req.body?.lessonId || req.params?.lessonId);
-        if (videoDetails.isVideo) {
+        if (videoDetails.isVideo && videoDetails.hasPlayableVideo && videoDetails.duration > 0) {
           let watchRecord = null;
           if (enrolment.videoWatchData) {
             const keysToCheck = [
@@ -2183,7 +2644,7 @@ exports.updateLessonProgress = async (req, res) => {
           if (currentPct < 80) {
             return res.status(400).json({
               success: false,
-              message: 'You need to watch at least 80% of this video to mark the lesson as complete.',
+              message: 'You need to watch full video to mark the lesson as complete.',
               watchPercentage: currentPct,
               uniqueWatchedDuration: watchRecord?.uniqueWatchedDuration || 0,
               totalDuration: watchRecord?.totalDuration || videoDetails.duration || 0,
@@ -2221,17 +2682,45 @@ exports.updateLessonProgress = async (req, res) => {
         }
       }
 
-      // If req.body.lessonId was provided and not yet added, add it
-      if (req.body?.lessonId && !currentCompleted.some(c => String(c) === String(req.body.lessonId))) {
-        currentCompleted.push(String(req.body.lessonId));
+      // If req.body.lessonId was provided, only add it if all items in that lesson are completed
+      if (req.body?.lessonId) {
+        const parentLId = String(req.body.lessonId);
+        const siblings = lessonToItemsMap.get(parentLId) || [];
+        const allSiblingsDone = siblings.length === 0 || siblings.every(sId =>
+          sId === String(lessonKey) || currentCompleted.some(c => String(c) === String(sId))
+        );
+        if (allSiblingsDone && !currentCompleted.some(c => String(c) === parentLId)) {
+          currentCompleted.push(parentLId);
+        }
       }
 
       enrolment.completedLessons = currentCompleted;
     } else {
       // UNMARKING / INCOMPLETE
+      // A successfully submitted quiz permanently satisfies completion and cannot be unmarked as incomplete
+      const quizDetails = getQuizDetailsForLesson(course, lessonKey, req.body?.lessonId || req.params?.lessonId);
+      if (quizDetails.isQuiz && quizDetails.quizzes.length > 0) {
+        for (const q of quizDetails.quizzes) {
+          const submittedAttempt = await AssessmentSubmission.findOne({
+            courseId: course._id,
+            learnerId: req.user.id,
+            assessmentId: q.assessmentId,
+            status: { $in: ['submitted', 'graded'] }
+          });
+          if (submittedAttempt) {
+            return res.status(400).json({
+              success: false,
+              message: 'Completed quizzes cannot be unmarked as incomplete.',
+              quizId: q.assessmentId,
+              quizTitle: q.title
+            });
+          }
+        }
+      }
+
       let filtered = currentCompleted.filter(i => String(i) !== String(lessonKey));
 
-      // If lessonKey is a lesson, remove all its items too
+      // If lessonKey is a lesson, remove non-quiz items
       if (lessonToItemsMap.has(String(lessonKey))) {
         const relatedItems = lessonToItemsMap.get(String(lessonKey)) || [];
         filtered = filtered.filter(i => !relatedItems.includes(String(i)));
@@ -2252,11 +2741,11 @@ exports.updateLessonProgress = async (req, res) => {
       newlyCompleted = false;
     }
 
-    // Sanitize and deduplicate completedLessons
+    // Sanitize and deduplicate completedLessons - preserve all valid course items and lessons
     const uniqueValid = new Set();
     (enrolment.completedLessons || []).forEach(i => {
       const strVal = String(i);
-      if (pubItemIds.has(strVal) || allLessonIds.has(strVal) || lessonToItemsMap.has(strVal)) {
+      if (pubItemIds.has(strVal) || allLessonIds.has(strVal) || allCourseItemIds.has(strVal) || lessonToItemsMap.has(strVal)) {
         uniqueValid.add(strVal);
       } else {
         const n = Number(i);
@@ -2311,6 +2800,60 @@ exports.updateLessonProgress = async (req, res) => {
     }
 
     courseCache.invalidateCourse(courseId);
+
+    if (wantsCompleted && req.user && req.user.role === 'learner') {
+      try {
+        const { logLearnerActivity } = require('../services/activityService');
+        const isVideo = req.body?.type === 'video' || req.body?.contentType === 'video';
+        logLearnerActivity(req.user.id, {
+          activityType: isVideo ? 'video_completed' : 'lesson_completed',
+          title: isVideo ? 'Video Lecture Completed' : 'Lesson Completed',
+          description: `Completed content in ${course.title}`,
+          courseId: course._id,
+          courseTitle: course.title,
+          lessonId: lessonKey,
+          referenceId: `${isVideo ? 'video' : 'lesson'}_${enrolment._id}_${lessonKey}`,
+          points: pointsAwarded > 0 ? pointsAwarded : 0,
+          createdAt: new Date()
+        }).catch(() => {});
+
+        if (newPercentage === 100) {
+          logLearnerActivity(req.user.id, {
+            activityType: 'course_completed',
+            title: 'Course Completed',
+            description: `Completed 100% of curriculum content in ${course.title}`,
+            courseId: course._id,
+            courseTitle: course.title,
+            referenceId: `course_comp_${enrolment._id}`,
+            points: 50,
+            createdAt: new Date()
+          }).catch(() => {});
+
+          try {
+            const { evaluateAndAwardCourseCompletionBadges } = require('../services/badgeService');
+            const Learner = require('../model/Learner');
+            const learnerDoc = await Learner.findById(req.user.id);
+            if (learnerDoc) {
+              await evaluateAndAwardCourseCompletionBadges(learnerDoc);
+            }
+          } catch (bErr) {
+            console.warn('Knowledge Seeker auto-evaluation warning:', bErr.message);
+          }
+        }
+      } catch (_) {}
+
+      // Evaluate Consistent Learner badges whenever a lesson is completed
+      try {
+        const { evaluateAndAwardConsistentLearnerBadges } = require('../services/badgeService');
+        const Learner = require('../model/Learner');
+        const learnerDoc = await Learner.findById(req.user.id);
+        if (learnerDoc) {
+          await evaluateAndAwardConsistentLearnerBadges(learnerDoc);
+        }
+      } catch (clBadgeErr) {
+        console.warn('Consistent Learner badge evaluation warning:', clBadgeErr.message);
+      }
+    }
 
     const pointsMsg = pointsAwarded > 0 ? ' +' + pointsAwarded + ' points awarded 🎉' : '';
     const certMsg = issuedCertificate ? ' 🎓 Course completion certificate issued!' : '';
@@ -2395,20 +2938,68 @@ exports.updateVideoWatchProgress = async (req, res) => {
       incomingIntervals.push({ start: req.body.intervalStart, end: req.body.intervalEnd });
     }
 
-    const { mergedIntervals, uniqueWatchedDuration, watchPercentage } = mergeWatchedIntervals(
+    const isCompleted = (enrolment.completedLessons || []).some(id =>
+      keysToCheck.includes(String(id))
+    );
+
+    const existingMax = Number(existingRecord?.maxWatchedTime) || Number(existingRecord?.lastWatchedPosition) || 0;
+
+    // Validate incoming intervals against forward seeking skips:
+    // If not completed, reject intervals starting ahead of verified watched max
+    const sanitizedIntervals = [];
+    const maxAllowedProgression = existingRecord?.lastUpdated
+      ? Math.max(15, ((Date.now() - new Date(existingRecord.lastUpdated).getTime()) / 1000) * 2.5 + 5)
+      : 20;
+
+    for (const item of incomingIntervals) {
+      if (!item) continue;
+      let s = Number(item.start);
+      let e = Number(item.end);
+      if (isNaN(s) || isNaN(e) || e <= s) continue;
+      s = Math.max(0, Math.min(s, totalDuration));
+      e = Math.max(0, Math.min(e, totalDuration));
+
+      if (!isCompleted) {
+        // Disallow interval starting beyond verified maximum watched position (+ small tolerance)
+        if (s > existingMax + 2.5) {
+          continue;
+        }
+        // Cap end time progression to prevent artificial forward leaps
+        if (e > existingMax + maxAllowedProgression) {
+          e = Math.min(totalDuration, existingMax + maxAllowedProgression);
+        }
+      }
+
+      if (e > s) {
+        sanitizedIntervals.push({
+          start: Math.round(s * 10) / 10,
+          end: Math.round(e * 10) / 10
+        });
+      }
+    }
+
+    const { mergedIntervals, uniqueWatchedDuration, watchPercentage, maxWatchedTime } = mergeWatchedIntervals(
       existingRecord?.watchedIntervals || [],
-      incomingIntervals,
+      sanitizedIntervals,
       totalDuration
     );
 
     const isEligible = watchPercentage >= 80;
-    const currentPos = typeof req.body.currentTime === 'number' && !isNaN(req.body.currentTime)
-      ? Math.max(0, Math.min(req.body.currentTime, totalDuration))
-      : (existingRecord?.lastWatchedPosition || 0);
 
-    const isCompleted = (enrolment.completedLessons || []).some(id =>
-      keysToCheck.includes(String(id))
-    );
+    const finalMaxWatchedTime = isCompleted
+      ? totalDuration
+      : Math.min(totalDuration, Math.max(existingMax, maxWatchedTime));
+
+    // Validate and clamp current playback position
+    let rawPos = typeof req.body.currentTime === 'number' && !isNaN(req.body.currentTime)
+      ? req.body.currentTime
+      : existingMax;
+
+    const allowedPosCeiling = isCompleted
+      ? totalDuration
+      : Math.max(finalMaxWatchedTime, 0);
+
+    const currentPos = Math.max(0, Math.min(rawPos, allowedPosCeiling));
 
     const updatedRecord = {
       lessonId: String(videoDetails.lessonId || lessonId),
@@ -2417,6 +3008,7 @@ exports.updateVideoWatchProgress = async (req, res) => {
       watchedIntervals: mergedIntervals,
       uniqueWatchedDuration,
       watchPercentage,
+      maxWatchedTime: Math.round(finalMaxWatchedTime * 10) / 10,
       lastWatchedPosition: Math.round(currentPos * 10) / 10,
       isEligible: isEligible || isCompleted,
       lastUpdated: new Date()
@@ -2451,6 +3043,7 @@ exports.updateVideoWatchProgress = async (req, res) => {
       totalDuration,
       uniqueWatchedDuration,
       watchPercentage,
+      maxWatchedTime: updatedRecord.maxWatchedTime,
       isEligible: isEligible || isCompleted,
       isCompleted,
       lastWatchedPosition: updatedRecord.lastWatchedPosition
@@ -2509,12 +3102,20 @@ exports.getVideoWatchProgress = async (req, res) => {
     const uniqueWatchedDuration = watchRecord?.uniqueWatchedDuration || 0;
     const isEligible = watchPercentage >= 80 || isCompleted;
 
+    const maxWatchedTime = isCompleted
+      ? totalDuration
+      : Math.max(
+          Number(watchRecord?.maxWatchedTime) || 0,
+          Number(watchRecord?.lastWatchedPosition) || 0
+        );
+
     return res.status(200).json({
       success: true,
       isVideo: videoDetails.isVideo,
       totalDuration,
       uniqueWatchedDuration,
       watchPercentage,
+      maxWatchedTime: Math.round(maxWatchedTime * 10) / 10,
       isEligible,
       isCompleted,
       lastWatchedPosition: watchRecord?.lastWatchedPosition || 0,

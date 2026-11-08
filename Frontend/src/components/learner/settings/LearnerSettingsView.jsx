@@ -70,7 +70,7 @@ const PLATFORM_REGEXES = {
   instagram: /^https:\/\/(www\.)?instagram\.com\/[A-Za-z0-9_.-]+\/?$/,
   facebook: /^https:\/\/(www\.)?facebook\.com\/[A-Za-z0-9_.-]+\/?$/,
   codeforces: /^https:\/\/(www\.)?codeforces\.com\/profile\/[A-Za-z0-9_.-]+\/?$/,
-  geeksforgeeks: /^https:\/\/(www\.|auth\.)?geeksforgeeks\.org\/user\/[A-Za-z0-9_.-]+\/?$/,
+  geeksforgeeks: /^https:\/\/(www\.|auth\.)?geeksforgeeks\.org\/profile\/[A-Za-z0-9_.-]+\/?$/,
   hackerrank: /^https:\/\/(www\.)?hackerrank\.com\/(profile\/)?[A-Za-z0-9_.-]+\/?$/
 };
 
@@ -81,7 +81,7 @@ const SOCIAL_PLATFORMS = [
   { key: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/username/', Icon: InstagramIcon },
   { key: 'facebook', label: 'Facebook', placeholder: 'https://facebook.com/username/', Icon: FacebookIcon },
   { key: 'codeforces', label: 'Codeforces', placeholder: 'https://codeforces.com/profile/username', Icon: CodeforcesIcon },
-  { key: 'geeksforgeeks', label: 'GeeksforGeeks', placeholder: 'https://geeksforgeeks.org/user/username/', Icon: GFGIcon },
+  { key: 'geeksforgeeks', label: 'GeeksforGeeks', placeholder: 'https://geeksforgeeks.org/profile/username/', Icon: GFGIcon },
   { key: 'hackerrank', label: 'HackerRank', placeholder: 'https://hackerrank.com/profile/username', Icon: HackerRankIcon }
 ];
 
@@ -146,16 +146,45 @@ export const LearnerSettingsView = ({ user }) => {
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-  // ─── Danger Zone: Delete Account Modal Flow ───
-  // deleteStep: null | 1 (confirmation) | 2 (password check) | 3 (email OTP)
+  // ─── Danger Zone: Permanent Account Deletion Flow (Email OTP Only) ───
+  // deleteStep: null | 1 (Request modal / warning & email preview) | 2 (6-digit OTP verification) | 3 (Final confirmation)
   const [deleteStep, setDeleteStep] = useState(null);
-  const [deletePassword, setDeletePassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [deleteOtp, setDeleteOtp] = useState(['', '', '', '', '', '']);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [otpExpiresIn, setOtpExpiresIn] = useState(300);
+  const [deletionToken, setDeletionToken] = useState('');
   const [deleteError, setDeleteError] = useState('');
+  const [devOtp, setDevOtp] = useState('');
   const otpInputRefs = useRef([]);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    let timer;
+    if (resendCooldown > 0) {
+      timer = setInterval(() => {
+        setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  // 5-minute OTP expiration timer
+  useEffect(() => {
+    let timer;
+    if (deleteStep === 2 && otpExpiresIn > 0) {
+      timer = setInterval(() => {
+        setOtpExpiresIn((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [deleteStep, otpExpiresIn]);
+
+  const formatOtpTime = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   // Fetch current profile & username eligibility on mount
   useEffect(() => {
@@ -534,47 +563,56 @@ export const LearnerSettingsView = ({ user }) => {
     }
   };
 
-  // ─── Danger Zone: Step 1 -> Step 2 ───
+  // ─── Danger Zone: Step 1 — Open Request Account Deletion Modal ───
   const handleStartDeleteAccount = () => {
     setDeleteError('');
-    setDeletePassword('');
     setDeleteOtp(['', '', '', '', '', '']);
+    setDeletionToken('');
+    setDevOtp('');
     setDeleteStep(1);
   };
 
-  // Step 2: Verify Password and Send Email OTP
-  const handleVerifyPassword = async (e) => {
-    if (e) e.preventDefault();
+  // Step 2: Send Email OTP to Registered Email
+  const handleSendDeletionOtp = async () => {
     setDeleteError('');
-
     setDeleteLoading(true);
+
     try {
       const token = sessionStorage.getItem('upskillr_token');
-      const res = await fetch(`${API_BASE}/learners/me/delete-account/verify-password`, {
+      const res = await fetch(`${API_BASE}/learners/me/delete-account/send-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({ password: deletePassword })
+        }
       });
 
       const data = await res.json();
       if (data.success) {
-        toast.info(data.message || `Verification code sent to ${profile.email}`);
+        if (data.devOtp) {
+          setDevOtp(data.devOtp);
+          if (data.emailDelivered === false) {
+            toast.warning(`[Notice] Email could not be sent (Gmail App Password invalid in .env). Verification code: ${data.devOtp}`, { autoClose: 15000 });
+          } else {
+            toast.info(data.message || `Verification code sent to ${profile.email}`);
+          }
+        } else {
+          toast.info(data.message || `Verification code sent to ${profile.email}`);
+        }
         setResendCooldown(data.cooldownSeconds || 60);
-        setDeleteStep(3); // Advance to OTP step
+        setOtpExpiresIn(data.expiresInSeconds || 300);
+        setDeleteStep(2); // Advance to OTP verification step
       } else {
-        setDeleteError(data.message || 'Incorrect password.');
+        setDeleteError(data.message || 'Failed to send verification code.');
       }
     } catch (err) {
-      setDeleteError('Server error verifying password. Please try again.');
+      setDeleteError('Server connection error. Please try again.');
     } finally {
       setDeleteLoading(false);
     }
   };
 
-  // Step 3: Resend OTP
+  // Step 2b: Resend OTP
   const handleResendOtp = async () => {
     if (resendCooldown > 0) return;
     setDeleteLoading(true);
@@ -587,8 +625,19 @@ export const LearnerSettingsView = ({ user }) => {
       });
       const data = await res.json();
       if (data.success) {
-        toast.success('A new 6-digit verification code has been sent to your email.');
+        if (data.devOtp) {
+          setDevOtp(data.devOtp);
+          if (data.emailDelivered === false) {
+            toast.warning(`[Notice] Fresh verification code: ${data.devOtp}`, { autoClose: 15000 });
+          } else {
+            toast.success('A fresh 6-digit verification code has been sent to your registered email.');
+          }
+        } else {
+          toast.success('A fresh 6-digit verification code has been sent to your registered email.');
+        }
         setResendCooldown(data.cooldownSeconds || 60);
+        setOtpExpiresIn(data.expiresInSeconds || 300);
+        setDeleteOtp(['', '', '', '', '', '']);
       } else {
         setDeleteError(data.message || 'Failed to resend code.');
       }
@@ -631,12 +680,49 @@ export const LearnerSettingsView = ({ user }) => {
     otpInputRefs.current[nextIdx]?.focus();
   };
 
-  // Step 4: Confirm Final Permanent Deletion
-  const handleConfirmDeletion = async (e) => {
+  // Step 3: Verify OTP (Validates OTP & issues single-use deletion authorization)
+  const handleVerifyOtp = async (e) => {
     if (e) e.preventDefault();
     const fullOtp = deleteOtp.join('');
     if (fullOtp.length !== 6) {
       setDeleteError('Please enter all 6 digits of the verification code.');
+      return;
+    }
+
+    setDeleteLoading(true);
+    setDeleteError('');
+    try {
+      const token = sessionStorage.getItem('upskillr_token');
+      const res = await fetch(`${API_BASE}/learners/me/delete-account/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ otp: fullOtp })
+      });
+
+      const data = await res.json();
+      if (data.success && data.deletionToken) {
+        setDeletionToken(data.deletionToken);
+        setDeleteError('');
+        setDeleteStep(3); // Advance to Step 4: Final Permanent Confirmation
+      } else {
+        setDeleteError(data.message || 'Incorrect or expired verification code.');
+      }
+    } catch (err) {
+      setDeleteError('Server error verifying code. Please try again.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  // Step 4: Final Permanent Deletion Confirmation
+  const handleConfirmPermanentDelete = async (e) => {
+    if (e) e.preventDefault();
+    if (!deletionToken) {
+      setDeleteError('Missing deletion authorization. Please restart the verification process.');
+      setDeleteStep(1);
       return;
     }
 
@@ -650,7 +736,7 @@ export const LearnerSettingsView = ({ user }) => {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ otp: fullOtp })
+        body: JSON.stringify({ deletionToken })
       });
 
       const data = await res.json();
@@ -666,11 +752,11 @@ export const LearnerSettingsView = ({ user }) => {
           window.location.href = '/';
         }, 800);
       } else {
-        setDeleteError(data.message || 'Incorrect or expired code.');
+        setDeleteError(data.message || 'Failed to permanently delete account.');
+        setDeleteLoading(false);
       }
     } catch (err) {
-      setDeleteError('Server error confirming deletion. Please try again.');
-    } finally {
+      setDeleteError('Server error during permanent deletion. Please try again.');
       setDeleteLoading(false);
     }
   };
@@ -1179,7 +1265,7 @@ export const LearnerSettingsView = ({ user }) => {
         </div>
       )}
 
-      {/* ─── SECURE 4-STEP DELETE ACCOUNT MODAL ─── */}
+      {/* ─── SECURE 3-STAGE PERMANENT ACCOUNT DELETION MODAL (EMAIL OTP ONLY) ─── */}
       {deleteStep !== null && (
         <div
           className="delete-modal-overlay"
@@ -1199,7 +1285,11 @@ export const LearnerSettingsView = ({ user }) => {
                 <div className="danger-icon-badge">
                   <AlertTriangle size={20} />
                 </div>
-                <h3>Permanent Account Deletion</h3>
+                <h3>
+                  {deleteStep === 3
+                    ? 'Permanently Delete Your Account?'
+                    : 'Permanent Account Deletion'}
+                </h3>
               </div>
               <button
                 type="button"
@@ -1212,80 +1302,36 @@ export const LearnerSettingsView = ({ user }) => {
               </button>
             </div>
 
-            {/* ─── STEP 1: INITIAL CONFIRMATION WARNING ─── */}
+            {/* ─── STEP 1: REQUEST ACCOUNT DELETION & EMAIL PREVIEW ─── */}
             {deleteStep === 1 && (
               <div className="delete-modal-body">
                 <div className="deletion-consequence-card">
                   <p className="deletion-consequence-intro">
-                    Are you absolutely sure you want to delete your UpSkillR account?
+                    Are you sure you want to permanently delete your UpSkillR account?
                   </p>
                   <p className="deletion-consequence-sub">
-                    This action is <strong>irreversible</strong> and will permanently remove:
+                    This action is <strong>permanent and cannot be undone</strong>. All personal data associated with your account will be removed:
                   </p>
                   <ul className="deletion-consequence-list">
-                    <li>All course enrolments, completion milestones, and progress</li>
-                    <li>Official verified certificates of completion</li>
-                    <li>Your streak counter, point history, and daily learning activity</li>
-                    <li>All submitted reviews, feedback, and course bookmarks</li>
+                    <li>Course enrolments, progress history, and completed lessons</li>
+                    <li>Official verified certificates of completion and credentials</li>
+                    <li>Quizzes and assessment attempts, submissions, and scores</li>
+                    <li>Personal learning notes, bookmarks, and custom folders</li>
+                    <li>Daily streaks, gamification points, and activity records</li>
+                    <li>All submitted reviews, feedback ratings, and course questions</li>
                   </ul>
                 </div>
 
-                <div className="delete-modal-footer">
-                  <button
-                    type="button"
-                    className="btn-cancel-delete"
-                    onClick={() => setDeleteStep(null)}
-                  >
-                    Cancel, Keep Account
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-continue-deletion"
-                    onClick={() => {
-                      setDeleteError('');
-                      setDeleteStep(2);
-                    }}
-                  >
-                    Continue to Verification
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ─── STEP 2: PASSWORD VERIFICATION ─── */}
-            {deleteStep === 2 && (
-              <form className="delete-modal-body" onSubmit={handleVerifyPassword}>
-                <div className="step-direction-banner">
-                  <KeyRound size={20} className="step-icon" />
-                  <div>
-                    <h4 className="step-title">Step 1 of 2: Security Password Verification</h4>
-                    <p className="step-desc">
-                      Please enter your current account password to verify account ownership.
-                    </p>
+                {/* Display Authenticated User's Registered Email */}
+                <div className="registered-email-card">
+                  <span className="registered-email-label">Registered Verification Email:</span>
+                  <div className="registered-email-pill">
+                    <Mail size={16} className="email-pill-icon" />
+                    <span className="registered-email-address">{profile.email}</span>
                   </div>
-                </div>
-
-                <div className="form-field-group" style={{ marginTop: '16px' }}>
-                  <label className="form-field-label">Account Password</label>
-                  <div className="password-input-wrap">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      className="form-text-input"
-                      placeholder="Enter your current password"
-                      value={deletePassword}
-                      onChange={(e) => setDeletePassword(e.target.value)}
-                      required
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      className="btn-toggle-pw"
-                      onClick={() => setShowPassword((p) => !p)}
-                      title={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
+                  <p className="registered-email-hint">
+                    A secure 6-digit verification code will be sent to this email to verify account ownership. No password or external provider re-authentication is required.
+                  </p>
                 </div>
 
                 {deleteError && (
@@ -1299,31 +1345,32 @@ export const LearnerSettingsView = ({ user }) => {
                   <button
                     type="button"
                     className="btn-cancel-delete"
-                    onClick={() => setDeleteStep(1)}
+                    onClick={() => setDeleteStep(null)}
                     disabled={deleteLoading}
                   >
-                    Back
+                    Cancel, Keep Account
                   </button>
                   <button
-                    type="submit"
+                    type="button"
                     className="btn-continue-deletion"
-                    disabled={deleteLoading || !deletePassword}
+                    onClick={handleSendDeletionOtp}
+                    disabled={deleteLoading || !profile.email}
                   >
-                    {deleteLoading ? 'Verifying...' : 'Verify Password & Send Code'}
+                    {deleteLoading ? 'Sending Code...' : 'Send Verification OTP'}
                   </button>
                 </div>
-              </form>
+              </div>
             )}
 
-            {/* ─── STEP 3: EMAIL OTP VERIFICATION ─── */}
-            {deleteStep === 3 && (
-              <form className="delete-modal-body" onSubmit={handleConfirmDeletion}>
+            {/* ─── STEP 2: 6-DIGIT EMAIL OTP VERIFICATION ─── */}
+            {deleteStep === 2 && (
+              <form className="delete-modal-body" onSubmit={handleVerifyOtp}>
                 <div className="step-direction-banner">
                   <Mail size={20} className="step-icon" />
                   <div>
-                    <h4 className="step-title">Step 2 of 2: Email OTP Verification</h4>
+                    <h4 className="step-title">Enter 6-Digit Verification Code</h4>
                     <p className="step-desc">
-                      A 6-digit confirmation code was sent to <strong>{profile.email}</strong>.
+                      A confirmation code was sent to <strong>{profile.email}</strong>.
                     </p>
                   </div>
                 </div>
@@ -1345,22 +1392,85 @@ export const LearnerSettingsView = ({ user }) => {
                   ))}
                 </div>
 
-                <div className="otp-resend-row">
-                  {resendCooldown > 0 ? (
-                    <span className="resend-cooldown-text">
-                      Resend code in <strong>{resendCooldown}s</strong>
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="btn-resend-otp"
-                      onClick={handleResendOtp}
-                      disabled={deleteLoading}
-                    >
-                      <RefreshCw size={13} />
-                      <span>Resend Verification Code</span>
-                    </button>
-                  )}
+                {/* OTP Expiration and Resend Controls */}
+                <div className="otp-meta-status-row">
+                  <div className="otp-countdown-wrap">
+                    <Clock size={14} className="countdown-icon" />
+                    {otpExpiresIn > 0 ? (
+                      <span className="otp-countdown-text">
+                        Code expires in <strong>{formatOtpTime(otpExpiresIn)}</strong>
+                      </span>
+                    ) : (
+                      <span className="otp-countdown-text expired">
+                        Code has expired. Please request a new one.
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="otp-resend-wrap">
+                    {resendCooldown > 0 ? (
+                      <span className="resend-cooldown-text">
+                        Resend in <strong>{resendCooldown}s</strong>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-resend-otp"
+                        onClick={handleResendOtp}
+                        disabled={deleteLoading}
+                      >
+                        <RefreshCw size={13} />
+                        <span>Resend OTP</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {deleteError && (
+                  <div className="delete-error-banner" role="alert">
+                    <AlertCircle size={15} />
+                    <span>{deleteError}</span>
+                  </div>
+                )}
+
+                <div className="delete-modal-footer">
+                  <button
+                    type="button"
+                    className="btn-cancel-delete"
+                    onClick={() => {
+                      setDeleteError('');
+                      setDeleteStep(1);
+                    }}
+                    disabled={deleteLoading}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-continue-deletion"
+                    disabled={deleteLoading || deleteOtp.join('').length !== 6 || otpExpiresIn === 0}
+                  >
+                    {deleteLoading ? 'Verifying...' : 'Verify OTP'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* ─── STEP 3: FINAL PERMANENT DELETION CONFIRMATION ─── */}
+            {deleteStep === 3 && (
+              <div className="delete-modal-body">
+                <div className="final-deletion-warning-card">
+                  <div className="warning-card-header">
+                    <AlertTriangle size={24} className="warning-card-icon" />
+                    <h4>Permanently Delete Your Account?</h4>
+                  </div>
+                  <p className="final-warning-text">
+                    This action cannot be undone. Your account, learning history, certificates, achievements, notes, and other personal information will be permanently deleted.
+                  </p>
+                  <div className="final-security-notice">
+                    <CheckCircle2 size={16} className="security-notice-icon" />
+                    <span>Email OTP verification completed successfully.</span>
+                  </div>
                 </div>
 
                 {deleteError && (
@@ -1380,14 +1490,15 @@ export const LearnerSettingsView = ({ user }) => {
                     Cancel
                   </button>
                   <button
-                    type="submit"
+                    type="button"
                     className="btn-final-delete"
-                    disabled={deleteLoading || deleteOtp.join('').length !== 6}
+                    onClick={handleConfirmPermanentDelete}
+                    disabled={deleteLoading}
                   >
-                    {deleteLoading ? 'Deleting Account...' : 'Permanently Delete Account'}
+                    {deleteLoading ? 'Permanently Deleting...' : 'Permanently Delete Account'}
                   </button>
                 </div>
-              </form>
+              </div>
             )}
           </div>
         </div>

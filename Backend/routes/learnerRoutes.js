@@ -70,11 +70,17 @@ router.post('/me/recent-course', learnerController.recordCourseAccess);
 // Learning Activity Heatmap (from PointTransaction data)
 router.get('/me/activity', learnerController.getLearnerActivity);
 
+// Recent Learning Activity with Server-Side Pagination
+router.get('/me/recent-activities', learnerController.getRecentActivities);
+
 // Certificates (derived from completed enrolments)
 router.get('/me/certificates', learnerController.getLearnerCertificates);
 
 // Verified Learning Milestones
 router.get('/me/milestones', learnerController.getLearnerMilestones);
+
+// Learning Streak Badges
+router.get('/me/badges', learnerController.getLearnerBadges);
 
 // Notifications (New modules / lessons uploaded)
 const notificationController = require('../controller/notificationController');
@@ -82,9 +88,11 @@ router.get('/me/notifications', notificationController.getLearnerNotifications);
 router.patch('/me/notifications/read-all', notificationController.markAllNotificationsAsRead);
 router.patch('/me/notifications/:id/read', notificationController.markNotificationAsRead);
 
-// Account Deletion (Password check + Email OTP + Permanent Deletion)
-router.post('/me/delete-account/verify-password', learnerController.verifyDeleteAccountPassword);
+// Account Deletion (Email OTP Only — Step 2: Send OTP, Step 2b: Resend, Step 3: Verify OTP, Step 4: Confirm Deletion)
+router.post('/me/delete-account/send-otp', learnerController.requestDeleteAccountOtp);
+router.post('/me/delete-account/verify-password', learnerController.requestDeleteAccountOtp); // Backward-compatibility alias
 router.post('/me/delete-account/resend-otp', learnerController.resendDeleteAccountOtp);
+router.post('/me/delete-account/verify-otp', learnerController.verifyDeleteAccountOtp);
 router.post('/me/delete-account/confirm', learnerController.confirmDeleteAccount);
 
 module.exports = router;

@@ -96,7 +96,9 @@ const ActivityHeatmap = ({ activityData = [], loading = false }) => {
       activityMap[item.date] = {
         count: item.count || 0,
         activities: item.activities || [],
-        descriptions: item.descriptions || []
+        descriptions: item.descriptions || [],
+        breakdown: item.breakdown || {},
+        pointsEarned: item.pointsEarned || {}
       };
       total += item.count || 0;
     });
@@ -124,7 +126,13 @@ const ActivityHeatmap = ({ activityData = [], loading = false }) => {
     while (cur <= now || currentWeek.length > 0) {
       const dateStr = cur.toISOString().split('T')[0];
       const isFuture = cur > now;
-      const dataForDay = activityMap[dateStr] || { count: 0, activities: [], descriptions: [] };
+      const dataForDay = activityMap[dateStr] || {
+        count: 0,
+        activities: [],
+        descriptions: [],
+        breakdown: {},
+        pointsEarned: {}
+      };
 
       if (cur.getMonth() !== lastMonth && !isFuture) {
         lastMonth = cur.getMonth();
@@ -135,7 +143,9 @@ const ActivityHeatmap = ({ activityData = [], loading = false }) => {
         dateStr,
         isFuture,
         count: isFuture ? 0 : dataForDay.count,
-        descriptions: dataForDay.descriptions || []
+        descriptions: dataForDay.descriptions || [],
+        breakdown: dataForDay.breakdown || {},
+        pointsEarned: dataForDay.pointsEarned || {}
       });
 
       if (currentWeek.length === 7) {
@@ -227,6 +237,24 @@ const ActivityHeatmap = ({ activityData = [], loading = false }) => {
                 <div key={wIdx} className="heatmap-week-col">
                   {week.map((day, dIdx) => {
                     const isSelected = activeDay?.dateStr === day.dateStr;
+                    const cellTooltip = day.isFuture
+                      ? ''
+                      : day.count === 0
+                      ? `${day.dateStr} • No activity`
+                      : `${day.dateStr} • ${day.count} ${day.count === 1 ? 'activity' : 'activities'}${
+                          day.breakdown?.dailyLogin ? '\n• Daily Login: 1 (+1 pt)' : ''
+                        }${
+                          day.breakdown?.lessonCompleted ? `\n• Lesson Completed: ${day.breakdown.lessonCompleted}` : ''
+                        }${
+                          day.breakdown?.moduleCompleted ? `\n• Module Completed: ${day.breakdown.moduleCompleted} (+${day.breakdown.moduleCompleted * 5} pts)` : ''
+                        }${
+                          day.breakdown?.courseCompleted ? `\n• Course Completed: ${day.breakdown.courseCompleted} (+${day.breakdown.courseCompleted * 25} pts)` : ''
+                        }${
+                          day.breakdown?.quizCompleted ? `\n• Quiz Completed: ${day.breakdown.quizCompleted}` : ''
+                        }${
+                          day.pointsEarned?.total ? `\nTotal Points: +${day.pointsEarned.total}` : ''
+                        }`;
+
                     return (
                       <button
                         type="button"
@@ -236,7 +264,7 @@ const ActivityHeatmap = ({ activityData = [], loading = false }) => {
                         onMouseLeave={() => setHoveredDay(null)}
                         onClick={() => !day.isFuture && setSelectedDay(day)}
                         aria-label={day.isFuture ? '' : `${day.dateStr}: ${day.count} activities`}
-                        title={day.isFuture ? '' : `${day.dateStr} • ${day.count} activities`}
+                        title={cellTooltip}
                       />
                     );
                   })}
@@ -260,7 +288,7 @@ const ActivityHeatmap = ({ activityData = [], loading = false }) => {
       </div>
 
       {activeDay && (
-        <div className="heatmap-detail-card">
+        <div className="heatmap-detail-card" tabIndex={0} aria-label={`Activity details for ${formattedDate}`}>
           <div className="heatmap-detail-header">
             <div className="heatmap-detail-date-col">
               <div className="heatmap-detail-date-title">
@@ -284,7 +312,7 @@ const ActivityHeatmap = ({ activityData = [], loading = false }) => {
               {activeDay.descriptions.map((desc, idx) => (
                 <li key={idx} className="heatmap-activity-item">
                   <span className="activity-bullet">•</span>
-                  <span>{desc}</span>
+                  <span>{String(desc || '').replace(/^[•\s\-\*]+/, '').trim()}</span>
                 </li>
               ))}
             </ul>
@@ -352,7 +380,8 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
     longestStreak: 0,
     coursesEnrolled: 0,
     coursesCompleted: 0,
-    modulesCompleted: 0
+    modulesCompleted: 0,
+    badgesEarned: 0
   });
 
   const [activityData, setActivityData] = useState([]);
@@ -420,7 +449,8 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
             longestStreak: data.stats.longestStreak || 0,
             coursesEnrolled: data.stats.coursesEnrolled || 0,
             coursesCompleted: data.stats.coursesCompleted || 0,
-            modulesCompleted: data.stats.modulesCompleted || 0
+            modulesCompleted: data.stats.modulesCompleted || 0,
+            badgesEarned: data.stats.badgesEarned ?? 0
           });
         }
       }
@@ -499,7 +529,11 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
       fetchPointHistory(1);
     };
     window.addEventListener('upskillr_points_updated', handleRefresh);
-    return () => window.removeEventListener('upskillr_points_updated', handleRefresh);
+    window.addEventListener('upskillr_badge_unlocked', handleRefresh);
+    return () => {
+      window.removeEventListener('upskillr_points_updated', handleRefresh);
+      window.removeEventListener('upskillr_badge_unlocked', handleRefresh);
+    };
   }, []);
 
   // Filter connected developer & social profiles with URLs provided
@@ -679,6 +713,17 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
                 <span className="stat-metric-val">{stats.modulesCompleted}</span>
               </div>
             </div>
+
+            {/* 7. Badges Earned */}
+            <div className="profile-stat-box">
+              <div className="stat-icon-wrapper award-accent">
+                <Award size={24} />
+              </div>
+              <div className="stat-text-meta">
+                <span className="stat-metric-label">BADGES EARNED</span>
+                <span className="stat-metric-val">{stats.badgesEarned ?? 0}</span>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -693,107 +738,6 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
           </div>
 
           <ActivityHeatmap activityData={activityData} loading={activityLoading} />
-        </section>
-
-        {/* ─── 3b. POINTS & REWARDS HISTORY ─── */}
-        <section className="profile-points-history-section" aria-label="Points & Rewards History">
-          <div className="section-title-line">
-            <div className="title-with-icon">
-              <Sparkles size={18} className="title-icon-accent" />
-              <h2 className="section-title">Points &amp; Rewards History</h2>
-            </div>
-            <span className="stats-verified-pill">Verified Ledger &bull; {stats.totalPoints} Total Points</span>
-          </div>
-
-          <div className="points-history-card">
-            {pointsLoading ? (
-              <div className="points-empty-state">
-                <p className="points-empty-subtext">Loading points history...</p>
-              </div>
-            ) : pointHistory.length === 0 ? (
-              <div className="points-empty-state">
-                <div className="points-empty-icon">
-                  <Star size={24} />
-                </div>
-                <h3 className="points-empty-title">No rewards recorded yet</h3>
-                <p className="points-empty-subtext">
-                  Start learning! Earn +1 point for daily logins, +5 points for completing modules, and +25 points for completing courses.
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="points-history-table-wrap">
-                  <table className="points-history-table" aria-label="Points Transaction Ledger">
-                    <thead>
-                      <tr>
-                        <th>Activity Description</th>
-                        <th>Date &amp; Time</th>
-                        <th>Activity Category</th>
-                        <th style={{ textAlign: 'right' }}>Points Earned</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pointHistory.map((item) => {
-                        const badge = getActivityBadge(item.activityType || item.type);
-                        const isCourse = String(item.type || '').toUpperCase().includes('COURSE');
-                        return (
-                          <tr key={item._id}>
-                            <td>
-                              <span className="points-desc-main">{item.description}</span>
-                            </td>
-                            <td style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
-                              {formatTransactionDate(item.createdAt)}
-                            </td>
-                            <td>
-                              <span className={`points-type-badge ${badge.className}`}>
-                                {badge.label}
-                              </span>
-                            </td>
-                            <td style={{ textAlign: 'right' }}>
-                              <span className={`points-val-chip ${isCourse ? 'chip-course' : ''}`}>
-                                <Star size={13} fill="currentColor" />
-                                +{item.points}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {pointsPagination.totalPages > 1 && (
-                  <div className="points-pagination-bar">
-                    <span className="points-pagination-info">
-                      Showing page {pointsPagination.page} of {pointsPagination.totalPages} ({pointsPagination.total} total rewards)
-                    </span>
-                    <div className="points-pagination-controls">
-                      <button
-                        type="button"
-                        className="btn-points-page"
-                        disabled={pointsPagination.page <= 1}
-                        onClick={() => fetchPointHistory(pointsPagination.page - 1)}
-                        aria-label="Previous points page"
-                      >
-                        <ChevronLeft size={16} />
-                        <span>Previous</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-points-page"
-                        disabled={pointsPagination.page >= pointsPagination.totalPages}
-                        onClick={() => fetchPointHistory(pointsPagination.page + 1)}
-                        aria-label="Next points page"
-                      >
-                        <span>Next</span>
-                        <ChevronRight size={16} />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
         </section>
 
         {/* ─── 4. DEVELOPER & SOCIAL PROFILES ─── */}
@@ -1042,14 +986,6 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
                   <span>Verify Online</span>
                 </a>
               )}
-              <button
-                type="button"
-                className="btn-print-cert"
-                onClick={handlePrintCertificate}
-              >
-                <Printer size={16} />
-                <span>Print</span>
-              </button>
               <button
                 type="button"
                 className="btn-close-cert-subtle"

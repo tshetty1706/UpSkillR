@@ -306,6 +306,11 @@
   color: var(--brand-primary, #116830);
 }
 
+.notif-icon-box.badge-box {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+}
+
 /* Content column */
 .notif-content-column {
   flex: 1;
@@ -337,6 +342,11 @@
 .notif-type-tag.tag-lesson {
   background: rgba(22, 163, 74, 0.12);
   color: #16A34A;
+}
+
+.notif-type-tag.tag-badge {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
 }
 
 .notif-time-ago {

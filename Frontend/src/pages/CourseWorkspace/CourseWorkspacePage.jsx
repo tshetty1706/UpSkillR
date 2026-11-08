@@ -18,7 +18,6 @@ import {
   getContentTypeIcon
 } from './utils/contentTypeHelper.jsx';
 import { LessonContentRenderer } from './components/LessonContentRenderer.jsx';
-import { CourseLeaderboardView } from './components/CourseLeaderboardView.jsx';
 import './CourseWorkspacePage.css';
 
 /**
@@ -59,15 +58,11 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // ─── Navigation Tabs & Panes ───
-  // Secondary views: 'curriculum' (default 3-panel) | 'resources' | 'assessments' | 'notices'
-  const [activeTab, setActiveTab] = useState('curriculum');
-
   // Sidebar collapse toggles
   const [isSidebar1Collapsed, setIsSidebar1Collapsed] = useState(false);
   const [isSidebar2Collapsed, setIsSidebar2Collapsed] = useState(false);
 
-  // Mobile drawer states: null | 'modules' | 'lessons'
+  // Mobile drawer states: null | 'lessons' | 'items'
   const [mobileDrawer, setMobileDrawer] = useState(null);
 
   // Selected Curriculum Position
@@ -254,53 +249,140 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
     return list;
   }, [modulesList]);
 
-  const totalLessonsCount = flatLessonsList.length;
+  // ─── 3. Lesson & Item Completion Checkers ───
+  // Check if an individual item is completed
+  const isItemCompleted = useCallback((item, lesson, mIdx, lIdx) => {
+    if (!enrolment) return false;
+    if (!Array.isArray(enrolment.completedLessons)) return false;
+    const completedList = enrolment.completedLessons.map(String);
+    if (item?._id && completedList.includes(String(item._id))) return true;
 
-  // ─── 3. Lesson & Module Completion Checkers ───
-  const isLessonCompleted = useCallback((mIdx, lIdx, lesson) => {
-    if (!enrolment || !lesson) return false;
-    const completedList = enrolment.completedLessons || [];
-
-    if (lesson._id && completedList.some(k => String(k) === String(lesson._id))) return true;
-    if (lesson.items && lesson.items.some(i => completedList.some(k => String(k) === String(i._id)))) return true;
-
-    const flatItem = flatLessonsList.find(f => f.moduleIdx === mIdx && f.lessonIdx === lIdx);
-    if (flatItem) {
-      if (completedList.includes(flatItem.globalIndex) || completedList.includes(String(flatItem.globalIndex))) {
-        return true;
-      }
+    // Quizzes can ONLY be completed by direct quiz attempt submission, NEVER inherited from parent lesson
+    const itemType = String(item?.type || '').trim().toLowerCase();
+    const isQuizItem = (itemType === 'quiz' || itemType.includes('quiz') || itemType === 'assessment') &&
+                       !['video', 'article', 'article_md', 'pdf', 'note', 'text', 'document', 'code', 'exercise'].includes(itemType);
+    if (isQuizItem) {
+      return false;
     }
+
+    // For non-quiz items: if the parent lesson is marked completed in enrolment, its items are also complete
+    const combinedKey = `${mIdx}-${lIdx}`;
+    const flatItem = flatLessonsList.find(f => f.moduleIdx === mIdx && f.lessonIdx === lIdx);
+    if (
+      (lesson?._id && completedList.includes(String(lesson._id))) ||
+      completedList.includes(combinedKey) ||
+      (flatItem && completedList.includes(String(flatItem.globalIndex)))
+    ) {
+      return true;
+    }
+
     return false;
   }, [enrolment, flatLessonsList]);
 
-  // Count completed lessons overall
-  const completedLessonsCount = useMemo(() => {
-    let count = 0;
-    flatLessonsList.forEach(item => {
-      if (isLessonCompleted(item.moduleIdx, item.lessonIdx, item.lesson)) {
-        count += 1;
-      }
+  // Lesson Completion Checker (all items in the lesson completed OR lesson explicitly marked)
+  const isLessonCompleted = useCallback((mIdx, lIdx, lesson) => {
+    if (!enrolment || !lesson) return false;
+    if (!Array.isArray(enrolment.completedLessons)) return false;
+    const completedList = enrolment.completedLessons.map(String);
+
+    if (lesson.items && lesson.items.length > 0) {
+      return lesson.items.every((it) => isItemCompleted(it, lesson, mIdx, lIdx));
+    }
+
+    const combinedKey = `${mIdx}-${lIdx}`;
+    const flatItem = flatLessonsList.find(f => f.moduleIdx === mIdx && f.lessonIdx === lIdx);
+    if (
+      (lesson._id && completedList.includes(String(lesson._id))) ||
+      completedList.includes(combinedKey) ||
+      (flatItem && completedList.includes(String(flatItem.globalIndex)))
+    ) {
+      return true;
+    }
+
+    return false;
+  }, [enrolment, flatLessonsList, isItemCompleted]);
+
+  // Total and completed required content items across the entire course
+  const { totalContentItemsCount, completedContentItemsCount } = useMemo(() => {
+    let total = 0;
+    let completed = 0;
+    modulesList.forEach((mod, mIdx) => {
+      (mod.lessons || []).forEach((les, lIdx) => {
+        const items = Array.isArray(les.items) && les.items.length > 0 ? les.items : [];
+        if (items.length > 0) {
+          items.forEach(it => {
+            total += 1;
+            if (isItemCompleted(it, les, mIdx, lIdx)) {
+              completed += 1;
+            }
+          });
+        } else {
+          total += 1;
+          if (isLessonCompleted(mIdx, lIdx, les)) {
+            completed += 1;
+          }
+        }
+      });
     });
-    return count;
-  }, [flatLessonsList, isLessonCompleted]);
+    return { totalContentItemsCount: Math.max(total, 1), completedContentItemsCount: completed };
+  }, [modulesList, isItemCompleted, isLessonCompleted]);
+
+  // Check if course is 100% completed
+  const isCourseCompleted = useMemo(() => {
+    if (!enrolment) return false;
+    if (totalContentItemsCount > 0 && completedContentItemsCount >= totalContentItemsCount) {
+      return true;
+    }
+    return enrolment.status === 'completed' && Number(enrolment.progressPercentage) >= 100;
+  }, [enrolment, totalContentItemsCount, completedContentItemsCount]);
 
   // Course Progress Percentage
   const progressPct = useMemo(() => {
     if (!enrolment) return 0;
-    if (totalLessonsCount > 0) {
-      if (completedLessonsCount >= totalLessonsCount) return 100;
-      return Math.min(Math.round((completedLessonsCount / totalLessonsCount) * 100), 99);
+    if (totalContentItemsCount > 0) {
+      if (completedContentItemsCount >= totalContentItemsCount) return 100;
+      return Math.min(Math.round((completedContentItemsCount / totalContentItemsCount) * 100), 99);
     }
-    if (enrolment.status === 'completed' || enrolment.progressPercentage === 100) return 100;
-    return Number(enrolment.progressPercentage) || 0;
-  }, [enrolment, completedLessonsCount, totalLessonsCount]);
+    const backendPct = Number(enrolment.progressPercentage) || 0;
+    return enrolment.status === 'completed' && backendPct >= 100 ? 100 : Math.min(backendPct, 99);
+  }, [enrolment, completedContentItemsCount, totalContentItemsCount]);
+
+  // Module Progress and completion status
+  const getModuleProgress = useCallback((mIdx) => {
+    const mod = modulesList[mIdx];
+    if (!mod || !mod.lessons || mod.lessons.length === 0) return 0;
+
+    let totalItems = 0;
+    let completedItems = 0;
+
+    (mod.lessons || []).forEach((les, lIdx) => {
+      const items = Array.isArray(les.items) && les.items.length > 0 ? les.items : [];
+      if (items.length > 0) {
+        items.forEach((it) => {
+          totalItems += 1;
+          if (isItemCompleted(it, les, mIdx, lIdx)) {
+            completedItems += 1;
+          }
+        });
+      } else {
+        totalItems += 1;
+        if (isLessonCompleted(mIdx, lIdx, les)) {
+          completedItems += 1;
+        }
+      }
+    });
+
+    if (totalItems === 0) return 100;
+    if (completedItems >= totalItems) return 100;
+    return Math.round((completedItems / totalItems) * 100);
+  }, [modulesList, isItemCompleted, isLessonCompleted]);
 
   // Module completion status
   const isModuleCompleted = useCallback((mIdx) => {
     const mod = modulesList[mIdx];
     if (!mod || !mod.lessons || mod.lessons.length === 0) return false;
-    return mod.lessons.every((les, lIdx) => isLessonCompleted(mIdx, lIdx, les));
-  }, [modulesList, isLessonCompleted]);
+    return getModuleProgress(mIdx) >= 100;
+  }, [modulesList, getModuleProgress]);
 
   // ─── 4. Sequential Unlocking Logic ───
   const isModuleUnlocked = useCallback((mIdx) => {
@@ -321,25 +403,70 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
     return true;
   }, [isModuleUnlocked, modulesList, isLessonCompleted]);
 
-  // ─── 5. Auto-Resume Last Accessed Position ───
+  // ─── 5. Auto-Resume / Resolve Selected Module, Lesson & Content Item ───
   useEffect(() => {
     if (!modulesList.length) return;
 
-    // Check query params if navigated to specific module/lesson
+    // Check query params if navigated to specific module/lesson/item
     const searchStr = window.location.search || (window.location.href.includes('?') ? '?' + window.location.href.split('?')[1] : '');
     const urlParams = new URLSearchParams(searchStr);
-    const paramMod = urlParams.get('module');
-    const paramLes = urlParams.get('lesson');
+    const paramMod = urlParams.get('module') ?? urlParams.get('moduleId');
+    const paramLes = urlParams.get('lesson') ?? urlParams.get('lessonId');
+    const paramItem = urlParams.get('item') ?? urlParams.get('itemId');
 
-    if (paramMod !== null && paramLes !== null) {
+    let targetMIdx = -1;
+    let targetLIdx = -1;
+    let targetIIdx = -1;
+
+    if (paramMod !== null) {
       const mNum = parseInt(paramMod, 10);
-      const lNum = parseInt(paramLes, 10);
-      if (!isNaN(mNum) && !isNaN(lNum) && modulesList[mNum]?.lessons?.[lNum]) {
-        setSelectedModuleIdx(mNum);
-        setSelectedLessonIdx(lNum);
-        setSelectedItemIdx(0);
-        return;
+      if (!isNaN(mNum) && mNum >= 0 && mNum < modulesList.length) {
+        targetMIdx = mNum;
+      } else {
+        const found = modulesList.findIndex((m) => String(m._id) === String(paramMod));
+        if (found !== -1) targetMIdx = found;
       }
+    }
+
+    if (targetMIdx !== -1) {
+      const currentMod = modulesList[targetMIdx];
+      const modLessons = currentMod?.lessons || [];
+
+      if (paramLes !== null) {
+        const lNum = parseInt(paramLes, 10);
+        if (!isNaN(lNum) && lNum >= 0 && lNum < modLessons.length) {
+          targetLIdx = lNum;
+        } else {
+          const found = modLessons.findIndex((l) => String(l._id) === String(paramLes));
+          if (found !== -1) targetLIdx = found;
+        }
+      }
+
+      if (targetLIdx === -1) {
+        // Find first incomplete lesson in this module
+        const incLIdx = modLessons.findIndex((l, lIdx) => !isLessonCompleted(targetMIdx, lIdx, l));
+        targetLIdx = incLIdx !== -1 ? incLIdx : 0;
+      }
+
+      const currentLes = modLessons[targetLIdx];
+      const items = currentLes?.items || [];
+      if (paramItem !== null) {
+        const iNum = parseInt(paramItem, 10);
+        if (!isNaN(iNum) && iNum >= 0 && iNum < items.length) {
+          targetIIdx = iNum;
+        } else {
+          const found = items.findIndex((it) => String(it._id) === String(paramItem));
+          if (found !== -1) targetIIdx = found;
+        }
+      }
+      if (targetIIdx === -1) {
+        targetIIdx = 0;
+      }
+
+      setSelectedModuleIdx(targetMIdx);
+      setSelectedLessonIdx(targetLIdx);
+      setSelectedItemIdx(targetIIdx);
+      return;
     }
 
     // Restore from saved enrolment last accessed identifiers
@@ -407,6 +534,18 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
   const contentType = useMemo(() => {
     return normalizeContentType(activeContentItem, activeLesson);
   }, [activeContentItem, activeLesson]);
+
+  const hasPlayableVideo = useMemo(() => {
+    if (contentType !== 'video') return false;
+    const vUrl = activeContentItem?.video?.videoUrl || activeLesson?.video?.videoUrl || activeLesson?.videoUrl;
+    const muxId = activeContentItem?.video?.muxPlaybackId || activeLesson?.video?.muxPlaybackId;
+    const cloudUrl = activeContentItem?.video?.cloudinaryUrl;
+    return Boolean(
+      (typeof vUrl === 'string' && vUrl.trim().length > 0) ||
+      (typeof muxId === 'string' && muxId.trim().length > 0) ||
+      (typeof cloudUrl === 'string' && cloudUrl.trim().length > 0)
+    );
+  }, [contentType, activeContentItem, activeLesson]);
 
   const contentTypeMeta = useMemo(() => {
     return getContentTypeMeta(contentType);
@@ -651,6 +790,10 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
     setQuizAnswers({});
     setQuizScoreData(null);
 
+    // Synchronize URL parameters
+    const nextUrl = `/learn/${courseId}?module=${mIdx}&lesson=${lIdx}&item=${itIdx}`;
+    window.history.replaceState(null, '', nextUrl);
+
     recordAccessPosition(mIdx, lIdx);
   };
 
@@ -659,21 +802,44 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
     handleSelectPart(mIdx, lIdx, 0);
   };
 
-  // Check if an individual item is completed
-  const isItemCompleted = useCallback((item, lesson, mIdx, lIdx) => {
-    if (isLessonCompleted(mIdx, lIdx, lesson)) return true;
-    if (!enrolment || !Array.isArray(enrolment.completedLessons)) return false;
-    const completedList = enrolment.completedLessons.map(String);
-    if (item?._id && completedList.includes(String(item._id))) return true;
-    return false;
-  }, [enrolment, isLessonCompleted]);
+  // ─── Module-Specific Completion Percentage for Selected Module ───
+  const currentModuleProgress = useMemo(() => {
+    if (!activeModule) return 0;
+    if (isCourseCompleted) return 100;
+    const modLessons = activeModule.lessons || [];
+    if (modLessons.length === 0) return 0;
+
+    let totalItems = 0;
+    let completedItems = 0;
+
+    modLessons.forEach((les, lIdx) => {
+      const items = Array.isArray(les.items) && les.items.length > 0 ? les.items : [];
+      if (items.length > 0) {
+        items.forEach((it) => {
+          totalItems += 1;
+          if (isItemCompleted(it, les, selectedModuleIdx, lIdx)) {
+            completedItems += 1;
+          }
+        });
+      } else {
+        totalItems += 1;
+        if (isLessonCompleted(selectedModuleIdx, lIdx, les)) {
+          completedItems += 1;
+        }
+      }
+    });
+
+    if (totalItems === 0) return 100;
+    if (completedItems >= totalItems) return 100;
+    return Math.round((completedItems / totalItems) * 100);
+  }, [activeModule, isCourseCompleted, isItemCompleted, isLessonCompleted, selectedModuleIdx]);
 
   // ─── Synchronize 80% Video Watch Status for Active Lesson ───
   useEffect(() => {
     if (!activeLesson) return;
     const targetId = activeContentItem?._id || activeLesson._id;
     const isDone = isItemCompleted(activeContentItem, activeLesson, selectedModuleIdx, selectedLessonIdx);
-    if (isDone) {
+    if (isDone || (contentType === 'video' && !hasPlayableVideo)) {
       setVideoWatchStatus({ percentage: 100, isEligible: true, uniqueWatchedDuration: 0, totalDuration: 0 });
       return;
     }
@@ -705,7 +871,7 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
       uniqueWatchedDuration: 0,
       totalDuration: 0
     });
-  }, [activeContentItem?._id, activeLesson?._id, selectedModuleIdx, selectedLessonIdx, enrolment?.videoWatchData, isItemCompleted]);
+  }, [activeContentItem?._id, activeLesson?._id, selectedModuleIdx, selectedLessonIdx, enrolment?.videoWatchData, isItemCompleted, contentType, hasPlayableVideo]);
 
   // ─── Mark Complete Action ───
   const handleToggleComplete = async () => {
@@ -719,11 +885,22 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
     const currentlyDone = isItemCompleted(activeContentItem, activeLesson, selectedModuleIdx, selectedLessonIdx);
     const newStatus = !currentlyDone;
 
-    // 80% Video Watch Requirement Guard
-    if (newStatus && contentType === 'video') {
+    // Quiz Completion Guard: Quizzes can ONLY be completed via submitting a quiz attempt!
+    if (contentType === 'quiz') {
+      if (!currentlyDone) {
+        toast.warning('You must attempt and submit the quiz to mark it as complete.');
+        return;
+      } else {
+        toast.info('Completed quizzes cannot be unmarked as incomplete.');
+        return;
+      }
+    }
+
+    // 80% Video Watch Requirement Guard (only enforced if there is a playable video with duration > 0)
+    if (newStatus && contentType === 'video' && hasPlayableVideo && (videoDuration > 0 || videoWatchStatus.totalDuration > 0)) {
       const isEligible = Boolean(videoWatchStatus.isEligible || (videoWatchStatus.percentage >= 80));
       if (!isEligible) {
-        toast.warning('You need to watch at least 80% of this video to mark the lesson as complete.');
+        toast.warning('You need to watch full video to mark the lesson as complete.');
         return;
       }
     }
@@ -768,7 +945,33 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || `Server returned ${res.status}`);
+        // Revert optimistic UI update
+        setEnrolment((prev) => {
+          if (!prev) return prev;
+          const currentArr = Array.isArray(prev.completedLessons) ? [...prev.completedLessons] : [];
+          const idsToToggle = [
+            String(targetIdentifier),
+            activeLesson?._id ? String(activeLesson._id) : null,
+            activeContentItem?._id ? String(activeContentItem._id) : null
+          ].filter(Boolean);
+          const reverted = currentlyDone
+            ? Array.from(new Set([...currentArr, ...idsToToggle]))
+            : currentArr.filter((id) => !idsToToggle.includes(String(id)));
+          return {
+            ...prev,
+            completedLessons: reverted
+          };
+        });
+
+        const errMsg = errorData.message || `Server returned ${res.status}`;
+        if (errMsg.includes('80%') || errMsg.toLowerCase().includes('watch')) {
+          toast.warning('You need to watch full video to mark the lesson as complete.');
+        } else if (errMsg.toLowerCase().includes('quiz') || errorData.requiresQuizSubmission) {
+          toast.warning(errMsg || 'You must attempt and submit the quiz to mark it as complete.');
+        } else {
+          toast.error(errMsg);
+        }
+        return;
       }
 
       const data = await res.json();
@@ -822,37 +1025,47 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
     }
   };
 
-  // ─── Linear Previous / Next Navigation Across Parts & Lessons ───
-  const currentFlatIdx = flatLessonsList.findIndex(
-    (f) => f.moduleIdx === selectedModuleIdx && f.lessonIdx === selectedLessonIdx
-  );
+  // ─── Module-Specific Previous / Next Navigation Across Items & Lessons ───
+  const modLessons = activeModule?.lessons || [];
+  const hasItemPrev = selectedItemIdx > 0;
+  const hasLessonPrevInModule = selectedLessonIdx > 0;
+  const canGoPrevious = hasItemPrev || hasLessonPrevInModule;
 
-  const prevLesson = currentFlatIdx > 0 ? flatLessonsList[currentFlatIdx - 1] : null;
-  const nextLesson = currentFlatIdx < flatLessonsList.length - 1 ? flatLessonsList[currentFlatIdx + 1] : null;
+  const hasItemNext = lessonItems.length > 0 && selectedItemIdx < lessonItems.length - 1;
+  const hasLessonNextInModule = selectedLessonIdx < modLessons.length - 1;
+  const isLastItemInModule = !hasItemNext && !hasLessonNextInModule;
 
   const handleGoPrevious = () => {
-    if (selectedItemIdx > 0) {
+    if (hasItemPrev) {
       handleSelectPart(selectedModuleIdx, selectedLessonIdx, selectedItemIdx - 1);
       return;
     }
-    if (prevLesson) {
-      const prevItems = Array.isArray(prevLesson.lesson?.items) ? prevLesson.lesson.items : [];
+    if (hasLessonPrevInModule) {
+      const prevLIdx = selectedLessonIdx - 1;
+      const prevLes = modLessons[prevLIdx];
+      const prevItems = prevLes?.items || [];
       const prevLastItemIdx = Math.max(0, prevItems.length - 1);
-      handleSelectPart(prevLesson.moduleIdx, prevLesson.lessonIdx, prevLastItemIdx);
+      handleSelectPart(selectedModuleIdx, prevLIdx, prevLastItemIdx);
     }
   };
 
   const handleGoNext = () => {
-    if (lessonItems.length > 0 && selectedItemIdx < lessonItems.length - 1) {
+    if (hasItemNext) {
       handleSelectPart(selectedModuleIdx, selectedLessonIdx, selectedItemIdx + 1);
       return;
     }
-    if (!nextLesson) return;
-    if (!isLessonUnlocked(nextLesson.moduleIdx, nextLesson.lessonIdx)) {
-      toast.info('Complete the current lesson first to proceed to the next lesson.');
+    if (hasLessonNextInModule) {
+      const nextLIdx = selectedLessonIdx + 1;
+      if (!isLessonUnlocked(selectedModuleIdx, nextLIdx)) {
+        toast.info('Complete the current lesson first to proceed to the next lesson.');
+        return;
+      }
+      handleSelectPart(selectedModuleIdx, nextLIdx, 0);
       return;
     }
-    handleSelectPart(nextLesson.moduleIdx, nextLesson.lessonIdx, 0);
+    // At the end of the module
+    toast.success(`🎉 You have finished Module ${selectedModuleIdx + 1}: ${activeModule?.title || 'Module'}!`);
+    handleOpenCourseDetails();
   };
 
   // ─── Video Player Handlers ───
@@ -1024,9 +1237,8 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
 
   return (
     <div className={`course-learning-workspace ${isDarkMode ? 'theme-dark' : 'theme-light'}`}>
-      {/* ─── WORKSPACE TOP HEADER (TWO DISTINCT ROWS) ─── */}
+      {/* ─── WORKSPACE TOP HEADER (DEDICATED TO ACTIVE MODULE) ─── */}
       <header className="workspace-top-header" role="banner">
-        {/* ROW 1: COURSE NAVIGATION */}
         <div className="workspace-header-row-1">
           {/* Left: Back to Course Overview + UpSkillR Brand */}
           <div className="header-row1-left">
@@ -1048,28 +1260,20 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
             </div>
           </div>
 
-          {/* Center: Course Title (Gracefully Truncated) */}
+          {/* Center: Current Module Name (NOT course name!) */}
           <div className="header-row1-center">
-            <h1 className="header-course-title" title={course.title}>
-              {course.title}
+            <h1
+              className="header-module-title"
+              title={activeModule ? `Module ${selectedModuleIdx + 1}: ${activeModule.title}` : 'Learning Workspace'}
+            >
+              {activeModule ? `Module ${selectedModuleIdx + 1}: ${activeModule.title}` : 'Learning Workspace'}
             </h1>
           </div>
 
-          {/* Right: Progress, Theme Toggle, Mobile Triggers & Feedback */}
+          {/* Right: Module-Specific Progress, Theme Toggle, Mobile Triggers & Feedback */}
           <div className="header-row1-right">
             {/* Mobile Drawer Trigger Buttons */}
             <div className="mobile-drawer-triggers">
-              <button
-                type="button"
-                className="btn-mobile-drawer-trigger"
-                onClick={() => setMobileDrawer((p) => (p === 'modules' ? null : 'modules'))}
-                aria-label="Toggle modules navigation"
-                title="Modules list"
-              >
-                <Layers size={15} />
-                <span>Modules</span>
-              </button>
-
               <button
                 type="button"
                 className="btn-mobile-drawer-trigger"
@@ -1077,17 +1281,34 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
                 aria-label="Toggle lessons navigation"
                 title="Lessons list"
               >
-                <Menu size={15} />
+                <Layers size={15} />
                 <span>Lessons</span>
+              </button>
+
+              <button
+                type="button"
+                className="btn-mobile-drawer-trigger"
+                onClick={() => setMobileDrawer((p) => (p === 'items' ? null : 'items'))}
+                aria-label="Toggle content items"
+                title="Content list"
+              >
+                <Menu size={15} />
+                <span>Contents</span>
               </button>
             </div>
 
-            {/* Overall Course Progress Badge */}
-            <div className="header-progress-wrap" title={`Overall course completion: ${progressPct}%`}>
+            {/* Module-Specific Progress Badge */}
+            <div
+              className="header-progress-wrap"
+              title={`Module ${selectedModuleIdx + 1} completion: ${currentModuleProgress}%`}
+            >
               <div className="progress-mini-bar-track">
-                <div className="progress-mini-bar-fill" style={{ width: `${progressPct}%` }} />
+                <div
+                  className="progress-mini-bar-fill"
+                  style={{ width: `${currentModuleProgress}%` }}
+                />
               </div>
-              <span className="progress-mini-text">{progressPct}% Complete</span>
+              <span className="progress-mini-text">{currentModuleProgress}% Complete</span>
             </div>
 
             {/* Theme Toggle Button */}
@@ -1113,149 +1334,109 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
             </button>
           </div>
         </div>
-
-        {/* ROW 2: WORKSPACE NAVIGATION (Full-width horizontal tabs) */}
-        <nav className="workspace-header-row-2" aria-label="Course Workspace Navigation">
-          <div className="workspace-nav-tabs-container">
-            <button
-              type="button"
-              className={`workspace-nav-tab-btn ${activeTab === 'curriculum' ? 'active' : ''}`}
-              onClick={() => setActiveTab('curriculum')}
-            >
-              <BookOpen size={15} />
-              <span>Curriculum</span>
-            </button>
-
-            <button
-              type="button"
-              className={`workspace-nav-tab-btn ${activeTab === 'leaderboard' ? 'active' : ''}`}
-              onClick={() => setActiveTab('leaderboard')}
-            >
-              <Trophy size={15} />
-              <span>Leaderboard</span>
-            </button>
-
-            <button
-              type="button"
-              className={`workspace-nav-tab-btn ${activeTab === 'assessments' ? 'active' : ''}`}
-              onClick={() => setActiveTab('assessments')}
-            >
-              <Award size={15} />
-              <span>Assessments</span>
-              {allAssessments.length > 0 && (
-                <span className="workspace-tab-badge">{allAssessments.length}</span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              className={`workspace-nav-tab-btn ${activeTab === 'notices' ? 'active' : ''}`}
-              onClick={() => setActiveTab('notices')}
-            >
-              <Bell size={15} />
-              <span>Notice Board</span>
-              {announcements.length > 0 && (
-                <span className="workspace-tab-badge">{announcements.length}</span>
-              )}
-            </button>
-          </div>
-        </nav>
       </header>
 
       {/* ─── THREE-PANEL LEARNING VIEWPORT ─── */}
       <div className="workspace-main-body">
-        {/* ─── PANEL 1: SIDEBAR 1 – MODULE NAVIGATION (~230px) ─── */}
+        {/* ─── PANEL 1: SIDEBAR 1 – LESSONS OF THE SELECTED MODULE (~250px) ─── */}
         <aside
-          className={`workspace-sidebar-modules ${isSidebar1Collapsed ? 'collapsed' : ''} ${mobileDrawer === 'modules' ? 'mobile-open' : ''}`}
-          aria-label="Course Curriculum Modules"
+          className={`workspace-sidebar-modules ${isSidebar1Collapsed ? 'collapsed' : ''} ${mobileDrawer === 'lessons' ? 'mobile-open' : ''}`}
+          aria-label={`Module ${selectedModuleIdx + 1} Lessons`}
         >
-          <div className="sidebar-modules-header">
+          <div className="sidebar-module-brand-header">
             {!isSidebar1Collapsed && (
-              <>
-                <div className="sidebar-header-title-row">
-                  <Layers size={16} className="sidebar-header-icon" />
-                  <h3>Course Modules</h3>
-                </div>
-                <span className="sidebar-counter-tag">{modulesList.length} Modules</span>
-              </>
+              <div className="sidebar-module-brand-info">
+                <span className="sidebar-module-badge">MODULE {selectedModuleIdx + 1}</span>
+                <h3 className="sidebar-module-heading" title={activeModule?.title}>
+                  {activeModule?.title || `Module ${selectedModuleIdx + 1}`}
+                </h3>
+                <span className="sidebar-module-sub-count">
+                  {(activeModule?.lessons || []).length} {activeModule?.lessons?.length === 1 ? 'Lesson' : 'Lessons'}
+                </span>
+              </div>
             )}
             <button
               type="button"
               className="btn-collapse-sidebar"
               onClick={() => setIsSidebar1Collapsed((p) => !p)}
-              title={isSidebar1Collapsed ? 'Expand Modules Sidebar' : 'Collapse Modules Sidebar'}
-              aria-label={isSidebar1Collapsed ? 'Expand module sidebar' : 'Collapse module sidebar'}
+              title={isSidebar1Collapsed ? 'Expand Lessons Sidebar' : 'Collapse Lessons Sidebar'}
+              aria-label={isSidebar1Collapsed ? 'Expand lessons sidebar' : 'Collapse lessons sidebar'}
             >
               {isSidebar1Collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
             </button>
           </div>
 
-          <div className="sidebar-modules-scroll-list" role="list">
-            {modulesList.map((mod, mIdx) => {
-              const isSelected = selectedModuleIdx === mIdx;
-              const isDone = isModuleCompleted(mIdx);
-              const isUnlocked = isModuleUnlocked(mIdx);
-
-              const modLessons = mod.lessons || [];
-              const modDoneCount = modLessons.filter((l, lIdx) =>
-                isLessonCompleted(mIdx, lIdx, l)
-              ).length;
-              const modPct = modLessons.length
-                ? Math.round((modDoneCount / modLessons.length) * 100)
-                : 100;
+          <div className="sidebar-module-lessons-scroll-list" role="list">
+            {(activeModule?.lessons || []).map((les, lIdx) => {
+              const isSelected = selectedLessonIdx === lIdx;
+              const isDone = isLessonCompleted(selectedModuleIdx, lIdx, les);
+              const isUnlocked = isLessonUnlocked(selectedModuleIdx, lIdx);
+              const lesItems = Array.isArray(les.items) && les.items.length > 0 ? les.items : [];
+              const itemsCount = lesItems.length;
 
               return (
                 <div
-                  key={mod._id}
-                  className={`module-nav-card ${isSelected ? 'selected' : ''} ${isDone ? 'completed' : ''} ${!isUnlocked ? 'locked' : ''}`}
+                  key={les._id || lIdx}
+                  className={`sidebar-lesson-card ${isSelected ? 'selected' : ''} ${isDone ? 'completed' : ''} ${!isUnlocked ? 'locked' : ''}`}
                   role="listitem"
-                  onClick={() => handleSelectModule(mIdx)}
+                  onClick={() => {
+                    if (!isUnlocked) {
+                      toast.info('Complete the preceding lessons first to unlock this lesson.');
+                      return;
+                    }
+                    handleSelectPart(selectedModuleIdx, lIdx, 0);
+                  }}
                   tabIndex={0}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') handleSelectModule(mIdx);
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      if (!isUnlocked) {
+                        toast.info('Complete the preceding lessons first to unlock this lesson.');
+                        return;
+                      }
+                      handleSelectPart(selectedModuleIdx, lIdx, 0);
+                    }
                   }}
-                  title={`${mod.title} • Module ${mIdx + 1} (${modPct}% complete)`}
-                  aria-label={`${mod.title}, ${isDone ? 'Completed' : !isUnlocked ? 'Locked' : 'In Progress'}`}
+                  title={`${les.title} (Lesson ${selectedModuleIdx + 1}.${lIdx + 1})`}
+                  aria-label={`${les.title}, ${isDone ? 'Completed' : !isUnlocked ? 'Locked' : 'Available'}`}
                 >
                   {isSidebar1Collapsed ? (
-                    <div className="module-collapsed-indicator">
+                    <div className="lesson-collapsed-indicator">
                       {isDone ? (
                         <CheckCircle2 size={16} className="status-icon done" />
                       ) : !isUnlocked ? (
-                        <Lock size={15} className="status-icon lock" />
+                        <Lock size={14} className="status-icon lock" />
                       ) : (
-                        <span className="module-collapsed-num">M{mIdx + 1}</span>
+                        <span className="lesson-collapsed-num">{selectedModuleIdx + 1}.{lIdx + 1}</span>
                       )}
                     </div>
                   ) : (
                     <>
-                      <div className="module-nav-top-row">
-                        <span className="module-idx-label">Module {mIdx + 1}</span>
-                        <div className="module-status-icon-wrap">
-                          {isDone ? (
-                            <CheckCircle2 size={15} className="status-icon done" />
-                          ) : !isUnlocked ? (
-                            <Lock size={14} className="status-icon lock" />
-                          ) : (
-                            <span className="status-icon in-progress" />
-                          )}
-                        </div>
+                      <div className="sidebar-lesson-status-col">
+                        {isDone ? (
+                          <CheckCircle2 size={16} className="status-icon done" />
+                        ) : !isUnlocked ? (
+                          <Lock size={14} className="status-icon lock" />
+                        ) : isSelected ? (
+                          <span className="status-icon active-dot" />
+                        ) : (
+                          <span className="status-icon pending-bullet" />
+                        )}
                       </div>
 
-                      <h4 className="module-nav-title" title={mod.title}>
-                        {mod.title}
-                      </h4>
-
-                      <div className="module-nav-footer">
-                        <div className="module-progress-bar-wrap">
-                          <div
-                            className="module-progress-bar-fill"
-                            style={{ width: `${modPct}%` }}
-                          />
-                        </div>
-                        <span className="module-progress-text">
-                          {modPct}% ({modDoneCount}/{modLessons.length})
+                      <div className="sidebar-lesson-info-col">
+                        <span className="sidebar-lesson-num-label">
+                          Lesson {selectedModuleIdx + 1}.{lIdx + 1}
                         </span>
+                        <h4 className="sidebar-lesson-title" title={les.title}>
+                          {les.title}
+                        </h4>
+                        <div className="sidebar-lesson-meta-row">
+                          {itemsCount > 0 && (
+                            <span>{itemsCount} {itemsCount === 1 ? 'Content' : 'Contents'}</span>
+                          )}
+                          {itemsCount > 0 && les.duration && <span className="meta-dot">•</span>}
+                          {les.duration && <span>{les.duration}</span>}
+                        </div>
                       </div>
                     </>
                   )}
@@ -1265,19 +1446,19 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
           </div>
         </aside>
 
-        {/* ─── PANEL 2: SIDEBAR 2 – MODULE LESSONS NAVIGATION (~280px) ─── */}
+        {/* ─── PANEL 2: SIDEBAR 2 – LESSON CONTENT ITEMS NAVIGATION (~280px) ─── */}
         <aside
-          className={`workspace-sidebar-lessons ${isSidebar2Collapsed ? 'collapsed' : ''} ${mobileDrawer === 'lessons' ? 'mobile-open' : ''}`}
-          aria-label="Module Lessons and Resources"
+          className={`workspace-sidebar-lessons ${isSidebar2Collapsed ? 'collapsed' : ''} ${mobileDrawer === 'items' ? 'mobile-open' : ''}`}
+          aria-label="Lesson Content Items"
         >
           <div className="sidebar-lessons-header">
             {!isSidebar2Collapsed && (
               <div className="module-context-block">
                 <span className="module-context-super">
-                  Module {selectedModuleIdx + 1} of {modulesList.length}
+                  LESSON {selectedModuleIdx + 1}.{selectedLessonIdx + 1} &bull; {activeLesson?.title}
                 </span>
-                <h3 className="module-context-title" title={activeModule?.title}>
-                  {activeModule?.title || 'Module Lessons'}
+                <h3 className="module-context-title" title={activeLesson?.title}>
+                  Content Items ({lessonItems.length > 0 ? lessonItems.length : 1})
                 </h3>
               </div>
             )}
@@ -1285,178 +1466,107 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
               type="button"
               className="btn-collapse-sidebar"
               onClick={() => setIsSidebar2Collapsed((p) => !p)}
-              title={isSidebar2Collapsed ? 'Expand Lessons Sidebar' : 'Collapse Lessons Sidebar'}
-              aria-label={isSidebar2Collapsed ? 'Expand lessons sidebar' : 'Collapse lessons sidebar'}
+              title={isSidebar2Collapsed ? 'Expand Content Sidebar' : 'Collapse Content Sidebar'}
+              aria-label={isSidebar2Collapsed ? 'Expand content sidebar' : 'Collapse content sidebar'}
             >
               {isSidebar2Collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
             </button>
           </div>
 
           <div className="sidebar-lessons-scroll-list" role="list">
-            {(activeModule?.lessons || []).map((les, lIdx) => {
-              const isLessonActive = selectedLessonIdx === lIdx;
-              const isDone = isLessonCompleted(selectedModuleIdx, lIdx, les);
-              const isUnlocked = isLessonUnlocked(selectedModuleIdx, lIdx);
+            {lessonItems.length > 0 ? (
+              lessonItems.map((item, itIdx) => {
+                const itType = normalizeContentType(item, activeLesson);
+                const itMeta = getContentTypeMeta(itType);
+                const isPartActive = selectedItemIdx === itIdx;
+                const isPartDone = isItemCompleted(item, activeLesson, selectedModuleIdx, selectedLessonIdx);
 
-              const lesItems = Array.isArray(les.items) && les.items.length > 0 ? les.items : [null];
-              const hasMultipleParts = lesItems.length > 1;
+                if (isSidebar2Collapsed) {
+                  return (
+                    <button
+                      key={item._id || itIdx}
+                      type="button"
+                      className={`lesson-nav-row collapsed-item-btn ${isPartActive ? 'selected' : ''} ${isPartDone ? 'completed' : ''}`}
+                      onClick={() => handleSelectPart(selectedModuleIdx, selectedLessonIdx, itIdx)}
+                      title={`${selectedLessonIdx + 1}.${itIdx + 1} ${item.title || activeLesson?.title} (${itMeta.label})`}
+                      aria-label={`${item.title || activeLesson?.title}`}
+                    >
+                      <div className={`lesson-type-badge ${itMeta.badgeClass}`}>
+                        {getContentTypeIcon(itType, 16)}
+                      </div>
+                    </button>
+                  );
+                }
 
-              // ─── Collapsed Sidebar 2 View ───
-              if (isSidebar2Collapsed) {
-                return (
-                  <div key={les._id || lIdx} className="lesson-collapsed-group">
-                    {lesItems.map((item, itIdx) => {
-                      const itType = normalizeContentType(item, les);
-                      const itMeta = getContentTypeMeta(itType);
-                      const isPartActive = isLessonActive && selectedItemIdx === itIdx;
-                      const isPartDone = item ? isItemCompleted(item, les, selectedModuleIdx, lIdx) : isDone;
-
-                      return (
-                        <button
-                          key={item?._id || itIdx}
-                          type="button"
-                          className={`lesson-nav-row collapsed-item-btn ${isPartActive ? 'selected' : ''} ${isPartDone ? 'completed' : ''} ${!isUnlocked ? 'locked' : ''}`}
-                          onClick={() => handleSelectPart(selectedModuleIdx, lIdx, itIdx)}
-                          title={`${selectedModuleIdx + 1}.${lIdx + 1}.${itIdx + 1} ${item?.title || les.title} (${itMeta.label})`}
-                          aria-label={`${item?.title || les.title}`}
-                        >
-                          <div className={`lesson-type-badge ${itMeta.badgeClass}`}>
-                            {getContentTypeIcon(itType, 16)}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              }
-
-              // ─── Multi-Part Lesson View (Parts shown one below another!) ───
-              if (hasMultipleParts) {
                 return (
                   <div
-                    key={les._id || lIdx}
-                    className={`lesson-group-card ${isLessonActive ? 'active-group' : ''} ${!isUnlocked ? 'locked' : ''}`}
+                    key={item._id || itIdx}
+                    className={`lesson-part-row ${isPartActive ? 'selected' : ''} ${isPartDone ? 'completed' : ''}`}
+                    role="listitem"
+                    onClick={() => handleSelectPart(selectedModuleIdx, selectedLessonIdx, itIdx)}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') handleSelectPart(selectedModuleIdx, selectedLessonIdx, itIdx);
+                    }}
+                    title={`${selectedLessonIdx + 1}.${itIdx + 1} ${item.title || activeLesson?.title} (${itMeta.label})`}
                   >
-                    {/* Lesson Group Header */}
-                    <div
-                      className="lesson-group-header"
-                      onClick={() => handleSelectPart(selectedModuleIdx, lIdx, isLessonActive ? selectedItemIdx : 0)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') handleSelectPart(selectedModuleIdx, lIdx, isLessonActive ? selectedItemIdx : 0);
-                      }}
-                      title={`Lesson ${lIdx + 1}: ${les.title}`}
-                    >
-                      <div className="lesson-group-header-left">
-                        <span className="lesson-group-badge">Lesson {lIdx + 1}</span>
-                        <h4 className="lesson-group-title" title={les.title}>{les.title}</h4>
-                      </div>
-                      <span className="lesson-parts-count-pill">{lesItems.length} Parts</span>
+                    <div className={`lesson-type-badge ${itMeta.badgeClass}`}>
+                      {getContentTypeIcon(itType, 15)}
                     </div>
 
-                    {/* Parts Listed One Below Another */}
-                    <div className="lesson-parts-container" role="list">
-                      {lesItems.map((item, itIdx) => {
-                        const itType = normalizeContentType(item, les);
-                        const itMeta = getContentTypeMeta(itType);
-                        const isPartActive = isLessonActive && selectedItemIdx === itIdx;
-                        const isPartDone = isItemCompleted(item, les, selectedModuleIdx, lIdx);
+                    <div className="lesson-part-info">
+                      <span className="lesson-part-name" title={item.title || activeLesson?.title}>
+                        {selectedLessonIdx + 1}.{itIdx + 1} {item.title || `${itMeta.label} Part ${itIdx + 1}`}
+                      </span>
+                      <div className="lesson-part-meta">
+                        <span className="lesson-type-name">{itMeta.label}</span>
+                        {item.wordCount && <span className="lesson-meta-dot">•</span>}
+                        {item.wordCount && <span>{item.wordCount} words</span>}
+                        {item.video?.duration && <span className="lesson-meta-dot">•</span>}
+                        {item.video?.duration && <span>{item.video.duration}</span>}
+                        {item.duration && !item.wordCount && !item.video?.duration && <span className="lesson-meta-dot">•</span>}
+                        {item.duration && !item.wordCount && !item.video?.duration && <span>{item.duration}</span>}
+                      </div>
+                    </div>
 
-                        return (
-                          <div
-                            key={item._id || itIdx}
-                            className={`lesson-part-row ${isPartActive ? 'selected' : ''} ${isPartDone ? 'completed' : ''} ${!isUnlocked ? 'locked' : ''}`}
-                            role="listitem"
-                            onClick={() => handleSelectPart(selectedModuleIdx, lIdx, itIdx)}
-                            tabIndex={0}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') handleSelectPart(selectedModuleIdx, lIdx, itIdx);
-                            }}
-                            title={`${lIdx + 1}.${itIdx + 1} ${item.title || les.title} (${itMeta.label})`}
-                            aria-label={`${item.title || les.title}, ${isPartDone ? 'Completed' : !isUnlocked ? 'Locked' : 'Available'}`}
-                          >
-                            <div className={`lesson-type-badge ${itMeta.badgeClass}`}>
-                              {getContentTypeIcon(itType, 15)}
-                            </div>
-
-                            <div className="lesson-part-info">
-                              <span className="lesson-part-name" title={item.title || les.title}>
-                                {lIdx + 1}.{itIdx + 1} {item.title || `${itMeta.label} Part ${itIdx + 1}`}
-                              </span>
-                              <div className="lesson-part-meta">
-                                <span className="lesson-type-name">{itMeta.label}</span>
-                                {item.duration && <span className="lesson-meta-dot">•</span>}
-                                {item.duration && <span>{item.duration}</span>}
-                              </div>
-                            </div>
-
-                            <div className="lesson-status-badge">
-                              {isPartDone ? (
-                                <CheckCircle2 size={15} className="lesson-check-icon done" />
-                              ) : !isUnlocked ? (
-                                <Lock size={13} className="lesson-check-icon lock" />
-                              ) : isPartActive ? (
-                                <span className="lesson-current-indicator" />
-                              ) : (
-                                <span className="lesson-pending-dot" />
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                    <div className="lesson-status-badge">
+                      {isPartDone ? (
+                        <CheckCircle2 size={15} className="lesson-check-icon done" />
+                      ) : isPartActive ? (
+                        <span className="lesson-current-indicator" />
+                      ) : (
+                        <span className="lesson-pending-dot" />
+                      )}
                     </div>
                   </div>
                 );
-              }
-
-              // ─── Single Item Lesson View ───
-              const singleItem = lesItems[0];
-              const lesType = normalizeContentType(singleItem, les);
-              const lesMeta = getContentTypeMeta(lesType);
-
-              return (
-                <div
-                  key={les._id || lIdx}
-                  className={`lesson-nav-row ${isLessonActive ? 'selected' : ''} ${isDone ? 'completed' : ''} ${!isUnlocked ? 'locked' : ''}`}
-                  role="listitem"
-                  onClick={() => handleSelectPart(selectedModuleIdx, lIdx, 0)}
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') handleSelectPart(selectedModuleIdx, lIdx, 0);
-                  }}
-                  title={`${lIdx + 1}.1 ${singleItem?.title || les.title} (${lesMeta.label}) - ${isDone ? 'Completed' : !isUnlocked ? 'Locked' : 'Available'}`}
-                  aria-label={`${singleItem?.title || les.title}, ${isDone ? 'Completed' : !isUnlocked ? 'Locked' : 'Available'}`}
-                >
-                  <div className={`lesson-type-badge ${lesMeta.badgeClass}`}>
-                    {getContentTypeIcon(lesType, 16)}
-                  </div>
-
-                  <div className="lesson-nav-info">
-                    <span className="lesson-nav-name" title={singleItem?.title || les.title}>
-                      {lIdx + 1}.1 {singleItem?.title || les.title}
-                    </span>
-                    <div className="lesson-meta-row">
-                      <span className="lesson-type-name">{lesMeta.label}</span>
-                      {les.duration && <span className="lesson-meta-dot">•</span>}
-                      {les.duration && <span>{les.duration}</span>}
-                    </div>
-                  </div>
-
-                  <div className="lesson-status-badge">
-                    {isDone ? (
-                      <CheckCircle2 size={16} className="lesson-check-icon done" />
-                    ) : !isUnlocked ? (
-                      <Lock size={14} className="lesson-check-icon lock" />
-                    ) : isLessonActive ? (
-                      <span className="lesson-current-indicator" />
-                    ) : (
-                      <span className="lesson-pending-dot" />
-                    )}
+              })
+            ) : (
+              /* Single Item Lesson View Fallback */
+              <div
+                className={`lesson-nav-row selected ${isLessonCompleted(selectedModuleIdx, selectedLessonIdx, activeLesson) ? 'completed' : ''}`}
+                role="listitem"
+              >
+                <div className={`lesson-type-badge ${contentTypeMeta.badgeClass}`}>
+                  {getContentTypeIcon(contentType, 16)}
+                </div>
+                <div className="lesson-nav-info">
+                  <span className="lesson-nav-name">{activeLesson?.title || 'Lesson Overview'}</span>
+                  <div className="lesson-meta-row">
+                    <span className="lesson-type-name">{contentTypeMeta.label}</span>
+                    {activeLesson?.duration && <span className="lesson-meta-dot">•</span>}
+                    {activeLesson?.duration && <span>{activeLesson.duration}</span>}
                   </div>
                 </div>
-              );
-            })}
+                <div className="lesson-status-badge">
+                  {isLessonCompleted(selectedModuleIdx, selectedLessonIdx, activeLesson) ? (
+                    <CheckCircle2 size={15} className="lesson-check-icon done" />
+                  ) : (
+                    <span className="lesson-current-indicator" />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </aside>
 
@@ -1471,409 +1581,318 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
 
         {/* ─── PANEL 3: MAIN LEARNING CONTENT AREA ─── */}
         <main className="workspace-main-content-panel" role="main">
-          {/* A. If Secondary Tab is active: Leaderboard, Assessments, or Notices */}
-          {activeTab === 'leaderboard' && (
-            <CourseLeaderboardView
-              courseId={courseId}
-              courseTitle={course?.title}
-              user={user}
-            />
-          )}
-
-          {activeTab === 'assessments' && (
-            <div className="secondary-view-container">
-              <div className="secondary-view-header">
-                <h2>Course Assessments &amp; Final Tests</h2>
-                <p>Complete graded assessments to verify mastery and earn your certificate.</p>
-              </div>
-
-              {allAssessments.length === 0 ? (
-                <div className="secondary-empty-state">
-                  <Award size={36} />
-                  <h3>No Assessments Configured</h3>
-                  <p>This course relies on module checks and practical lesson completions.</p>
+          <div className="curriculum-viewer-flow">
+            {/* Clean Lesson Header Bar with Dynamic Type Badge & ONE Single Mark as Complete Button */}
+            <div className="content-lesson-header-bar">
+              <div className="content-lesson-header-left">
+                <div className="content-breadcrumb-trail">
+                  <span className="crumb-course" title={course.title}>{course.title}</span>
+                  <span className="crumb-sep">→</span>
+                  <span className="crumb-module">Module {selectedModuleIdx + 1}</span>
+                  <span className="crumb-sep">→</span>
+                  <span className="crumb-lesson">{activeLesson?.title || 'Lesson'}</span>
                 </div>
-              ) : (
-                <div className="assessments-grid-stack">
-                  {allAssessments.map((ass, idx) => (
-                    <div key={idx} className="assessment-item-card">
-                      <div className="assessment-badge-icon">
-                        <Award size={22} />
-                      </div>
-                      <div className="assessment-info-col">
-                        <h4>{ass.title}</h4>
-                        <p>{ass.description || ass.instructions || 'Graded assessment for this course.'}</p>
-                        <div className="assessment-meta-pills">
-                          <span>⏱ {ass.durationMinutes || ass.timeLimit || 45} mins</span>
-                          <span>🎯 Pass: {ass.passThresholdPercent || 70}%</span>
-                          <span>📊 Total Marks: {ass.totalMarks || 10}</span>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn-start-assessment-action"
-                        onClick={() => {
-                          setActiveTab('curriculum');
-                          toast.info(`Assessment loaded: ${ass.title}`);
-                        }}
-                      >
-                        Start Assessment
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
-          {activeTab === 'notices' && (
-            <div className="secondary-view-container">
-              <div className="secondary-view-header">
-                <h2>NoticeBoard &amp; Instructor Announcements</h2>
-                <p>Official course announcements, schedule updates, and syllabus notices.</p>
-              </div>
-
-              {announcements.length === 0 ? (
-                <div className="secondary-empty-state">
-                  <Bell size={36} />
-                  <h3>No Announcements Yet</h3>
-                  <p>Check back later for updates and office hours from the instructor.</p>
-                </div>
-              ) : (
-                <div className="announcements-stack">
-                  {announcements.map((ann, idx) => (
-                    <div key={ann._id || idx} className="announcement-item-card">
-                      <div className="announcement-card-header">
-                        <div className="announcement-title-row">
-                          {isAnnouncementNew(ann) && <span className="new-badge-pill">NEW</span>}
-                          <h3>{ann.title}</h3>
-                        </div>
-                        <span className="announcement-date">
-                          {new Date(ann.publishedAt || ann.createdAt).toLocaleDateString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric'
-                          })}
+                <div className="content-lesson-meta-row">
+                  <h2 className="content-lesson-active-title">
+                    {activeContentItem?.title && activeContentItem?.title !== activeLesson?.title
+                      ? activeContentItem.title
+                      : activeLesson?.title}
+                  </h2>
+                  <div className="content-lesson-badges">
+                    {/* Dynamic Content Type Pill - Perfectly synchronized with Sidebar 2! */}
+                    <span className={`content-type-pill ${contentTypeMeta.badgeClass}`}>
+                      {getContentTypeIcon(contentType, 13)}
+                      <span className="badge-type-label">{contentTypeMeta.label}</span>
+                    </span>
+                    {(() => {
+                      const effectiveDur = (activeLesson?.duration && activeLesson.duration !== '0 min')
+                        ? activeLesson.duration
+                        : (videoDuration > 0 ? formatDurationBadge(videoDuration) : null);
+                      if (!effectiveDur) return null;
+                      return (
+                        <span className="content-duration-badge">
+                          <Clock size={13} />
+                          <span>{effectiveDur}</span>
                         </span>
-                      </div>
-                      <div className="announcement-message-body">
-                        {ann.message || ann.content || ''}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* B. Primary Curriculum 3-Panel Viewport */}
-          {activeTab === 'curriculum' && (
-            <div className="curriculum-viewer-flow">
-              {/* Clean Lesson Header Bar with Dynamic Type Badge & ONE Single Mark as Complete Button */}
-              <div className="content-lesson-header-bar">
-                <div className="content-lesson-header-left">
-                  <div className="content-breadcrumb-trail">
-                    <span className="crumb-course" title={course.title}>{course.title}</span>
-                    <span className="crumb-sep">→</span>
-                    <span className="crumb-module">Module {selectedModuleIdx + 1}</span>
-                    <span className="crumb-sep">→</span>
-                    <span className="crumb-lesson">{activeLesson?.title || 'Lesson'}</span>
-                  </div>
-
-                  <div className="content-lesson-meta-row">
-                    <h2 className="content-lesson-active-title">
-                      {activeContentItem?.title && activeContentItem?.title !== activeLesson?.title
-                        ? activeContentItem.title
-                        : activeLesson?.title}
-                    </h2>
-                    <div className="content-lesson-badges">
-                      {/* Dynamic Content Type Pill - Perfectly synchronized with Sidebar 2! */}
-                      <span className={`content-type-pill ${contentTypeMeta.badgeClass}`}>
-                        {getContentTypeIcon(contentType, 13)}
-                        <span className="badge-type-label">{contentTypeMeta.label}</span>
-                      </span>
-                      {(() => {
-                        const effectiveDur = (activeLesson?.duration && activeLesson.duration !== '0 min')
-                          ? activeLesson.duration
-                          : (videoDuration > 0 ? formatDurationBadge(videoDuration) : null);
-                        if (!effectiveDur) return null;
-                        return (
-                          <span className="content-duration-badge">
-                            <Clock size={13} />
-                            <span>{effectiveDur}</span>
-                          </span>
-                        );
-                      })()}
-                    </div>
+                      );
+                    })()}
                   </div>
                 </div>
+              </div>
 
-                <div className="content-lesson-header-right">
-                  {/* Workspace Bookmark Action Group */}
-                  <div className="workspace-bookmark-action-group">
-                    <button
-                      type="button"
-                      className={`btn-action-bookmark ${isCurrentBookmarked ? 'is-bookmarked' : ''}`}
-                      onClick={() => handleToggleLessonBookmark()}
-                      title={isCurrentBookmarked ? 'Remove Bookmark' : 'Save to My Learning Library'}
-                      aria-label={isCurrentBookmarked ? 'Bookmarked' : 'Bookmark Lesson'}
-                    >
-                      <Bookmark size={16} fill={isCurrentBookmarked ? 'currentColor' : 'none'} />
-                      <span>{isCurrentBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
-                    </button>
+              <div className="content-lesson-header-right">
+                {/* Workspace Bookmark Action Group */}
+                <div className="workspace-bookmark-action-group">
+                  <button
+                    type="button"
+                    className={`btn-action-bookmark ${isCurrentBookmarked ? 'is-bookmarked' : ''}`}
+                    onClick={() => handleToggleLessonBookmark()}
+                    title={isCurrentBookmarked ? 'Remove Bookmark' : 'Save to My Learning Library'}
+                    aria-label={isCurrentBookmarked ? 'Bookmarked' : 'Bookmark Lesson'}
+                  >
+                    <Bookmark size={16} fill={isCurrentBookmarked ? 'currentColor' : 'none'} />
+                    <span>{isCurrentBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
+                  </button>
 
-                    <button
-                      type="button"
-                      className="btn-bookmark-folder-trigger"
-                      onClick={() => setIsFolderPickerOpen((prev) => !prev)}
-                      title="Save to specific folder"
-                      aria-label="Select folder for bookmark"
-                    >
-                      <Folder size={14} />
-                      <ChevronDown size={11} />
-                    </button>
+                  <button
+                    type="button"
+                    className="btn-bookmark-folder-trigger"
+                    onClick={() => setIsFolderPickerOpen((prev) => !prev)}
+                    title="Save to specific folder"
+                    aria-label="Select folder for bookmark"
+                  >
+                    <Folder size={14} />
+                    <ChevronDown size={11} />
+                  </button>
 
-                    {/* Folder dropdown popover */}
-                    {isFolderPickerOpen && (
-                      <div className="bookmark-folder-popover">
-                        <div className="folder-popover-header">
-                          <span>Save to Folder:</span>
+                  {/* Folder dropdown popover */}
+                  {isFolderPickerOpen && (
+                    <div className="bookmark-folder-popover">
+                      <div className="folder-popover-header">
+                        <span>Save to Folder:</span>
+                        <button
+                          type="button"
+                          className="btn-popover-close"
+                          onClick={() => setIsFolderPickerOpen(false)}
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                      <div className="folder-popover-list">
+                        <button
+                          type="button"
+                          className="folder-popover-opt"
+                          onClick={() => {
+                            handleToggleLessonBookmark(null);
+                            setIsFolderPickerOpen(false);
+                          }}
+                        >
+                          <Layers size={13} />
+                          <span>Unorganized</span>
+                        </button>
+                        {workspaceFolders.map((f) => (
                           <button
-                            type="button"
-                            className="btn-popover-close"
-                            onClick={() => setIsFolderPickerOpen(false)}
-                          >
-                            <X size={13} />
-                          </button>
-                        </div>
-                        <div className="folder-popover-list">
-                          <button
+                            key={f._id}
                             type="button"
                             className="folder-popover-opt"
                             onClick={() => {
-                              handleToggleLessonBookmark(null);
+                              handleToggleLessonBookmark(f._id);
                               setIsFolderPickerOpen(false);
                             }}
                           >
-                            <Layers size={13} />
-                            <span>Unorganized</span>
+                            <Folder size={13} style={{ color: f.color || '#10b981' }} />
+                            <span>{f.name}</span>
                           </button>
-                          {workspaceFolders.map((f) => (
-                            <button
-                              key={f._id}
-                              type="button"
-                              className="folder-popover-opt"
-                              onClick={() => {
-                                handleToggleLessonBookmark(f._id);
-                                setIsFolderPickerOpen(false);
-                              }}
-                            >
-                              <Folder size={13} style={{ color: f.color || '#10b981' }} />
-                              <span>{f.name}</span>
-                            </button>
-                          ))}
-                        </div>
+                        ))}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
+                </div>
 
-                  {/* Add Personal Note Button */}
-                  <button
-                    type="button"
-                    className="btn-action-workspace-note"
-                    onClick={() => {
-                      setWorkspaceNoteTitle(`Note: ${activeContentItem?.title || activeLesson?.title || 'Lesson'}`);
-                      setWorkspaceNoteContent('');
-                      setIsWorkspaceNoteModalOpen(true);
-                    }}
-                    title="Add Personal Note for this lesson"
-                    aria-label="Add Personal Note"
-                  >
-                    <PenLine size={16} />
-                    <span>Add Note</span>
-                  </button>
+                {/* Add Personal Note Button */}
+                <button
+                  type="button"
+                  className="btn-action-workspace-note"
+                  onClick={() => {
+                    setWorkspaceNoteTitle(`Note: ${activeContentItem?.title || activeLesson?.title || 'Lesson'}`);
+                    setWorkspaceNoteContent('');
+                    setIsWorkspaceNoteModalOpen(true);
+                  }}
+                  title="Add Personal Note for this lesson"
+                  aria-label="Add Personal Note"
+                >
+                  <PenLine size={16} />
+                  <span>Add Note</span>
+                </button>
 
-                  {/* ONE Single Primary Mark as Complete Button with 80% Watch Requirement Enforcement */}
-                  {(() => {
-                    const isDone = isItemCompleted(activeContentItem, activeLesson, selectedModuleIdx, selectedLessonIdx);
-                    const isVideoContent = contentType === 'video';
-                    const isEligible = isDone || !isVideoContent || Boolean(videoWatchStatus.isEligible || (videoWatchStatus.percentage >= 80));
+                {/* ONE Single Primary Mark as Complete Button with Silent 80% Watch & Quiz Submission Enforcement */}
+                {(() => {
+                  const isDone = isItemCompleted(activeContentItem, activeLesson, selectedModuleIdx, selectedLessonIdx);
+
+                  // Quizzes have a dedicated submission-driven completion flow
+                  if (contentType === 'quiz') {
+                    if (isDone) {
+                      return (
+                        <div className="complete-btn-container">
+                          <button
+                            type="button"
+                            className="btn-action-complete is-completed quiz-completed"
+                            disabled
+                            title="Quiz successfully submitted and completed"
+                            aria-label="Quiz Completed"
+                          >
+                            <CheckCircle2 size={16} />
+                            <span>Completed ✓</span>
+                          </button>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div className="complete-btn-container">
                         <button
                           type="button"
-                          className={`btn-action-complete ${isDone ? 'is-completed' : ''} ${!isEligible ? 'is-locked' : ''}`}
-                          onClick={handleToggleComplete}
-                          disabled={!isEligible}
-                          title={
-                            isDone
-                              ? 'Lesson is completed (Click to unmark)'
-                              : !isEligible
-                              ? 'You need to watch at least 80% of this video to mark the lesson as complete.'
-                              : 'Mark as Complete'
-                          }
-                          aria-label={
-                            isDone
-                              ? 'Completed'
-                              : !isEligible
-                              ? 'Locked: 80% Video Watch Required'
-                              : 'Mark as Complete'
-                          }
+                          className="btn-action-complete quiz-not-attempted"
+                          disabled
+                          title="Attempt and submit the quiz below to mark as completed"
+                          aria-label="Quiz Not Attempted"
                         >
-                          {isDone ? (
-                            <>
-                              <CheckCircle2 size={16} />
-                              <span>Completed ✓</span>
-                            </>
-                          ) : !isEligible ? (
-                            <>
-                              <Lock size={15} />
-                              <span>Watch 80% to Complete</span>
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle2 size={16} />
-                              <span>Mark as Complete</span>
-                            </>
-                          )}
+                          <HelpCircle size={16} />
+                          <span>Not Attempted</span>
                         </button>
-                        {!isDone && isVideoContent && !isEligible && (
-                          <span className="complete-lock-pill" title="Current video watch percentage">
-                            {videoWatchStatus.percentage || 0}% / 80%
-                          </span>
-                        )}
                       </div>
                     );
-                  })()}
-                </div>
+                  }
+
+                  return (
+                    <div className="complete-btn-container">
+                      <button
+                        type="button"
+                        className={`btn-action-complete ${isDone ? 'is-completed' : ''}`}
+                        onClick={handleToggleComplete}
+                        title={
+                          isDone
+                            ? 'Lesson is completed (Click to unmark)'
+                            : 'Mark as Complete'
+                        }
+                        aria-label={
+                          isDone
+                            ? 'Completed'
+                            : 'Mark as Complete'
+                        }
+                      >
+                        <CheckCircle2 size={16} />
+                        <span>{isDone ? 'Completed ✓' : 'Mark as Complete'}</span>
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
+            </div>
 
-              {/* Dynamic Content Presentation Viewport with Centralized LessonContentRenderer */}
-              <div className="content-presentation-viewport">
-                {/* Centralized Dynamic Lesson Content Renderer */}
-                <LessonContentRenderer
-                  lesson={activeLesson}
-                  contentItem={activeContentItem}
-                  contentType={contentType}
-                  course={course}
-                  videoState={{
-                    videoRef,
-                    isCompleted: isItemCompleted(activeContentItem, activeLesson, selectedModuleIdx, selectedLessonIdx),
-                    onWatchEligibilityChange: (status) => {
-                      if (status) {
-                        setVideoWatchStatus({
-                          percentage: status.percentage || 0,
-                          isEligible: Boolean(status.isEligible),
-                          uniqueWatchedDuration: status.uniqueWatchedDuration || 0,
-                          totalDuration: status.totalDuration || 0
-                        });
-                      }
-                    },
-                    onTimeUpdate: handleVideoTimeUpdate,
-                    onPlay: () => setIsPlaying(true),
-                    onPause: () => {
-                      setIsPlaying(false);
-                      if (videoRef.current) {
-                        recordAccessPosition(
-                          selectedModuleIdx,
-                          selectedLessonIdx,
-                          Math.floor(videoRef.current.currentTime)
-                        );
-                      }
-                    },
-                    onLoadedMetadata: (e) => setVideoDuration(e.target.duration)
-                  }}
-                  quizState={{
-                    quizAnswers,
-                    onAnswerSelect: handleQuizAnswerSelect,
-                    onSubmit: handleQuizSubmit,
-                    quizSubmitted,
-                    quizScoreData,
-                    onRetry: () => {
-                      setQuizAnswers({});
-                      setQuizSubmitted(false);
-                      setQuizScoreData(null);
+            {/* Dynamic Content Presentation Viewport with Centralized LessonContentRenderer */}
+            <div className="content-presentation-viewport">
+              <LessonContentRenderer
+                lesson={activeLesson}
+                contentItem={activeContentItem}
+                contentType={contentType}
+                course={course}
+                moduleIdx={selectedModuleIdx}
+                lessonIdx={selectedLessonIdx}
+                itemIdx={selectedItemIdx}
+                videoState={{
+                  videoRef,
+                  isCompleted: isItemCompleted(activeContentItem, activeLesson, selectedModuleIdx, selectedLessonIdx),
+                  onWatchEligibilityChange: (status) => {
+                    if (status) {
+                      setVideoWatchStatus({
+                        percentage: status.percentage || 0,
+                        isEligible: Boolean(status.isEligible),
+                        uniqueWatchedDuration: status.uniqueWatchedDuration || 0,
+                        totalDuration: status.totalDuration || 0
+                      });
                     }
-                  }}
-                  codeState={{
-                    codeEditorInput,
-                    onCodeChange: setCodeEditorInput,
-                    codeOutput,
-                    onRunCode: handleRunCode,
-                    isExecutingCode,
-                    onResetCode: () => {
-                      const codeItem = (activeLesson?.items || []).find(
-                        (i) => i.type === 'code' || i.type === 'exercise' || i.type === 'code_practice'
+                  },
+                  onTimeUpdate: handleVideoTimeUpdate,
+                  onPlay: () => setIsPlaying(true),
+                  onPause: () => {
+                    setIsPlaying(false);
+                    if (videoRef.current) {
+                      recordAccessPosition(
+                        selectedModuleIdx,
+                        selectedLessonIdx,
+                        Math.floor(videoRef.current.currentTime)
                       );
-                      setCodeEditorInput(
-                        codeItem?.content ||
-                          codeItem?.bodyMarkdown ||
-                          '// Write your JavaScript solution here\nfunction solution() {\n  return true;\n}\nconsole.log("Output:", solution());'
-                      );
-                      setCodeOutput('');
                     }
-                  }}
-                  bookmarkState={{
-                    isBookmarked: isCurrentBookmarked,
-                    onToggleBookmark: handleToggleLessonBookmark
-                  }}
-                />
-              </div>
+                  },
+                  onLoadedMetadata: (e) => setVideoDuration(e.target.duration)
+                }}
+                quizState={{
+                  quizAnswers,
+                  onAnswerSelect: handleQuizAnswerSelect,
+                  onSubmit: handleQuizSubmit,
+                  quizSubmitted,
+                  quizScoreData,
+                  onRetry: () => {
+                    setQuizAnswers({});
+                    setQuizSubmitted(false);
+                    setQuizScoreData(null);
+                  }
+                }}
+                codeState={{
+                  codeEditorInput,
+                  onCodeChange: setCodeEditorInput,
+                  codeOutput,
+                  onRunCode: handleRunCode,
+                  isExecutingCode,
+                  onResetCode: () => {
+                    const codeItem = (activeLesson?.items || []).find(
+                      (i) => i.type === 'code' || i.type === 'exercise' || i.type === 'code_practice'
+                    );
+                    setCodeEditorInput(
+                      codeItem?.content ||
+                        codeItem?.bodyMarkdown ||
+                        '// Write your JavaScript solution here\nfunction solution() {\n  return true;\n}\nconsole.log("Output:", solution());'
+                    );
+                    setCodeOutput('');
+                  }
+                }}
+                bookmarkState={{
+                  isBookmarked: isCurrentBookmarked,
+                  onToggleBookmark: handleToggleLessonBookmark
+                }}
+              />
+            </div>
 
-              {/* Bottom Lesson & Part Navigation Footer */}
-              <footer className="workspace-bottom-nav-footer">
-                <div className="bottom-nav-inner">
-                  <button
-                    type="button"
-                    className="btn-nav-prev"
-                    onClick={handleGoPrevious}
-                    disabled={selectedItemIdx === 0 && !prevLesson}
-                    aria-label="Previous Lesson or Part"
-                  >
-                    <ChevronLeft size={16} />
-                    <span>Previous</span>
-                  </button>
+            {/* Bottom Lesson & Part Navigation Footer */}
+            <footer className="workspace-bottom-nav-footer">
+              <div className="bottom-nav-inner">
+                <button
+                  type="button"
+                  className="btn-nav-prev"
+                  onClick={handleGoPrevious}
+                  disabled={!canGoPrevious}
+                  aria-label="Previous Lesson or Part"
+                >
+                  <ChevronLeft size={16} />
+                  <span>Previous</span>
+                </button>
 
-                  <div className="bottom-nav-status-text">
-                    <span className="nav-lesson-counter">
-                      Lesson {selectedLessonIdx + 1}
-                      {lessonItems.length > 1 ? ` • Part ${selectedItemIdx + 1} of ${lessonItems.length}` : ''}
-                    </span>
-                    {isItemCompleted(activeContentItem, activeLesson, selectedModuleIdx, selectedLessonIdx) && (
-                      <span className="status-completed-pill">Completed ✓</span>
-                    )}
-                  </div>
-
-                  {(lessonItems.length > 0 && selectedItemIdx < lessonItems.length - 1) || nextLesson ? (
-                    <button
-                      type="button"
-                      className="btn-nav-next"
-                      onClick={handleGoNext}
-                      disabled={
-                        (lessonItems.length > 0 && selectedItemIdx < lessonItems.length - 1)
-                          ? false
-                          : (!nextLesson || !isLessonUnlocked(nextLesson.moduleIdx, nextLesson.lessonIdx))
-                      }
-                      aria-label="Next Lesson or Part"
-                    >
-                      <span>Next</span>
-                      <ChevronRight size={16} />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="btn-nav-next finished-course"
-                      onClick={() => setIsRatingOpen(true)}
-                      aria-label="Course Finished"
-                    >
-                      <Award size={16} />
-                      <span>Course Finished!</span>
-                    </button>
+                <div className="bottom-nav-status-text">
+                  <span className="nav-lesson-counter">
+                    Lesson {selectedModuleIdx + 1}.{selectedLessonIdx + 1}
+                    {lessonItems.length > 1 ? ` • Part ${selectedItemIdx + 1} of ${lessonItems.length}` : ''}
+                  </span>
+                  {isItemCompleted(activeContentItem, activeLesson, selectedModuleIdx, selectedLessonIdx) && (
+                    <span className="status-completed-pill">Completed ✓</span>
                   )}
                 </div>
-              </footer>
-            </div>
-          )}
+
+                {!isLastItemInModule ? (
+                  <button
+                    type="button"
+                    className="btn-nav-next"
+                    onClick={handleGoNext}
+                    aria-label="Next Lesson or Part"
+                  >
+                    <span>Next</span>
+                    <ChevronRight size={16} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-nav-next finished-course"
+                    onClick={handleGoNext}
+                    aria-label="Module Completed"
+                  >
+                    <CheckCircle2 size={16} />
+                    <span>Module Complete!</span>
+                  </button>
+                )}
+              </div>
+            </footer>
+          </div>
         </main>
       </div>
 

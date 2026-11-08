@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { QuizInfoView } from './QuizInfoView.jsx';
-import { QuizResultsLeaderboardView } from './QuizResultsLeaderboardView.jsx';
+import { PersonalQuizHistoryView } from './PersonalQuizHistoryView.jsx';
 import { Loader2 } from 'lucide-react';
+import { API_BASE } from '../../../config/api';
 import './QuizView.css';
 
 export const QuizWorkspaceContainer = ({
@@ -9,6 +10,9 @@ export const QuizWorkspaceContainer = ({
   contentItem,
   course,
   bookmarkState = {},
+  moduleIdx,
+  lessonIdx,
+  itemIdx,
   onNavigate
 }) => {
   const courseId = course?._id || course?.id;
@@ -20,21 +24,32 @@ export const QuizWorkspaceContainer = ({
   const [hasAttempted, setHasAttempted] = useState(false);
   const [attemptsCount, setAttemptsCount] = useState(0);
   const [firstAttempt, setFirstAttempt] = useState(null);
+  const [attempts, setAttempts] = useState([]);
   const [activeView, setActiveView] = useState('info'); // 'info' | 'results'
   const [isStarting, setIsStarting] = useState(false);
 
-  // Leaderboard state
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [userRank, setUserRank] = useState(null);
-  const [totalParticipants, setTotalParticipants] = useState(0);
-  const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
+  // Construct return query parameters to preserve learning workspace context
+  const buildContextQuery = useCallback(() => {
+    const search = new URLSearchParams(window.location.search);
+    const m = moduleIdx !== undefined && moduleIdx !== null ? moduleIdx : search.get('module');
+    const l = lessonIdx !== undefined && lessonIdx !== null ? lessonIdx : search.get('lesson');
+    const i = itemIdx !== undefined && itemIdx !== null ? itemIdx : search.get('item');
+
+    const params = new URLSearchParams();
+    if (m !== null && m !== undefined) params.set('module', m);
+    if (l !== null && l !== undefined) params.set('lesson', l);
+    if (i !== null && i !== undefined) params.set('item', i);
+
+    const qs = params.toString();
+    return qs ? `?${qs}` : '';
+  }, [moduleIdx, lessonIdx, itemIdx]);
 
   const getAuthHeader = () => {
     const token = sessionStorage.getItem('upskillr_token') || localStorage.getItem('upskillr_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  // 1. Fetch Quiz Information & Attempt Status
+  // 1. Fetch Quiz Information & Personal Attempts History
   const fetchQuizInfo = useCallback(async () => {
     if (!courseId || !quizId) return;
 
@@ -42,7 +57,7 @@ export const QuizWorkspaceContainer = ({
       setIsLoading(true);
       setError(null);
 
-      const res = await fetch(`http://localhost:5000/api/courses/${courseId}/quizzes/${quizId}/info`, {
+      const res = await fetch(`${API_BASE}/courses/${courseId}/quizzes/${quizId}/info`, {
         headers: {
           'Content-Type': 'application/json',
           ...getAuthHeader()
@@ -59,10 +74,11 @@ export const QuizWorkspaceContainer = ({
       setHasAttempted(Boolean(data.hasAttempted));
       setAttemptsCount(data.attemptsCount || 0);
       setFirstAttempt(data.firstAttempt || null);
+      setAttempts(data.attempts || []);
 
-      // Default view: If student has already attempted, show Results & Leaderboard.
-      // If student has NOT attempted, show Quiz Info page.
-      if (data.hasAttempted && data.firstAttempt) {
+      // If student has already attempted, show personal attempts history by default.
+      // If student has not attempted, show Quiz Info instructions.
+      if (data.hasAttempted && (data.firstAttempt || (data.attempts && data.attempts.length > 0))) {
         setActiveView('results');
       } else {
         setActiveView('info');
@@ -79,46 +95,13 @@ export const QuizWorkspaceContainer = ({
     fetchQuizInfo();
   }, [fetchQuizInfo]);
 
-  // 2. Fetch Leaderboard (Authorized only if student has completed >= 1 attempt)
-  const fetchLeaderboard = useCallback(async () => {
-    if (!courseId || !quizId || !hasAttempted) return;
-
-    try {
-      setIsLoadingLeaderboard(true);
-      const res = await fetch(`http://localhost:5000/api/courses/${courseId}/quizzes/${quizId}/leaderboard`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader()
-        },
-        credentials: 'include'
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setLeaderboard(data.leaderboard || []);
-        setUserRank(data.userRank || null);
-        setTotalParticipants(data.totalParticipants || 0);
-      }
-    } catch (err) {
-      console.error('fetchLeaderboard error:', err);
-    } finally {
-      setIsLoadingLeaderboard(false);
-    }
-  }, [courseId, quizId, hasAttempted]);
-
-  useEffect(() => {
-    if (activeView === 'results' && hasAttempted) {
-      fetchLeaderboard();
-    }
-  }, [activeView, hasAttempted, fetchLeaderboard]);
-
-  // 3. Start or Retake Quiz Attempt
+  // 2. Start or Retake Quiz Attempt
   const handleStartQuiz = async () => {
     if (isStarting || !courseId || !quizId) return;
 
     try {
       setIsStarting(true);
-      const res = await fetch(`http://localhost:5000/api/courses/${courseId}/quizzes/${quizId}/start`, {
+      const res = await fetch(`${API_BASE}/courses/${courseId}/quizzes/${quizId}/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -132,14 +115,22 @@ export const QuizWorkspaceContainer = ({
         throw new Error(data.message || 'Failed to start quiz attempt.');
       }
 
-      // Navigate to dedicated quiz taking page
+      // Navigate to dedicated quiz taking page with workspace context preserved
       const attemptId = data.attemptId;
-      window.location.href = `/quiz/${courseId}/${quizId}/attempt/${attemptId}`;
+      const contextQuery = buildContextQuery();
+      window.location.href = `/quiz/${courseId}/${quizId}/attempt/${attemptId}${contextQuery}`;
     } catch (err) {
       console.error('handleStartQuiz error:', err);
       alert(err.message || 'Could not start quiz. Please try again.');
       setIsStarting(false);
     }
+  };
+
+  // 3. Review a past attempt
+  const handleReviewAttempt = (attemptId) => {
+    if (!attemptId || !courseId || !quizId) return;
+    const contextQuery = buildContextQuery();
+    window.location.href = `/quiz/${courseId}/${quizId}/attempt/${attemptId}${contextQuery}`;
   };
 
   if (isLoading) {
@@ -169,16 +160,14 @@ export const QuizWorkspaceContainer = ({
   return (
     <div className="quiz-workspace-container">
       {activeView === 'results' && hasAttempted ? (
-        <QuizResultsLeaderboardView
+        <PersonalQuizHistoryView
           quiz={quizDetails}
           firstAttempt={firstAttempt}
+          attempts={attempts}
           attemptsCount={attemptsCount}
-          leaderboard={leaderboard}
-          userRank={userRank}
-          totalParticipants={totalParticipants}
-          isLoadingLeaderboard={isLoadingLeaderboard}
           onStartQuiz={handleStartQuiz}
           onViewQuizInfo={() => setActiveView('info')}
+          onReviewAttempt={handleReviewAttempt}
           isStarting={isStarting}
           isBookmarked={Boolean(bookmarkState.isBookmarked)}
           onToggleBookmark={bookmarkState.onToggleBookmark}
@@ -190,7 +179,7 @@ export const QuizWorkspaceContainer = ({
           attemptsCount={attemptsCount}
           firstAttempt={firstAttempt}
           onStartQuiz={handleStartQuiz}
-          onViewLeaderboard={() => setActiveView('results')}
+          onViewAttempts={() => setActiveView('results')}
           isStarting={isStarting}
           isBookmarked={Boolean(bookmarkState.isBookmarked)}
           onToggleBookmark={bookmarkState.onToggleBookmark}

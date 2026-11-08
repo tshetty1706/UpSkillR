@@ -3,6 +3,7 @@ import {
   Bell,
   Layers,
   Video,
+  Award,
   Check,
   CheckCheck,
   ChevronDown,
@@ -105,16 +106,26 @@ export const LearnerNotificationBanner = ({ onGoToCourse }) => {
   }
 
   const primaryNotif = unreadNotifications[0];
+  const isBadge = primaryNotif.type === 'BADGE_UNLOCKED';
   const isModule = primaryNotif.type === 'NEW_MODULE';
   const remainingCount = unreadNotifications.length - 1;
+
+  const handleNavigateBadges = () => {
+    window.history.pushState({}, '', '/learner/achievements');
+    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/learner/achievements' } }));
+  };
 
   return (
     <aside className="learner-notification-persistent-banner" aria-label="Course Updates Alert">
       <div className="banner-main-row">
         {/* Left: Icon & Badge */}
         <div className="banner-icon-container">
-          <div className="banner-bell-badge">
-            <Bell size={18} className="banner-bell-icon" />
+          <div className={`banner-bell-badge ${isBadge ? 'badge-award-bell' : ''}`}>
+            {isBadge ? (
+              <Award size={20} className="banner-badge-icon" />
+            ) : (
+              <Bell size={18} className="banner-bell-icon" />
+            )}
             <span className="banner-pulse-dot" />
           </div>
         </div>
@@ -122,14 +133,18 @@ export const LearnerNotificationBanner = ({ onGoToCourse }) => {
         {/* Center: Message Content */}
         <div className="banner-body">
           <div className="banner-headline">
-            <span className="banner-tag">
-              {isModule ? 'New Module Uploaded' : 'New Lesson Uploaded'}
+            <span className={`banner-tag ${isBadge ? 'tag-badge' : ''}`}>
+              {isBadge ? 'Badge Unlocked!' : isModule ? 'New Module Uploaded' : 'New Lesson Uploaded'}
             </span>
-            <span className="banner-course-name">{primaryNotif.courseTitle}</span>
+            <span className="banner-course-name">
+              {isBadge ? (primaryNotif.title || 'Milestone Achieved') : primaryNotif.courseTitle}
+            </span>
           </div>
 
           <p className="banner-description">
-            {isModule ? (
+            {isBadge ? (
+              <strong>{primaryNotif.message}</strong>
+            ) : isModule ? (
               <>
                 New module added: <strong>{primaryNotif.moduleTitle || 'New Module'}</strong>
               </>
@@ -143,7 +158,7 @@ export const LearnerNotificationBanner = ({ onGoToCourse }) => {
 
           {remainingCount > 0 && (
             <div className="banner-extra-hint">
-              <span>+{remainingCount} more unread course update{remainingCount > 1 ? 's' : ''}</span>
+              <span>+{remainingCount} more unread alert{remainingCount > 1 ? 's' : ''}</span>
               <button
                 type="button"
                 className="banner-expand-btn"
@@ -190,7 +205,17 @@ export const LearnerNotificationBanner = ({ onGoToCourse }) => {
             </button>
           )}
 
-          {onGoToCourse && (
+          {isBadge ? (
+            <button
+              type="button"
+              className="banner-action-btn view-course-btn"
+              onClick={handleNavigateBadges}
+              title="View your unlocked streak badges"
+            >
+              <span>View Badges</span>
+              <ExternalLink size={13} />
+            </button>
+          ) : onGoToCourse ? (
             <button
               type="button"
               className="banner-action-btn view-course-btn"
@@ -200,7 +225,7 @@ export const LearnerNotificationBanner = ({ onGoToCourse }) => {
               <span>View Course</span>
               <ExternalLink size={13} />
             </button>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -208,7 +233,7 @@ export const LearnerNotificationBanner = ({ onGoToCourse }) => {
       {isExpanded && remainingCount > 0 && (
         <div className="banner-expanded-tray">
           <div className="expanded-tray-header">
-            <span className="tray-title">All Unread Course Updates</span>
+            <span className="tray-title">All Unread Notifications</span>
             <button
               type="button"
               className="tray-mark-all-btn"
@@ -221,16 +246,21 @@ export const LearnerNotificationBanner = ({ onGoToCourse }) => {
 
           <ul className="expanded-notif-list">
             {unreadNotifications.map((notif) => {
+              const itemIsBadge = notif.type === 'BADGE_UNLOCKED';
               const itemIsModule = notif.type === 'NEW_MODULE';
               return (
                 <li key={notif._id} className="expanded-notif-item">
-                  <div className={`expanded-item-icon ${itemIsModule ? 'module' : 'lesson'}`}>
-                    {itemIsModule ? <Layers size={14} /> : <Video size={14} />}
+                  <div className={`expanded-item-icon ${itemIsBadge ? 'badge' : itemIsModule ? 'module' : 'lesson'}`}>
+                    {itemIsBadge ? <Award size={14} /> : itemIsModule ? <Layers size={14} /> : <Video size={14} />}
                   </div>
                   <div className="expanded-item-info">
-                    <span className="expanded-item-course">{notif.courseTitle}</span>
+                    <span className="expanded-item-course">
+                      {itemIsBadge ? 'Streak Reward' : notif.courseTitle}
+                    </span>
                     <span className="expanded-item-title">
-                      {itemIsModule
+                      {itemIsBadge
+                        ? notif.message
+                        : itemIsModule
                         ? notif.moduleTitle || 'New Module'
                         : notif.lessonTitle || 'New Lesson'}
                     </span>
@@ -245,15 +275,25 @@ export const LearnerNotificationBanner = ({ onGoToCourse }) => {
                       <Check size={12} />
                       <span>Mark read</span>
                     </button>
-                    {onGoToCourse && (
+                    {itemIsBadge ? (
+                      <button
+                        type="button"
+                        className="expanded-item-go-btn"
+                        onClick={handleNavigateBadges}
+                        title="View Badges"
+                      >
+                        <ExternalLink size={12} />
+                      </button>
+                    ) : onGoToCourse && notif.courseId ? (
                       <button
                         type="button"
                         className="expanded-item-go-btn"
                         onClick={() => onGoToCourse(notif.courseId)}
+                        title="Go to Course"
                       >
                         <ExternalLink size={12} />
                       </button>
-                    )}
+                    ) : null}
                   </div>
                 </li>
               );

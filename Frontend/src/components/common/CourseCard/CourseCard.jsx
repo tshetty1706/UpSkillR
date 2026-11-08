@@ -34,8 +34,10 @@ export const CourseCard = ({
   const durationText = course.formattedDuration || 'Duration unavailable';
   const hasCertificate = course.certificate !== false;
   const descriptionText = course.description || course.shortDescription || '';
-  const instructorName = course.instructorName || instructor?.fullName || 'Instructor';
-  const instructorAvatar = course.instructorAvatar || instructor?.avatar;
+  const instructorObj = instructor || course.instructor || (typeof course.instructorId === 'object' ? course.instructorId : null);
+  const instructorName = instructorObj?.fullName || instructorObj?.name || course.instructorName || 'Instructor';
+  const instructorAvatar = instructorObj?.avatar || course.instructorAvatar;
+  const instructorDesignation = instructorObj?.designation || course.instructorDesignation || 'Software Engineer';
 
   const handleClick = () => {
     if (onNavigate) {

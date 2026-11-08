@@ -8,9 +8,12 @@ const answerSchema = new mongoose.Schema({
     enum: ['mcq', 'multiple_choice', 'multiple_response', 'true_false', 'short_answer', 'long_answer'],
     required: true
   },
+  options: [{ type: String }],
+  optionImages: [{ type: String }],
   studentAnswer: { type: mongoose.Schema.Types.Mixed, default: '' },
   correctAnswer: { type: mongoose.Schema.Types.Mixed, default: '' },
   isCorrect: { type: Boolean, default: false },
+  isAnswered: { type: Boolean, default: false },
   marksAwarded: { type: Number, default: 0 },
   maxMarks: { type: Number, default: 1 },
   feedback: { type: String, default: '' }
@@ -177,5 +180,9 @@ const assessmentSubmissionSchema = new mongoose.Schema({
   answers: [answerSchema],
   gradeRecords: [gradeRecordSchema]
 });
+
+assessmentSubmissionSchema.index({ assessmentId: 1, learnerId: 1, attemptNumber: 1 });
+assessmentSubmissionSchema.index({ assessmentId: 1, learnerId: 1, status: 1 });
+assessmentSubmissionSchema.index({ courseId: 1, learnerId: 1 });
 
 module.exports = mongoose.model('AssessmentSubmission', assessmentSubmissionSchema, 'assessment_submissions');

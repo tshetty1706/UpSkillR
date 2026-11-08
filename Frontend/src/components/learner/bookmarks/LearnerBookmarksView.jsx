@@ -28,6 +28,7 @@ import {
 import { CourseThumbnail } from '../../common/CourseThumbnail';
 import { useToast } from '../../../context/ToastContext';
 import { API_BASE } from '../../../config/api';
+import { recordCourseReturnUrl } from '../../../utils/navigationHelper';
 import './LearnerBookmarksView.css';
 
 // ─── Modal 1: Create or Edit Personal Note Modal ───
@@ -575,6 +576,7 @@ export const LearnerBookmarksView = ({ onNavigate, onExploreCourses }) => {
 
   // ─── Navigation Helper ───
   const handleOpenResource = (item) => {
+    recordCourseReturnUrl(window.location.pathname + window.location.search);
     let targetUrl = item.url;
     if (!targetUrl) {
       const cId = item.courseId?._id || item.courseId;

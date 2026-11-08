@@ -1211,6 +1211,169 @@
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
 }
 
+/* Registered Email Card in Deletion Modal */
+.registered-email-card {
+  background-color: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.registered-email-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.registered-email-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  width: fit-content;
+}
+
+.email-pill-icon {
+  color: var(--brand-primary);
+  flex-shrink: 0;
+}
+
+.registered-email-address {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: monospace;
+}
+
+.registered-email-hint {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* OTP Meta Status Row (Expiration Countdown + Resend) */
+.otp-meta-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 4px 4px;
+  font-size: 0.84rem;
+  flex-wrap: wrap;
+}
+
+.otp-countdown-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.countdown-icon {
+  color: var(--brand-primary);
+}
+
+.otp-countdown-text strong {
+  color: #dc2626;
+  font-family: monospace;
+  font-size: 0.9rem;
+}
+
+.otp-countdown-text.expired {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.otp-resend-wrap {
+  display: flex;
+  align-items: center;
+}
+
+/* Final Stage Warning Card */
+.final-deletion-warning-card {
+  background-color: #fef2f2;
+  border: 2px solid #ef4444;
+  border-radius: var(--radius-md);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+[data-theme="dark"] .final-deletion-warning-card,
+.dark .final-deletion-warning-card {
+  background-color: rgba(220, 38, 38, 0.15);
+  border-color: #dc2626;
+}
+
+.warning-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.warning-card-icon {
+  color: #dc2626;
+  flex-shrink: 0;
+}
+
+.warning-card-header h4 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #991b1b;
+}
+
+[data-theme="dark"] .warning-card-header h4,
+.dark .warning-card-header h4 {
+  color: #fca5a5;
+}
+
+.final-warning-text {
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: #374151;
+  margin: 0;
+}
+
+[data-theme="dark"] .final-warning-text,
+.dark .final-warning-text {
+  color: #f3f4f6;
+}
+
+.final-security-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  color: #065f46;
+  font-size: 0.82rem;
+  font-weight: 600;
+  width: fit-content;
+}
+
+[data-theme="dark"] .final-security-notice,
+.dark .final-security-notice {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+}
+
+.security-notice-icon {
+  color: #10b981;
+}
+
 .otp-resend-row {
   display: flex;
   justify-content: center;
@@ -1433,5 +1596,16 @@
     width: 40px;
     height: 46px;
     font-size: 1.25rem;
+  }
+
+  .otp-meta-status-row {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .registered-email-pill {
+    width: 100%;
+    word-break: break-all;
   }
 }

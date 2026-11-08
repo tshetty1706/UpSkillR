@@ -1,0 +1,632 @@
+/* ==========================================================================
+   RECENT LEARNING ACTIVITY COMPONENT STYLES
+   Fully responsive across Desktop (>=1024px), Tablet (768-1023px), and Mobile (<768px).
+   Dark & Light Theme compatible with UpSkillr Emerald Accent Design.
+   ========================================================================== */
+
+.dashboard-activity-section {
+  width: 100%;
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
+
+/* ─── Section Header ─── */
+.activity-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  gap: 1rem;
+}
+
+.activity-header-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.activity-header-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+.activity-section-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.activity-section-subtitle {
+  font-size: 0.8125rem;
+  color: var(--text-secondary, #9ca3af);
+  margin: 0.2rem 0 0;
+  line-height: 1.4;
+}
+
+.activity-count-badge {
+  padding: 0.35rem 0.75rem;
+  background: var(--bg-secondary, #1a2320);
+  border: 1px solid var(--border-color, #2d3b36);
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary, #9ca3af);
+  white-space: nowrap;
+}
+
+/* ─── Timeline Card Container ─── */
+.activity-timeline-card {
+  background: var(--bg-card, #111a16);
+  border: 1px solid var(--border-color, #23332b);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
+  transition: border-color 0.2s ease;
+}
+
+/* ─── Activity List & Rows ─── */
+.activity-items-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.activity-item-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.125rem;
+  padding: 1.125rem 1.5rem;
+  border-bottom: 1px solid var(--border-color, #1e2c25);
+  background: transparent;
+  transition: background 0.15s ease, transform 0.15s ease;
+  outline: none;
+}
+
+.activity-item-row:last-child {
+  border-bottom: none;
+}
+
+.activity-item-row:hover,
+.activity-item-row:focus-visible {
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.activity-item-row:focus-visible {
+  box-shadow: inset 0 0 0 2px #10b981;
+}
+
+/* ─── Activity Icon Badges ─── */
+.activity-icon-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+/* Badge Color Themes */
+.activity-icon-badge.badge-enrolled {
+  background: rgba(59, 130, 246, 0.14);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.28);
+}
+
+.activity-icon-badge.badge-lesson {
+  background: rgba(16, 185, 129, 0.14);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+}
+
+.activity-icon-badge.badge-video {
+  background: rgba(139, 92, 246, 0.14);
+  color: #a78bfa;
+  border: 1px solid rgba(139, 92, 246, 0.28);
+}
+
+.activity-icon-badge.badge-module {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+}
+
+.activity-icon-badge.badge-quiz {
+  background: rgba(20, 184, 166, 0.14);
+  color: #2dd4bf;
+  border: 1px solid rgba(20, 184, 166, 0.28);
+}
+
+.activity-icon-badge.badge-retake {
+  background: rgba(249, 115, 22, 0.14);
+  color: #fb923c;
+  border: 1px solid rgba(249, 115, 22, 0.28);
+}
+
+.activity-icon-badge.badge-course-completed {
+  background: rgba(168, 85, 247, 0.18);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+}
+
+.activity-icon-badge.badge-certificate {
+  background: rgba(234, 179, 8, 0.16);
+  color: #facc15;
+  border: 1px solid rgba(234, 179, 8, 0.32);
+}
+
+.activity-icon-badge.badge-bookmark {
+  background: rgba(236, 72, 153, 0.14);
+  color: #f472b6;
+  border: 1px solid rgba(236, 72, 153, 0.28);
+}
+
+.activity-icon-badge.badge-note {
+  background: rgba(14, 165, 233, 0.14);
+  color: #38bdf8;
+  border: 1px solid rgba(14, 165, 233, 0.28);
+}
+
+.activity-icon-badge.badge-login {
+  background: rgba(239, 68, 68, 0.14);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+}
+
+.activity-icon-badge.badge-points {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+}
+
+/* ─── Content Column ─── */
+.activity-content-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.25rem;
+}
+
+.activity-row-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+  margin: 0;
+  line-height: 1.35;
+}
+
+.activity-type-tag {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+}
+
+.activity-type-tag.badge-enrolled { background: rgba(59, 130, 246, 0.12); color: #60a5fa; }
+.activity-type-tag.badge-lesson { background: rgba(16, 185, 129, 0.12); color: #34d399; }
+.activity-type-tag.badge-video { background: rgba(139, 92, 246, 0.12); color: #a78bfa; }
+.activity-type-tag.badge-module { background: rgba(245, 158, 11, 0.12); color: #fbbf24; }
+.activity-type-tag.badge-quiz { background: rgba(20, 184, 166, 0.12); color: #2dd4bf; }
+.activity-type-tag.badge-retake { background: rgba(249, 115, 22, 0.12); color: #fb923c; }
+.activity-type-tag.badge-course-completed { background: rgba(168, 85, 247, 0.12); color: #c084fc; }
+.activity-type-tag.badge-certificate { background: rgba(234, 179, 8, 0.12); color: #facc15; }
+.activity-type-tag.badge-bookmark { background: rgba(236, 72, 153, 0.12); color: #f472b6; }
+.activity-type-tag.badge-note { background: rgba(14, 165, 233, 0.12); color: #38bdf8; }
+.activity-type-tag.badge-login { background: rgba(239, 68, 68, 0.12); color: #f87171; }
+.activity-type-tag.badge-points { background: rgba(245, 158, 11, 0.12); color: #fbbf24; }
+
+.activity-row-desc {
+  font-size: 0.84rem;
+  color: var(--text-secondary, #9ca3af);
+  margin: 0.2rem 0 0.55rem;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+/* Meta Pills Row */
+.activity-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.activity-course-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  background: var(--bg-tertiary, #16221c);
+  border: 1px solid var(--border-color, #23332b);
+  border-radius: 6px;
+  color: var(--text-secondary, #cbd5e1);
+  font-size: 0.75rem;
+  font-weight: 500;
+  max-width: 320px;
+  transition: all 0.15s ease;
+}
+
+.activity-course-pill .course-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-course-pill.clickable {
+  cursor: pointer;
+}
+
+.activity-course-pill.clickable:hover {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #10b981;
+}
+
+.activity-course-pill .pill-arrow {
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+.activity-lesson-context {
+  color: var(--text-muted, #94a3b8);
+  font-weight: 500;
+}
+
+.activity-timestamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--text-muted, #64748b);
+  font-size: 0.725rem;
+}
+
+/* ─── Points Badge Col ─── */
+.activity-points-col {
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+.activity-points-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.65rem;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 20px;
+  color: #fbbf24;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* ─── Pagination Footer ─── */
+.activity-pagination-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: var(--bg-tertiary, #0d1512);
+  border-top: 1px solid var(--border-color, #1e2c25);
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.pagination-range-summary {
+  font-size: 0.8125rem;
+  color: var(--text-secondary, #9ca3af);
+}
+
+.pagination-range-summary strong {
+  color: var(--text-primary, #ffffff);
+  font-weight: 600;
+}
+
+.pagination-controls-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Previous / Next Buttons */
+.btn-pagination-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 44px;
+  padding: 0 0.875rem;
+  background: var(--bg-card, #111a16);
+  border: 1px solid var(--border-color, #2d3b36);
+  border-radius: 8px;
+  color: var(--text-primary, #e2e8f0);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.btn-pagination-nav:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: #10b981;
+  color: #10b981;
+}
+
+.btn-pagination-nav:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.btn-pagination-nav:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #10b981;
+}
+
+/* Number Buttons Wrap */
+.pagination-numbers-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.btn-pagination-page {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card, #111a16);
+  border: 1px solid var(--border-color, #2d3b36);
+  border-radius: 8px;
+  color: var(--text-secondary, #9ca3af);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.btn-pagination-page:hover:not(:disabled):not(.active) {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: var(--text-primary, #ffffff);
+}
+
+.btn-pagination-page.active {
+  background: #10b981;
+  border-color: #10b981;
+  color: #064e3b;
+  font-weight: 700;
+  cursor: default;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.35);
+}
+
+.btn-pagination-page:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #10b981;
+}
+
+.pagination-ellipsis {
+  min-width: 28px;
+  text-align: center;
+  color: var(--text-muted, #64748b);
+  font-weight: 600;
+}
+
+/* ─── Empty & Error States ─── */
+.activity-state-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3.5rem 1.5rem;
+  text-align: center;
+}
+
+.state-icon {
+  margin-bottom: 1rem;
+}
+
+.state-icon.empty-icon {
+  color: var(--text-muted, #64748b);
+}
+
+.state-icon.error-icon {
+  color: #ef4444;
+}
+
+.state-title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+  margin: 0 0 0.35rem;
+}
+
+.state-desc {
+  font-size: 0.84rem;
+  color: var(--text-secondary, #9ca3af);
+  max-width: 440px;
+  line-height: 1.5;
+  margin: 0 0 1.25rem;
+}
+
+.btn-activity-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0 1.125rem;
+  background: #10b981;
+  color: #042f2e;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-activity-retry:hover {
+  background: #059669;
+}
+
+/* ─── Skeleton Loading State ─── */
+.activity-skeleton-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.activity-skeleton-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.125rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border-color, #1e2c25);
+}
+
+.activity-skl-circle {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--bg-tertiary, #1a2520);
+  animation: activityShimmer 1.5s infinite ease-in-out;
+  flex-shrink: 0;
+}
+
+.activity-skl-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.activity-skl-line {
+  height: 12px;
+  border-radius: 4px;
+  background: var(--bg-tertiary, #1a2520);
+  animation: activityShimmer 1.5s infinite ease-in-out;
+}
+
+.activity-skl-line.title { width: 35%; height: 14px; }
+.activity-skl-line.desc { width: 70%; }
+.activity-skl-line.meta { width: 45%; }
+
+.activity-skl-pill {
+  width: 65px;
+  height: 24px;
+  border-radius: 20px;
+  background: var(--bg-tertiary, #1a2520);
+  animation: activityShimmer 1.5s infinite ease-in-out;
+  flex-shrink: 0;
+}
+
+@keyframes activityShimmer {
+  0% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+  100% { opacity: 0.5; }
+}
+
+/* ─── Light Mode Overrides ─── */
+[data-theme='light'] .dashboard-activity-section,
+.theme-light .dashboard-activity-section {
+  --bg-card: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+  --border-color: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+}
+
+[data-theme='light'] .activity-timeline-card,
+.theme-light .activity-timeline-card {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme='light'] .activity-item-row:hover,
+.theme-light .activity-item-row:hover {
+  background: rgba(16, 185, 129, 0.05);
+}
+
+/* ─── Responsive Media Queries ─── */
+@media (max-width: 1023px) {
+  .activity-item-row {
+    padding: 1rem 1.25rem;
+    gap: 0.875rem;
+  }
+
+  .activity-course-pill {
+    max-width: 240px;
+  }
+}
+
+@media (max-width: 767px) {
+  .activity-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .activity-item-row {
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  .activity-icon-badge {
+    width: 36px;
+    height: 36px;
+  }
+
+  .activity-meta-row {
+    gap: 0.5rem;
+  }
+
+  .activity-course-pill {
+    max-width: 100%;
+  }
+
+  .activity-points-col {
+    align-self: flex-start;
+  }
+
+  .activity-pagination-footer {
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .pagination-controls-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .pagination-numbers-wrap {
+    display: none; /* In very narrow screens, show Prev / Next and Range summary */
+  }
+
+  .btn-pagination-nav {
+    flex: 1;
+    justify-content: center;
+  }
+}

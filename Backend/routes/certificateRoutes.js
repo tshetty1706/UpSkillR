@@ -8,6 +8,7 @@ router.get('/verify/:certificateId', certificateController.verifyCertificatePubl
 
 // 2. Learner routes (requires learner authentication)
 router.get('/me', protect, requireLearner, certificateController.getMyCertificates);
+router.get('/my-certificates', protect, requireLearner, certificateController.getMyCertificates);
 router.post('/claim/:courseId', protect, requireLearner, certificateController.claimCertificate);
 
 // 3. Instructor routes (requires instructor authentication)

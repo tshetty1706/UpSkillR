@@ -26,6 +26,7 @@ import { CourseThumbnail } from '../../../common/CourseThumbnail';
 import { LearnerNotificationBanner } from '../LearnerNotificationBanner/LearnerNotificationBanner';
 import { useToast } from '../../../../context/ToastContext';
 import { API_BASE } from '../../../../config/api';
+import { calculateCourseProgress } from '../../../../utils/courseProgress';
 
 const LinkedinIcon = ({ size = 15, className = '' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -205,15 +206,25 @@ export const LearnerDashboardOverview = ({
 
   // Dashboard Stats Calculations (FR-08)
   const stats = useMemo(() => {
-    const totalEnrolled = enrolments.length;
-    const completed = enrolments.filter(e => e.progressPercentage === 100 || e.status === 'completed').length;
-    const inProgress = totalEnrolled - completed;
+    let completed = 0;
+    let inProgress = 0;
+    let notStarted = 0;
     let totalLessonsDone = 0;
-    enrolments.forEach(e => {
-      totalLessonsDone += (e.completedLessons || []).length;
+
+    enrolments.forEach((e) => {
+      const details = calculateCourseProgress(e);
+      if (details.isCompleted) {
+        completed += 1;
+      } else if (details.category === 'enrolled') {
+        inProgress += 1;
+      } else {
+        notStarted += 1;
+      }
+      totalLessonsDone += details.completedRequiredItems;
     });
 
-    return { totalEnrolled, inProgress, completed, totalLessonsDone };
+    const totalEnrolled = enrolments.length;
+    return { totalEnrolled, inProgress, completed, notStarted, totalLessonsDone };
   }, [enrolments]);
 
   // Toggle accordion expand
@@ -448,39 +459,17 @@ export const LearnerDashboardOverview = ({
                   const course = typeof enrol.courseId === 'object' ? enrol.courseId : { _id: enrol.courseId, title: enrol.courseTitle || 'Enrolled Course' };
                   if (!course) return null;
 
-                  // Compute lessons / modules count
-                  const lessons = (course.lessons && course.lessons.length > 0)
-                    ? course.lessons
-                    : (course.modules && course.modules.length > 0)
-                    ? course.modules
-                    : [
-                        { title: 'Module 1: Introduction & Fundamentals', duration: '15 min' },
-                        { title: 'Module 2: Core Concepts & Practice', duration: '25 min' },
-                        { title: 'Module 3: Project Architecture & Code', duration: '35 min' }
-                      ];
+                  const progressDetails = calculateCourseProgress(enrol);
+                  const {
+                    progressPct,
+                    isCompleted,
+                    completedRequiredItems,
+                    totalRequiredItems,
+                    modulesProgress
+                  } = progressDetails;
 
-                  const totalModules = Math.max(lessons.length, 1);
-                  
-                  // Accurately compute completed modules matching the course's modules list
-                  const validDoneIndices = new Set();
-                  (enrol.completedLessons || []).forEach(k => {
-                    const num = Number(k);
-                    if (!isNaN(num) && num >= 0 && num < totalModules) {
-                      validDoneIndices.add(num);
-                    } else if (lessons.some(l => l._id && String(l._id) === String(k))) {
-                      const mIdx = lessons.findIndex(l => l._id && String(l._id) === String(k));
-                      if (mIdx !== -1) validDoneIndices.add(mIdx);
-                    }
-                  });
-                  const completedCount = Math.min(validDoneIndices.size, totalModules);
-                  
-                  // Accurately compute progress percentage directly from actual completion count & total modules
-                  const progressPct = totalModules > 0
-                    ? Math.min(Math.round((completedCount / totalModules) * 100), 100)
-                    : (enrol.progressPercentage || 0);
-
-                  const isCompleted = progressPct === 100 || enrol.status === 'completed' || completedCount >= totalModules;
-
+                  const totalModules = modulesProgress.length || 1;
+                  const completedModulesCount = modulesProgress.filter(m => m.isCompleted).length;
                   const isExpanded = expandedCourseId === (course._id || enrol._id);
 
                   return (
@@ -517,10 +506,10 @@ export const LearnerDashboardOverview = ({
                           {course.title}
                         </h3>
 
-                        {/* Visual Progress Bar & Module Count */}
+                        {/* Visual Progress Bar & Content Items Count */}
                         <div className="progress-bar-container">
                           <div className="progress-label">
-                            <span>{completedCount} / {totalModules} Modules Completed</span>
+                            <span>{completedRequiredItems} / {totalRequiredItems} Content Items Completed</span>
                             <span className="progress-percentage-text">{progressPct}%</span>
                           </div>
                           <div className="progress-track">
@@ -538,27 +527,22 @@ export const LearnerDashboardOverview = ({
                           style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', cursor: 'pointer', fontSize: '0.85rem' }}
                           onClick={() => toggleCourseExpand(course._id || enrol._id)}
                         >
-                          <span style={{ fontWeight: 600 }}>Modules Breakdown ({completedCount}/{totalModules})</span>
+                          <span style={{ fontWeight: 600 }}>Modules Breakdown ({completedModulesCount}/{totalModules})</span>
                           {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                         </button>
 
                         {isExpanded && (
                           <div className="learner-lessons-list">
-                            {lessons.map((lesson, idx) => {
-                              const isLessonDone = validDoneIndices.has(idx) || (enrol.completedLessons || []).includes(idx);
+                            {modulesProgress.map((mod, idx) => {
+                              const isModDone = mod.isCompleted;
                               return (
-                                <div key={idx} className="learner-lesson-item">
-                                  <span style={{ color: isLessonDone ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: isLessonDone ? 'line-through' : 'none' }}>
-                                    {lesson.title || `Module ${idx + 1}`}
+                                <div key={mod._id || idx} className="learner-lesson-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                                  <span style={{ color: isModDone ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+                                    {mod.title || `Module ${idx + 1}`} ({mod.completedItems}/{mod.totalItems})
                                   </span>
-                                  <button
-                                    type="button"
-                                    className={`btn-lesson-check ${isLessonDone ? 'done' : ''}`}
-                                    onClick={() => onLessonComplete(course._id, idx)}
-                                  >
-                                    <CheckCircle2 size={13} />
-                                    <span>{isLessonDone ? 'Done (+5 pts)' : 'Mark Done'}</span>
-                                  </button>
+                                  <span style={{ fontSize: '12px', fontWeight: 600, color: isModDone ? '#10b981' : '#f59e0b' }}>
+                                    {mod.progressPercentage}%
+                                  </span>
                                 </div>
                               );
                             })}

@@ -10,17 +10,28 @@ import { LearnerExploreView } from '../../components/learner/explore/LearnerExpl
 import { LearnerProfileView } from '../../components/learner/profile/LearnerProfileView';
 import { LearnerSettingsView } from '../../components/learner/settings/LearnerSettingsView';
 import { CourseRatingModal } from '../../components/learner/dashboard/LearnerDashboardOverview/CourseRatingModal';
+import { AnnouncementDetailsView } from '../../components/learner/trending/AnnouncementDetailsView';
+import { getAnnouncementBySlug, MOCK_TRENDING_ANNOUNCEMENTS } from '../../data/trendingAnnouncements';
 import { LogoutModal } from '../../components/common/LogoutModal/LogoutModal';
 import { useToast } from '../../context/ToastContext';
 import { API_BASE } from '../../config/api';
+import { recordCourseReturnUrl } from '../../utils/navigationHelper';
 import './LearnerDashboard.css';
 
 export const LearnerDashboard = ({ user }) => {
   const { toast } = useToast();
 
+  // Extract announcement slug if URL points to a trending details page
+  const getInitialAnnouncementSlug = () => {
+    const p = window.location.pathname || '';
+    const match = p.match(/\/(?:learner\/)?trending\/([^/?#]+)/i);
+    return match ? match[1] : null;
+  };
+
   // Determine initial view from current browser URL
   const getInitialView = () => {
     const p = (window.location.pathname || '').toLowerCase();
+    if (p.includes('/trending/')) return 'trending-detail';
     if (p.includes('/my-learning')) return 'my-learning';
     if (p.includes('/bookmarks')) return 'bookmarks';
     if (p.includes('/achievements')) return 'achievements';
@@ -33,6 +44,7 @@ export const LearnerDashboard = ({ user }) => {
   };
 
   const [activeView, setActiveView] = useState(getInitialView);
+  const [selectedAnnouncementSlug, setSelectedAnnouncementSlug] = useState(getInitialAnnouncementSlug);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [enrolments, setEnrolments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,13 +64,18 @@ export const LearnerDashboard = ({ user }) => {
     }
   }, []);
 
-  // Sync active view with browser back/forward buttons
+  // Sync active view with browser back/forward buttons and SPA navigation
   useEffect(() => {
-    const handlePopState = () => {
+    const handleSync = () => {
       setActiveView(getInitialView());
+      setSelectedAnnouncementSlug(getInitialAnnouncementSlug());
     };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('popstate', handleSync);
+    window.addEventListener('upskillr_navigate', handleSync);
+    return () => {
+      window.removeEventListener('popstate', handleSync);
+      window.removeEventListener('upskillr_navigate', handleSync);
+    };
   }, []);
 
   // Fetch enrolled courses
@@ -140,13 +157,16 @@ export const LearnerDashboard = ({ user }) => {
     setActiveView(viewId);
     setIsMobileSidebarOpen(false);
     window.history.pushState({}, '', path);
+    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Navigate to dedicated course learning page (/learn/:courseId)
+  // Navigate to dedicated course learning page (/courses/:courseId or /learn/:courseId)
   const handleNavigateToCourse = async (courseId) => {
     const targetId = typeof courseId === 'object' ? courseId?._id : courseId;
     if (!targetId) return;
+
+    recordCourseReturnUrl();
 
     // Record course access in backend
     try {
@@ -172,6 +192,7 @@ export const LearnerDashboard = ({ user }) => {
   const handleViewCourseOverview = (courseId) => {
     const targetId = typeof courseId === 'object' ? courseId?._id : courseId;
     if (!targetId) return;
+    recordCourseReturnUrl();
     const path = `/courses/${targetId}`;
     window.history.pushState({}, '', path);
     window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path } }));
@@ -342,7 +363,27 @@ export const LearnerDashboard = ({ user }) => {
                 recentlyViewedCourse={recentlyViewedCourse}
                 onNavigateToCourse={handleNavigateToCourse}
                 onSelectView={handleSelectView}
+                onSelectAnnouncement={(ann) => {
+                  setSelectedAnnouncementSlug(ann.slug);
+                  handleSelectView('trending-detail', `/learner/trending/${ann.slug}`);
+                }}
                 loading={loading}
+              />
+            )}
+
+            {/* PAGE: TRENDING IN TECH ANNOUNCEMENT DETAILS (/learner/trending/:slug) */}
+            {activeView === 'trending-detail' && (
+              <AnnouncementDetailsView
+                announcement={
+                  getAnnouncementBySlug(selectedAnnouncementSlug) ||
+                  MOCK_TRENDING_ANNOUNCEMENTS[0]
+                }
+                onBack={() => handleSelectView('dashboard', '/learner/dashboard')}
+                onSelectAnnouncement={(ann) => {
+                  setSelectedAnnouncementSlug(ann.slug);
+                  handleSelectView('trending-detail', `/learner/trending/${ann.slug}`);
+                }}
+                onExploreCourses={() => handleSelectView('explore', '/learner/explore')}
               />
             )}
 

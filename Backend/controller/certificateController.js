@@ -85,7 +85,16 @@ exports.claimCertificate = async (req, res) => {
     }
 
     const enrolment = await Enrolment.findOne({ learnerId, courseId });
-    if (!enrolment || enrolment.progressPercentage < 100) {
+    if (!enrolment) {
+      return res.status(400).json({
+        success: false,
+        message: 'You are not enrolled in this course.'
+      });
+    }
+
+    const { calculateEnrolmentProgress } = require('./courseController');
+    const { progressPercentage, status } = calculateEnrolmentProgress(course, enrolment);
+    if (progressPercentage < 100 || status !== 'completed') {
       return res.status(400).json({
         success: false,
         message: 'You must complete 100% of the course before receiving a certificate.'
@@ -105,6 +114,21 @@ exports.claimCertificate = async (req, res) => {
         message: 'Could not generate certificate. Please ensure all lessons are finished.'
       });
     }
+
+    try {
+      const { logLearnerActivity } = require('../services/activityService');
+      logLearnerActivity(learnerId, {
+        activityType: 'certificate_earned',
+        title: 'Certificate Earned',
+        description: `Earned official verified certificate for ${course.title} (${certificate.certificateId})`,
+        courseId: course._id,
+        courseTitle: course.title,
+        referenceId: `cert_${certificate._id}`,
+        points: 0,
+        metadata: { certificateId: certificate.certificateId },
+        createdAt: new Date()
+      }).catch(() => {});
+    } catch (_) {}
 
     return res.status(201).json({
       success: true,

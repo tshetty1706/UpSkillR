@@ -111,6 +111,7 @@ router.post('/:courseId/access', protect, requireLearner, learnerController.reco
 
 // ─── Dedicated Quiz System Routes ───
 router.get('/:courseId/quizzes/:quizId/info', protect, requireLearner, quizController.getQuizInfo);
+router.get('/:courseId/quizzes/:quizId/my-attempts', protect, requireLearner, quizController.getMyQuizAttempts);
 router.post('/:courseId/quizzes/:quizId/start', protect, requireLearner, quizController.startQuizAttempt);
 router.get('/:courseId/quizzes/:quizId/attempt/:attemptId', protect, requireLearner, quizController.getQuizAttempt);
 router.post('/:courseId/quizzes/:quizId/attempt/:attemptId/submit', protect, requireLearner, quizController.submitQuizAttempt);

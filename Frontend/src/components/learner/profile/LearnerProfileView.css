@@ -233,10 +233,10 @@
   border: 1px solid rgba(17, 104, 48, 0.2);
 }
 
-/* ─── 2. Learning Stats (6 Stat Cards) ─── */
+/* ─── 2. Learning Stats (Stat Cards) ─── */
 .profile-stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
 }
 
@@ -297,12 +297,18 @@
   color: #7c3aed;
 }
 
+.award-accent {
+  background-color: #fef3c7;
+  color: #b45309;
+}
+
 [data-theme="dark"] .star-accent { background-color: rgba(217, 119, 6, 0.2); color: #fbbf24; }
 [data-theme="dark"] .flame-accent { background-color: rgba(234, 88, 12, 0.2); color: #fb923c; }
 [data-theme="dark"] .trophy-accent { background-color: rgba(202, 138, 4, 0.2); color: #facc15; }
 [data-theme="dark"] .layers-accent { background-color: rgba(37, 99, 235, 0.2); color: #60a5fa; }
 [data-theme="dark"] .check-accent { background-color: rgba(22, 163, 74, 0.2); color: #4ade80; }
 [data-theme="dark"] .book-accent { background-color: rgba(124, 58, 237, 0.2); color: #a78bfa; }
+[data-theme="dark"] .award-accent { background-color: rgba(217, 119, 6, 0.25); color: #f59e0b; }
 
 .stat-text-meta {
   display: flex;
@@ -443,6 +449,27 @@
   cursor: default;
 }
 
+[data-theme="dark"] .heatmap-cell.heat-0,
+.dark .heatmap-cell.heat-0 {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] .heatmap-cell.heat-1,
+.dark .heatmap-cell.heat-1 {
+  background-color: #0e4429;
+}
+
+[data-theme="dark"] .heatmap-cell.heat-2,
+.dark .heatmap-cell.heat-2 {
+  background-color: #006d32;
+}
+
+[data-theme="dark"] .heatmap-cell.heat-3,
+.dark .heatmap-cell.heat-3 {
+  background-color: #26a641;
+}
+
 .heatmap-cell.cell-selected {
   outline: 2px solid var(--brand-primary);
 }
@@ -510,16 +537,26 @@
 }
 
 .heatmap-activity-list {
-  margin: 4px 0 0;
-  padding-left: 18px;
+  margin: 6px 0 0;
+  padding-left: 0;
+  list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .heatmap-activity-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   font-size: 0.86rem;
   color: var(--text-secondary);
+}
+
+.activity-bullet {
+  color: var(--brand-primary);
+  font-weight: 700;
+  line-height: 1;
 }
 
 .heatmap-no-activity-desc {
