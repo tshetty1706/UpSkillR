@@ -1,7 +1,93 @@
 const CourseReview = require('../model/CourseReview');
 const Course = require('../model/Course');
 const Enrolment = require('../model/Enrolment');
+const { Learner } = require('../model/User');
 const mongoose = require('mongoose');
+const {
+  resolveReviewerIdentity,
+  formatPublicReview,
+  fetchAndFormatCourseReviews
+} = require('../utils/reviewIdentity');
+
+const COURSE_COMPLETION_REQUIRED_MSG = 'Complete 100% of this course to unlock ratings and reviews.';
+
+/**
+ * Single-source-of-truth backend verification for review eligibility:
+ * Learner must be enrolled AND have completed 100% of published curriculum items
+ * according to calculateEnrolmentProgress.
+ */
+const verifyLearnerCourseCompletion = async (learnerId, courseId) => {
+  if (!courseId || !mongoose.Types.ObjectId.isValid(courseId)) {
+    return { ok: false, status: 400, code: 'INVALID_COURSE_ID', message: 'Invalid course ID format.' };
+  }
+
+  const [enrolment, course] = await Promise.all([
+    Enrolment.findOne({ learnerId, courseId }),
+    Course.findById(courseId)
+  ]);
+
+  if (!course) {
+    return { ok: false, status: 404, code: 'COURSE_NOT_FOUND', message: 'Course not found.' };
+  }
+
+  if (!enrolment) {
+    return {
+      ok: false,
+      status: 403,
+      code: 'NOT_ENROLLED',
+      message: 'You must be enrolled in this course to rate or review it.',
+      progressPercentage: 0,
+      isCompleted: false
+    };
+  }
+
+  const { calculateEnrolmentProgress } = require('./courseController');
+  const progressResult = calculateEnrolmentProgress(course, enrolment);
+  const hasPublishedCurriculum = Boolean(progressResult.pubItemIds && progressResult.pubItemIds.size > 0);
+
+  let isCompleted = false;
+  let effectivePct = progressResult.progressPercentage;
+
+  if (hasPublishedCurriculum) {
+    isCompleted = Boolean(progressResult.isCompleted && progressResult.progressPercentage === 100);
+    // Keep enrolment completion metadata synchronized with canonical calculation
+    if (
+      enrolment.progressPercentage !== progressResult.progressPercentage ||
+      enrolment.status !== progressResult.status
+    ) {
+      enrolment.progressPercentage = progressResult.progressPercentage;
+      enrolment.status = progressResult.status;
+      if (isCompleted && !enrolment.completedAt) {
+        enrolment.completedAt = new Date();
+      }
+      await enrolment.save();
+    }
+  } else {
+    isCompleted = Boolean(enrolment.status === 'completed' && Number(enrolment.progressPercentage) >= 100);
+    effectivePct = isCompleted ? 100 : (Number(enrolment.progressPercentage) || 0);
+  }
+
+  if (!isCompleted) {
+    return {
+      ok: false,
+      status: 403,
+      code: 'COURSE_NOT_COMPLETED',
+      message: COURSE_COMPLETION_REQUIRED_MSG,
+      progressPercentage: effectivePct,
+      isCompleted: false,
+      enrolment
+    };
+  }
+
+  return {
+    ok: true,
+    status: 200,
+    isCompleted: true,
+    progressPercentage: 100,
+    enrolment,
+    course
+  };
+};
 
 // Helper to recalculate course average rating and review count
 const updateCourseRatingStats = async (courseId) => {
@@ -9,11 +95,15 @@ const updateCourseRatingStats = async (courseId) => {
     const reviews = await CourseReview.find({ courseId });
     if (reviews.length === 0) {
       await Course.findByIdAndUpdate(courseId, { rating: null, reviewCount: 0 });
-      return;
+    } else {
+      const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
+      const avg = Number((sum / reviews.length).toFixed(1));
+      await Course.findByIdAndUpdate(courseId, { rating: avg, reviewCount: reviews.length });
     }
-    const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
-    const avg = Number((sum / reviews.length).toFixed(1));
-    await Course.findByIdAndUpdate(courseId, { rating: avg, reviewCount: reviews.length });
+    try {
+      const { courseCache } = require('./courseController');
+      courseCache?.invalidateCourse?.(courseId);
+    } catch (_) {}
   } catch (err) {
     console.error('Error recalculating course rating stats:', err);
   }
@@ -43,35 +133,35 @@ exports.submitCourseReview = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Feedback cannot exceed 1000 characters.' });
     }
 
-    // 1. Must be enrolled
-    const enrolment = await Enrolment.findOne({ learnerId, courseId });
-    if (!enrolment) {
-      return res.status(403).json({
+    // 1 & 2. Enforce authenticated enrollment + 100% backend curriculum completion
+    const eligibility = await verifyLearnerCourseCompletion(learnerId, courseId);
+    if (!eligibility.ok) {
+      return res.status(eligibility.status).json({
         success: false,
-        message: 'You must be enrolled in this course to leave a review.'
+        code: eligibility.code,
+        message: eligibility.message,
+        progressPercentage: eligibility.progressPercentage
       });
     }
+    const enrolment = eligibility.enrolment;
 
-    // 2. Must have completed the course (FR-09 Rule)
-    const isCompleted = enrolment.status === 'completed' || (enrolment.progressPercentage && enrolment.progressPercentage >= 100);
-    if (!isCompleted) {
-      return res.status(403).json({
-        success: false,
-        message: 'Only learners who have completed the course can submit feedback.'
-      });
-    }
+    const rawTags = tags !== undefined ? tags : req.body.feedbackTags;
+    const cleanTags = Array.isArray(rawTags) ? rawTags.map(t => String(t).trim()).filter(Boolean) : [];
 
-    const cleanTags = Array.isArray(tags) ? tags.map(t => String(t).trim()).filter(Boolean) : [];
+    // Lookup learner's registered name dynamically (never trust frontend-supplied names or expose username)
+    const learnerRecord = await Learner.findById(learnerId).select('fullName name avatar').lean();
+    const { learnerName } = resolveReviewerIdentity(learnerRecord);
 
     // 3. Unique check: Only one review per course. If existing, update it cleanly
     const existingReview = await CourseReview.findOne({ learnerId, courseId });
     if (existingReview) {
       existingReview.rating = numRating;
       existingReview.feedback = trimmedFeedback;
-      if (cleanTags.length > 0) existingReview.tags = cleanTags;
+      if (Array.isArray(rawTags)) existingReview.tags = cleanTags;
       await existingReview.save();
 
       // Sync with enrolment
+      enrolment.learnerName = learnerName;
       enrolment.rating = numRating;
       enrolment.feedback = trimmedFeedback;
       enrolment.feedbackTags = cleanTags;
@@ -83,7 +173,7 @@ exports.submitCourseReview = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: 'Your course review has been updated successfully.',
-        review: existingReview,
+        review: formatPublicReview(existingReview, learnerRecord),
         isUpdate: true
       });
     }
@@ -98,6 +188,7 @@ exports.submitCourseReview = async (req, res) => {
     });
 
     // Sync with enrolment for legacy / unified views
+    enrolment.learnerName = learnerName;
     enrolment.rating = numRating;
     enrolment.feedback = trimmedFeedback;
     enrolment.feedbackTags = cleanTags;
@@ -107,10 +198,30 @@ exports.submitCourseReview = async (req, res) => {
     // Recalculate Course average rating
     await updateCourseRatingStats(courseId);
 
+    // Notify fellow enrolled learners of a new course review
+    try {
+      const { notifyEnrolledLearnersForCourseSection } = require('./notificationController');
+      const courseDoc = await Course.findById(courseId).select('title').lean();
+      const preview = trimmedFeedback.length > 80 ? `${trimmedFeedback.slice(0, 77)}...` : trimmedFeedback;
+      await notifyEnrolledLearnersForCourseSection({
+        courseId,
+        courseTitle: courseDoc?.title || 'Course',
+        section: 'reviews',
+        type: 'NEW_REVIEW',
+        referenceId: review._id,
+        title: `New ${numRating}-Star Review in ${courseDoc?.title || 'Course'}`,
+        message: `"${preview}"`,
+        link: `/courses/${courseId}?tab=reviews`,
+        excludeUserIds: [learnerId]
+      });
+    } catch (notifErr) {
+      console.warn('[REVIEW NOTIFICATION WARNING]', notifErr.message);
+    }
+
     return res.status(201).json({
       success: true,
       message: 'Thank you! Your course review has been submitted successfully.',
-      review
+      review: formatPublicReview(review, learnerRecord)
     });
   } catch (error) {
     console.error('Error submitting course review:', error);
@@ -124,20 +235,50 @@ exports.submitCourseReview = async (req, res) => {
   }
 };
 
-// 2. Edit Review (PATCH /api/courses/:courseId/review)
+// 2. Edit Review (PATCH/PUT /api/courses/:courseId/review or PATCH /api/learners/me/reviews/:reviewId)
 exports.updateCourseReview = async (req, res) => {
   try {
-    const courseId = req.params.courseId || req.body.courseId;
+    const { reviewId } = req.params;
+    const rawCourseId = req.params.courseId || req.body.courseId;
     const { rating, feedback, tags } = req.body;
     const learnerId = req.user.id;
 
-    if (!courseId || !mongoose.Types.ObjectId.isValid(courseId)) {
-      return res.status(400).json({ success: false, message: 'Invalid course ID format.' });
+    let review = null;
+    if (reviewId && mongoose.Types.ObjectId.isValid(reviewId)) {
+      review = await CourseReview.findOne({ _id: reviewId, learnerId });
+    } else if (rawCourseId && mongoose.Types.ObjectId.isValid(rawCourseId)) {
+      review = await CourseReview.findOne({ learnerId, courseId: rawCourseId });
+    } else {
+      return res.status(400).json({ success: false, message: 'Invalid course or review ID format.' });
     }
 
-    const review = await CourseReview.findOne({ learnerId, courseId });
     if (!review) {
+      // Check if learner lacks completion eligibility even before checking review existence on courseId
+      if (rawCourseId && mongoose.Types.ObjectId.isValid(rawCourseId)) {
+        const earlyEligibility = await verifyLearnerCourseCompletion(learnerId, rawCourseId);
+        if (!earlyEligibility.ok) {
+          return res.status(earlyEligibility.status).json({
+            success: false,
+            code: earlyEligibility.code,
+            message: earlyEligibility.message,
+            progressPercentage: earlyEligibility.progressPercentage
+          });
+        }
+      }
       return res.status(404).json({ success: false, message: 'No existing review found to update.' });
+    }
+
+    const targetCourseId = review.courseId;
+
+    // Enforce 100% completion eligibility on review edits as well
+    const eligibility = await verifyLearnerCourseCompletion(learnerId, targetCourseId);
+    if (!eligibility.ok) {
+      return res.status(eligibility.status).json({
+        success: false,
+        code: eligibility.code,
+        message: eligibility.message,
+        progressPercentage: eligibility.progressPercentage
+      });
     }
 
     if (rating !== undefined) {
@@ -165,9 +306,13 @@ exports.updateCourseReview = async (req, res) => {
 
     await review.save();
 
-    // Sync with enrolment
-    const enrolment = await Enrolment.findOne({ learnerId, courseId });
+    // Sync with enrolment using dynamic registered name
+    const learnerRecord = await Learner.findById(learnerId).select('fullName name avatar').lean();
+    const { learnerName } = resolveReviewerIdentity(learnerRecord);
+
+    const enrolment = eligibility.enrolment;
     if (enrolment) {
+      enrolment.learnerName = learnerName;
       enrolment.rating = review.rating;
       enrolment.feedback = review.feedback;
       enrolment.feedbackTags = review.tags;
@@ -176,12 +321,12 @@ exports.updateCourseReview = async (req, res) => {
     }
 
     // Recalculate Course average rating
-    await updateCourseRatingStats(courseId);
+    await updateCourseRatingStats(targetCourseId);
 
     return res.status(200).json({
       success: true,
       message: 'Course review updated successfully!',
-      review
+      review: formatPublicReview(review, learnerRecord)
     });
   } catch (error) {
     console.error('Error updating course review:', error);
@@ -197,9 +342,11 @@ exports.getCourseReviews = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid course ID format.' });
     }
 
-    const reviews = await CourseReview.find({ courseId })
-      .populate('learnerId', 'fullName avatar username')
-      .sort({ createdAt: -1 });
+    const reviews = await fetchAndFormatCourseReviews(courseId, {
+      CourseReview,
+      Enrolment,
+      Learner
+    });
 
     return res.status(200).json({
       success: true,
@@ -222,11 +369,32 @@ exports.getMyCourseReview = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid course ID format.' });
     }
 
-    const review = await CourseReview.findOne({ learnerId, courseId });
+    let [review, learnerRecord] = await Promise.all([
+      CourseReview.findOne({ learnerId, courseId }),
+      Learner.findById(learnerId).select('fullName name avatar').lean()
+    ]);
+
+    if (!review) {
+      const enrolment = await Enrolment.findOne({ learnerId, courseId }).select('rating feedback feedbackTags ratedAt');
+      if (enrolment && enrolment.rating) {
+        review = {
+          courseId,
+          rating: enrolment.rating,
+          feedback: enrolment.feedback || '',
+          tags: Array.isArray(enrolment.feedbackTags) ? enrolment.feedbackTags : [],
+          createdAt: enrolment.ratedAt || null
+        };
+      }
+    }
+    const eligibility = await verifyLearnerCourseCompletion(learnerId, courseId);
+
     return res.status(200).json({
       success: true,
+      canReview: Boolean(eligibility.ok && eligibility.isCompleted),
+      progressPercentage: eligibility.progressPercentage ?? 0,
+      isEnrolled: eligibility.code !== 'NOT_ENROLLED' && eligibility.code !== 'COURSE_NOT_FOUND',
       hasReviewed: Boolean(review),
-      review: review || null
+      review: review ? formatPublicReview(review, learnerRecord) : null
     });
   } catch (error) {
     console.error('Error fetching user course review:', error);

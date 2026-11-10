@@ -119,50 +119,151 @@ exports.uploadBufferToCloudinary = async (fileBuffer, mimetype, originalname = '
 };
 
 /**
- * Delete a Cloudinary asset by public_id or image URL if supported
+ * Determine whether a URL points to Cloudinary (vs OAuth avatars, data URIs, or local uploads)
  */
-exports.deleteCloudinaryAsset = async (imageUrlOrPublicId, resourceType = 'image') => {
-  if (!imageUrlOrPublicId || typeof imageUrlOrPublicId !== 'string') return;
+const isCloudinaryUrl = (value) => {
+  if (!value || typeof value !== 'string') return false;
+  return /(^https?:\/\/)?([^/]+\.)?cloudinary\.com\//i.test(value.trim());
+};
+
+exports.isCloudinaryUrl = isCloudinaryUrl;
+
+/**
+ * Extract the canonical Cloudinary public_id from a Cloudinary URL or return a bare public_id.
+ * Returns empty string for non-Cloudinary external HTTP URLs, data URIs, and /uploads/ paths.
+ */
+const extractCloudinaryPublicId = (imageUrlOrPublicId, resourceType = 'image') => {
+  if (!imageUrlOrPublicId || typeof imageUrlOrPublicId !== 'string') return '';
+  const trimmed = imageUrlOrPublicId.trim();
+  if (!trimmed || trimmed.startsWith('data:') || trimmed.startsWith('/uploads/')) {
+    return '';
+  }
+
+  if (isCloudinaryUrl(trimmed)) {
+    // Strip query string / hash
+    const cleanUrl = trimmed.split(/[?#]/)[0];
+    const isRawAsset = resourceType === 'raw' || /\/raw\/upload\//i.test(cleanUrl);
+    // Handle /upload/(transformations/)?(v12345/)?<public_id>(.ext)
+    const uploadIdx = cleanUrl.indexOf('/upload/');
+    if (uploadIdx === -1) return '';
+    let remainder = cleanUrl.slice(uploadIdx + '/upload/'.length);
+    const segments = remainder.split('/').filter(Boolean);
+    // Drop optional version segment v123456 and any transformation segments before it
+    const versionIndex = segments.findIndex((seg) => /^v\d+$/.test(seg));
+    let assetSegments;
+    if (versionIndex !== -1) {
+      assetSegments = segments.slice(versionIndex + 1);
+    } else {
+      // Skip leading transformation-looking segments (containing commas or known transform prefixes like w_, c_, f_, q_, fl_)
+      let firstAssetIdx = 0;
+      while (
+        firstAssetIdx < segments.length - 1 &&
+        (/^[a-z]{1,3}_[^/]+(,|$)/.test(segments[firstAssetIdx]) || segments[firstAssetIdx].includes(','))
+      ) {
+        firstAssetIdx += 1;
+      }
+      assetSegments = segments.slice(firstAssetIdx);
+    }
+    if (!assetSegments.length) return '';
+    const joined = assetSegments.join('/');
+    // In Cloudinary, raw asset public_ids include their extension; image/video public_ids omit the extension
+    return isRawAsset ? joined : joined.replace(/\.[a-zA-Z0-9]+$/, '');
+  }
+
+  // Reject arbitrary external HTTP(S) URLs (e.g., Google/GitHub avatars, mock CDN links)
+  if (/^https?:\/\//i.test(trimmed)) {
+    return '';
+  }
+
+  return trimmed;
+};
+
+exports.extractCloudinaryPublicId = extractCloudinaryPublicId;
+
+/**
+ * Delete a Cloudinary asset by public_id or Cloudinary URL.
+ * Returns a structured status object so callers can handle strict retry/failure tracking
+ * without crashing optional non-critical callers.
+ */
+exports.deleteCloudinaryAsset = async (imageUrlOrPublicId, resourceType = 'image', options = {}) => {
+  const { strict = false } = options || {};
+  if (!imageUrlOrPublicId || typeof imageUrlOrPublicId !== 'string') {
+    return { ok: true, skipped: true, deleted: false, notFound: false, reason: 'empty' };
+  }
+
+  const publicId = extractCloudinaryPublicId(imageUrlOrPublicId, resourceType);
+  if (!publicId) {
+    return { ok: true, skipped: true, deleted: false, notFound: false, reason: 'non_cloudinary_asset' };
+  }
+
+  const primaryType = resourceType === 'raw' ? 'raw' : 'image';
+
   try {
     const config = getCloudinaryConfig();
-    if (!config.cloudName || !config.apiKey || !config.apiSecret) return;
+    if (!config.cloudName || !config.apiKey || !config.apiSecret) {
+      const errMsg = 'Cloudinary credentials are not configured for asset deletion.';
+      if (strict) throw new Error(errMsg);
+      return { ok: false, skipped: false, deleted: false, notFound: false, publicId, resourceType: primaryType, error: errMsg };
+    }
 
-    let publicId = imageUrlOrPublicId;
-    if (imageUrlOrPublicId.includes('cloudinary.com')) {
-      const match = imageUrlOrPublicId.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.[^./?]+)?$/);
-      if (match && match[1]) {
-        publicId = match[1];
+    const destroyWithType = async (type) => {
+      const timestamp = Math.round(new Date().getTime() / 1000);
+      const paramsToSign = `public_id=${publicId}&timestamp=${timestamp}${config.apiSecret}`;
+      const signature = crypto.createHash('sha1').update(paramsToSign).digest('hex');
+
+      const params = new URLSearchParams();
+      params.append('public_id', publicId);
+      params.append('api_key', config.apiKey);
+      params.append('timestamp', timestamp.toString());
+      params.append('signature', signature);
+
+      return axios.post(
+        `https://api.cloudinary.com/v1_1/${config.cloudName}/${type}/destroy`,
+        params.toString(),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 }
+      );
+    };
+
+    let effectiveType = primaryType;
+    let res = await destroyWithType(primaryType);
+    let result = res?.data?.result;
+
+    if (primaryType === 'image' && result === 'not found') {
+      const rawRes = await destroyWithType('raw');
+      if (rawRes?.data?.result === 'ok') {
+        res = rawRes;
+        result = rawRes.data.result;
+        effectiveType = 'raw';
       }
     }
 
-    if (!publicId || publicId.startsWith('data:') || publicId.startsWith('/uploads/')) return;
-
-    const timestamp = Math.round(new Date().getTime() / 1000);
-    const paramsToSign = `public_id=${publicId}&timestamp=${timestamp}${config.apiSecret}`;
-    const signature = crypto.createHash('sha1').update(paramsToSign).digest('hex');
-
-    const params = new URLSearchParams();
-    params.append('public_id', publicId);
-    params.append('api_key', config.apiKey);
-    params.append('timestamp', timestamp.toString());
-    params.append('signature', signature);
-
-    const primaryType = resourceType === 'raw' ? 'raw' : 'image';
-    const res = await axios.post(
-      `https://api.cloudinary.com/v1_1/${config.cloudName}/${primaryType}/destroy`,
-      params.toString(),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 }
-    ).catch(() => null);
-
-    if (primaryType === 'image' && res?.data?.result === 'not found') {
-      await axios.post(
-        `https://api.cloudinary.com/v1_1/${config.cloudName}/raw/destroy`,
-        params.toString(),
-        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 }
-      ).catch(() => null);
+    if (result === 'ok' || result === 'not found') {
+      return {
+        ok: true,
+        skipped: false,
+        deleted: result === 'ok',
+        notFound: result === 'not found',
+        publicId,
+        resourceType: effectiveType
+      };
     }
+
+    const unexpectedMsg = `Unexpected Cloudinary destroy response for ${publicId}: ${JSON.stringify(res?.data || {})}`;
+    if (strict) throw new Error(unexpectedMsg);
+    return { ok: false, skipped: false, deleted: false, notFound: false, publicId, resourceType: effectiveType, error: unexpectedMsg };
   } catch (err) {
-    console.warn('Cloudinary asset deletion notice:', err.message || err);
+    const errMsg = err.response?.data?.error?.message || err.message || 'Cloudinary delete error';
+    console.warn('Cloudinary asset deletion notice:', errMsg);
+    if (strict) throw new Error(errMsg);
+    return {
+      ok: false,
+      skipped: false,
+      deleted: false,
+      notFound: false,
+      publicId,
+      resourceType: primaryType,
+      error: errMsg
+    };
   }
 };
 

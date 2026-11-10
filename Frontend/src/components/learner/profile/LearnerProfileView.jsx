@@ -393,12 +393,39 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(true);
 
+  // ─── Earned Badges State ───
+  const [earnedBadges, setEarnedBadges] = useState([]);
+  const [badgesLoading, setBadgesLoading] = useState(true);
+
   const [selectedCertificateModal, setSelectedCertificateModal] = useState(null);
 
   // ─── Points & Rewards History State ───
   const [pointHistory, setPointHistory] = useState([]);
   const [pointsPagination, setPointsPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
   const [pointsLoading, setPointsLoading] = useState(true);
+
+  // Fetch dedicated badges directly from backend single source of truth
+  const fetchBadges = async () => {
+    setBadgesLoading(true);
+    try {
+      const token = sessionStorage.getItem('upskillr_token') || localStorage.getItem('upskillr_token');
+      const res = await fetch(`${API_BASE}/learners/me/badges`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.badges)) {
+        const unlocked = data.badges.filter((b) => Boolean(b.isUnlocked || b.unlocked));
+        setEarnedBadges(unlocked);
+        if (data.stats && typeof data.stats.totalBadgesEarned === 'number') {
+          setStats((prev) => ({ ...prev, badgesEarned: data.stats.totalBadgesEarned }));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load learner badges:', err);
+    } finally {
+      setBadgesLoading(false);
+    }
+  };
 
   // Fetch verified point history ledger from DB
   const fetchPointHistory = async (page = 1) => {
@@ -425,7 +452,7 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
   // Fetch full profile and learning stats from DB
   const fetchProfileAndStats = async () => {
     try {
-      const token = sessionStorage.getItem('upskillr_token');
+      const token = sessionStorage.getItem('upskillr_token') || localStorage.getItem('upskillr_token');
       const res = await fetch(`${API_BASE}/learners/me`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
@@ -452,6 +479,12 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
             modulesCompleted: data.stats.modulesCompleted || 0,
             badgesEarned: data.stats.badgesEarned ?? 0
           });
+        }
+
+        if (Array.isArray(data.user.badges)) {
+          const unlocked = data.user.badges.filter((b) => Boolean(b.isUnlocked || b.unlocked));
+          setEarnedBadges(unlocked);
+          setBadgesLoading(false);
         }
       }
     } catch (err) {
@@ -518,6 +551,7 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
 
   useEffect(() => {
     fetchProfileAndStats();
+    fetchBadges();
     fetchActivity();
     fetchCertificates();
     fetchReviews();
@@ -525,6 +559,7 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
 
     const handleRefresh = () => {
       fetchProfileAndStats();
+      fetchBadges();
       fetchActivity();
       fetchPointHistory(1);
     };
@@ -725,6 +760,105 @@ export const LearnerProfileView = ({ user, onNavigateSettings }) => {
               </div>
             </div>
           </div>
+        </section>
+
+        {/* ─── 2b. EARNED BADGES SHOWCASE ─── */}
+        <section className="profile-badges-section" aria-label="Earned Badges Showcase">
+          <div className="section-title-line">
+            <div className="title-with-icon">
+              <Award size={18} className="title-icon-accent" />
+              <h2 className="section-title">Earned Badges</h2>
+            </div>
+            {!badgesLoading && (
+              <span className="stats-verified-pill">
+                {earnedBadges.length} {earnedBadges.length === 1 ? 'Badge Earned' : 'Badges Earned'}
+              </span>
+            )}
+          </div>
+
+          {badgesLoading ? (
+            <div className="profile-badges-loading">Loading earned achievement badges...</div>
+          ) : earnedBadges.length === 0 ? (
+            <div className="profile-badges-empty-box">
+              <Award size={34} className="empty-icon-subtle" />
+              <p className="empty-lead">No achievement badges earned yet.</p>
+              <p className="empty-sub">
+                Complete courses, maintain your learning streak, and score 90%+ on first quiz attempts to unlock prestigious achievement badges!
+              </p>
+            </div>
+          ) : (
+            <div className="profile-earned-badges-grid">
+              {earnedBadges.map((badge) => {
+                const tier = badge.tier || (badge.category === 'streak' ? 'streak' : 'normal');
+                const categoryLabel = badge.category === 'course_completion'
+                  ? 'Knowledge Seeker'
+                  : badge.category === 'quiz_excellence'
+                    ? 'Perfectionist'
+                    : 'Learning Streak';
+                const tierLabel = badge.tier
+                  ? `${badge.tier.charAt(0).toUpperCase() + badge.tier.slice(1)} Tier`
+                  : 'Streak Badge';
+
+                const formattedEarnedDate = badge.unlockedAt
+                  ? new Date(badge.unlockedAt).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })
+                  : null;
+
+                const primaryImg = badge.cloudinaryUrl || badge.image;
+                const fallbackImg =
+                  badge.fallbackImage ||
+                  (badge.badgeId === 'knowledge_seeker_normal'
+                    ? '/assets/badges/knowledge-seeker-normal.png'
+                    : badge.badgeId === 'perfectionist_normal'
+                      ? '/assets/badges/perfectionist-normal.png'
+                      : badge.image);
+
+                return (
+                  <div
+                    key={badge.badgeId}
+                    className={`profile-earned-badge-card category-${badge.category || 'general'} tier-${tier}`}
+                  >
+                    <div className="profile-badge-artwork-wrap">
+                      <img
+                        src={primaryImg}
+                        alt={badge.name}
+                        className="profile-badge-img"
+                        loading="lazy"
+                        onError={(e) => {
+                          if (fallbackImg && e.target.src !== fallbackImg) {
+                            e.target.src = fallbackImg;
+                          }
+                        }}
+                      />
+                      <span className="profile-badge-unlocked-tick" title="Unlocked & Verified">
+                        <CheckCircle2 size={13} />
+                      </span>
+                    </div>
+
+                    <div className="profile-badge-content">
+                      <div className="profile-badge-tags-row">
+                        <span className="profile-badge-category-tag">{categoryLabel}</span>
+                        <span className={`profile-badge-tier-tag tier-tag-${tier}`}>{tierLabel}</span>
+                      </div>
+                      <h3 className="profile-badge-title">{badge.name}</h3>
+                      <p className="profile-badge-desc">
+                        {badge.requirement || badge.description}
+                      </p>
+                      {formattedEarnedDate && (
+                        <div className="profile-badge-earned-date">
+                          <Calendar size={12} className="badge-cal-icon" />
+                          <span>Earned {formattedEarnedDate}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         {/* ─── 3. LEARNING ACTIVITY HEATMAP ─── */}

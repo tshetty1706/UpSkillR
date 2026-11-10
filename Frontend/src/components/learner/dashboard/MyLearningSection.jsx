@@ -10,6 +10,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { CourseThumbnail } from '../../common/CourseThumbnail';
+import { isCourseCertificateEnabled } from '../../../utils/courseCertificate';
 import './MyLearningSection.css';
 
 import { calculateCourseProgress } from '../../../utils/courseProgress';
@@ -111,10 +112,17 @@ export const MyLearningSection = ({
     }
 
     if (activeTab === 'completed') {
+      const hasCertCourse = enrolments.some(
+        (e) => isCourseCertificateEnabled(e?.courseId) || e?.certificateEnabled === true
+      );
       return (
         <div className="tab-empty-state">
           <p className="tab-empty-text">You haven't completed any courses yet.</p>
-          <p className="tab-empty-subtext">Keep learning! Every module completed brings you closer to your certificate.</p>
+          <p className="tab-empty-subtext">
+            {hasCertCourse
+              ? 'Keep learning! Every module completed brings you closer to your certificate.'
+              : 'Keep learning! Complete all modules to finish your courses and track your learning progress.'}
+          </p>
           {enrolledCourses.length > 0 && (
             <button
               type="button"

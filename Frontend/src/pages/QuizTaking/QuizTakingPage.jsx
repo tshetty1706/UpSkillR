@@ -29,7 +29,26 @@ export const QuizTakingPage = ({
   const [quizData, setQuizData] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState({});
+  const [answers, setAnswers] = useState(() => {
+    try {
+      if (attemptId) {
+        const saved = sessionStorage.getItem(`upskillr_quiz_answers_${attemptId}`);
+        return saved ? JSON.parse(saved) : {};
+      }
+    } catch (e) {}
+    return {};
+  });
+
+  // Preserve in-progress answers across page reloads
+  useEffect(() => {
+    if (attemptId) {
+      try {
+        if (Object.keys(answers).length > 0) {
+          sessionStorage.setItem(`upskillr_quiz_answers_${attemptId}`, JSON.stringify(answers));
+        }
+      } catch (e) {}
+    }
+  }, [answers, attemptId]);
   const [remainingSeconds, setRemainingSeconds] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRetaking, setIsRetaking] = useState(false);
@@ -80,6 +99,7 @@ export const QuizTakingPage = ({
 
         // If attempt is already submitted/graded, load directly into review mode!
         if (data.isSubmitted && data.result) {
+          sessionStorage.removeItem(`upskillr_quiz_answers_${attemptId}`);
           setResultData(data.result);
           setReviewQuestions(data.review?.questions || []);
           setIsReviewMode(true);
@@ -136,9 +156,12 @@ export const QuizTakingPage = ({
       }
 
       // DO NOT REDIRECT! Render results immediately on the same page.
+      sessionStorage.removeItem(`upskillr_quiz_answers_${attemptId}`);
       setResultData(data.result);
       setReviewQuestions(data.review?.questions || []);
       setIsReviewMode(true);
+      window.dispatchEvent(new Event('upskillr_points_updated'));
+      window.dispatchEvent(new Event('upskillr_badge_unlocked'));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       console.error('handleSubmitQuiz error:', err);
@@ -168,6 +191,7 @@ export const QuizTakingPage = ({
       }
 
       // Navigate to the new attempt with search params preserved
+      sessionStorage.removeItem(`upskillr_quiz_answers_${attemptId}`);
       const newAttemptId = data.attemptId;
       window.location.href = `/quiz/${courseId}/${quizId}/attempt/${newAttemptId}${window.location.search}`;
     } catch (err) {

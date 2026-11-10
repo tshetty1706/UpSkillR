@@ -11,6 +11,8 @@ const BookmarkFolder = require('../model/BookmarkFolder');
 const Enrolment = require('../model/Enrolment');
 const CompletionRecord = require('../model/CompletionRecord');
 const AssessmentSubmission = require('../model/AssessmentSubmission');
+const AssessmentAttempt = require('../model/AssessmentAttempt');
+const OfficialAssessmentAttempt = require('../model/OfficialAssessmentAttempt');
 const Certificate = require('../model/Certificate');
 const PointTransaction = require('../model/PointTransaction');
 const LearnerActivity = require('../model/LearnerActivity');
@@ -19,21 +21,54 @@ const CourseQuestion = require('../model/CourseQuestion');
 const CourseReview = require('../model/CourseReview');
 const Course = require('../model/Course');
 const DeletionJob = require('../model/DeletionJob');
-const { deleteCloudinaryAsset } = require('../controller/mediaController');
+const {
+  deleteCloudinaryAsset,
+  extractCloudinaryPublicId,
+  isCloudinaryUrl
+} = require('../controller/mediaController');
+
+// ─── Course Cache Invalidation Helper ───
+const invalidateCourseCaches = (courseIds = []) => {
+  if (!Array.isArray(courseIds) || courseIds.length === 0) return;
+  try {
+    const { courseCache } = require('../controller/courseController');
+    if (!courseCache) return;
+    for (const cId of courseIds) {
+      if (!cId) continue;
+      courseCache.invalidateCourse?.(cId);
+      courseCache.overviews?.delete?.(String(cId));
+    }
+  } catch (_) {
+    // Non-fatal cache invalidation
+  }
+};
 
 // ─── Course Rating Recalculation Helper ───
-const updateCourseRatingStats = async (courseId) => {
+const updateCourseRatingStats = async (courseId, session = null) => {
   try {
-    const reviews = await CourseReview.find({ courseId });
+    const query = CourseReview.find({ courseId });
+    if (session) query.session(session);
+    const reviews = await query;
+
     if (reviews.length === 0) {
-      await Course.findByIdAndUpdate(courseId, { rating: null, reviewCount: 0 });
-      return;
+      await Course.findByIdAndUpdate(
+        courseId,
+        { rating: null, reviewCount: 0 },
+        session ? { session } : {}
+      );
+    } else {
+      const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
+      const avg = Number((sum / reviews.length).toFixed(1));
+      await Course.findByIdAndUpdate(
+        courseId,
+        { rating: avg, reviewCount: reviews.length },
+        session ? { session } : {}
+      );
     }
-    const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
-    const avg = Number((sum / reviews.length).toFixed(1));
-    await Course.findByIdAndUpdate(courseId, { rating: avg, reviewCount: reviews.length });
+    invalidateCourseCaches([courseId]);
   } catch (err) {
     console.error(`[ACCOUNT DELETION] Error recalculating rating for course ${courseId}:`, err.message);
+    if (session) throw err;
   }
 };
 
@@ -185,27 +220,371 @@ const sendDeletionOtpEmail = async (email, otp, name) => {
   }
 };
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// ─── Ownership-Aware External Asset Inventory Collector ───
+const collectLearnerAssets = (learner, certificates = []) => {
+  const cloudinaryMap = new Map();
+  const localFileSet = new Set();
+  const uploadsRoot = path.resolve(__dirname, '..', 'uploads');
+
+  const registerAsset = (candidate, resourceType = 'image') => {
+    if (!candidate || typeof candidate !== 'string') return;
+    const trimmed = candidate.trim();
+    if (!trimmed) return;
+    if (trimmed.startsWith('/uploads/')) {
+      const resolved = path.resolve(__dirname, '..', trimmed.replace(/^\//, ''));
+      if (resolved.startsWith(uploadsRoot + path.sep)) {
+        localFileSet.add(resolved);
+      }
+      return;
+    }
+    const publicId = extractCloudinaryPublicId(trimmed, resourceType);
+    if (!publicId) return; // Skips data: URLs & external non-Cloudinary OAuth avatars
+    const key = `${resourceType}:${publicId}`;
+    if (!cloudinaryMap.has(key)) {
+      cloudinaryMap.set(key, {
+        target: trimmed,
+        publicId,
+        resourceType
+      });
+    }
+  };
+
+  // Certificates owned by this learner (publicId prioritized over URL reconstruction)
+  for (const cert of certificates) {
+    if (cert.certificatePublicId) {
+      registerAsset(cert.certificatePublicId, 'image');
+    } else if (cert.certificateImageUrl && isCloudinaryUrl(cert.certificateImageUrl)) {
+      registerAsset(cert.certificateImageUrl, 'image');
+    } else if (cert.certificateImageUrl && cert.certificateImageUrl.startsWith('/uploads/')) {
+      registerAsset(cert.certificateImageUrl, 'image');
+    }
+
+    if (cert.certificatePdfUrl) {
+      registerAsset(cert.certificatePdfUrl, 'raw');
+    }
+  }
+
+  // Profile avatar owned by this learner (stored public_id prioritized over URL fallback)
+  if (learner?.avatarPublicId) {
+    registerAsset(learner.avatarPublicId, 'image');
+  } else if (learner?.avatar) {
+    if (learner.avatar.startsWith('/uploads/') || isCloudinaryUrl(learner.avatar) || (!learner.avatar.startsWith('http') && !learner.avatar.startsWith('data:'))) {
+      registerAsset(learner.avatar, 'image');
+    }
+  }
+
+  return {
+    cloudinaryAssets: Array.from(cloudinaryMap.values()),
+    localFilePaths: Array.from(localFileSet)
+  };
+};
+
+// ─── External Storage Cleanup With Retries & Failure Tracking ───
+const executeExternalAssetCleanup = async (
+  cloudinaryAssets = [],
+  localFilePaths = [],
+  deleteAssetFn = deleteCloudinaryAsset
+) => {
+  const failedAssets = [];
+  const deletedAssets = [];
+
+  for (const asset of cloudinaryAssets) {
+    const target = asset.publicId || asset.target;
+    const resourceType = asset.resourceType || 'image';
+    let lastResult = null;
+    let attemptsMade = 0;
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      attemptsMade = attempt;
+      lastResult = await deleteAssetFn(target, resourceType, { strict: false });
+      if (lastResult && lastResult.ok) {
+        break;
+      }
+      if (attempt < 3) {
+        await sleep(120 * attempt);
+      }
+    }
+
+    if (!lastResult || !lastResult.ok) {
+      failedAssets.push({
+        target: asset.target || target,
+        publicId: asset.publicId || target,
+        resourceType,
+        lastError: lastResult?.error || 'Cloudinary deletion failed.',
+        attempts: attemptsMade
+      });
+    } else {
+      deletedAssets.push({
+        publicId: lastResult.publicId || asset.publicId || target,
+        resourceType: lastResult.resourceType || resourceType,
+        skipped: Boolean(lastResult.skipped)
+      });
+    }
+  }
+
+  // Remove any legacy local disk uploads scoped strictly to this learner
+  for (const localFilePath of localFilePaths) {
+    if (fs.existsSync(localFilePath)) {
+      fs.unlinkSync(localFilePath);
+    }
+  }
+
+  return { deletedAssets, failedAssets };
+};
+
+// ─── MongoDB Multi-Document Transaction Runner ───
+const runInTransaction = async (workFn) => {
+  let session = null;
+  try {
+    session = await mongoose.startSession();
+    let result;
+    await session.withTransaction(async () => {
+      result = await workFn(session);
+    });
+    return result;
+  } catch (err) {
+    const msg = String(err?.message || '');
+    const unsupported =
+      err?.code === 20 ||
+      err?.code === 263 ||
+      msg.includes('Transaction numbers are only allowed on a replica set member') ||
+      msg.includes('Transactions are not supported');
+    if (unsupported) {
+      return await workFn(null);
+    }
+    throw err;
+  } finally {
+    if (session) {
+      await session.endSession().catch(() => {});
+    }
+  }
+};
+
+// ─── Transactional Database Cleanup & Shared-Data Anonymization ───
+const executeTransactionalMongoCleanup = async (learnerId) => {
+  return await runInTransaction(async (session) => {
+    const sOpt = session ? { session } : {};
+
+    // Identify reviews, rated enrolments, and Q&A threads sequentially (MongoDB transactions forbid parallel ops on same ClientSession)
+    const reviews = await CourseReview.find({ learnerId }, '_id courseId', sOpt);
+    const ratedEnrolments = await Enrolment.find({ learnerId, rating: { $ne: null } }, '_id courseId', sOpt);
+    const learnerQuestions = await CourseQuestion.find({ userId: learnerId }, '_id courseId status instructorReply', sOpt);
+
+    const reviewAffectedCourseIds = [
+      ...new Set([
+        ...reviews.map((r) => String(r.courseId)),
+        ...ratedEnrolments.map((e) => String(e.courseId))
+      ])
+    ];
+    const qaCourseIds = [...new Set(learnerQuestions.map((q) => String(q.courseId)))];
+    const allCacheCourseIds = [...new Set([...reviewAffectedCourseIds, ...qaCourseIds])];
+
+    const unansweredQuestions = [];
+    const answeredQuestions = [];
+    for (const q of learnerQuestions) {
+      const hasReply = Boolean(q.instructorReply && String(q.instructorReply).trim());
+      if (q.status === 'answered' || hasReply) {
+        answeredQuestions.push(q);
+      } else {
+        unansweredQuestions.push(q);
+      }
+    }
+
+    const unansweredIds = unansweredQuestions.map((q) => q._id);
+    const unansweredIdStrs = unansweredIds.map(String);
+    const answeredIds = answeredQuestions.map((q) => q._id);
+    const answeredIdStrs = answeredIds.map(String);
+    const deletedReviewIdStrs = reviews.map((r) => String(r._id));
+
+    // Delete all strictly learner-owned records
+    await PersonalNote.deleteMany({ learnerId }, sOpt);
+    await Bookmark.deleteMany({ learnerId }, sOpt);
+    await BookmarkFolder.deleteMany({ learnerId }, sOpt);
+    await Enrolment.deleteMany({ learnerId }, sOpt);
+    await CompletionRecord.deleteMany({ learner_id: learnerId }, sOpt);
+    await AssessmentSubmission.deleteMany({ learnerId }, sOpt);
+    await AssessmentAttempt.deleteMany({ learnerId }, sOpt);
+    await OfficialAssessmentAttempt.deleteMany({ learnerId }, sOpt);
+    await Certificate.deleteMany({ learnerId }, sOpt);
+    await PointTransaction.deleteMany({ $or: [{ learnerId }, { userId: learnerId }] }, sOpt);
+    await LearnerActivity.deleteMany({ learnerId }, sOpt);
+    await Notification.deleteMany({ recipientId: learnerId }, sOpt);
+    await CourseReview.deleteMany({ learnerId }, sOpt);
+
+    // Delete unanswered Q&A threads so no dangling unanswered learner questions remain
+    if (unansweredIds.length > 0) {
+      await CourseQuestion.deleteMany({ _id: { $in: unansweredIds } }, sOpt);
+    }
+
+    // Shared data protection: preserve answered Q&A threads & instructor replies, anonymizing learner PII & reference
+    if (answeredIds.length > 0) {
+      await CourseQuestion.updateMany(
+        { _id: { $in: answeredIds } },
+        {
+          $set: {
+            userId: null,
+            userName: 'Deleted Learner',
+            userAvatar: ''
+          }
+        },
+        sOpt
+      );
+    }
+
+    // Remove or anonymize instructor/peer notifications pointing to this learner's deleted reviews/questions
+    let notificationsReferencedCleaned = 0;
+    const orphanNotifFilters = [];
+    if (deletedReviewIdStrs.length > 0) {
+      orphanNotifFilters.push({
+        referenceId: { $in: deletedReviewIdStrs },
+        type: { $in: ['NEW_REVIEW', 'COURSE_REVIEW'] }
+      });
+    }
+    if (unansweredIds.length > 0) {
+      orphanNotifFilters.push({ questionId: { $in: unansweredIds } });
+      orphanNotifFilters.push({
+        referenceId: { $in: unansweredIdStrs },
+        type: { $in: ['COURSE_QUESTION', 'NEW_QUESTION'] }
+      });
+    }
+    if (orphanNotifFilters.length > 0) {
+      const delRes = await Notification.deleteMany({ $or: orphanNotifFilters }, sOpt);
+      notificationsReferencedCleaned += delRes.deletedCount || 0;
+    }
+
+    // Anonymize learner name snippets on preserved answered-question notifications
+    if (answeredIds.length > 0) {
+      const preservedNotifs = await Notification.find(
+        {
+          $or: [
+            { questionId: { $in: answeredIds } },
+            { referenceId: { $in: answeredIdStrs }, type: { $in: ['COURSE_QUESTION', 'NEW_QUESTION'] } }
+          ]
+        },
+        '_id message',
+        sOpt
+      );
+      for (const notif of preservedNotifs) {
+        if (notif.message && /^.+?\sasked:\s*/.test(notif.message)) {
+          const anonymizedMsg = notif.message.replace(/^.+?\sasked:\s*/, 'Deleted Learner asked: ');
+          if (anonymizedMsg !== notif.message) {
+            await Notification.updateOne(
+              { _id: notif._id },
+              { $set: { message: anonymizedMsg } },
+              sOpt
+            );
+            notificationsReferencedCleaned += 1;
+          }
+        }
+      }
+    }
+
+    // Recalculate rating & reviewCount for affected courses atomically inside transaction
+    for (const cId of reviewAffectedCourseIds) {
+      await updateCourseRatingStats(cId, session);
+    }
+
+    // Delete primary Learner document
+    await Learner.findByIdAndDelete(learnerId, sOpt);
+
+    // Exhaustive verification inside transaction boundary (sequential on ClientSession)
+    const remainingLearner = await Learner.findById(learnerId, '_id', sOpt);
+    const remainingEnrolments = await Enrolment.countDocuments({ learnerId }).session(session || null);
+    const remainingCerts = await Certificate.countDocuments({ learnerId }).session(session || null);
+    const remainingNotes = await PersonalNote.countDocuments({ learnerId }).session(session || null);
+    const remainingBookmarks = await Bookmark.countDocuments({ learnerId }).session(session || null);
+    const remainingFolders = await BookmarkFolder.countDocuments({ learnerId }).session(session || null);
+    const remainingSubmissions = await AssessmentSubmission.countDocuments({ learnerId }).session(session || null);
+    const remainingAttempts = await AssessmentAttempt.countDocuments({ learnerId }).session(session || null);
+    const remainingOfficialAttempts = await OfficialAssessmentAttempt.countDocuments({ learnerId }).session(session || null);
+    const remainingRecords = await CompletionRecord.countDocuments({ learner_id: learnerId }).session(session || null);
+    const remainingPoints = await PointTransaction.countDocuments({ $or: [{ learnerId }, { userId: learnerId }] }).session(session || null);
+    const remainingActivities = await LearnerActivity.countDocuments({ learnerId }).session(session || null);
+    const remainingNotifs = await Notification.countDocuments({ recipientId: learnerId }).session(session || null);
+    const remainingQuestions = await CourseQuestion.countDocuments({ userId: learnerId }).session(session || null);
+    const remainingReviews = await CourseReview.countDocuments({ learnerId }).session(session || null);
+
+    const totalRemaining =
+      (remainingLearner ? 1 : 0) +
+      remainingEnrolments +
+      remainingCerts +
+      remainingNotes +
+      remainingBookmarks +
+      remainingFolders +
+      remainingSubmissions +
+      remainingAttempts +
+      remainingOfficialAttempts +
+      remainingRecords +
+      remainingPoints +
+      remainingActivities +
+      remainingNotifs +
+      remainingQuestions +
+      remainingReviews;
+
+    if (totalRemaining > 0) {
+      throw new Error(`Data verification failed: ${totalRemaining} orphaned records still detected.`);
+    }
+
+    return {
+      reviewAffectedCourseIds,
+      allCacheCourseIds,
+      courseQuestionsDeleted: unansweredIds.length,
+      courseQuestionsAnonymized: answeredIds.length,
+      notificationsReferencedCleaned
+    };
+  });
+};
+
 // ─── Durable Permanent Deletion Runner ───
 /**
  * Permanently deletes all personal data, associations, external assets, and the learner account document.
- * This execution is idempotent and tracked via DeletionJob.
+ * This execution is idempotent, transactional across MongoDB collections, and tracked via DeletionJob.
  */
-const executePermanentDeletion = async (learnerId, email, authProvider = 'local') => {
-  const jobId = crypto.randomUUID();
-  let job;
+const executePermanentDeletion = async (learnerId, email, authProvider = 'local', options = {}) => {
+  const { existingJob = null, deleteAssetFn = deleteCloudinaryAsset } = options || {};
 
-  try {
+  // Concurrency guard: reject overlapping active processing jobs for the same learnerId
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+  const inflight = await DeletionJob.findOne({
+    learnerId,
+    status: 'processing',
+    updatedAt: { $gt: fiveMinutesAgo },
+    ...(existingJob ? { _id: { $ne: existingJob._id } } : {})
+  });
+  if (inflight) {
+    const err = new Error('Account deletion is already in progress for this account.');
+    err.code = 'DELETION_IN_PROGRESS';
+    err.jobId = inflight.jobId;
+    throw err;
+  }
+
+  const normalizedEmail = String(email || '').toLowerCase().trim();
+  const emailHash =
+    normalizedEmail && normalizedEmail !== 'anonymized@deleted.local'
+      ? hashToken(normalizedEmail)
+      : (existingJob?.emailHash || '');
+  const jobId = existingJob?.jobId || crypto.randomUUID();
+  let job = existingJob;
+
+  if (!job) {
     job = await DeletionJob.create({
       jobId,
       learnerId,
-      email,
+      email: normalizedEmail || 'unknown@deleted.local',
+      emailHash,
       authProvider,
       status: 'processing',
       step: 'inventorying',
       attempts: 1
     });
-  } catch (dbErr) {
-    console.warn('[ACCOUNT DELETION] Could not record initial DeletionJob, proceeding with inline tracking:', dbErr.message);
+  } else {
+    job.status = 'processing';
+    job.step = 'inventorying';
+    job.attempts = (job.attempts || 0) + 1;
+    job.error = null;
+    await job.save();
   }
 
   try {
@@ -214,140 +593,177 @@ const executePermanentDeletion = async (learnerId, email, authProvider = 'local'
       throw new Error('Learner document not found in database.');
     }
 
-    // 1. Inventory external Cloudinary assets & affected courses
-    const certificates = await Certificate.find({ learnerId });
-    const cloudinaryAssets = [];
+    // 1. Inventory external assets, affected courses, and collection counts
+    const [
+      certificates,
+      reviews,
+      ratedEnrolments,
+      learnerQuestions,
+      enrolmentsCount,
+      personalNotesCount,
+      bookmarksCount,
+      bookmarkFoldersCount,
+      completionRecordsCount,
+      assessmentSubmissionsCount,
+      assessmentAttemptsCount,
+      officialAssessmentAttemptsCount,
+      pointTransactionsCount,
+      learnerActivitiesCount,
+      notificationsCount
+    ] = await Promise.all([
+      Certificate.find({ learnerId }),
+      CourseReview.find({ learnerId }, 'courseId'),
+      Enrolment.find({ learnerId, rating: { $ne: null } }, 'courseId'),
+      CourseQuestion.find({ userId: learnerId }, 'status instructorReply'),
+      Enrolment.countDocuments({ learnerId }),
+      PersonalNote.countDocuments({ learnerId }),
+      Bookmark.countDocuments({ learnerId }),
+      BookmarkFolder.countDocuments({ learnerId }),
+      CompletionRecord.countDocuments({ learner_id: learnerId }),
+      AssessmentSubmission.countDocuments({ learnerId }),
+      AssessmentAttempt.countDocuments({ learnerId }),
+      OfficialAssessmentAttempt.countDocuments({ learnerId }),
+      PointTransaction.countDocuments({ $or: [{ learnerId }, { userId: learnerId }] }),
+      LearnerActivity.countDocuments({ learnerId }),
+      Notification.countDocuments({ recipientId: learnerId })
+    ]);
 
-    certificates.forEach(c => {
-      if (c.certificatePublicId) cloudinaryAssets.push({ target: c.certificatePublicId, type: 'image' });
-      if (c.certificateImageUrl && c.certificateImageUrl.includes('cloudinary.com')) cloudinaryAssets.push({ target: c.certificateImageUrl, type: 'image' });
-      if (c.certificatePdfUrl && c.certificatePdfUrl.includes('cloudinary.com')) cloudinaryAssets.push({ target: c.certificatePdfUrl, type: 'raw' });
-    });
+    const { cloudinaryAssets, localFilePaths } = collectLearnerAssets(learner, certificates);
+    const affectedCourseIds = [
+      ...new Set([
+        ...reviews.map((r) => String(r.courseId)),
+        ...ratedEnrolments.map((e) => String(e.courseId))
+      ])
+    ];
 
-    if (learner.avatar) {
-      if (learner.avatar.includes('cloudinary.com') || (!learner.avatar.startsWith('/') && !learner.avatar.startsWith('http') && !learner.avatar.startsWith('data:'))) {
-        cloudinaryAssets.push({ target: learner.avatar, type: 'image' });
-      }
-    }
+    const unansweredCount = learnerQuestions.filter(
+      (q) => q.status !== 'answered' && (!q.instructorReply || !String(q.instructorReply).trim())
+    ).length;
+    const answeredCount = learnerQuestions.length - unansweredCount;
 
-    const reviews = await CourseReview.find({ learnerId });
-    const affectedCourseIds = [...new Set(reviews.map(r => r.courseId.toString()))];
-
-    // Document counts before deletion
     const inventoryCounts = {
-      enrolments: await Enrolment.countDocuments({ learnerId }),
-      personalNotes: await PersonalNote.countDocuments({ learnerId }),
-      bookmarks: await Bookmark.countDocuments({ learnerId }),
-      bookmarkFolders: await BookmarkFolder.countDocuments({ learnerId }),
+      enrolments: enrolmentsCount,
+      personalNotes: personalNotesCount,
+      bookmarks: bookmarksCount,
+      bookmarkFolders: bookmarkFoldersCount,
       certificates: certificates.length,
-      completionRecords: await CompletionRecord.countDocuments({ learner_id: learnerId }),
-      assessmentSubmissions: await AssessmentSubmission.countDocuments({ learnerId }),
-      pointTransactions: await PointTransaction.countDocuments({ $or: [{ learnerId }, { userId: learnerId }] }),
-      learnerActivities: await LearnerActivity.countDocuments({ learnerId }),
-      notifications: await Notification.countDocuments({ recipientId: learnerId }),
-      courseQuestions: await CourseQuestion.countDocuments({ userId: learnerId }),
+      completionRecords: completionRecordsCount,
+      assessmentSubmissions: assessmentSubmissionsCount,
+      assessmentAttempts: assessmentAttemptsCount,
+      officialAssessmentAttempts: officialAssessmentAttemptsCount,
+      pointTransactions: pointTransactionsCount,
+      learnerActivities: learnerActivitiesCount,
+      notifications: notificationsCount,
+      notificationsReferencedCleaned: 0,
+      courseQuestions: learnerQuestions.length,
+      courseQuestionsDeleted: unansweredCount,
+      courseQuestionsAnonymized: answeredCount,
       courseReviews: reviews.length,
-      cloudinaryAssets: cloudinaryAssets.map(a => a.target),
+      cloudinaryAssetsCount: cloudinaryAssets.length,
+      cloudinaryAssets: cloudinaryAssets.map((a) => a.publicId || a.target),
       coursesToRecalculate: affectedCourseIds
     };
 
-    if (job) {
-      job.inventory = inventoryCounts;
-      job.step = 'external_cleanup';
+    job.inventory = inventoryCounts;
+    job.step = 'external_cleanup';
+    await job.save();
+
+    // 2. Clean up external Cloudinary & local disk assets strictly (retry + fail cleanly if any remain)
+    const assetsToDelete =
+      existingJob && Array.isArray(existingJob.pendingAssetCleanup) && existingJob.pendingAssetCleanup.length > 0
+        ? existingJob.pendingAssetCleanup.map((p) => ({
+            target: p.target,
+            publicId: p.publicId,
+            resourceType: p.resourceType || 'image'
+          }))
+        : cloudinaryAssets;
+
+    const { failedAssets } = await executeExternalAssetCleanup(
+      assetsToDelete,
+      localFilePaths,
+      deleteAssetFn
+    );
+
+    if (failedAssets.length > 0) {
+      job.status = 'failed';
+      job.step = 'external_cleanup_failed';
+      job.pendingAssetCleanup = failedAssets;
+      job.error = `External asset cleanup incomplete for ${failedAssets.length} file(s).`;
       await job.save();
+
+      const cloudErr = new Error(job.error);
+      cloudErr.code = 'EXTERNAL_STORAGE_CLEANUP_FAILED';
+      cloudErr.jobId = jobId;
+      cloudErr.failedAssets = failedAssets;
+      throw cloudErr;
     }
 
-    // 2. Clean up external Cloudinary assets
-    for (const asset of cloudinaryAssets) {
-      try {
-        await deleteCloudinaryAsset(asset.target, asset.type);
-      } catch (cloudErr) {
-        console.warn(`[ACCOUNT DELETION] Non-fatal Cloudinary cleanup error for ${asset.target}:`, cloudErr.message);
-      }
-    }
+    job.pendingAssetCleanup = [];
+    job.step = 'mongo_cleanup';
+    await job.save();
 
-    // Clean up local avatar file if stored on disk
-    if (learner.avatar && learner.avatar.startsWith('/uploads/')) {
-      const localFilePath = path.join(__dirname, '..', learner.avatar.replace(/^\//, ''));
-      if (fs.existsSync(localFilePath)) {
-        try {
-          fs.unlinkSync(localFilePath);
-        } catch (fErr) {
-          console.warn(`[ACCOUNT DELETION] Could not delete local avatar file: ${localFilePath}`);
-        }
-      }
-    }
+    // 3. Execute atomic transactional MongoDB deletion + shared-data anonymization + verification
+    const cleanupMeta = await executeTransactionalMongoCleanup(learnerId);
+    invalidateCourseCaches(cleanupMeta.allCacheCourseIds);
 
-    // 3. Delete user-owned and user-associated MongoDB records
-    if (job) {
-      job.step = 'mongo_cleanup';
-      await job.save();
-    }
-
-    await PersonalNote.deleteMany({ learnerId });
-    await Bookmark.deleteMany({ learnerId });
-    await BookmarkFolder.deleteMany({ learnerId });
-    await Enrolment.deleteMany({ learnerId });
-    await CompletionRecord.deleteMany({ learner_id: learnerId });
-    await AssessmentSubmission.deleteMany({ learnerId });
-    await Certificate.deleteMany({ learnerId });
-    await PointTransaction.deleteMany({ $or: [{ learnerId }, { userId: learnerId }] });
-    await LearnerActivity.deleteMany({ learnerId });
-    await Notification.deleteMany({ recipientId: learnerId });
-    await CourseQuestion.deleteMany({ userId: learnerId });
-    await CourseReview.deleteMany({ learnerId });
-
-    // 4. Recalculate rating stats for courses where the learner had left a review
-    for (const cId of affectedCourseIds) {
-      await updateCourseRatingStats(cId);
-    }
-
-    // 5. Delete the Learner document
-    if (job) {
-      job.step = 'user_document_deletion';
-      await job.save();
-    }
-    await Learner.findByIdAndDelete(learnerId);
-
-    // 6. Verification phase: ensure 0 records remain
-    const remainingLearner = await Learner.findById(learnerId);
-    const remainingEnrolments = await Enrolment.countDocuments({ learnerId });
-    const remainingCerts = await Certificate.countDocuments({ learnerId });
-    const remainingNotes = await PersonalNote.countDocuments({ learnerId });
-    const remainingBookmarks = await Bookmark.countDocuments({ learnerId });
-    const remainingSubmissions = await AssessmentSubmission.countDocuments({ learnerId });
-    const remainingRecords = await CompletionRecord.countDocuments({ learner_id: learnerId });
-
-    const totalRemaining = (remainingLearner ? 1 : 0) + remainingEnrolments + remainingCerts + remainingNotes + remainingBookmarks + remainingSubmissions + remainingRecords;
-
-    if (totalRemaining > 0) {
-      throw new Error(`Data verification failed: ${totalRemaining} orphaned records still detected.`);
-    }
-
-    // 7. Mark DeletionJob as completed
-    if (job) {
-      job.status = 'completed';
-      job.step = 'completed';
-      job.completedAt = new Date();
-      job.error = null;
-      await job.save();
-    }
+    // 4. Minimize & anonymize DeletionJob PII upon successful completion (retained only for 30-day audit TTL)
+    job.email = 'anonymized@deleted.local';
+    job.emailHash = emailHash;
+    job.inventory.notificationsReferencedCleaned = cleanupMeta.notificationsReferencedCleaned;
+    job.inventory.courseQuestionsDeleted = cleanupMeta.courseQuestionsDeleted;
+    job.inventory.courseQuestionsAnonymized = cleanupMeta.courseQuestionsAnonymized;
+    job.inventory.cloudinaryAssets = [];
+    job.pendingAssetCleanup = [];
+    job.status = 'completed';
+    job.step = 'completed';
+    job.completedAt = new Date();
+    job.error = null;
+    await job.save();
 
     return {
       success: true,
       jobId,
-      inventory: inventoryCounts,
+      inventory: {
+        ...inventoryCounts,
+        notificationsReferencedCleaned: cleanupMeta.notificationsReferencedCleaned,
+        courseQuestionsDeleted: cleanupMeta.courseQuestionsDeleted,
+        courseQuestionsAnonymized: cleanupMeta.courseQuestionsAnonymized
+      },
       message: 'Your UpSkillR account has been permanently deleted.'
     };
   } catch (err) {
     console.error('[ACCOUNT DELETION ERROR]', err);
-    if (job) {
+    if (job && job.status !== 'failed') {
       job.status = 'failed';
-      job.error = err.message;
-      await job.save();
+      job.error = err.message || 'Account deletion failed.';
+      await job.save().catch(() => {});
     }
+    if (!err.jobId) err.jobId = jobId;
     throw err;
   }
+};
+
+// ─── Retry Failed Deletion Job (External Storage & Incomplete Runs) ───
+const retryDeletionJob = async (jobId, options = {}) => {
+  const job = await DeletionJob.findOne({ jobId });
+  if (!job) {
+    throw new Error(`DeletionJob not found: ${jobId}`);
+  }
+  if (job.status === 'completed') {
+    return {
+      success: true,
+      alreadyCompleted: true,
+      jobId: job.jobId,
+      inventory: job.inventory
+    };
+  }
+
+  return await executePermanentDeletion(
+    job.learnerId,
+    job.email,
+    job.authProvider,
+    { ...options, existingJob: job }
+  );
 };
 
 module.exports = {
@@ -358,5 +774,8 @@ module.exports = {
   recordDeleteOtpAttempt,
   sendDeletionOtpEmail,
   executePermanentDeletion,
+  retryDeletionJob,
+  collectLearnerAssets,
+  executeExternalAssetCleanup,
   updateCourseRatingStats
 };

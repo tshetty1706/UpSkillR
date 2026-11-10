@@ -221,18 +221,27 @@ export const CourseManager = ({
       const overviewData = await overviewRes.json().catch(() => null);
       if (overviewData && overviewData.success && overviewData.overview) {
         const fetchedOverview = overviewData.overview;
-        setOverview(fetchedOverview);
+        const resolvedCert =
+          typeof fetchedCourse.certificate === 'boolean'
+            ? fetchedCourse.certificate
+            : fetchedOverview.certificate !== undefined
+              ? Boolean(fetchedOverview.certificate)
+              : Boolean(fetchedCourse.certificateSettings?.enabled);
+        setOverview({ ...fetchedOverview, certificate: resolvedCert });
         setOverviewForm({
           fullDescription: fetchedOverview.fullDescription || fetchedCourse.description || '',
           prerequisites: Array.isArray(fetchedOverview.prerequisites) ? fetchedOverview.prerequisites : [],
           learningOutcomes: Array.isArray(fetchedOverview.learningOutcomes) ? fetchedOverview.learningOutcomes : [],
           skills: Array.isArray(fetchedOverview.skills) ? fetchedOverview.skills : (fetchedCourse.skills || []),
           techStack: Array.isArray(fetchedOverview.techStack) ? fetchedOverview.techStack : [],
-          certificate: fetchedOverview.certificate !== undefined ? fetchedOverview.certificate : true,
+          certificate: resolvedCert,
           instructorMessage: fetchedOverview.instructorMessage || '',
           faqs: Array.isArray(fetchedOverview.faqs) ? fetchedOverview.faqs : []
         });
       } else {
+        const resolvedCert = Boolean(
+          fetchedCourse.certificate === true || fetchedCourse.certificateSettings?.enabled === true
+        );
         // Fallback default overview structure
         const fallbackOverview = {
           courseId: fetchedCourse._id,
@@ -241,7 +250,7 @@ export const CourseManager = ({
           learningOutcomes: Array.isArray(fetchedCourse.whatYouWillLearn) ? fetchedCourse.whatYouWillLearn : [],
           skills: Array.isArray(fetchedCourse.skills) ? fetchedCourse.skills : [],
           techStack: [],
-          certificate: true,
+          certificate: resolvedCert,
           instructorMessage: '',
           faqs: []
         };
@@ -1164,17 +1173,17 @@ export const CourseManager = ({
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
                         <h4 className="cert-heading" style={{ margin: 0 }}>Course Completion Certificate</h4>
-                        <span className={`cert-status-pill ${overview?.certificate !== false ? 'status-enabled' : 'status-disabled'}`}>
-                          {overview?.certificate !== false ? 'Enabled' : 'Disabled'}
+                        <span className={`cert-status-pill ${overview?.certificate === true ? 'status-enabled' : 'status-disabled'}`}>
+                          {overview?.certificate === true ? 'Enabled' : 'Disabled'}
                         </span>
                       </div>
                       <p className="cert-subtext" style={{ marginTop: '0.35rem' }}>
-                        {overview?.certificate !== false
+                        {overview?.certificate === true
                           ? 'Learners receive a verified UpSkillR digital certificate with QR code and instructor signature upon finishing 100% of curriculum.'
                           : 'Certificates are disabled for this course. Learners complete normally without an issued certificate.'}
                       </p>
 
-                      {overview?.certificate !== false && (
+                      {overview?.certificate === true && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.85rem', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                             Certificates Issued: <strong style={{ color: '#10b981' }}>{certStats.totalIssued}</strong>
@@ -1485,7 +1494,7 @@ export const CourseManager = ({
                         learningOutcomes: overview?.learningOutcomes || [],
                         skills: overview?.skills || [],
                         techStack: overview?.techStack || [],
-                        certificate: overview?.certificate !== false,
+                        certificate: overview?.certificate === true,
                         instructorMessage: overview?.instructorMessage || '',
                         faqs: overview?.faqs || []
                       });

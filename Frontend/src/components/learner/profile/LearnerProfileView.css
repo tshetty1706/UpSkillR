@@ -1299,3 +1299,282 @@
   margin: 0;
   line-height: 1.5;
 }
+
+/* ─── 2b. Earned Badges Showcase Section ─── */
+.profile-badges-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.profile-badges-loading {
+  padding: 28px;
+  text-align: center;
+  color: var(--text-secondary);
+  background-color: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: 0.92rem;
+}
+
+.profile-badges-empty-box {
+  background-color: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  padding: 36px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.profile-badges-empty-box .empty-icon-subtle {
+  color: var(--text-muted);
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+
+.profile-badges-empty-box .empty-lead {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.profile-badges-empty-box .empty-sub {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  max-width: 480px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.profile-earned-badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.profile-earned-badge-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.profile-earned-badge-card:hover {
+  transform: translateY(-2px);
+}
+
+/* Tier & Category Specific Accents */
+.profile-earned-badge-card.category-course_completion.tier-normal {
+  border-color: rgba(6, 182, 212, 0.45);
+  box-shadow: 0 4px 16px -4px rgba(6, 182, 212, 0.18);
+}
+
+.profile-earned-badge-card.category-quiz_excellence.tier-normal {
+  border-color: rgba(168, 85, 247, 0.45);
+  box-shadow: 0 4px 16px -4px rgba(168, 85, 247, 0.18);
+}
+
+.profile-earned-badge-card.tier-bronze {
+  border-color: rgba(205, 127, 50, 0.45);
+  box-shadow: 0 4px 16px -4px rgba(205, 127, 50, 0.15);
+}
+
+.profile-earned-badge-card.tier-silver {
+  border-color: rgba(148, 163, 184, 0.45);
+  box-shadow: 0 4px 16px -4px rgba(148, 163, 184, 0.15);
+}
+
+.profile-earned-badge-card.tier-gold {
+  border-color: rgba(234, 179, 8, 0.48);
+  box-shadow: 0 4px 16px -4px rgba(234, 179, 8, 0.18);
+}
+
+.profile-earned-badge-card.tier-streak,
+.profile-earned-badge-card.category-streak.tier-normal {
+  border-color: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 4px 16px -4px rgba(16, 185, 129, 0.15);
+}
+
+.profile-badge-artwork-wrap {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 6px;
+}
+
+.profile-badge-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.profile-badge-unlocked-tick {
+  position: absolute;
+  bottom: -5px;
+  right: -5px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background-color: #10b981;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--surface);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+.profile-badge-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.profile-badge-tags-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.profile-badge-category-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.profile-badge-tier-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+}
+
+.profile-earned-badge-card.category-course_completion .profile-badge-tier-tag.tier-tag-normal {
+  background: rgba(6, 182, 212, 0.14);
+  color: #38bdf8;
+  border-color: rgba(6, 182, 212, 0.35);
+}
+
+.profile-earned-badge-card.category-quiz_excellence .profile-badge-tier-tag.tier-tag-normal {
+  background: rgba(168, 85, 247, 0.14);
+  color: #c084fc;
+  border-color: rgba(168, 85, 247, 0.35);
+}
+
+.profile-badge-tier-tag.tier-tag-bronze {
+  background: rgba(205, 127, 50, 0.14);
+  color: #d97706;
+  border-color: rgba(205, 127, 50, 0.35);
+}
+
+.profile-badge-tier-tag.tier-tag-silver {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.profile-badge-tier-tag.tier-tag-gold {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+  border-color: rgba(234, 179, 8, 0.35);
+}
+
+.profile-badge-tier-tag.tier-tag-streak,
+.profile-earned-badge-card.category-streak .profile-badge-tier-tag.tier-tag-normal {
+  background: rgba(16, 185, 129, 0.14);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+:root:not(.dark) .profile-earned-badge-card.category-course_completion .profile-badge-tier-tag.tier-tag-normal {
+  color: #0284c7;
+  background: rgba(6, 182, 212, 0.12);
+}
+
+:root:not(.dark) .profile-earned-badge-card.category-quiz_excellence .profile-badge-tier-tag.tier-tag-normal {
+  color: #7e22ce;
+  background: rgba(168, 85, 247, 0.12);
+}
+
+:root:not(.dark) .profile-badge-tier-tag.tier-tag-bronze {
+  color: #b45309;
+}
+
+:root:not(.dark) .profile-badge-tier-tag.tier-tag-silver {
+  color: #475569;
+}
+
+:root:not(.dark) .profile-badge-tier-tag.tier-tag-gold {
+  color: #a16207;
+}
+
+:root:not(.dark) .profile-badge-tier-tag.tier-tag-streak,
+:root:not(.dark) .profile-earned-badge-card.category-streak .profile-badge-tier-tag.tier-tag-normal {
+  color: #047857;
+}
+
+.profile-badge-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.profile-badge-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.profile-badge-earned-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--brand-primary);
+  margin-top: 2px;
+}
+
+.badge-cal-icon {
+  flex-shrink: 0;
+}
+
+@media (max-width: 1023px) {
+  .profile-earned-badges-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .profile-earned-badges-grid {
+    grid-template-columns: 1fr;
+  }
+}

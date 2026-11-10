@@ -17,8 +17,9 @@ import {
   BookOpen,
   MailCheck
 } from 'lucide-react';
+import { API_BASE } from '../../config/api';
 
-const API_BASE_URL = 'http://localhost:5000/api/auth';
+const API_BASE_URL = `${API_BASE}/auth`;
 
 export default function Login() {
   const { theme, toggleTheme } = useTheme();
@@ -149,7 +150,11 @@ export default function Login() {
         localStorage.removeItem('upskillr_token');
         localStorage.removeItem('upskillr_user');
 
-        if (user.role === 'instructor') {
+        const redirectPath = sessionStorage.getItem('upskillr_redirect_after_login');
+        if (redirectPath) {
+          sessionStorage.removeItem('upskillr_redirect_after_login');
+          navigate(redirectPath);
+        } else if (user.role === 'instructor') {
           if (user.applicationStatus === 'submitted') {
             navigate('/instructor/dashboard');
           } else {
@@ -341,20 +346,18 @@ export default function Login() {
       }
 
       const isInstructor = data.user?.role === 'instructor';
-      if (isInstructor) {
+      const redirectPath = sessionStorage.getItem('upskillr_redirect_after_login');
+      if (redirectPath) {
+        sessionStorage.removeItem('upskillr_redirect_after_login');
+        navigate(redirectPath);
+      } else if (isInstructor) {
         if (data.user?.applicationStatus === 'submitted') {
           navigate('/instructor/dashboard');
         } else {
           navigate('/instructor/application');
         }
       } else {
-        const redirectPath = sessionStorage.getItem('upskillr_redirect_after_login');
-        if (redirectPath) {
-          sessionStorage.removeItem('upskillr_redirect_after_login');
-          navigate(redirectPath);
-        } else {
-          navigate('/learner/dashboard');
-        }
+        navigate('/learner/dashboard');
       }
     } catch (err) {
       const errorMsg = err.message || 'Could not complete login. Check backend connection.';
@@ -407,20 +410,18 @@ export default function Login() {
       }
 
       const isInstructor = data.user?.role === 'instructor';
-      if (isInstructor) {
+      const redirectPath = sessionStorage.getItem('upskillr_redirect_after_login');
+      if (redirectPath) {
+        sessionStorage.removeItem('upskillr_redirect_after_login');
+        navigate(redirectPath);
+      } else if (isInstructor) {
         if (data.user?.applicationStatus === 'submitted') {
           navigate('/instructor/dashboard');
         } else {
           navigate('/instructor/application');
         }
       } else {
-        const redirectPath = sessionStorage.getItem('upskillr_redirect_after_login');
-        if (redirectPath) {
-          sessionStorage.removeItem('upskillr_redirect_after_login');
-          navigate(redirectPath);
-        } else {
-          navigate('/learner/dashboard');
-        }
+        navigate('/learner/dashboard');
       }
     } catch (err) {
       const otpErrorMsg = err.message || 'Invalid or expired verification code.';

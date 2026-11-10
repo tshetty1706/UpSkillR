@@ -183,9 +183,10 @@ export const Navbar = ({ user: propUser }) => {
 
           {currentUser ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              {currentUser.role === 'learner' && (
-                <NotificationBell onNavigateToCourse={() => navigate('/learner')} />
-              )}
+              <NotificationBell
+                userRole={currentUser.role}
+                onNavigateToCourse={() => navigate(currentUser.role === 'instructor' ? '/instructor' : '/learner')}
+              />
               <div
                 className="navbar-avatar-wrapper"
                 onClick={() => navigate(currentUser.role === 'instructor' ? '/instructor' : '/learner')}

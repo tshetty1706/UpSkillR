@@ -1023,6 +1023,7 @@ export const LearnerBookmarksView = ({ onNavigate, onExploreCourses }) => {
             <Search size={18} className="library-search-icon" aria-hidden="true" />
             <input
               type="search"
+              id="library-search-input"
               className="library-search-input"
               placeholder="Search resources, lessons, notes, or folders..."
               value={searchQuery}
@@ -1043,7 +1044,7 @@ export const LearnerBookmarksView = ({ onNavigate, onExploreCourses }) => {
 
           {/* Course Filter Dropdown */}
           <div className="library-course-filter-wrapper">
-            <label htmlFor="library-course-dropdown" className="visually-hidden">
+            <label htmlFor="library-course-dropdown" className="library-filter-label">
               Filter by Course
             </label>
             <div className="course-dropdown-box">

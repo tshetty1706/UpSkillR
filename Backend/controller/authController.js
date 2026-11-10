@@ -759,6 +759,15 @@ exports.manualLogin = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid email or password.' });
     }
 
+    if (user.deletionStatus === 'pending_deletion') {
+      res.clearCookie('token', { path: '/' });
+      res.clearCookie('upskillr_token', { path: '/' });
+      return res.status(403).json({
+        success: false,
+        message: 'This account is deactivated and pending permanent deletion.'
+      });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       recordOtpAttempt(clientIp, normalizedEmail);
@@ -854,6 +863,15 @@ exports.verifyLoginOtp = async (req, res) => {
     const user = await findUserByEmail(normalizedEmail);
     if (!user) {
       return res.status(400).json({ success: false, message: 'Invalid or expired login session. Please sign in again.' });
+    }
+
+    if (user.deletionStatus === 'pending_deletion') {
+      res.clearCookie('token', { path: '/' });
+      res.clearCookie('upskillr_token', { path: '/' });
+      return res.status(403).json({
+        success: false,
+        message: 'This account is deactivated and pending permanent deletion.'
+      });
     }
 
     if (!user.isVerified) {
@@ -1022,7 +1040,7 @@ exports.forgotPassword = async (req, res) => {
     // 2. Dual Collection Search (Learner & Instructor)
     const user = await findUserByEmail(normalizedEmail);
 
-    if (!user) {
+    if (!user || user.deletionStatus === 'pending_deletion') {
       // Record attempt to prevent timing probes
       recordResetAttempt(clientIp, normalizedEmail);
       return res.status(200).json({
@@ -1144,6 +1162,13 @@ exports.resetPassword = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
     const user = await findUserByEmail(normalizedEmail);
+
+    if (user?.deletionStatus === 'pending_deletion') {
+      return res.status(403).json({
+        success: false,
+        message: 'This account is deactivated and pending permanent deletion.'
+      });
+    }
 
     if (!user || !user.resetPasswordOtp || !user.resetPasswordExpires) {
       return res.status(400).json({
@@ -1472,6 +1497,18 @@ exports.googleOAuthCallback = async (req, res) => {
         return res.redirect(redirectUrl);
       }
 
+      if (user.deletionStatus === 'pending_deletion') {
+        res.clearCookie('token', { path: '/' });
+        res.clearCookie('upskillr_token', { path: '/' });
+        const redirectUrl = `${FRONTEND_URL}/login?error=account_deleted&provider=google`;
+        processedOAuthCodes.set(cleanCode, redirectUrl);
+        inflightOAuthExchanges.delete(cleanCode);
+        setTimeout(() => processedOAuthCodes.delete(cleanCode), 120000).unref();
+
+        resolveExchange(redirectUrl);
+        return res.redirect(redirectUrl);
+      }
+
       // Existing linked user
       if (googleId && !user.googleId) user.googleId = String(googleId);
       user.isVerified = true;
@@ -1483,7 +1520,8 @@ exports.googleOAuthCallback = async (req, res) => {
       if (existingUser) {
         res.clearCookie('token', { path: '/' });
         res.clearCookie('upskillr_token', { path: '/' });
-        const redirectUrl = `${FRONTEND_URL}/login?error=account_exists&provider=google`;
+        const errCode = existingUser.deletionStatus === 'pending_deletion' ? 'account_deleted' : 'account_exists';
+        const redirectUrl = `${FRONTEND_URL}/login?error=${errCode}&provider=google`;
         processedOAuthCodes.set(cleanCode, redirectUrl);
         inflightOAuthExchanges.delete(cleanCode);
         setTimeout(() => processedOAuthCodes.delete(cleanCode), 120000).unref();
@@ -1662,6 +1700,12 @@ exports.githubOAuthCallback = async (req, res) => {
         return res.redirect(redirectUrl);
       }
 
+      if (user.deletionStatus === 'pending_deletion') {
+        res.clearCookie('token', { path: '/' });
+        res.clearCookie('upskillr_token', { path: '/' });
+        return res.redirect(`${FRONTEND_URL}/login?error=account_deleted&provider=github`);
+      }
+
       if (githubId && !user.githubId) user.githubId = String(githubId);
       user.isVerified = true;
       if (avatar_url && !user.avatar) user.avatar = avatar_url;
@@ -1672,7 +1716,8 @@ exports.githubOAuthCallback = async (req, res) => {
       if (existingUser) {
         res.clearCookie('token', { path: '/' });
         res.clearCookie('upskillr_token', { path: '/' });
-        return res.redirect(`${FRONTEND_URL}/login?error=account_exists&provider=github`);
+        const errCode = existingUser.deletionStatus === 'pending_deletion' ? 'account_deleted' : 'account_exists';
+        return res.redirect(`${FRONTEND_URL}/login?error=${errCode}&provider=github`);
       }
 
       const Model = getModelByRole(userRole);
@@ -2018,7 +2063,14 @@ exports.uploadProfilePhoto = async (req, res) => {
 
     const userId = req.user.id;
     const role = req.user.role;
-    
+
+    const existingUser = role === 'instructor'
+      ? await Instructor.findById(userId)
+      : await Learner.findById(userId);
+    if (!existingUser) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
     // Direct upload to Cloudinary (Zero Local Disk Writes)
     const uploadResult = await uploadBufferToCloudinary(
       req.file.buffer,
@@ -2027,18 +2079,36 @@ exports.uploadProfilePhoto = async (req, res) => {
       'upskillr_profiles'
     );
     const photoUrl = uploadResult.secure_url;
+    const photoPublicId = uploadResult.public_id || '';
+
+    // Delete previous user-owned profile photo asset on Cloudinary/disk so no orphaned avatar remains
+    if (existingUser.avatarPublicId || existingUser.avatar) {
+      const oldTarget = existingUser.avatarPublicId || existingUser.avatar;
+      if (!photoPublicId || oldTarget !== photoPublicId) {
+        await deleteCloudinaryAsset(oldTarget, 'image').catch(() => {});
+      }
+      if (existingUser.avatar && existingUser.avatar.startsWith('/uploads/')) {
+        const fs = require('fs');
+        const path = require('path');
+        const oldPath = path.resolve(__dirname, '..', existingUser.avatar.replace(/^\//, ''));
+        const uploadsRoot = path.resolve(__dirname, '..', 'uploads');
+        if (oldPath.startsWith(uploadsRoot + path.sep) && fs.existsSync(oldPath)) {
+          try { fs.unlinkSync(oldPath); } catch (_) {}
+        }
+      }
+    }
 
     let updatedUser;
     if (role === 'learner') {
       updatedUser = await Learner.findByIdAndUpdate(
         userId,
-        { avatar: photoUrl },
+        { avatar: photoUrl, avatarPublicId: photoPublicId },
         { new: true }
       ).select('-password');
     } else if (role === 'instructor') {
       updatedUser = await Instructor.findByIdAndUpdate(
         userId,
-        { avatar: photoUrl },
+        { avatar: photoUrl, avatarPublicId: photoPublicId },
         { new: true }
       ).select('-password');
     }
@@ -2072,26 +2142,35 @@ exports.removeProfilePhoto = async (req, res) => {
     const userId = req.user.id;
     const role = req.user.role;
 
-    // Delete existing Cloudinary asset if present
+    // Delete existing Cloudinary or local asset if present
     const existingUser = role === 'instructor'
       ? await Instructor.findById(userId)
       : await Learner.findById(userId);
 
-    if (existingUser && existingUser.avatar) {
-      await deleteCloudinaryAsset(existingUser.avatar);
+    if (existingUser && (existingUser.avatarPublicId || existingUser.avatar)) {
+      await deleteCloudinaryAsset(existingUser.avatarPublicId || existingUser.avatar, 'image');
+      if (existingUser.avatar && existingUser.avatar.startsWith('/uploads/')) {
+        const fs = require('fs');
+        const path = require('path');
+        const oldPath = path.resolve(__dirname, '..', existingUser.avatar.replace(/^\//, ''));
+        const uploadsRoot = path.resolve(__dirname, '..', 'uploads');
+        if (oldPath.startsWith(uploadsRoot + path.sep) && fs.existsSync(oldPath)) {
+          try { fs.unlinkSync(oldPath); } catch (_) {}
+        }
+      }
     }
 
     let updatedUser;
     if (role === 'learner') {
       updatedUser = await Learner.findByIdAndUpdate(
         userId,
-        { avatar: '' },
+        { avatar: '', avatarPublicId: '' },
         { new: true }
       ).select('-password');
     } else if (role === 'instructor') {
       updatedUser = await Instructor.findByIdAndUpdate(
         userId,
-        { avatar: '' },
+        { avatar: '', avatarPublicId: '' },
         { new: true }
       ).select('-password');
     }

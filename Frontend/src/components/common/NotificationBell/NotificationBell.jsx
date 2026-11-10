@@ -9,7 +9,9 @@ import {
   Check,
   ExternalLink,
   Clock,
-  Sparkles
+  Sparkles,
+  MessageSquare,
+  HelpCircle
 } from 'lucide-react';
 import { API_BASE } from '../../../config/api';
 import './NotificationBell.css';
@@ -33,12 +35,28 @@ const formatTimeAgo = (dateString) => {
   return past.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
 
-export const NotificationBell = ({ onNavigateToCourse }) => {
+export const NotificationBell = ({ onNavigateToCourse, userRole }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef(null);
+
+  const getEndpoints = useCallback(() => {
+    let role = userRole;
+    if (!role) {
+      try {
+        const u = JSON.parse(sessionStorage.getItem('upskillr_user') || '{}');
+        role = u.role;
+      } catch (e) {}
+    }
+    const isInstructor = role === 'instructor';
+    return {
+      fetch: isInstructor ? `${API_BASE}/courses/instructor/notifications` : `${API_BASE}/learners/me/notifications`,
+      read: (id) => isInstructor ? `${API_BASE}/courses/instructor/notifications/${id}/read` : `${API_BASE}/learners/me/notifications/${id}/read`,
+      readAll: isInstructor ? `${API_BASE}/courses/instructor/notifications/read-all` : `${API_BASE}/learners/me/notifications/read-all`
+    };
+  }, [userRole]);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -46,7 +64,8 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
       const headers = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`${API_BASE}/learners/me/notifications`, {
+      const { fetch: fetchUrl } = getEndpoints();
+      const res = await fetch(fetchUrl, {
         headers,
         credentials: 'include'
       });
@@ -58,7 +77,7 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
     } catch (err) {
       console.error('Failed to fetch notifications:', err);
     }
-  }, []);
+  }, [getEndpoints]);
 
   useEffect(() => {
     fetchNotifications();
@@ -110,7 +129,8 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
 
       const headers = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/learners/me/notifications/${id}/read`, {
+      const { read: readUrl } = getEndpoints();
+      const res = await fetch(readUrl(id), {
         method: 'PATCH',
         headers,
         credentials: 'include'
@@ -138,7 +158,8 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
 
       const headers = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/learners/me/notifications/read-all`, {
+      const { readAll: readAllUrl } = getEndpoints();
+      const res = await fetch(readAllUrl, {
         method: 'PATCH',
         headers,
         credentials: 'include'
@@ -160,6 +181,25 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
     if (notif.type === 'BADGE_UNLOCKED') {
       window.history.pushState({}, '', '/learner/achievements');
       window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/learner/achievements' } }));
+      return;
+    }
+    if (notif.type === 'QUESTION_REPLY' || notif.type === 'NEW_QUESTION') {
+      const targetUrl = notif.link || `/courses/${notif.courseId}?tab=qa&questionId=${notif.questionId || ''}`;
+      window.history.pushState({}, '', targetUrl);
+      window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: targetUrl } }));
+      return;
+    }
+    if (notif.type === 'COURSE_QUESTION') {
+      const targetUrl = notif.link || `/instructor/inquiries?courseId=${notif.courseId}&questionId=${notif.questionId || ''}`;
+      window.history.pushState({}, '', targetUrl);
+      window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: targetUrl } }));
+      return;
+    }
+    if (['NEW_REVIEW', 'COURSE_REVIEW', 'NEW_ASSESSMENT', 'ASSESSMENT_ADDED', 'ASSESSMENT_GRADED', 'NEW_ANNOUNCEMENT', 'COURSE_NOTICE', 'COURSE_ANNOUNCEMENT'].includes(notif.type) && notif.courseId) {
+      const fallbackTab = notif.section || (notif.type.includes('REVIEW') ? 'reviews' : notif.type.includes('ASSESSMENT') ? 'assessments' : 'notices');
+      const targetUrl = notif.link || `/courses/${notif.courseId}?tab=${fallbackTab}`;
+      window.history.pushState({}, '', targetUrl);
+      window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: targetUrl } }));
       return;
     }
     if (onNavigateToCourse && notif.courseId) {
@@ -228,6 +268,48 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
                 {notifications.map((notif) => {
                   const isBadge = notif.type === 'BADGE_UNLOCKED';
                   const isModule = notif.type === 'NEW_MODULE';
+                  const isQuestionReply = notif.type === 'QUESTION_REPLY';
+                  const isCourseQuestion = notif.type === 'COURSE_QUESTION' || notif.type === 'NEW_QUESTION';
+                  const isReview = notif.type === 'NEW_REVIEW' || notif.type === 'COURSE_REVIEW';
+                  const isAssessment = notif.type === 'NEW_ASSESSMENT' || notif.type === 'ASSESSMENT_ADDED' || notif.type === 'ASSESSMENT_GRADED';
+                  const isNotice = notif.type === 'NEW_ANNOUNCEMENT' || notif.type === 'COURSE_NOTICE' || notif.type === 'COURSE_ANNOUNCEMENT';
+
+                  const iconBoxClass = isBadge || isAssessment
+                    ? 'badge-box'
+                    : isModule || isNotice
+                      ? 'module-box'
+                      : isQuestionReply || isReview
+                        ? 'qa-box'
+                        : isCourseQuestion
+                          ? 'question-box'
+                          : 'lesson-box';
+
+                  const typeTagClass = isBadge || isAssessment
+                    ? 'tag-badge'
+                    : isModule || isNotice
+                      ? 'tag-module'
+                      : isQuestionReply || isReview
+                        ? 'tag-qa'
+                        : isCourseQuestion
+                          ? 'tag-question'
+                          : 'tag-lesson';
+
+                  const typeTagLabel = isBadge
+                    ? 'Badge Unlocked'
+                    : isModule
+                      ? 'New Module'
+                      : isQuestionReply
+                        ? 'Q&A Reply'
+                        : isCourseQuestion
+                          ? (notif.type === 'NEW_QUESTION' ? 'New Q&A' : 'Student Question')
+                          : isReview
+                            ? 'Course Review'
+                            : isAssessment
+                              ? 'New Assessment'
+                              : isNotice
+                                ? 'Notice Board'
+                                : 'New Lesson';
+
                   return (
                     <li
                       key={notif._id}
@@ -238,14 +320,26 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
                         {!notif.isRead && <span className="unread-dot" title="Unread" />}
                       </div>
 
-                      <div className={`notif-icon-box ${isBadge ? 'badge-box' : isModule ? 'module-box' : 'lesson-box'}`}>
-                        {isBadge ? <Award size={17} /> : isModule ? <Layers size={17} /> : <Video size={17} />}
+                      <div className={`notif-icon-box ${iconBoxClass}`}>
+                        {isBadge || isAssessment ? (
+                          <Award size={17} />
+                        ) : isNotice ? (
+                          <Bell size={17} />
+                        ) : isModule ? (
+                          <Layers size={17} />
+                        ) : isQuestionReply || isReview ? (
+                          <MessageSquare size={17} />
+                        ) : isCourseQuestion ? (
+                          <HelpCircle size={17} />
+                        ) : (
+                          <Video size={17} />
+                        )}
                       </div>
 
                       <div className="notif-content-column">
                         <div className="notif-meta-row">
-                          <span className={`notif-type-tag ${isBadge ? 'tag-badge' : isModule ? 'tag-module' : 'tag-lesson'}`}>
-                            {isBadge ? 'Badge Unlocked' : isModule ? 'New Module' : 'New Lesson'}
+                          <span className={`notif-type-tag ${typeTagClass}`}>
+                            {typeTagLabel}
                           </span>
                           <span className="notif-time-ago">
                             <Clock size={11} />
@@ -254,7 +348,7 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
                         </div>
 
                         <p className="notif-course-title">
-                          {isBadge ? (notif.title || 'Badge Unlocked!') : notif.courseTitle}
+                          {isBadge ? (notif.title || 'Badge Unlocked!') : (notif.title || notif.courseTitle)}
                         </p>
                         <p className="notif-detail-text">
                           {isBadge ? (
@@ -264,10 +358,10 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
                               {notif.moduleTitle && isModule && (
                                 <strong>{notif.moduleTitle}</strong>
                               )}
-                              {notif.lessonTitle && !isModule && (
+                              {notif.lessonTitle && !isModule && !isQuestionReply && !isCourseQuestion && (
                                 <strong>{notif.lessonTitle}</strong>
                               )}
-                              {!notif.moduleTitle && !notif.lessonTitle && notif.message}
+                              {notif.message}
                             </>
                           )}
                         </p>
@@ -285,7 +379,7 @@ export const NotificationBell = ({ onNavigateToCourse }) => {
                             </button>
                           )}
                           <span className="notif-view-course-link">
-                            <span>{isBadge ? 'View Badges' : 'Open'}</span>
+                            <span>{isBadge ? 'View Badges' : isQuestionReply ? 'View Answer' : isCourseQuestion ? 'Answer Doubt' : 'Open'}</span>
                             <ExternalLink size={11} />
                           </span>
                         </div>

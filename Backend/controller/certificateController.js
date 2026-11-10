@@ -4,6 +4,7 @@ const Enrolment = require('../model/Enrolment');
 const Learner = require('../model/Learner');
 const Instructor = require('../model/Instructor');
 const { issueCourseCertificate } = require('../services/certificateService');
+const { isCourseCertificateEnabled, buildLearnerCertificatesPayload } = require('../utils/courseCertificate');
 
 /**
  * 1. GET /api/certificates/me
@@ -12,30 +13,13 @@ const { issueCourseCertificate } = require('../services/certificateService');
 exports.getMyCertificates = async (req, res) => {
   try {
     const learnerId = req.user.id;
-
-    // 1. Fetch real certificate records
-    const certDocs = await Certificate.find({ learnerId })
-      .populate('courseId', 'title thumbnail category instructorName')
-      .sort({ issuedAt: -1 });
-
-    // Format output
-    const certificates = certDocs.map(c => ({
-      _id: c._id,
-      certificateId: c.certificateId,
-      courseId: c.courseId?._id || c.courseId,
-      courseTitle: c.courseNameSnapshot || c.courseId?.title || 'Completed Course',
-      courseThumbnail: c.courseId?.thumbnail || '',
-      category: c.courseId?.category || 'General',
-      studentName: c.studentNameSnapshot,
-      instructorName: c.instructorNameSnapshot || c.courseId?.instructorName || 'UpSkillr Instructor',
-      instructorDesignation: c.instructorDesignationSnapshot || 'Course Instructor',
-      completionDate: c.completionDate,
-      issuedAt: c.issuedAt,
-      certificateImageUrl: c.certificateImageUrl,
-      verificationUrl: c.verificationUrl,
-      verificationStatus: c.verificationStatus,
-      hasCertificate: true
-    }));
+    const certificates = await buildLearnerCertificatesPayload({
+      Certificate,
+      Enrolment,
+      issueCourseCertificate,
+      learnerId,
+      learnerUser: req.user
+    });
 
     return res.status(200).json({
       success: true,
@@ -61,26 +45,25 @@ exports.claimCertificate = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Course ID is required.' });
     }
 
-    // Check existing certificate first
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found.' });
+    }
+
+    if (!isCourseCertificateEnabled(course)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Certificates are not enabled for this course by the instructor.'
+      });
+    }
+
+    // Check existing certificate after verifying instructor certificate setting
     const existing = await Certificate.findOne({ learnerId, courseId });
     if (existing) {
       return res.status(200).json({
         success: true,
         message: 'Certificate already issued.',
         certificate: existing
-      });
-    }
-
-    const course = await Course.findById(courseId);
-    if (!course) {
-      return res.status(404).json({ success: false, message: 'Course not found.' });
-    }
-
-    const isEnabled = Boolean(course.certificate === true || course.certificateSettings?.enabled === true);
-    if (!isEnabled) {
-      return res.status(400).json({
-        success: false,
-        message: 'Certificates are not enabled for this course by the instructor.'
       });
     }
 

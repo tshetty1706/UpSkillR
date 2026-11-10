@@ -130,9 +130,26 @@ export const LearnerDashboard = ({ user }) => {
     fetchDashboardData();
 
     const handlePointsUpdate = () => fetchGamificationData();
+    const handleLiveSync = () => {
+      if (document.visibilityState && document.visibilityState !== 'visible') return;
+      fetchMyEnrolments();
+    };
     window.addEventListener('upskillr_points_updated', handlePointsUpdate);
-    return () => window.removeEventListener('upskillr_points_updated', handlePointsUpdate);
-  }, [fetchDashboardData, fetchGamificationData]);
+    window.addEventListener('focus', handleLiveSync);
+    document.addEventListener('visibilitychange', handleLiveSync);
+    return () => {
+      window.removeEventListener('upskillr_points_updated', handlePointsUpdate);
+      window.removeEventListener('focus', handleLiveSync);
+      document.removeEventListener('visibilitychange', handleLiveSync);
+    };
+  }, [fetchDashboardData, fetchGamificationData, fetchMyEnrolments]);
+
+  // Refresh live course settings (such as certificate availability) when switching learner views
+  useEffect(() => {
+    if (activeView === 'my-learning' || activeView === 'achievements' || activeView === 'dashboard') {
+      fetchMyEnrolments();
+    }
+  }, [activeView, fetchMyEnrolments]);
 
   // Compute the single most recently viewed course strictly from actual user activity
   const recentlyViewedCourse = useMemo(() => {
@@ -283,33 +300,10 @@ export const LearnerDashboard = ({ user }) => {
     }
   };
 
-  // Submit Course Rating
-  const handleRatingSubmit = async (courseId, ratingData) => {
-    const token = sessionStorage.getItem('upskillr_token');
-    toast.success('⭐ Rating and review submitted! Thank you.');
-
-    try {
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`${API_BASE}/courses/rate`, {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({
-          courseId,
-          rating: ratingData.rating,
-          feedback: ratingData.feedback,
-          tags: ratingData.tags
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        fetchMyEnrolments();
-      }
-    } catch (err) {
-      console.error('Error submitting rating:', err);
-    }
+  // Sync enrolments after CourseRatingModal persists review via shared API
+  const handleRatingSubmit = async () => {
+    await fetchMyEnrolments();
+    setRatingModalCourse(null);
   };
 
   // Logout Handler
@@ -458,12 +452,22 @@ export const LearnerDashboard = ({ user }) => {
         <CourseRatingModal
           isOpen={Boolean(ratingModalCourse)}
           course={ratingModalCourse}
-          initialRating={ratingModalCourse.rating}
+          initialRating={(() => {
+            const matchingEnrol = enrolments.find((e) => {
+              const cId = typeof e.courseId === 'object' ? e.courseId?._id : e.courseId;
+              return String(cId) === String(ratingModalCourse._id || ratingModalCourse.id);
+            });
+            if (matchingEnrol && matchingEnrol.rating) {
+              return {
+                rating: matchingEnrol.rating,
+                feedback: matchingEnrol.feedback || '',
+                tags: matchingEnrol.feedbackTags || []
+              };
+            }
+            return null;
+          })()}
           onClose={() => setRatingModalCourse(null)}
-          onSubmit={(courseId, ratingData) => {
-            handleRatingSubmit(courseId || ratingModalCourse._id, ratingData);
-            setRatingModalCourse(null);
-          }}
+          onSubmit={handleRatingSubmit}
         />
       )}
 

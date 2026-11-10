@@ -36,6 +36,7 @@ export const AssessmentCreationWizard = ({
   courseId,
   modules = [],
   initialAssessment = null,
+  initialStep = null,
   onCancel,
   onSaveSuccess,
   apiBase = 'http://localhost:5000/api',
@@ -45,7 +46,12 @@ export const AssessmentCreationWizard = ({
   const isEditing = Boolean(initialAssessment?._id);
 
   // Stepper state: 0 for Introduction (new only), 1 to 5 for wizard steps
-  const [currentStep, setCurrentStep] = useState(() => (isEditing ? 1 : 0));
+  const [currentStep, setCurrentStep] = useState(() => {
+    if (isEditing && typeof initialStep === 'number' && initialStep >= 1 && initialStep <= 5) {
+      return initialStep;
+    }
+    return isEditing ? 1 : 0;
+  });
   const [maxVisitedStep, setMaxVisitedStep] = useState(() => (isEditing ? 5 : 1));
 
   // ── Step 1: Module Selection State ──

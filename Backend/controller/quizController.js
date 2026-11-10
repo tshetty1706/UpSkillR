@@ -3,6 +3,7 @@ const Course = require('../model/Course');
 const Enrolment = require('../model/Enrolment');
 const Learner = require('../model/Learner');
 const AssessmentSubmission = require('../model/AssessmentSubmission');
+const { calculateCourseLeaderboard, findCourseQuizzesOnly } = require('../services/leaderboardService');
 
 /**
  * Helper to locate quiz inside Course schema:
@@ -93,91 +94,14 @@ function findQuizInCourse(course, quizId) {
     }
   }
 
-  // 2. Check course-level courseAssessments
-  for (const ca of course.courseAssessments || []) {
-    if (String(ca._id) === targetIdStr) {
-      return {
-        type: 'course_assessment',
-        quizObj: ca,
-        questions: ca.questions || [],
-        title: ca.title || 'Course Assessment',
-        description: ca.description || '',
-        instructions: ca.instructions || '',
-        passThresholdPercent: ca.passThresholdPercent ?? 70,
-        durationMinutes: ca.durationMinutes ?? ca.timeLimit ?? null,
-        totalMarks: ca.totalMarks ?? null,
-        module: null,
-        lesson: null,
-        item: null,
-        assessmentId: ca._id
-      };
-    }
-  }
-
   return null;
 }
 
 /**
- * Helper to retrieve all quiz IDs and metadata across a course
+ * Helper to retrieve all quiz IDs and metadata across a course (excludes milestone courseAssessments)
  */
 function findAllQuizzesInCourse(course) {
-  const quizzes = [];
-  const seenIds = new Set();
-  if (!course) return quizzes;
-
-  // 1. Traverse modules -> lessons -> items
-  for (let mIdx = 0; mIdx < (course.modules || []).length; mIdx++) {
-    const mod = course.modules[mIdx];
-    for (let lIdx = 0; lIdx < (mod.lessons || []).length; lIdx++) {
-      const les = mod.lessons[lIdx];
-      const items = les.items || les.contentItems || [];
-      for (let iIdx = 0; iIdx < items.length; iIdx++) {
-        const it = items[iIdx];
-        const rawType = String(it.type || '').trim().toLowerCase();
-        const hasQuizData = it.quiz || (Array.isArray(it.questions) && it.questions.length > 0);
-        const isQuiz = rawType === 'quiz' || rawType.includes('quiz') || hasQuizData;
-        if (isQuiz && !seenIds.has(String(it._id))) {
-          seenIds.add(String(it._id));
-          quizzes.push({
-            id: it._id,
-            title: it.title || les.title || 'Lesson Quiz',
-            moduleTitle: mod.title || `Module ${mIdx + 1}`,
-            lessonTitle: les.title || `Lesson ${lIdx + 1}`,
-            totalMarks: resolveQuizMarks({ quizObj: it.quiz || {}, questions: it.quiz?.questions || it.questions || [] })
-          });
-        }
-      }
-
-      // If lesson itself has quiz type
-      const lesType = String(les.type || '').trim().toLowerCase();
-      if ((lesType === 'quiz' || lesType.includes('quiz')) && !seenIds.has(String(les._id))) {
-        seenIds.add(String(les._id));
-        quizzes.push({
-          id: les._id,
-          title: les.title || 'Lesson Quiz',
-          moduleTitle: mod.title || `Module ${mIdx + 1}`,
-          lessonTitle: les.title || `Lesson ${lIdx + 1}`,
-          totalMarks: 10
-        });
-      }
-    }
-  }
-
-  // 2. Course-level assessments
-  for (const ca of course.courseAssessments || []) {
-    if (!seenIds.has(String(ca._id))) {
-      seenIds.add(String(ca._id));
-      quizzes.push({
-        id: ca._id,
-        title: ca.title || 'Course Assessment',
-        moduleTitle: 'Course Assessments',
-        lessonTitle: ca.title,
-        totalMarks: resolveQuizMarks({ quizObj: ca, questions: ca.questions || [] })
-      });
-    }
-  }
-
-  return quizzes;
+  return findCourseQuizzesOnly(course);
 }
 
 /**
@@ -817,17 +741,16 @@ exports.submitQuizAttempt = async (req, res) => {
       }
     }
 
-    // Evaluate Quiz Master and Perfectionist badges whenever a quiz is submitted
+    // Evaluate Perfectionist badges whenever a quiz is submitted
     try {
-      const { evaluateAndAwardQuizMasterBadges, evaluateAndAwardPerfectionistBadges } = require('../services/badgeService');
+      const { evaluateAndAwardPerfectionistBadges } = require('../services/badgeService');
       const Learner = require('../model/Learner');
       const learnerDoc = await Learner.findById(req.user.id);
       if (learnerDoc) {
-        await evaluateAndAwardQuizMasterBadges(learnerDoc);
         await evaluateAndAwardPerfectionistBadges(learnerDoc);
       }
     } catch (qBadgeErr) {
-      console.warn('Quiz badge evaluation warning:', qBadgeErr.message);
+      console.warn('Perfectionist badge evaluation warning:', qBadgeErr.message);
     }
 
     return res.json({
@@ -1016,171 +939,31 @@ exports.getQuizLeaderboard = async (req, res) => {
 
 /**
  * ─── 6. Course-Level Aggregate Leaderboard ───
- * Aggregates only the FIRST official submitted attempt for each quiz across the course.
- * Prepares the schema structure for future Assessment contributions.
+ * Delegates to centralized leaderboardService calculating Official Quiz Marks (1st attempt)
+ * + Official Assessment Marks (1st attempt), global rank, and server-side pagination.
  */
 exports.getCourseLeaderboard = async (req, res) => {
   try {
     const { courseId } = req.params;
-    const course = await Course.findById(courseId);
-    if (!course) {
-      return res.status(404).json({ success: false, message: 'Course not found.' });
-    }
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
 
-    // 1. Identify all quizzes in this course
-    const courseQuizzes = findAllQuizzesInCourse(course);
-    const quizIds = courseQuizzes.map(q => String(q.id));
-    const totalCourseQuizzes = quizIds.length;
-
-    // 2. Fetch all enrolled learners for this course
-    const enrolments = await Enrolment.find({ courseId: course._id }).lean();
-    const enrolledLearnerIdsSet = new Set(enrolments.map(e => String(e.learnerId)));
-
-    // Ensure the current requesting learner is included in the list
-    const currentUserIdStr = String(req.user.id);
-    enrolledLearnerIdsSet.add(currentUserIdStr);
-
-    const enrolledLearnerIds = Array.from(enrolledLearnerIdsSet);
-
-    // 3. Fetch public profile information for all enrolled learners (NO EMAIL OR SENSITIVE DATA!)
-    const learners = await Learner.find({ _id: { $in: enrolledLearnerIds } })
-      .select('_id fullName name avatar profilePicture username')
-      .lean();
-    const learnerMap = new Map(learners.map(l => [String(l._id), l]));
-
-    // 4. Fetch all qualifying submitted attempts for this course
-    // Sorted by submission date ascending so earliest attempt comes first
-    const submissions = await AssessmentSubmission.find({
-      courseId: course._id,
-      status: { $in: ['submitted', 'graded'] }
-    })
-      .sort({ submittedAt: 1, createdAt: 1 })
-      .lean();
-
-    // Map: learnerId -> Map: quizId -> first qualifying attempt
-    const learnerFirstAttemptsMap = new Map();
-    for (const sub of submissions) {
-      const lid = String(sub.learnerId);
-      const qid = String(sub.assessmentId);
-
-      if (!learnerFirstAttemptsMap.has(lid)) {
-        learnerFirstAttemptsMap.set(lid, new Map());
-      }
-      const qMap = learnerFirstAttemptsMap.get(lid);
-
-      if (!qMap.has(qid)) {
-        // Record the first successfully submitted attempt
-        qMap.set(qid, sub);
-      } else if (sub.isOfficial || sub.isFirstAttempt) {
-        // If an attempt is explicitly flagged official/first, prioritize it
-        qMap.set(qid, sub);
-      }
-    }
-
-    // 5. Aggregate official quiz marks for each enrolled student
-    const leaderboardList = enrolledLearnerIds.map(lid => {
-      const learner = learnerMap.get(lid) || {};
-      const displayName = learner.fullName || learner.name || learner.username || 'Learner';
-      const avatar = learner.avatar || learner.profilePicture || '';
-      const isCurrentUser = lid === currentUserIdStr;
-
-      const qMap = learnerFirstAttemptsMap.get(lid);
-      let quizMarks = 0;
-      let quizzesAttempted = 0;
-      let lastSubmittedAt = null;
-
-      if (qMap && qMap.size > 0) {
-        for (const [_, attempt] of qMap.entries()) {
-          quizMarks += Number(attempt.totalScore) || 0;
-          quizzesAttempted += 1;
-          if (attempt.submittedAt) {
-            const subDate = new Date(attempt.submittedAt);
-            if (!lastSubmittedAt || subDate > new Date(lastSubmittedAt)) {
-              lastSubmittedAt = attempt.submittedAt;
-            }
-          }
-        }
-      }
-
-      // Assessments not yet implemented; prepare data structure for future assessment score addition
-      const assessmentMarks = null;
-      const totalMarks = quizMarks + (assessmentMarks || 0);
-
-      return {
-        learnerId: lid,
-        displayName,
-        avatar,
-        quizMarks,
-        assessmentMarks, // null -> displays as "—"
-        totalMarks,
-        quizzesAttempted,
-        totalCourseQuizzes,
-        lastSubmittedAt,
-        isCurrentUser
-      };
+    const result = await calculateCourseLeaderboard({
+      courseId,
+      currentLearnerId: req.user.id,
+      page,
+      limit
     });
-
-    // 6. Ranking & Tie-breaking:
-    // Rule 1: Highest Total Marks (DESC)
-    // Rule 2: Most Quizzes Attempted (DESC)
-    // Rule 3: Earliest Completion Time (ASC)
-    // Rule 4: Alphabetical by Display Name (ASC)
-    leaderboardList.sort((a, b) => {
-      if (b.totalMarks !== a.totalMarks) {
-        return b.totalMarks - a.totalMarks;
-      }
-      if (b.quizzesAttempted !== a.quizzesAttempted) {
-        return b.quizzesAttempted - a.quizzesAttempted;
-      }
-      if (a.lastSubmittedAt && b.lastSubmittedAt) {
-        const timeDiff = new Date(a.lastSubmittedAt).getTime() - new Date(b.lastSubmittedAt).getTime();
-        if (timeDiff !== 0) return timeDiff;
-      } else if (a.lastSubmittedAt && !b.lastSubmittedAt) {
-        return -1;
-      } else if (!a.lastSubmittedAt && b.lastSubmittedAt) {
-        return 1;
-      }
-      return a.displayName.localeCompare(b.displayName);
-    });
-
-    // 7. Assign Rank positions
-    leaderboardList.forEach((entry, idx) => {
-      if (idx > 0) {
-        const prev = leaderboardList[idx - 1];
-        if (entry.totalMarks === prev.totalMarks && entry.quizzesAttempted === prev.quizzesAttempted) {
-          entry.rank = prev.rank;
-        } else {
-          entry.rank = idx + 1;
-        }
-      } else {
-        entry.rank = 1;
-      }
-    });
-
-    const currentUserEntry = leaderboardList.find(e => e.isCurrentUser);
-    const totalAttemptedParticipants = leaderboardList.filter(e => e.quizzesAttempted > 0).length;
 
     return res.json({
       success: true,
-      courseTitle: course.title,
-      totalEnrolled: enrolledLearnerIds.length,
-      totalAttemptedParticipants,
-      totalCourseQuizzes,
-      methodology: 'Official Quiz Marks (1st Attempt) + Assessments',
-      assessmentStatus: 'coming_soon',
-      leaderboard: leaderboardList,
-      currentUserRank: currentUserEntry ? {
-        rank: currentUserEntry.rank,
-        displayName: currentUserEntry.displayName,
-        quizMarks: currentUserEntry.quizMarks,
-        assessmentMarks: currentUserEntry.assessmentMarks,
-        totalMarks: currentUserEntry.totalMarks,
-        quizzesAttempted: currentUserEntry.quizzesAttempted,
-        totalCourseQuizzes
-      } : null
+      ...result
     });
   } catch (err) {
     console.error('getCourseLeaderboard error:', err);
-    return res.status(500).json({ success: false, message: 'Failed to load course leaderboard.' });
+    return res.status(err.status || 500).json({
+      success: false,
+      message: err.message || 'Failed to load course leaderboard.'
+    });
   }
 };

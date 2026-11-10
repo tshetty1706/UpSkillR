@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   ArrowLeft,
   BookOpen,
@@ -8,13 +8,13 @@ import {
   Users,
   Download,
   AlertCircle,
+  Info,
   RefreshCw,
   MessageSquare,
   X,
   Trophy,
   Bell,
-  ChevronDown,
-  ChevronUp,
+  ArrowRight,
   CheckCircle2,
   Lock,
   Clock,
@@ -36,9 +36,12 @@ import { Avatar } from '../../components/common/Avatar/Avatar';
 import { CourseThumbnail } from '../../components/common/CourseThumbnail';
 import { CourseRatingModal } from '../../components/learner/dashboard/LearnerDashboardOverview/CourseRatingModal';
 import { CourseLeaderboardView } from '../CourseWorkspace/components/CourseLeaderboardView.jsx';
+import { CourseAssessmentsTab } from './components/CourseAssessmentsTab.jsx';
 import { useToast } from '../../context/ToastContext';
 import { API_BASE } from '../../config/api';
 import { getCourseReturnUrl, getCourseReturnLabel, navigateTo } from '../../utils/navigationHelper';
+import { getReviewerDisplayName, getReviewerAvatar } from '../../utils/reviewerDisplay';
+import { isCourseCertificateEnabled } from '../../utils/courseCertificate';
 import './CourseLearningPage.css';
 
 export const CourseLearningPage = ({ courseId, user = null }) => {
@@ -57,12 +60,137 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
   const [enrolling, setEnrolling] = useState(false);
   const [questionInput, setQuestionInput] = useState('');
   const [submittingQuestion, setSubmittingQuestion] = useState(false);
+  const [qaFilter, setQaFilter] = useState('all'); // 'all' | 'answered' | 'pending'
 
   // Navigation tab state: 'curriculum' | 'reviews' | 'qa' | 'leaderboard' | 'assessments' | 'notices'
-  const [activeTab, setActiveTab] = useState('curriculum');
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam && ['curriculum', 'reviews', 'qa', 'leaderboard', 'assessments', 'notices'].includes(tabParam)) {
+        return tabParam;
+      }
+    } catch (e) {}
+    return 'curriculum';
+  });
 
-  // Accordion state: object mapping module index -> boolean (default: all modules collapsed)
-  const [expandedModules, setExpandedModules] = useState({});
+  // Course navigation tab unread notification counts (source of truth from backend)
+  const [unreadCounts, setUnreadCounts] = useState({
+    reviews: 0,
+    qa: 0,
+    assessments: 0,
+    notices: 0,
+    total: 0
+  });
+  const markInFlightRef = useRef(new Set());
+
+  const fetchUnreadSectionCounts = useCallback(async () => {
+    if (!courseId) return;
+    const token = sessionStorage.getItem('upskillr_token') || localStorage.getItem('upskillr_token');
+    if (!token || (user?.role && user.role !== 'learner')) {
+      setUnreadCounts({ reviews: 0, qa: 0, assessments: 0, notices: 0, total: 0 });
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/learners/me/notifications/course/${courseId}/unread-counts`, {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include'
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data?.success && data.unreadCounts) {
+        setUnreadCounts({
+          reviews: data.unreadCounts.reviews || 0,
+          qa: data.unreadCounts.qa || 0,
+          assessments: data.unreadCounts.assessments || 0,
+          notices: data.unreadCounts.notices || 0,
+          total: data.unreadCounts.total || 0
+        });
+      }
+    } catch (err) {
+      console.warn('Error fetching course section unread counts:', err);
+    }
+  }, [courseId, user?.role]);
+
+  const markCourseSectionRead = useCallback(async (sectionKey) => {
+    if (!courseId || !['reviews', 'qa', 'assessments', 'notices'].includes(sectionKey)) return;
+    const token = sessionStorage.getItem('upskillr_token') || localStorage.getItem('upskillr_token');
+    if (!token || (user?.role && user.role !== 'learner')) return;
+
+    const lockKey = `${courseId}:${sectionKey}`;
+    if (markInFlightRef.current.has(lockKey)) return;
+    markInFlightRef.current.add(lockKey);
+
+    const viewedAt = new Date().toISOString();
+
+    // Clear UI badge immediately on section open
+    setUnreadCounts((prev) => {
+      if (!prev[sectionKey]) return prev;
+      const next = { ...prev, [sectionKey]: 0 };
+      next.total = next.reviews + next.qa + next.assessments + next.notices;
+      return next;
+    });
+
+    try {
+      const res = await fetch(`${API_BASE}/learners/me/notifications/course/${courseId}/mark-section-read`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        credentials: 'include',
+        body: JSON.stringify({ section: sectionKey, viewedAt })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.success && data.unreadCounts) {
+          setUnreadCounts({
+            reviews: data.unreadCounts.reviews || 0,
+            qa: data.unreadCounts.qa || 0,
+            assessments: data.unreadCounts.assessments || 0,
+            notices: data.unreadCounts.notices || 0,
+            total: data.unreadCounts.total || 0
+          });
+        }
+        if ((data?.markedCount || 0) > 0) {
+          window.dispatchEvent(
+            new CustomEvent('upskillr_notifications_refresh', { detail: { source: 'course-section' } })
+          );
+        }
+      }
+    } catch (err) {
+      console.warn(`Error marking ${sectionKey} notifications read:`, err);
+    } finally {
+      markInFlightRef.current.delete(lockKey);
+    }
+  }, [courseId, user?.role]);
+
+  const handleTabChange = useCallback((tabKey) => {
+    if (['reviews', 'qa', 'assessments', 'notices'].includes(tabKey)) {
+      setUnreadCounts((prev) => {
+        if (!prev[tabKey]) return prev;
+        const next = { ...prev, [tabKey]: 0 };
+        next.total = next.reviews + next.qa + next.assessments + next.notices;
+        return next;
+      });
+    }
+    setActiveTab(tabKey);
+    try {
+      const url = new URL(window.location.href);
+      if (tabKey === 'curriculum') {
+        url.searchParams.delete('tab');
+      } else {
+        url.searchParams.set('tab', tabKey);
+      }
+      window.history.replaceState({}, '', url.pathname + url.search);
+    } catch (e) {
+      console.error('Failed to sync tab in URL:', e);
+    }
+  }, []);
+
+  // Backend-calculated course and module completion state
+  const [backendProgress, setBackendProgress] = useState(null);
 
   // Modals state
   const [isRatingOpen, setIsRatingOpen] = useState(false);
@@ -76,11 +204,11 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
     setError(null);
     setCourse(null);
     setEnrolment(null);
+    setBackendProgress(null);
     setAnnouncements([]);
     setUserCertificate(null);
     setReviews([]);
     setQuestions([]);
-    setExpandedModules({});
 
     const token = sessionStorage.getItem('upskillr_token') || localStorage.getItem('upskillr_token');
     const authHeaders = {};
@@ -109,6 +237,28 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
         }
       }
 
+      // Fetch latest discussions (both pending and answered) and live reviews directly
+      try {
+        const [qRes, rRes] = await Promise.all([
+          fetch(`${API_BASE}/courses/${courseId}/questions`, { headers: authHeaders }).catch(() => null),
+          fetch(`${API_BASE}/courses/${courseId}/reviews`, { headers: authHeaders }).catch(() => null)
+        ]);
+        if (qRes && qRes.ok) {
+          const qData = await qRes.json();
+          if (qData?.success && Array.isArray(qData.questions)) {
+            setQuestions(qData.questions);
+          }
+        }
+        if (rRes && rRes.ok) {
+          const rData = await rRes.json();
+          if (rData?.success && Array.isArray(rData.reviews)) {
+            setReviews(rData.reviews);
+          }
+        }
+      } catch (e) {
+        // Fallback to overview data
+      }
+
       // 2. Fetch Learner Enrollment & Progress
       if (token) {
         try {
@@ -116,14 +266,37 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
             headers: authHeaders
           });
           const progressData = await progressRes.json();
+          if (progressData.success && typeof progressData.certificateEnabled === 'boolean') {
+            setCourse((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    certificate: progressData.certificateEnabled,
+                    certificateSettings: { enabled: progressData.certificateEnabled }
+                  }
+                : prev
+            );
+            if (!progressData.certificateEnabled) {
+              setUserCertificate(null);
+            }
+          }
           if (progressData.success && progressData.enrolment) {
             setEnrolment(progressData.enrolment);
+            setBackendProgress({
+              progressPercentage: progressData.progressPercentage ?? 0,
+              completedContentsCount: progressData.completedContentsCount ?? 0,
+              totalContentsCount: progressData.totalContentsCount ?? 1,
+              isCompleted: Boolean(progressData.isCompleted),
+              modulesProgress: Array.isArray(progressData.modulesProgress) ? progressData.modulesProgress : []
+            });
           } else {
             setEnrolment(null);
+            setBackendProgress(null);
           }
         } catch (e) {
           console.warn('Progress fetch notice:', e);
           setEnrolment(null);
+          setBackendProgress(null);
         }
 
         // 3. Fetch Learner Announcements (Notice Board)
@@ -176,12 +349,163 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
     } finally {
       setLoading(false);
     }
+  }, [courseId, user?._id]);
+
+  // Refresh live course data, certificate availability, reviews, and enrolment progress
+  const lastLiveSyncRef = useRef(0);
+  const refreshCourseReviews = useCallback(async () => {
+    if (!courseId) return;
+    lastLiveSyncRef.current = Date.now();
+    const token = sessionStorage.getItem('upskillr_token') || localStorage.getItem('upskillr_token');
+    const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+    try {
+      const [reviewsRes, courseRes, progressRes, certRes] = await Promise.all([
+        fetch(`${API_BASE}/courses/${courseId}/reviews`, { headers: authHeaders }).catch(() => null),
+        fetch(`${API_BASE}/courses/public/${courseId}`, { headers: authHeaders }).catch(() => null),
+        token
+          ? fetch(`${API_BASE}/courses/${courseId}/progress`, { headers: authHeaders }).catch(() => null)
+          : Promise.resolve(null),
+        token
+          ? fetch(`${API_BASE}/certificates/me`, { headers: authHeaders }).catch(() => null)
+          : Promise.resolve(null)
+      ]);
+
+      if (reviewsRes && reviewsRes.ok) {
+        const rData = await reviewsRes.json().catch(() => null);
+        if (rData?.success && Array.isArray(rData.reviews)) {
+          setReviews(rData.reviews);
+        }
+      }
+      if (courseRes && courseRes.ok) {
+        const cData = await courseRes.json().catch(() => null);
+        if (cData?.success && cData.course) {
+          setCourse(cData.course);
+        }
+      }
+      if (progressRes && progressRes.ok) {
+        const pData = await progressRes.json().catch(() => null);
+        if (pData?.success) {
+          if (typeof pData.certificateEnabled === 'boolean') {
+            setCourse((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    certificate: pData.certificateEnabled,
+                    certificateSettings: { enabled: pData.certificateEnabled }
+                  }
+                : prev
+            );
+            if (!pData.certificateEnabled) {
+              setUserCertificate(null);
+            }
+          }
+          if (pData.enrolment) {
+            setEnrolment(pData.enrolment);
+            setBackendProgress({
+              progressPercentage: pData.progressPercentage ?? 0,
+              completedContentsCount: pData.completedContentsCount ?? 0,
+              totalContentsCount: pData.totalContentsCount ?? 1,
+              isCompleted: Boolean(pData.isCompleted),
+              modulesProgress: Array.isArray(pData.modulesProgress) ? pData.modulesProgress : []
+            });
+          }
+        }
+      }
+      if (certRes && certRes.ok) {
+        const ct = certRes.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const certData = await certRes.json().catch(() => null);
+          if (certData?.success && Array.isArray(certData.certificates)) {
+            const foundCert = certData.certificates.find((c) => {
+              const cCourseId = typeof c.courseId === 'object' ? c.courseId?._id : c.courseId;
+              return String(cCourseId) === String(courseId);
+            });
+            setUserCertificate(foundCert || null);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Error refreshing course reviews:', err);
+    }
   }, [courseId]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
     fetchCourseData();
   }, [fetchCourseData]);
+
+  // Fetch per-section unread notification counts & stay synced with NotificationBell / new content / instructor updates
+  useEffect(() => {
+    fetchUnreadSectionCounts();
+    const interval = setInterval(fetchUnreadSectionCounts, 30000);
+    const handleNotifRefresh = (e) => {
+      if (e?.detail?.source === 'course-section') return;
+      fetchUnreadSectionCounts();
+    };
+    const handleProgressSync = () => {
+      fetchCourseData();
+    };
+    const handleLiveVisibilitySync = () => {
+      if (document.visibilityState && document.visibilityState !== 'visible') return;
+      if (Date.now() - lastLiveSyncRef.current < 3000) return;
+      refreshCourseReviews();
+    };
+    window.addEventListener('upskillr_notifications_refresh', handleNotifRefresh);
+    window.addEventListener('upskillr_progress_updated', handleProgressSync);
+    window.addEventListener('focus', handleLiveVisibilitySync);
+    document.addEventListener('visibilitychange', handleLiveVisibilitySync);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('upskillr_notifications_refresh', handleNotifRefresh);
+      window.removeEventListener('upskillr_progress_updated', handleProgressSync);
+      window.removeEventListener('focus', handleLiveVisibilitySync);
+      document.removeEventListener('visibilitychange', handleLiveVisibilitySync);
+    };
+  }, [fetchUnreadSectionCounts, fetchCourseData, refreshCourseReviews]);
+
+  // Mark currently unread section notifications as read whenever learner opens that section tab
+  useEffect(() => {
+    if (loading || !course?._id) return;
+    if (['reviews', 'qa', 'assessments', 'notices'].includes(activeTab)) {
+      markCourseSectionRead(activeTab);
+    }
+  }, [loading, course?._id, activeTab, markCourseSectionRead]);
+
+  // Handle URL query parameters (e.g. ?tab=qa or ?questionId=...)
+  useEffect(() => {
+    const handleUrlParams = () => {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam && ['curriculum', 'reviews', 'qa', 'leaderboard', 'assessments', 'notices'].includes(tabParam)) {
+        setActiveTab(tabParam);
+      } else if (!tabParam) {
+        setActiveTab('curriculum');
+      }
+    };
+    handleUrlParams();
+    window.addEventListener('popstate', handleUrlParams);
+    window.addEventListener('upskillr_navigate', handleUrlParams);
+    return () => {
+      window.removeEventListener('popstate', handleUrlParams);
+      window.removeEventListener('upskillr_navigate', handleUrlParams);
+    };
+  }, []);
+
+  // Deep-link auto-scroll and highlight target question card
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const questionId = params.get('questionId');
+    if (questionId && activeTab === 'qa' && questions.length > 0) {
+      setTimeout(() => {
+        const el = document.getElementById(`qa-question-${questionId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('qa-card-highlight-pulse');
+          setTimeout(() => el.classList.remove('qa-card-highlight-pulse'), 3500);
+        }
+      }, 300);
+    }
+  }, [activeTab, questions]);
 
   // 2. Normalize Course Curriculum Tree
   const modulesList = useMemo(() => {
@@ -271,42 +595,34 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
     return count;
   }, []);
 
-  // Calculate module progress percentage
-  const getModuleProgress = useCallback((mIdx) => {
+  // Resolve module progress strictly from backend completion calculations
+  const getBackendModuleStats = useCallback((mIdx) => {
     const mod = modulesList[mIdx];
-    if (!mod || !mod.lessons || mod.lessons.length === 0) return 0;
-
-    let totalItems = 0;
-    let completedItems = 0;
-
-    (mod.lessons || []).forEach((les, lIdx) => {
-      const items = Array.isArray(les.items) && les.items.length > 0 ? les.items : [];
-      if (items.length > 0) {
-        items.forEach((it) => {
-          totalItems += 1;
-          if (isItemCompleted(it, les, mIdx, lIdx)) {
-            completedItems += 1;
-          }
-        });
-      } else {
-        totalItems += 1;
-        if (isLessonCompleted(mIdx, lIdx, les)) {
-          completedItems += 1;
-        }
+    if (!mod || !enrolment) {
+      return { progressPercentage: 0, isCompleted: false };
+    }
+    const list = backendProgress?.modulesProgress;
+    if (Array.isArray(list) && list.length > 0) {
+      const match =
+        list.find((mp) => mp._id && mod._id && String(mp._id) === String(mod._id)) ||
+        list[mIdx];
+      if (match) {
+        return {
+          progressPercentage: Number(match.progressPercentage) || 0,
+          isCompleted: Boolean(match.isCompleted)
+        };
       }
-    });
+    }
+    return { progressPercentage: 0, isCompleted: false };
+  }, [modulesList, enrolment, backendProgress]);
 
-    if (totalItems === 0) return 100;
-    if (completedItems >= totalItems) return 100;
-    return Math.round((completedItems / totalItems) * 100);
-  }, [modulesList, isItemCompleted, isLessonCompleted]);
+  const getModuleProgress = useCallback((mIdx) => {
+    return getBackendModuleStats(mIdx).progressPercentage;
+  }, [getBackendModuleStats]);
 
-  // Check if a module is completed
   const isModuleCompleted = useCallback((mIdx) => {
-    const mod = modulesList[mIdx];
-    if (!mod || !mod.lessons || mod.lessons.length === 0) return false;
-    return getModuleProgress(mIdx) >= 100;
-  }, [modulesList, getModuleProgress]);
+    return getBackendModuleStats(mIdx).isCompleted;
+  }, [getBackendModuleStats]);
 
   // Total lessons count
   const totalLessonsCount = useMemo(() => {
@@ -315,45 +631,37 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
 
   // Total content items count across all modules
   const totalContentsCount = useMemo(() => {
+    if (backendProgress && typeof backendProgress.totalContentsCount === 'number' && backendProgress.totalContentsCount > 0) {
+      return backendProgress.totalContentsCount;
+    }
     let count = 0;
     modulesList.forEach((mod) => {
       count += getModuleItemsCount(mod);
     });
     return count || 1;
-  }, [modulesList, getModuleItemsCount]);
+  }, [backendProgress, modulesList, getModuleItemsCount]);
 
-  // Total completed contents count
+  // Total completed contents count (from backend)
   const completedContentsCount = useMemo(() => {
     if (!enrolment) return 0;
-    let count = 0;
-    modulesList.forEach((mod, mIdx) => {
-      (mod.lessons || []).forEach((les, lIdx) => {
-        if (Array.isArray(les.items) && les.items.length > 0) {
-          les.items.forEach((it) => {
-            if (isItemCompleted(it, les, mIdx, lIdx)) {
-              count += 1;
-            }
-          });
-        } else if (isLessonCompleted(mIdx, lIdx, les)) {
-          count += 1;
-        }
-      });
-    });
-    return count;
-  }, [enrolment, modulesList, isItemCompleted, isLessonCompleted]);
+    if (backendProgress && typeof backendProgress.completedContentsCount === 'number') {
+      return backendProgress.completedContentsCount;
+    }
+    return 0;
+  }, [enrolment, backendProgress]);
 
-  // Check if course is 100% completed
+  // Check if course is 100% completed (from backend)
   const isCourseCompleted = useMemo(() => {
     if (!enrolment) return false;
-    if (totalContentsCount > 0 && completedContentsCount >= totalContentsCount) {
-      return true;
+    if (backendProgress) {
+      return Boolean(backendProgress.isCompleted);
     }
     return (enrolment.status === 'completed' || enrolment.status === 'COMPLETED') && Number(enrolment.progressPercentage) >= 100;
-  }, [enrolment, totalContentsCount, completedContentsCount]);
+  }, [enrolment, backendProgress]);
 
-  // Total quizzes count
+  // Total quizzes count (module/lesson quizzes only)
   const totalQuizzesCount = useMemo(() => {
-    let count = (course?.courseAssessments || []).length;
+    let count = 0;
     modulesList.forEach((mod) => {
       (mod.lessons || []).forEach((les) => {
         if (les.type === 'quiz') count += 1;
@@ -365,18 +673,17 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
       });
     });
     return count;
-  }, [course, modulesList]);
+  }, [modulesList]);
 
-  // Overall Course Progress Percentage
+  // Overall Course Progress Percentage (from backend)
   const progressPct = useMemo(() => {
     if (!enrolment) return 0;
-    if (totalContentsCount > 0) {
-      if (completedContentsCount >= totalContentsCount) return 100;
-      return Math.min(Math.round((completedContentsCount / totalContentsCount) * 100), 99);
+    if (backendProgress && typeof backendProgress.progressPercentage === 'number') {
+      return backendProgress.progressPercentage;
     }
     const backendPct = Number(enrolment.progressPercentage) || 0;
     return (enrolment.status === 'completed' || enrolment.status === 'COMPLETED') && backendPct >= 100 ? 100 : Math.min(backendPct, 99);
-  }, [enrolment, completedContentsCount, totalContentsCount]);
+  }, [enrolment, backendProgress]);
 
   // Find the exact resume lesson & content item (first incomplete)
   const resumeInfo = useMemo(() => {
@@ -478,7 +785,7 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
     const token = sessionStorage.getItem('upskillr_token') || localStorage.getItem('upskillr_token');
     if (!token) {
       toast.warning('Please log in as a learner to ask a question.');
-      sessionStorage.setItem('upskillr_redirect_after_login', `/courses/${courseId}`);
+      sessionStorage.setItem('upskillr_redirect_after_login', `/courses/${courseId}?tab=qa`);
       window.history.pushState({}, '', '/login');
       window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: '/login' } }));
       return;
@@ -498,13 +805,16 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
       if (json.success) {
         toast.success('Your question has been submitted to the instructor!');
         setQuestionInput('');
+        if (json.question) {
+          setQuestions((prev) => [json.question, ...prev.filter((q) => q._id !== json.question._id)]);
+        }
         try {
-          const overviewRes = await fetch(`${API_BASE}/courses/public/${courseId}/overview`, {
+          const qRes = await fetch(`${API_BASE}/courses/${courseId}/questions`, {
             headers: { Authorization: `Bearer ${token}` }
           });
-          const overviewData = await overviewRes.json();
-          if (overviewData?.success && Array.isArray(overviewData.questions)) {
-            setQuestions(overviewData.questions);
+          const qData = await qRes.json();
+          if (qData?.success && Array.isArray(qData.questions)) {
+            setQuestions(qData.questions);
           }
         } catch (e) {}
       } else {
@@ -540,54 +850,85 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
     window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: navPath } }));
   };
 
-  const handleContinueModule = (mIdx) => {
+  // Resolve target lesson and content item inside a specific module when clicking Resume or Continue
+  const getTargetLessonAndItemForModule = useCallback((mIdx, isModDone) => {
+    const mod = modulesList[mIdx];
+    if (!mod || !Array.isArray(mod.lessons) || mod.lessons.length === 0) {
+      return { lessonIdx: 0, itemIdx: 0 };
+    }
+
+    const modLessons = mod.lessons;
+    const byModMap = enrolment?.lastAccessedByModule;
+    const modEntry =
+      byModMap &&
+      (byModMap[String(mod._id)] ||
+        (typeof byModMap.get === 'function' ? byModMap.get(String(mod._id)) : null));
+
+    let savedLessonId = modEntry?.lessonId ?? null;
+    let savedItemId = modEntry?.itemId ?? null;
+
+    if (
+      (savedLessonId === null || savedLessonId === undefined) &&
+      (String(enrolment?.lastAccessedModuleId) === String(mod._id) ||
+        String(enrolment?.lastAccessedModuleId) === String(mIdx))
+    ) {
+      savedLessonId = enrolment?.lastAccessedLessonId ?? null;
+      savedItemId = enrolment?.lastAccessedItemId ?? null;
+    }
+
+    if (savedLessonId !== null && savedLessonId !== undefined) {
+      const foundLIdx = modLessons.findIndex(
+        (l, idx) => String(l._id) === String(savedLessonId) || String(idx) === String(savedLessonId)
+      );
+      if (foundLIdx !== -1) {
+        const targetLesson = modLessons[foundLIdx];
+        const items = Array.isArray(targetLesson.items) && targetLesson.items.length > 0 ? targetLesson.items : [];
+        let foundIIdx = 0;
+
+        if (savedItemId !== null && savedItemId !== undefined && items.length > 0) {
+          const matchItemIdx = items.findIndex(
+            (it, idx) => String(it._id) === String(savedItemId) || String(idx) === String(savedItemId)
+          );
+          if (matchItemIdx !== -1) foundIIdx = matchItemIdx;
+        } else if (!isModDone && items.length > 0) {
+          const firstIncItemIdx = items.findIndex((it) => !isItemCompleted(it, targetLesson, mIdx, foundLIdx));
+          foundIIdx = firstIncItemIdx !== -1 ? firstIncItemIdx : 0;
+        }
+
+        return { lessonIdx: foundLIdx, itemIdx: foundIIdx };
+      }
+    }
+
+    if (!isModDone) {
+      return getFirstIncompleteLessonInModule(mIdx);
+    }
+
+    return { lessonIdx: 0, itemIdx: 0 };
+  }, [modulesList, enrolment, isItemCompleted, getFirstIncompleteLessonInModule]);
+
+  const handleContinueModule = (mIdx, isModDone = false) => {
     if (!isEnrolled) {
       handleEnroll();
       return;
     }
-    const { lessonIdx, itemIdx } = getFirstIncompleteLessonInModule(mIdx);
-    const navPath = `/learn/${courseId}?module=${mIdx}&lesson=${lessonIdx}&item=${itemIdx}`;
+    const mod = modulesList[mIdx];
+    const { lessonIdx, itemIdx } = getTargetLessonAndItemForModule(mIdx, isModDone);
+    const modIdParam = mod?._id ? `&moduleId=${encodeURIComponent(String(mod._id))}` : '';
+    const navPath = `/learn/${courseId}?module=${mIdx}${modIdParam}&lesson=${lessonIdx}&item=${itemIdx}`;
     window.history.pushState({}, '', navPath);
     window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: navPath } }));
   };
 
-  const handleOpenLesson = (mIdx, lIdx, itIdx = 0) => {
-    if (!isEnrolled) {
-      handleEnroll();
-      return;
-    }
-    const navPath = `/learn/${courseId}?module=${mIdx}&lesson=${lIdx}&item=${itIdx}`;
-    window.history.pushState({}, '', navPath);
-    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: navPath } }));
-  };
+  // Certificate availability (strictly reflects instructor's backend course configuration)
+  const isCertificateEnabled = isCourseCertificateEnabled(course);
 
-  // Accordion Toggle Handlers
-  const toggleModuleAccordion = (mIdx) => {
-    setExpandedModules((prev) => ({
-      ...prev,
-      [mIdx]: !prev[mIdx]
-    }));
-  };
-
-  const handleToggleAllModules = () => {
-    const allExpanded = modulesList.length > 0 && modulesList.every((_, idx) => expandedModules[idx]);
-    const newState = {};
-    modulesList.forEach((_, idx) => {
-      newState[idx] = !allExpanded;
-    });
-    setExpandedModules(newState);
-  };
-
-  // Certificate check
-  const isCertificateEnabled = Boolean(
-    course?.certificateSettings?.enabled ||
-    course?.certificate === true ||
-    course?.certificatesEnabled === true
+  const isEligibleForCertificate = Boolean(
+    isCertificateEnabled &&
+    (isCourseCompleted || progressPct >= 100 || (enrolment && enrolment.status === 'completed'))
   );
 
-  const isEligibleForCertificate = isCourseCompleted || progressPct >= 100 || (enrolment && enrolment.status === 'completed');
-
   const handleGetCertificateClick = () => {
+    if (!isCertificateEnabled) return;
     if (isEligibleForCertificate) {
       setIsCertificateOpen(true);
     } else {
@@ -612,15 +953,17 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
     return num.toLocaleString();
   };
 
-  // Helper for content item icon in curriculum breakdown
-  const renderItemTypeIcon = (type, size = 13) => {
-    const t = String(type || '').toLowerCase();
-    if (t === 'video') return <PlayCircle size={size} />;
-    if (t === 'quiz') return <HelpCircle size={size} />;
-    if (t === 'pdf') return <FileDown size={size} />;
-    if (t === 'exercise' || t === 'code') return <Code size={size} />;
-    return <FileText size={size} />;
-  };
+  // Filtered Q&A Discussions
+  const filteredQaQuestions = useMemo(() => {
+    if (!Array.isArray(questions)) return [];
+    if (qaFilter === 'answered') {
+      return questions.filter((q) => q.status === 'answered' || Boolean(q.instructorReply));
+    }
+    if (qaFilter === 'pending') {
+      return questions.filter((q) => q.status === 'pending' && !q.instructorReply);
+    }
+    return questions;
+  }, [questions, qaFilter]);
 
   // ─── 3. Proper Shimmering Loading Skeleton Matching the NEW Course Page Layout ───
   if (loading) {
@@ -880,10 +1223,12 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
                     <BookOpen size={16} />
                     <span>{enrolling ? 'Enrolling...' : 'Enroll for Free →'}</span>
                   </button>
-                  <span className="enrollment-feature-tag">
-                    <Award size={14} />
-                    <span>Certificate Included</span>
-                  </span>
+                  {isCertificateEnabled && (
+                    <span className="enrollment-feature-tag">
+                      <Award size={14} />
+                      <span>Certificate Included</span>
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -915,16 +1260,37 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
                     </button>
                   )}
 
-                  <button
-                    type="button"
-                    className="btn-banner-secondary"
-                    onClick={() => setIsRatingOpen(true)}
-                    aria-label="Share Feedback"
-                  >
-                    <MessageSquare size={15} />
-                    <span>Share Feedback</span>
-                  </button>
+                  {isEnrolled && (
+                    isCourseCompleted ? (
+                      <button
+                        type="button"
+                        className="btn-banner-secondary eligible"
+                        onClick={() => setIsRatingOpen(true)}
+                        aria-label="Share Feedback"
+                      >
+                        <MessageSquare size={15} />
+                        <span>Share Feedback</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-banner-secondary locked"
+                        disabled
+                        title="Complete 100% of this course to unlock ratings and reviews."
+                        aria-label="Share Feedback Locked"
+                      >
+                        <Lock size={14} />
+                        <span>Share Feedback</span>
+                      </button>
+                    )
+                  )}
                 </div>
+                {isEnrolled && !isCourseCompleted && (
+                  <div className="banner-feedback-lock-note">
+                    <Lock size={12} />
+                    <span>Complete 100% of this course to unlock ratings and reviews.</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -937,7 +1303,7 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
           <button
             type="button"
             className={`learning-tab-nav-btn ${activeTab === 'curriculum' ? 'active' : ''}`}
-            onClick={() => setActiveTab('curriculum')}
+            onClick={() => handleTabChange('curriculum')}
           >
             <BookOpen size={16} />
             <span>Modules</span>
@@ -946,31 +1312,31 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
           <button
             type="button"
             className={`learning-tab-nav-btn ${activeTab === 'reviews' ? 'active' : ''}`}
-            onClick={() => setActiveTab('reviews')}
+            onClick={() => handleTabChange('reviews')}
           >
             <Star size={16} />
             <span>Reviews</span>
-            {reviews.length > 0 && (
-              <span className="tab-pill-badge">{reviews.length}</span>
+            {unreadCounts.reviews > 0 && (
+              <span className="tab-pill-badge" aria-label={`${unreadCounts.reviews} unread reviews`}>{unreadCounts.reviews}</span>
             )}
           </button>
 
           <button
             type="button"
             className={`learning-tab-nav-btn ${activeTab === 'qa' ? 'active' : ''}`}
-            onClick={() => setActiveTab('qa')}
+            onClick={() => handleTabChange('qa')}
           >
             <HelpCircle size={16} />
             <span>Q&amp;A</span>
-            {questions.length > 0 && (
-              <span className="tab-pill-badge">{questions.length}</span>
+            {unreadCounts.qa > 0 && (
+              <span className="tab-pill-badge" aria-label={`${unreadCounts.qa} unread Q&A updates`}>{unreadCounts.qa}</span>
             )}
           </button>
 
           <button
             type="button"
             className={`learning-tab-nav-btn ${activeTab === 'leaderboard' ? 'active' : ''}`}
-            onClick={() => setActiveTab('leaderboard')}
+            onClick={() => handleTabChange('leaderboard')}
           >
             <Trophy size={16} />
             <span>Leaderboard</span>
@@ -979,24 +1345,24 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
           <button
             type="button"
             className={`learning-tab-nav-btn ${activeTab === 'assessments' ? 'active' : ''}`}
-            onClick={() => setActiveTab('assessments')}
+            onClick={() => handleTabChange('assessments')}
           >
             <Award size={16} />
             <span>Assessments</span>
-            {(course?.courseAssessments || []).length > 0 && (
-              <span className="tab-pill-badge">{(course.courseAssessments).length}</span>
+            {unreadCounts.assessments > 0 && (
+              <span className="tab-pill-badge" aria-label={`${unreadCounts.assessments} unread assessments`}>{unreadCounts.assessments}</span>
             )}
           </button>
 
           <button
             type="button"
             className={`learning-tab-nav-btn ${activeTab === 'notices' ? 'active' : ''}`}
-            onClick={() => setActiveTab('notices')}
+            onClick={() => handleTabChange('notices')}
           >
             <Bell size={16} />
             <span>Notice Board</span>
-            {announcements.length > 0 && (
-              <span className="tab-pill-badge">{announcements.length}</span>
+            {unreadCounts.notices > 0 && (
+              <span className="tab-pill-badge" aria-label={`${unreadCounts.notices} unread notices`}>{unreadCounts.notices}</span>
             )}
           </button>
         </div>
@@ -1004,7 +1370,7 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
 
       {/* ─── 3. TAB CONTENT MAIN VIEWPORT ─── */}
       <main className="learning-main-viewport" role="main">
-        {/* ─── TAB A: CURRICULUM & MODULE BREAKDOWN (GFG INSPIRED) ─── */}
+        {/* ─── TAB A: SIMPLIFIED COURSE CURRICULUM (MODULES ONLY) ─── */}
         {activeTab === 'curriculum' && (
           <div className="gfg-curriculum-overview-container">
             {/* Curriculum Stats Header Bar */}
@@ -1016,280 +1382,152 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
                 </div>
                 <div className="curriculum-stats-pills-row">
                   <span className="curriculum-stat-pill">
-                    <strong>{modulesList.length}</strong> Modules
-                  </span>
-                  <span className="curriculum-stat-pill">
-                    <strong>{totalLessonsCount}</strong> Lessons
-                  </span>
-                  <span className="curriculum-stat-pill">
-                    <strong>{totalContentsCount}</strong> Content Items
+                    <strong>{modulesList.length}</strong> {modulesList.length === 1 ? 'Module' : 'Modules'}
                   </span>
                   <span className="curriculum-stat-pill highlight">
                     <strong>{progressPct}%</strong> Complete
                   </span>
                 </div>
               </div>
-
-              <div className="curriculum-summary-right">
-                <button
-                  type="button"
-                  className="btn-toggle-all-accordion"
-                  onClick={handleToggleAllModules}
-                  aria-label="Toggle all modules"
-                >
-                  <span>{modulesList.length > 0 && modulesList.every((_, idx) => expandedModules[idx]) ? 'Collapse All' : 'Expand All'}</span>
-                </button>
-              </div>
             </div>
 
-            {/* Two-Column GFG Layout Grid */}
+            {/* Two-Column Layout Grid */}
             <div className="gfg-curriculum-layout-grid">
               {/* LEFT / MAIN COLUMN (~68%) */}
               <div className="gfg-curriculum-main-column">
-                {/* Expandable Module Cards Accordion Stack (Reference Image 2 & 3) */}
+                {/* Compact Simplified Module Cards List */}
                 <div className="gfg-modules-accordion-stack" role="list">
                   {modulesList.map((mod, mIdx) => {
-                    const isExpanded = Boolean(expandedModules[mIdx]);
                     const isModDone = isModuleCompleted(mIdx);
                     const modPct = getModuleProgress(mIdx);
-                    const modLessons = mod.lessons || [];
-                    const modItemsCount = getModuleItemsCount(mod);
 
                     return (
                       <div
-                        key={mod._id}
-                        className={`gfg-module-accordion-card ${isExpanded ? 'is-expanded' : ''} ${isModDone ? 'is-done' : ''}`}
+                        key={mod._id || mIdx}
+                        className={`gfg-module-accordion-card curriculum-module-card ${isModDone ? 'is-done' : ''}`}
                         role="listitem"
                       >
-                        {/* Module Card Header */}
-                        <div
-                          className="gfg-module-header-row"
-                          onClick={() => toggleModuleAccordion(mIdx)}
-                          role="button"
-                          tabIndex={0}
-                          aria-expanded={isExpanded}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') toggleModuleAccordion(mIdx);
-                          }}
-                        >
+                        <div className="gfg-module-header-row curriculum-module-row">
                           {/* Left: Module Number & Title */}
                           <div className="gfg-module-header-left">
-                            <div className={`gfg-module-num-badge ${isModDone ? 'done' : ''}`}>
+                            <div className={`gfg-module-num-badge ${isModDone ? 'done' : ''}`} aria-hidden="true">
                               {isModDone ? <Check size={16} strokeWidth={3} /> : `M${mIdx + 1}`}
                             </div>
 
                             <div className="gfg-module-titles-box">
+                              <span className="curriculum-module-kicker">Module {mIdx + 1}</span>
                               <h3 className="gfg-module-card-title">{mod.title}</h3>
-                              <span className="gfg-module-topics-pill">
-                                {modLessons.length} {modLessons.length === 1 ? 'Lesson' : 'Lessons'} &bull; {modItemsCount} {modItemsCount === 1 ? 'Item' : 'Items'}
-                              </span>
                             </div>
                           </div>
 
-                          {/* Right: Progress, Continue Button & Chevron */}
-                          <div className="gfg-module-header-right">
-                            {/* Mini Progress */}
+                          {/* Right: Progress, Completion Status & Resume / Continue Action */}
+                          <div className="gfg-module-header-right curriculum-module-actions">
                             <div className="gfg-module-mini-progress">
-                              <span className="gfg-progress-pct-label">{modPct}%</span>
                               <div className="gfg-progress-bar-track">
                                 <div
                                   className={`gfg-progress-bar-fill ${isModDone ? 'done' : ''}`}
                                   style={{ width: `${modPct}%` }}
                                 />
                               </div>
+                              {isModDone ? (
+                                <span className="gfg-badge-module-done">
+                                  <Check size={13} strokeWidth={3} />
+                                  <span>Completed</span>
+                                </span>
+                              ) : (
+                                <span className="curriculum-progress-status-pill">
+                                  {modPct}% Complete
+                                </span>
+                              )}
                             </div>
 
-                            {/* Module Action: Completed vs Continue */}
-                            {isModDone ? (
-                              <span className="gfg-badge-module-done">
-                                <Check size={13} strokeWidth={3} />
-                                <span>Completed</span>
-                              </span>
-                            ) : (
-                              <button
-                                type="button"
-                                className="btn-gfg-module-continue"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleContinueModule(mIdx);
-                                }}
-                                aria-label={`Continue ${mod.title}`}
-                              >
-                                <span>Continue</span>
-                              </button>
-                            )}
-
-                            {/* Chevron Toggle */}
-                            <div className="gfg-chevron-toggle">
-                              {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                            </div>
+                            <button
+                              type="button"
+                              className={`btn-gfg-module-action ${isModDone ? 'btn-continue' : 'btn-resume'}`}
+                              onClick={() => handleContinueModule(mIdx, isModDone)}
+                              aria-label={`${isModDone ? 'Continue' : 'Resume'} Module ${mIdx + 1}: ${mod.title}`}
+                            >
+                              <span>{isModDone ? 'Continue' : 'Resume'}</span>
+                              <ArrowRight size={15} />
+                            </button>
                           </div>
                         </div>
-
-                        {/* Module Expanded Content */}
-                        {isExpanded && (
-                          <div className="gfg-module-expanded-body">
-                            {mod.description && (
-                              <p className="gfg-module-description-text">{mod.description}</p>
-                            )}
-
-                            {/* Lessons List in Module */}
-                            <div className="gfg-module-lessons-list" role="list">
-                              {modLessons.map((les, lIdx) => {
-                                const isLesDone = isLessonCompleted(mIdx, lIdx, les);
-                                const lesItems = Array.isArray(les.items) && les.items.length > 0 ? les.items : [];
-
-                                return (
-                                  <div
-                                    key={les._id || lIdx}
-                                    className={`gfg-lesson-row-card ${isLesDone ? 'is-completed' : ''}`}
-                                    onClick={() => handleOpenLesson(mIdx, lIdx)}
-                                    role="listitem"
-                                    tabIndex={0}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') handleOpenLesson(mIdx, lIdx);
-                                    }}
-                                  >
-                                    <div className="gfg-lesson-row-left">
-                                      <div className={`gfg-lesson-icon-circle ${isLesDone ? 'done' : ''}`}>
-                                        {isLesDone ? (
-                                          <CheckCircle2 size={16} className="text-emerald" />
-                                        ) : (
-                                          renderItemTypeIcon(les.type, 15)
-                                        )}
-                                      </div>
-
-                                      <div className="gfg-lesson-details-box">
-                                        <div className="gfg-lesson-title-line">
-                                          <span className="gfg-lesson-order">
-                                            {mIdx + 1}.{lIdx + 1}
-                                          </span>
-                                          <h4 className="gfg-lesson-item-title">{les.title}</h4>
-                                        </div>
-
-                                        {/* Content Items Pill Breakdown (Reference Image 4) */}
-                                        {lesItems.length > 0 ? (
-                                          <div className="gfg-lesson-content-badges">
-                                            {lesItems.map((item, itIdx) => {
-                                              const isItDone = isItemCompleted(item, les, mIdx, lIdx);
-                                              return (
-                                                <span
-                                                  key={item._id || itIdx}
-                                                  className={`gfg-item-badge type-${String(item.type || 'article').toLowerCase()} ${isItDone ? 'is-completed' : ''}`}
-                                                >
-                                                  {isItDone ? <Check size={11} strokeWidth={2.5} className="text-emerald" /> : renderItemTypeIcon(item.type, 12)}
-                                                  <span>{item.title || `${item.type || 'Item'}`}</span>
-                                                  {item.wordCount && (
-                                                    <span className="badge-meta-words">({item.wordCount} words)</span>
-                                                  )}
-                                                  {item.video?.duration && (
-                                                    <span className="badge-meta-words">({item.video.duration})</span>
-                                                  )}
-                                                </span>
-                                              );
-                                            })}
-                                          </div>
-                                        ) : (
-                                          <div className="gfg-lesson-content-badges">
-                                            <span className={`gfg-item-badge type-${les.type || 'video'}`}>
-                                              {renderItemTypeIcon(les.type, 12)}
-                                              <span>{les.type || 'Lesson'}</span>
-                                              {les.duration && <span className="badge-meta-words">({les.duration})</span>}
-                                            </span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    <div className="gfg-lesson-row-right">
-                                      {isLesDone ? (
-                                        <span className="gfg-status-chip completed">
-                                          <Check size={13} strokeWidth={3} />
-                                          <span>Completed</span>
-                                        </span>
-                                      ) : (
-                                        <span className="gfg-status-chip in-progress">
-                                          <span>Available</span>
-                                        </span>
-                                      )}
-
-                                      <button
-                                        type="button"
-                                        className="btn-gfg-open-lesson"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleOpenLesson(mIdx, lIdx);
-                                        }}
-                                        aria-label={`Open lesson ${les.title}`}
-                                      >
-                                        <span>Open</span>
-                                        <ChevronRight size={14} />
-                                      </button>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     );
                   })}
                 </div>
               </div>
 
-              {/* RIGHT SIDEBAR COLUMN (~32%) (Reference Image 2) */}
-              <aside className="gfg-curriculum-side-column" aria-label="Course Highlights & Certificate">
-                {/* 1. Verified Certificate Promo Card */}
-                <div className="gfg-side-card certificate-promo-card">
-                  <div className="card-top-accent-line" />
-                  <div className="promo-card-header">
-                    <div className="promo-icon-badge">
-                      <Award size={22} className="text-emerald" />
-                    </div>
-                    <div>
-                      <span className="promo-super-label">UpSkillR Verified Credential</span>
-                      <h4 className="promo-card-heading">Earn Your Course Certificate</h4>
-                    </div>
-                  </div>
-
-                  <p className="promo-card-body">
-                    Complete 100% of all lessons to earn an authentic, verifiable certificate signed by your course instructor.
-                  </p>
-
-                  <ul className="promo-benefits-list">
-                    <li>
-                      <ShieldCheck size={14} className="text-emerald" />
-                      <span>Tamper-proof verifiable online credential</span>
-                    </li>
-                    <li>
-                      <CheckCircle2 size={14} className="text-emerald" />
-                      <span>Includes verified instructor designation</span>
-                    </li>
-                    <li>
-                      <ExternalLink size={14} className="text-emerald" />
-                      <span>Directly shareable on LinkedIn and portfolios</span>
-                    </li>
-                  </ul>
-
-                  <div className="promo-action-box">
-                    {isEligibleForCertificate ? (
-                      <button
-                        type="button"
-                        className="btn-claim-certificate-glow"
-                        onClick={handleGetCertificateClick}
-                      >
-                        <Award size={16} />
-                        <span>View Verified Certificate</span>
-                      </button>
-                    ) : (
-                      <div className="promo-locked-pill">
-                        <Lock size={14} />
-                        <span>Unlocks at 100% completion (Currently {progressPct}%)</span>
+              {/* RIGHT SIDEBAR COLUMN (~32%) */}
+              <aside className="gfg-curriculum-side-column" aria-label={isCertificateEnabled ? 'Course Highlights & Certificate' : 'Course Information'}>
+                {isCertificateEnabled ? (
+                  /* 1. Verified Certificate Promo Card */
+                  <div className="gfg-side-card certificate-promo-card">
+                    <div className="card-top-accent-line" />
+                    <div className="promo-card-header">
+                      <div className="promo-icon-badge">
+                        <Award size={22} className="text-emerald" />
                       </div>
-                    )}
+                      <div>
+                        <span className="promo-super-label">UpSkillR Verified Credential</span>
+                        <h4 className="promo-card-heading">Earn Your Course Certificate</h4>
+                      </div>
+                    </div>
+
+                    <p className="promo-card-body">
+                      Complete 100% of all lessons to earn an authentic, verifiable certificate signed by your course instructor.
+                    </p>
+
+                    <ul className="promo-benefits-list">
+                      <li>
+                        <ShieldCheck size={14} className="text-emerald" />
+                        <span>Tamper-proof verifiable online credential</span>
+                      </li>
+                      <li>
+                        <CheckCircle2 size={14} className="text-emerald" />
+                        <span>Includes verified instructor designation</span>
+                      </li>
+                      <li>
+                        <ExternalLink size={14} className="text-emerald" />
+                        <span>Directly shareable on LinkedIn and portfolios</span>
+                      </li>
+                    </ul>
+
+                    <div className="promo-action-box">
+                      {isEligibleForCertificate ? (
+                        <button
+                          type="button"
+                          className="btn-claim-certificate-glow"
+                          onClick={handleGetCertificateClick}
+                        >
+                          <Award size={16} />
+                          <span>View Verified Certificate</span>
+                        </button>
+                      ) : (
+                        <div className="promo-locked-pill">
+                          <Lock size={14} />
+                          <span>Unlocks at 100% completion (Currently {progressPct}%)</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  /* 2. Informational Card when instructor disabled certificates */
+                  <div className="gfg-side-card no-certificate-info-card">
+                    <div className="promo-card-header">
+                      <div className="promo-icon-badge no-cert-icon-badge">
+                        <Info size={22} className="no-cert-info-icon" />
+                      </div>
+                      <div>
+                        <h4 className="promo-card-heading">No Certificate Available</h4>
+                      </div>
+                    </div>
+
+                    <p className="promo-card-body no-cert-card-body">
+                      This course does not offer a certificate. You can still complete all modules, develop your skills and track your learning progress.
+                    </p>
+                  </div>
+                )}
               </aside>
             </div>
           </div>
@@ -1309,69 +1547,36 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
         {/* ─── TAB C: COURSE ASSESSMENTS ─── */}
         {activeTab === 'assessments' && (
           <div className="tab-pane-container assessments-tab-pane">
-            <div className="tab-pane-header">
-              <h2>Course Assessments &amp; Final Exams</h2>
-              <p>Complete graded assessments to verify comprehensive mastery and validate your learning achievements.</p>
+            <div className="tab-pane-header tab-pane-header-with-count">
+              <div>
+                <h2>Course Assessments &amp; Final Exams</h2>
+                <p>Complete graded milestone assessments to verify mastery and earn official Course Leaderboard points.</p>
+              </div>
+              <span className="tab-section-total-pill">
+                {(course?.courseAssessments || []).length} {(course?.courseAssessments || []).length === 1 ? 'Assessment' : 'Assessments'}
+              </span>
             </div>
 
-            {(course?.courseAssessments || []).length === 0 ? (
-              <div className="tab-empty-state-box">
-                <Award size={40} className="empty-state-icon" />
-                <h3>No Course Assessments Configured</h3>
-                <p>
-                  This course relies on continuous module knowledge checks and lesson quizzes. All lesson quizzes are integrated inside individual curriculum modules in the Learning Workspace.
-                </p>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleContinueLearning}
-                  style={{ minHeight: '44px', marginTop: '14px' }}
-                >
-                  <Play size={16} />
-                  <span>Go to Learning Workspace</span>
-                </button>
-              </div>
-            ) : (
-              <div className="assessments-card-grid">
-                {(course.courseAssessments).map((ass, idx) => (
-                  <div key={idx} className="assessment-card-box">
-                    <div className="assessment-card-header">
-                      <div className="assessment-icon-wrap">
-                        <Award size={20} />
-                      </div>
-                      <div className="assessment-card-title-group">
-                        <h4>{ass.title || `Assessment ${idx + 1}`}</h4>
-                        <span className="assessment-meta-tag">
-                          {ass.timeLimitMinutes ? `${ass.timeLimitMinutes} mins` : 'Untimed'} &bull; {ass.totalMarks || 100} Marks
-                        </span>
-                      </div>
-                    </div>
-                    {ass.description && <p className="assessment-card-desc">{ass.description}</p>}
-                    <div className="assessment-card-footer">
-                      <span className="passing-criteria">
-                        Passing Score: {ass.passingPercentage || 60}%
-                      </span>
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-sm"
-                        onClick={handleContinueLearning}
-                      >
-                        <span>Start in Workspace</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <CourseAssessmentsTab
+              courseId={courseId}
+              course={course}
+              enrolment={enrolment}
+              user={user}
+            />
           </div>
         )}
 
         {/* ─── TAB D: NOTICE BOARD (ANNOUNCEMENTS) ─── */}
         {activeTab === 'notices' && (
           <div className="tab-pane-container notices-tab-pane">
-            <div className="tab-pane-header">
-              <h2>Notice Board &amp; Instructor Announcements</h2>
-              <p>Official course announcements, schedule updates, and syllabus changes posted by your instructor.</p>
+            <div className="tab-pane-header tab-pane-header-with-count">
+              <div>
+                <h2>Notice Board &amp; Instructor Announcements</h2>
+                <p>Official course announcements, schedule updates, and syllabus changes posted by your instructor.</p>
+              </div>
+              <span className="tab-section-total-pill">
+                {announcements.length} {announcements.length === 1 ? 'Notice' : 'Notices'}
+              </span>
             </div>
 
             {announcements.length === 0 ? (
@@ -1416,17 +1621,59 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
         {/* ─── TAB E: REVIEWS & RATINGS ─── */}
         {activeTab === 'reviews' && (
           <div className="tab-pane-container reviews-tab-pane">
-            <div className="tab-pane-header">
-              <h2>Learner Reviews &amp; Ratings</h2>
-              <p>Authentic feedback from enrolled students who have experienced this course.</p>
+            <div className="tab-pane-header tab-pane-header-with-count">
+              <div>
+                <h2>Learner Reviews &amp; Ratings</h2>
+                <p>Authentic feedback from students who have completed this course.</p>
+              </div>
+              <div className="reviews-header-actions-group">
+                <span className="tab-section-total-pill">
+                  {reviews.length} {reviews.length === 1 ? 'Review' : 'Reviews'}
+                </span>
+                {isEnrolled && (
+                  isCourseCompleted ? (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => setIsRatingOpen(true)}
+                      style={{ minHeight: '44px' }}
+                    >
+                      <Star size={16} />
+                      <span>{enrolment?.rating ? 'Edit Review' : 'Rate & Review'}</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-secondary reviews-locked-btn"
+                      disabled
+                      title="Complete 100% of this course to unlock ratings and reviews."
+                      style={{ minHeight: '44px' }}
+                    >
+                      <Lock size={15} />
+                      <span>Rate &amp; Review</span>
+                    </button>
+                  )
+                )}
+              </div>
             </div>
+
+            {isEnrolled && !isCourseCompleted && (
+              <div className="reviews-completion-lock-banner" role="status">
+                <Lock size={16} />
+                <span>Complete 100% of this course to unlock ratings and reviews.</span>
+              </div>
+            )}
 
             {reviews.length === 0 ? (
               <div className="tab-empty-state-box">
                 <Star size={40} className="empty-state-icon" />
                 <h3>No Reviews Yet</h3>
-                <p>Be among the first learners to share your honest course experience and feedback!</p>
-                {isEnrolled && (
+                <p>
+                  {isEnrolled && !isCourseCompleted
+                    ? 'Complete 100% of this course to unlock ratings and reviews.'
+                    : 'Be among the first learners to share your honest course experience and feedback!'}
+                </p>
+                {isEnrolled && isCourseCompleted && (
                   <button
                     type="button"
                     className="btn btn-primary"
@@ -1434,48 +1681,66 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
                     style={{ minHeight: '44px', marginTop: '14px' }}
                   >
                     <MessageSquare size={16} />
-                    <span>Share Course Feedback</span>
+                    <span>Share Feedback</span>
                   </button>
                 )}
               </div>
             ) : (
               <div className="reviews-card-grid">
-                {reviews.map((rev, idx) => (
-                  <div key={rev._id || idx} className="review-card-item">
-                    <div className="review-card-header">
-                      <div className="review-author-meta">
-                        <Avatar
-                          image={rev.learnerAvatar || rev.learnerId?.avatar}
-                          name={rev.learnerName || 'Learner'}
-                          size="small"
-                        />
-                        <div className="review-author-info">
-                          <span className="review-author-name">{rev.learnerName || 'Learner'}</span>
-                          <span className="review-date-text">
-                            {rev.ratedAt ? new Date(rev.ratedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Verified Learner'}
-                          </span>
+                {reviews.map((rev, idx) => {
+                  const reviewerName = getReviewerDisplayName(rev);
+                  const reviewerAvatar = getReviewerAvatar(rev);
+                  const reviewDate = rev.ratedAt || rev.createdAt || rev.updatedAt;
+                  const reviewTags =
+                    Array.isArray(rev.feedbackTags) && rev.feedbackTags.length > 0
+                      ? rev.feedbackTags
+                      : Array.isArray(rev.tags)
+                        ? rev.tags
+                        : [];
+
+                  return (
+                    <div key={rev._id || idx} className="review-card-item">
+                      <div className="review-card-header">
+                        <div className="review-author-meta">
+                          <Avatar
+                            image={reviewerAvatar}
+                            name={reviewerName}
+                            size="small"
+                          />
+                          <div className="review-author-info">
+                            <span className="review-author-name">{reviewerName}</span>
+                            <span className="review-date-text">
+                              {reviewDate
+                                ? new Date(reviewDate).toLocaleDateString(undefined, {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric'
+                                  })
+                                : 'Verified Learner'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="review-stars-row">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              size={14}
+                              className={star <= (rev.rating || 5) ? 'star-gold' : 'star-muted'}
+                            />
+                          ))}
                         </div>
                       </div>
-                      <div className="review-stars-row">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            size={14}
-                            className={star <= (rev.rating || 5) ? 'star-gold' : 'star-muted'}
-                          />
-                        ))}
-                      </div>
+                      {rev.feedback && <p className="review-feedback-quote">"{rev.feedback}"</p>}
+                      {reviewTags.length > 0 && (
+                        <div className="review-tags-list">
+                          {reviewTags.map((tag, tIdx) => (
+                            <span key={tIdx} className="review-tag-badge">✓ {tag}</span>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    {rev.feedback && <p className="review-feedback-quote">"{rev.feedback}"</p>}
-                    {Array.isArray(rev.feedbackTags) && rev.feedbackTags.length > 0 && (
-                      <div className="review-tags-list">
-                        {rev.feedbackTags.map((tag, tIdx) => (
-                          <span key={tIdx} className="review-tag-badge">✓ {tag}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1484,9 +1749,38 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
         {/* ─── TAB F: Q&A / COURSE DOUBTS ─── */}
         {activeTab === 'qa' && (
           <div className="tab-pane-container qa-tab-pane">
-            <div className="tab-pane-header">
-              <h2>Course Q&amp;A &amp; Doubts</h2>
-              <p>Have questions about curriculum, projects, or setup? Ask the instructor directly.</p>
+            <div className="tab-pane-header qa-section-header">
+              <div>
+                <h2>Course Q&amp;A &amp; Doubts</h2>
+                <p>Have questions about curriculum, projects, or setup? Ask the instructor directly.</p>
+              </div>
+
+              {/* Discussion Filter Pills */}
+              {questions.length > 0 && (
+                <div className="qa-filter-pills-row">
+                  <button
+                    type="button"
+                    className={`qa-filter-pill ${qaFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => setQaFilter('all')}
+                  >
+                    All ({questions.length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`qa-filter-pill ${qaFilter === 'answered' ? 'active' : ''}`}
+                    onClick={() => setQaFilter('answered')}
+                  >
+                    Answered ({questions.filter((q) => q.status === 'answered' || Boolean(q.instructorReply)).length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`qa-filter-pill ${qaFilter === 'pending' ? 'active' : ''}`}
+                    onClick={() => setQaFilter('pending')}
+                  >
+                    Pending ({questions.filter((q) => q.status === 'pending' && !q.instructorReply).length})
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Question Submission Input Form */}
@@ -1505,37 +1799,147 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
                   className="btn-qa-submit"
                   disabled={!questionInput.trim() || submittingQuestion}
                 >
-                  <MessageSquare size={15} />
+                  <MessageSquare size={16} />
                   <span>{submittingQuestion ? 'Submitting...' : 'Ask Doubt'}</span>
                 </button>
               </div>
             </form>
 
+            {/* Discussions Feed */}
             {questions.length === 0 ? (
-              <div className="tab-empty-state-box">
-                <HelpCircle size={40} className="empty-state-icon" />
-                <h3>No Doubts Asked Yet</h3>
-                <p>Have a question or concept you want clarified? Submit your question above!</p>
+              <div className="tab-empty-state-box qa-empty-state-box">
+                <div className="qa-empty-icon-wrap">
+                  <HelpCircle size={44} className="empty-state-icon" />
+                </div>
+                <h3>No Questions Yet</h3>
+                <p>Have a question about this course? Start a discussion with your instructor.</p>
+              </div>
+            ) : filteredQaQuestions.length === 0 ? (
+              <div className="tab-empty-state-box qa-empty-state-box">
+                <HelpCircle size={38} className="empty-state-icon" />
+                <h3>No Discussions Found</h3>
+                <p>No questions match your selected filter.</p>
               </div>
             ) : (
               <div className="qa-questions-stack">
-                {questions.map((q, idx) => (
-                  <div key={q._id || idx} className="qa-question-card">
-                    <div className="qa-question-header">
-                      <span className="qa-q-badge">Q</span>
-                      <h4 className="qa-question-text">{q.question}</h4>
-                    </div>
-                    {q.reply && (
-                      <div className="qa-reply-box">
-                        <span className="qa-a-badge">A</span>
-                        <div className="qa-reply-body">
-                          <p>{q.reply}</p>
-                          <span className="qa-replied-by">Answered by {instructorName}</span>
+                {filteredQaQuestions.map((q, idx) => {
+                  const isAnswered = q.status === 'answered' || Boolean(q.instructorReply);
+                  const replyText = q.instructorReply || q.reply;
+                  const replyName = q.instructorName || instructorName;
+                  const replyAvatar = q.instructorAvatar || instructorAvatar;
+                  const replyDesig = q.instructorDesignation || instructorDesignation;
+
+                  return (
+                    <div
+                      key={q._id || idx}
+                      id={`qa-question-${q._id}`}
+                      className={`qa-question-card ${isAnswered ? 'is-answered' : 'is-pending'}`}
+                    >
+                      {/* Learner Info Header + Status Badge */}
+                      <div className="qa-card-top-bar">
+                        <div className="qa-learner-info">
+                          {q.userAvatar ? (
+                            <img
+                              src={q.userAvatar}
+                              alt={q.userName || 'Learner'}
+                              className="qa-learner-avatar-img"
+                            />
+                          ) : (
+                            <div className="qa-avatar-fallback">
+                              {(q.userName || 'L').charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div className="qa-learner-details">
+                            <span className="qa-learner-name">{q.userName || 'Learner'}</span>
+                            <span className="qa-post-time">
+                              <Clock size={11} />
+                              {q.createdAt
+                                ? new Date(q.createdAt).toLocaleDateString(undefined, {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                  })
+                                : 'Recently'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="qa-status-pill-wrap">
+                          {isAnswered ? (
+                            <span className="qa-status-pill answered">
+                              <CheckCircle2 size={13} />
+                              <span>Answered</span>
+                            </span>
+                          ) : (
+                            <span className="qa-status-pill pending">
+                              <Clock size={13} />
+                              <span>Pending Answer</span>
+                            </span>
+                          )}
                         </div>
                       </div>
-                    )}
-                  </div>
-                ))}
+
+                      {/* Question Content */}
+                      <div className="qa-question-content-box">
+                        <p className="qa-question-text">{q.question}</p>
+                      </div>
+
+                      {/* Pending Notice if waiting */}
+                      {!isAnswered && (
+                        <div className="qa-pending-notice">
+                          <Clock size={13} />
+                          <span>Waiting for instructor reply...</span>
+                        </div>
+                      )}
+
+                      {/* Instructor Reply Nested Box */}
+                      {isAnswered && replyText && (
+                        <div className="qa-instructor-reply-card">
+                          <div className="qa-reply-header-row">
+                            <div className="qa-instructor-meta">
+                              {replyAvatar ? (
+                                <img
+                                  src={replyAvatar}
+                                  alt={replyName}
+                                  className="qa-instructor-avatar-img"
+                                />
+                              ) : (
+                                <div className="qa-instructor-avatar-fallback">
+                                  {(replyName || 'I').charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <div className="qa-instructor-details">
+                                <div className="qa-name-and-badge">
+                                  <span className="qa-instructor-name">{replyName}</span>
+                                  <span className="qa-instructor-badge">
+                                    <ShieldCheck size={12} />
+                                    <span>Instructor</span>
+                                  </span>
+                                </div>
+                                <span className="qa-instructor-designation">{replyDesig}</span>
+                              </div>
+                            </div>
+
+                            {q.replyTimestamp && (
+                              <span className="qa-reply-time">
+                                <Clock size={11} />
+                                {new Date(q.replyTimestamp).toLocaleDateString(undefined, {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="qa-reply-body-text">
+                            <p>{replyText}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1543,39 +1947,30 @@ export const CourseLearningPage = ({ courseId, user = null }) => {
       </main>
 
       {/* ─── MODALS ─── */}
-      {/* 1. Course Rating & Feedback Modal */}
+      {/* 1. Course Rating & Feedback Modal (Shared Component with Review Course) */}
       <CourseRatingModal
-        isOpen={isRatingOpen}
+        isOpen={isRatingOpen && isCourseCompleted}
         onClose={() => setIsRatingOpen(false)}
+        course={course}
+        courseId={courseId}
         courseTitle={course?.title || 'Course'}
-        onSubmit={async (ratingData) => {
-          const token = sessionStorage.getItem('upskillr_token') || localStorage.getItem('upskillr_token');
-          if (token) {
-            try {
-              await fetch(`${API_BASE}/courses/rate`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                  courseId,
-                  rating: ratingData.rating,
-                  feedback: ratingData.feedback,
-                  feedbackTags: ratingData.feedbackTags
-                })
-              });
-              toast.success('Thank you! Your course review has been recorded.');
-              setIsRatingOpen(false);
-            } catch (e) {
-              toast.error('Failed to submit review.');
-            }
-          }
+        initialRating={
+          enrolment?.rating
+            ? {
+                rating: enrolment.rating,
+                feedback: enrolment.feedback || '',
+                tags: enrolment.feedbackTags || []
+              }
+            : null
+        }
+        onSubmit={async () => {
+          await refreshCourseReviews();
+          setIsRatingOpen(false);
         }}
       />
 
       {/* 2. Official Certificate Preview Modal */}
-      {isCertificateOpen && (
+      {isCertificateOpen && isCertificateEnabled && (
         <div className="certificate-modal-overlay" onClick={() => setIsCertificateOpen(false)}>
           <div
             className="certificate-modal-dialog"

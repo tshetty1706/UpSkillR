@@ -2,6 +2,7 @@ import React from 'react';
 import { Bookmark, Award, Layers, FileText, Clock, Users, Star } from 'lucide-react';
 import { CourseThumbnail } from '../CourseThumbnail';
 import { Avatar } from '../Avatar/Avatar';
+import { isCourseCertificateEnabled } from '../../../utils/courseCertificate';
 import './CourseCard.css';
 
 /**
@@ -32,7 +33,7 @@ export const CourseCard = ({
   const publishedModCount = course.moduleCount ?? course.modulesCount ?? (course.modules ? course.modules.filter(m => m.state === 'published' || m.status === 'published').length : 0);
   const assessmentCount = course.assessmentCount ?? (course.courseAssessments ? course.courseAssessments.length : 0);
   const durationText = course.formattedDuration || 'Duration unavailable';
-  const hasCertificate = course.certificate !== false;
+  const hasCertificate = isCourseCertificateEnabled(course);
   const descriptionText = course.description || course.shortDescription || '';
   const instructorObj = instructor || course.instructor || (typeof course.instructorId === 'object' ? course.instructorId : null);
   const instructorName = instructorObj?.fullName || instructorObj?.name || course.instructorName || 'Instructor';

@@ -31,6 +31,8 @@ export const AssessmentDashboard = ({
   courseId,
   modules = [],
   courseAssessments = [],
+  selectedAssessmentId: controlledSelectedAssessmentId,
+  onSelectAssessment,
   onBack,
   onNavigateToModules,
   onCurriculumUpdated,
@@ -43,10 +45,21 @@ export const AssessmentDashboard = ({
   // Sidebar open/closed state (matches ModuleLessonEditor behavior, default collapsed dock)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Selected assessment ID for detail view
-  const [selectedAssessmentId, setSelectedAssessmentId] = useState(() => {
+  // Internal fallback state when rendered without a controlled selectedAssessmentId
+  const [internalSelectedAssessmentId, setInternalSelectedAssessmentId] = useState(() => {
     return courseAssessments.length > 0 ? courseAssessments[0]._id : null;
   });
+
+  const isControlled = controlledSelectedAssessmentId !== undefined;
+  const selectedAssessmentId = isControlled ? controlledSelectedAssessmentId : internalSelectedAssessmentId;
+  const setSelectedAssessmentId = (id) => {
+    if (onSelectAssessment) {
+      onSelectAssessment(id);
+    }
+    if (!isControlled) {
+      setInternalSelectedAssessmentId(id);
+    }
+  };
 
   // Search filter in sidebar
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
@@ -147,17 +160,18 @@ export const AssessmentDashboard = ({
     return () => window.removeEventListener('resize', handleResize);
   }, [isSidebarOpen]);
 
-  // Sync selected assessment when assessments list updates
+  // Sync selected assessment when assessments list updates (uncontrolled fallback)
   useEffect(() => {
+    if (isControlled) return;
     if (courseAssessments.length > 0) {
-      const exists = courseAssessments.some(a => String(a._id) === String(selectedAssessmentId));
+      const exists = courseAssessments.some(a => String(a._id) === String(internalSelectedAssessmentId));
       if (!exists) {
-        setSelectedAssessmentId(courseAssessments[0]._id);
+        setInternalSelectedAssessmentId(courseAssessments[0]._id);
       }
-    } else {
-      setSelectedAssessmentId(null);
+    } else if (internalSelectedAssessmentId !== null) {
+      setInternalSelectedAssessmentId(null);
     }
-  }, [courseAssessments, selectedAssessmentId]);
+  }, [courseAssessments, internalSelectedAssessmentId, isControlled]);
 
   // Find currently active assessment object
   const activeAssessment = useMemo(() => {
@@ -726,7 +740,7 @@ export const AssessmentDashboard = ({
                   <button
                     type="button"
                     className="btn-as-action btn-as-action-secondary text-xs"
-                    onClick={() => onEditAssessment(activeAssessment)}
+                    onClick={() => onEditAssessment(activeAssessment, 3)}
                   >
                     <Edit2 size={13} />
                     <span>Manage Questions</span>

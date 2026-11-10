@@ -41,6 +41,10 @@ const learnerSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  avatarPublicId: {
+    type: String,
+    default: ''
+  },
   username: {
     type: String,
     unique: true,

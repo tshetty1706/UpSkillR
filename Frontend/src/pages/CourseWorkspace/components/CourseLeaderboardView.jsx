@@ -8,9 +8,9 @@ import {
   Sparkles,
   RefreshCw,
   AlertCircle,
-  HelpCircle,
-  CheckCircle2,
-  Clock
+  ChevronLeft,
+  ChevronRight,
+  Compass
 } from 'lucide-react';
 import { Avatar } from '../../../components/common/Avatar/Avatar';
 import { API_BASE } from '../../../config/api';
@@ -20,8 +20,9 @@ export const CourseLeaderboardView = ({ courseId, courseTitle, user }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
 
-  const fetchLeaderboard = useCallback(async () => {
+  const fetchLeaderboard = useCallback(async (targetPage = page) => {
     if (!courseId) return;
     setLoading(true);
     setError(null);
@@ -31,7 +32,7 @@ export const CourseLeaderboardView = ({ courseId, courseTitle, user }) => {
     if (token) authHeaders['Authorization'] = `Bearer ${token}`;
 
     try {
-      const res = await fetch(`${API_BASE}/courses/${courseId}/course-leaderboard`, {
+      const res = await fetch(`${API_BASE}/courses/${courseId}/course-leaderboard?page=${targetPage}&limit=10`, {
         headers: authHeaders
       });
       const result = await res.json();
@@ -47,11 +48,15 @@ export const CourseLeaderboardView = ({ courseId, courseTitle, user }) => {
     } finally {
       setLoading(false);
     }
+  }, [courseId, page]);
+
+  useEffect(() => {
+    setPage(1);
   }, [courseId]);
 
   useEffect(() => {
-    fetchLeaderboard();
-  }, [fetchLeaderboard]);
+    fetchLeaderboard(page);
+  }, [fetchLeaderboard, page]);
 
   const renderRankBadge = (rank) => {
     if (rank === 1) {
@@ -119,13 +124,27 @@ export const CourseLeaderboardView = ({ courseId, courseTitle, user }) => {
   const {
     courseTitle: titleFromApi,
     totalEnrolled = 0,
-    totalAttemptedParticipants = 0,
+    totalLearners = totalEnrolled,
     totalCourseQuizzes = 0,
+    totalCourseAssessments = 0,
+    methodology,
+    pagination = {
+      currentPage: page,
+      limit: 10,
+      totalLearners: totalEnrolled,
+      totalPages: 1,
+      hasPrevPage: false,
+      hasNextPage: false
+    },
     leaderboard = [],
     currentUserRank
   } = data || {};
 
   const displayTitle = titleFromApi || courseTitle || 'Course';
+  const startRow = pagination.totalLearners > 0
+    ? (pagination.currentPage - 1) * pagination.limit + 1
+    : 0;
+  const endRow = Math.min(pagination.currentPage * pagination.limit, pagination.totalLearners);
 
   return (
     <div className="course-leaderboard-pane-container">
@@ -143,14 +162,16 @@ export const CourseLeaderboardView = ({ courseId, courseTitle, user }) => {
           </div>
 
           <div className="leaderboard-header-meta-chips">
-            <span className="leaderboard-meta-chip enrolled-chip" title="Total Enrolled Students">
+            <span className="leaderboard-meta-chip enrolled-chip" title="Total Enrolled Learners">
               <Users size={14} />
-              <span>{totalEnrolled} {totalEnrolled === 1 ? 'Learner Enrolled' : 'Learners Enrolled'}</span>
+              <span>{totalLearners} {totalLearners === 1 ? 'Learner' : 'Learners'}</span>
             </span>
 
-            <span className="leaderboard-meta-chip quizzes-chip" title="Quizzes Evaluated">
+            <span className="leaderboard-meta-chip quizzes-chip" title="Quizzes & Assessments Evaluated">
               <Sparkles size={14} />
-              <span>{totalCourseQuizzes} {totalCourseQuizzes === 1 ? 'Quiz' : 'Quizzes'}</span>
+              <span>
+                {totalCourseQuizzes} {totalCourseQuizzes === 1 ? 'Quiz' : 'Quizzes'} &bull; {totalCourseAssessments} {totalCourseAssessments === 1 ? 'Assessment' : 'Assessments'}
+              </span>
             </span>
           </div>
         </div>
@@ -163,26 +184,37 @@ export const CourseLeaderboardView = ({ courseId, courseTitle, user }) => {
           <div className="methodology-content-col">
             <div className="methodology-title-row">
               <span className="methodology-heading">Ranking Methodology: Quiz + Assessment Performance</span>
-              <span className="assessment-coming-soon-pill">Assessments Coming Soon</span>
             </div>
             <p className="methodology-description">
-              Overall standings are calculated by aggregating your <strong>official 1st submitted attempt</strong> for every quiz belonging to this course. Subsequent retakes are recorded for self-study and practice without altering your official score. Assessment scores will contribute to the total score once assessments are implemented.
+              {methodology || 'Overall standings are calculated using the first officially submitted attempt for every quiz and assessment in this course. Subsequent attempts are recorded separately for practice and do not affect official rankings.'}
             </p>
           </div>
         </div>
 
-        {/* ─── 3. CURRENT USER STANDING SUMMARY CARD (IF LOGGED IN) ─── */}
+        {/* ─── 3. CURRENT USER STANDING SUMMARY CARD (ALWAYS VISIBLE ACROSS PAGES) ─── */}
         {currentUserRank && (
           <div className="current-user-standing-banner">
             <div className="user-standing-left">
               <div className="standing-rank-display">
-                <span className="standing-rank-label">Your Course Rank</span>
+                <span className="standing-rank-label">Your Rank</span>
                 <div className="standing-rank-value">
                   {renderRankBadge(currentUserRank.rank)}
-                  <span className="rank-number-text">#{currentUserRank.rank}</span>
-                  <span className="rank-out-of">of {totalEnrolled}</span>
+                  <span className="rank-number-text">
+                    #{currentUserRank.rank} of {currentUserRank.totalLearners || totalLearners}
+                  </span>
                 </div>
               </div>
+
+              {currentUserRank.page && currentUserRank.page !== pagination.currentPage && (
+                <button
+                  type="button"
+                  className="btn-jump-my-rank"
+                  onClick={() => setPage(currentUserRank.page)}
+                >
+                  <Compass size={14} />
+                  <span>Go to Page {currentUserRank.page}</span>
+                </button>
+              )}
             </div>
 
             <div className="user-standing-metrics-grid">
@@ -193,7 +225,7 @@ export const CourseLeaderboardView = ({ courseId, courseTitle, user }) => {
 
               <div className="standing-metric-cell">
                 <span className="metric-cell-label">Assessment Marks</span>
-                <span className="metric-cell-val font-mono text-muted">—</span>
+                <span className="metric-cell-val font-mono">{currentUserRank.assessmentMarks ?? 0}</span>
               </div>
 
               <div className="standing-metric-cell total-score-cell">
@@ -212,9 +244,9 @@ export const CourseLeaderboardView = ({ courseId, courseTitle, user }) => {
             <div className="empty-trophy-wrapper">
               <Trophy size={48} className="empty-trophy-icon" />
             </div>
-            <h3>No Quiz Attempts Recorded Yet</h3>
+            <h3>No Standings Recorded Yet</h3>
             <p>
-              Leaderboard standings will update dynamically as students complete module quizzes. Take your first quiz to secure the #1 rank!
+              Leaderboard standings will update automatically as learners complete quizzes and course assessments.
             </p>
           </div>
         ) : (
@@ -225,10 +257,7 @@ export const CourseLeaderboardView = ({ courseId, courseTitle, user }) => {
                   <th className="col-rank">Rank</th>
                   <th className="col-student">Student</th>
                   <th className="col-quiz-marks text-right">Quiz Marks</th>
-                  <th className="col-assessment-marks text-right">
-                    Assessment Marks
-                    <span className="th-sub-label">(Coming Soon)</span>
-                  </th>
+                  <th className="col-assessment-marks text-right">Assessment Marks</th>
                   <th className="col-total-marks text-right">Total Marks</th>
                 </tr>
               </thead>
@@ -247,7 +276,7 @@ export const CourseLeaderboardView = ({ courseId, courseTitle, user }) => {
                         </div>
                       </td>
 
-                      {/* Student Info (Avatar + Display Name) */}
+                      {/* Student Info */}
                       <td className="col-student">
                         <div className="student-profile-cell">
                           <Avatar
@@ -274,10 +303,10 @@ export const CourseLeaderboardView = ({ courseId, courseTitle, user }) => {
                         </span>
                       </td>
 
-                      {/* Assessment Marks (Future-proofed) */}
+                      {/* Official Assessment Marks */}
                       <td className="col-assessment-marks text-right font-mono">
-                        <span className="assessment-placeholder-dash" title="Assessments are not yet configured for this course">
-                          —
+                        <span className="score-pill-plain">
+                          {student.assessmentMarks ?? 0}
                         </span>
                       </td>
 
@@ -296,10 +325,45 @@ export const CourseLeaderboardView = ({ courseId, courseTitle, user }) => {
         )}
       </section>
 
-      {/* ─── 5. FOOTER NOTES ─── */}
+      {/* ─── 5. SERVER-SIDE PAGINATION CONTROLS ─── */}
+      {pagination.totalLearners > 0 && (
+        <div className="leaderboard-pagination-bar">
+          <div className="lb-pagination-summary">
+            Showing <strong>{startRow}–{endRow}</strong> of <strong>{pagination.totalLearners}</strong> {pagination.totalLearners === 1 ? 'learner' : 'learners'}
+          </div>
+
+          <div className="lb-pagination-controls">
+            <button
+              type="button"
+              className="btn-lb-page"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={!pagination.hasPrevPage || loading}
+            >
+              <ChevronLeft size={16} />
+              <span>Previous</span>
+            </button>
+
+            <span className="lb-page-indicator">
+              Page <strong>{pagination.currentPage}</strong> of <strong>{pagination.totalPages}</strong>
+            </span>
+
+            <button
+              type="button"
+              className="btn-lb-page"
+              onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+              disabled={!pagination.hasNextPage || loading}
+            >
+              <span>Next</span>
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 6. FOOTER NOTES ─── */}
       <footer className="course-leaderboard-footer">
         <p className="footer-rules-note">
-          * Quizzes only count the first submitted attempt toward official marks. Retakes provide practice and do not alter leaderboard points. In the case of equal points, ties are broken by quizzes completed, followed by earliest qualifying submission.
+          * Total Course Score = Official Quiz Marks + Official Assessment Marks. Only the first officially submitted attempt for each quiz and assessment contributes to standings. Ties break by earliest official completion time.
         </p>
       </footer>
     </div>
