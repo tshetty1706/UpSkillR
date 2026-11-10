@@ -82,10 +82,12 @@ router.get('/me/milestones', learnerController.getLearnerMilestones);
 // Learning Streak Badges
 router.get('/me/badges', learnerController.getLearnerBadges);
 
-// Notifications (New modules / lessons uploaded)
+// Notifications (New modules / lessons / course section alerts)
 const notificationController = require('../controller/notificationController');
 router.get('/me/notifications', notificationController.getLearnerNotifications);
 router.patch('/me/notifications/read-all', notificationController.markAllNotificationsAsRead);
+router.get('/me/notifications/course/:courseId/unread-counts', notificationController.getCourseSectionUnreadCounts);
+router.patch('/me/notifications/course/:courseId/mark-section-read', notificationController.markCourseSectionNotificationsAsRead);
 router.patch('/me/notifications/:id/read', notificationController.markNotificationAsRead);
 
 // Account Deletion (Email OTP Only — Step 2: Send OTP, Step 2b: Resend, Step 3: Verify OTP, Step 4: Confirm Deletion)

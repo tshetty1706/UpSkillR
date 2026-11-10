@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { Avatar } from '../../../../common/Avatar/Avatar';
 import { useTheme } from '../../../../../context/ThemeContext';
+import { getReviewerDisplayName, getReviewerAvatar } from '../../../../../utils/reviewerDisplay';
+import { isCourseCertificateEnabled } from '../../../../../utils/courseCertificate';
 import courseOverviewIllustration from '../../../../../assets/illustrations/courseOverview.svg';
 import courseOverviewDarkIllustration from '../../../../../assets/illustrations/courseOverview_dark.svg';
 import './CourseOverviewTemplate.css';
@@ -146,7 +148,7 @@ export const CourseOverviewTemplate = ({
     0
   );
 
-  const hasCertificate = course?.certificate !== false && overview?.certificate !== false;
+  const hasCertificate = isCourseCertificateEnabled(course, overview);
   const instructorName = instructor?.name || instructor?.fullName || course?.instructorName || 'UpSkillr Instructor';
   const instructorHeadline = instructor?.headline || instructor?.designation || 'Instructor';
   const instructorAvatar = instructor?.profilePhoto || instructor?.avatar;
@@ -811,20 +813,25 @@ export const CourseOverviewTemplate = ({
                   </div>
                 ) : (
                   <div className="reviews-cards-grid">
-                    {safeReviews.map((rev, idx) => (
-                      <div key={idx} className="review-item-card">
-                        <div className="review-item-header">
-                          <Avatar
-                            image={rev.learnerAvatar}
-                            name={rev.learnerName}
-                            size="small"
-                          />
-                          <div className="review-author-meta">
-                            <span className="review-author-name">{rev.learnerName || 'Learner'}</span>
-                            <span className="review-date-text">
-                              {rev.ratedAt ? new Date(rev.ratedAt).toLocaleDateString() : ''}
-                            </span>
-                          </div>
+                    {safeReviews.map((rev, idx) => {
+                      const reviewerName = getReviewerDisplayName(rev);
+                      const reviewerAvatar = getReviewerAvatar(rev);
+                      const reviewDate = rev.ratedAt || rev.createdAt || rev.updatedAt;
+
+                      return (
+                        <div key={rev._id || idx} className="review-item-card">
+                          <div className="review-item-header">
+                            <Avatar
+                              image={reviewerAvatar}
+                              name={reviewerName}
+                              size="small"
+                            />
+                            <div className="review-author-meta">
+                              <span className="review-author-name">{reviewerName}</span>
+                              <span className="review-date-text">
+                                {reviewDate ? new Date(reviewDate).toLocaleDateString() : ''}
+                              </span>
+                            </div>
                           <div className="review-stars-wrap">
                             {[...Array(5)].map((_, sIdx) => (
                               <Star
@@ -849,7 +856,8 @@ export const CourseOverviewTemplate = ({
                           </div>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </section>

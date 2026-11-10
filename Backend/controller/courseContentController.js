@@ -1545,50 +1545,16 @@ exports.getAssessmentForLearner = async (req, res) => {
         });
       }
 
-      // Check module prerequisites
-      const requiredIds = Array.isArray(assessment.requiredModuleIds)
-        ? assessment.requiredModuleIds.map(String)
-        : [];
-
-      if (requiredIds.length > 0) {
-        const completedLessons = new Set((enrolment.completedLessons || []).map(String));
-        const incompleteModules = [];
-
-        for (const reqModId of requiredIds) {
-          const mod = (course.modules || []).find(m => String(m._id) === reqModId);
-          if (!mod || mod.state !== 'published') continue;
-
-          // Gather all published items in this module
-          const pubItems = [];
-          for (const les of mod.lessons || []) {
-            if (les.state !== 'published') continue;
-            for (const item of (les.items || les.contentItems || [])) {
-              if (item.state === 'published') {
-                pubItems.push(String(item._id));
-              }
-            }
-          }
-
-          // If module has published items, verify all are completed
-          if (pubItems.length > 0) {
-            const allItemsDone = pubItems.every(id => completedLessons.has(id));
-            if (!allItemsDone) {
-              incompleteModules.push({
-                _id: mod._id,
-                title: mod.title
-              });
-            }
-          }
-        }
-
-        if (incompleteModules.length > 0) {
-          return res.status(403).json({
-            success: false,
-            code: 'PREREQUISITES_INCOMPLETE',
-            message: 'You must complete all prerequisite modules before unlocking this assessment.',
-            incompleteModules
-          });
-        }
+      // Check module prerequisites strictly via centralized assessmentService (includes 80% video & quiz submission rules)
+      const { evaluateAssessmentPrerequisites } = require('../services/assessmentService');
+      const prereqResult = await evaluateAssessmentPrerequisites(course, assessment, enrolment, req.user.id);
+      if (!prereqResult.unlocked) {
+        return res.status(403).json({
+          success: false,
+          code: 'PREREQUISITES_INCOMPLETE',
+          message: 'Complete all prerequisite modules to unlock this assessment.',
+          incompleteModules: prereqResult.incompleteModules
+        });
       }
     }
 
@@ -1670,6 +1636,24 @@ exports.toggleAssessmentState = async (req, res) => {
 
     recomputeEffectiveVisibility(course);
     await course.save();
+
+    if (assessment.state === 'published') {
+      try {
+        const { notifyEnrolledLearnersForCourseSection } = require('./notificationController');
+        await notifyEnrolledLearnersForCourseSection({
+          courseId: course._id,
+          courseTitle: course.title,
+          section: 'assessments',
+          type: 'NEW_ASSESSMENT',
+          referenceId: assessment._id,
+          title: `New Assessment Published: ${assessment.title}`,
+          message: `A new assessment "${assessment.title}" is now available in "${course.title}".`,
+          link: `/courses/${course._id}?tab=assessments`
+        });
+      } catch (notifErr) {
+        console.warn('[ASSESSMENT NOTIFICATION WARNING]', notifErr.message);
+      }
+    }
 
     res.json({
       success: true,

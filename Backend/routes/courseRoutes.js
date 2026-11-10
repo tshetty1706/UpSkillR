@@ -11,6 +11,8 @@ const analyticsController = require('../controller/analyticsController');
 const reviewController = require('../controller/reviewController');
 const learnerController = require('../controller/learnerController');
 const quizController = require('../controller/quizController');
+const learnerAssessmentController = require('../controller/learnerAssessmentController');
+const notificationController = require('../controller/notificationController');
 const {
   protect,
   requireLearner,
@@ -109,6 +111,10 @@ router.put('/:courseId/review', protect, requireLearner, reviewController.update
 router.delete('/:courseId/review', protect, requireLearner, reviewController.deleteCourseReview);
 router.post('/:courseId/access', protect, requireLearner, learnerController.recordCourseAccess);
 
+// ─── Learner Course Section Unread Notifications ───
+router.get('/:courseId/notifications/unread-counts', protect, requireLearner, notificationController.getCourseSectionUnreadCounts);
+router.patch('/:courseId/notifications/:section/read', protect, requireLearner, notificationController.markCourseSectionNotificationsAsRead);
+
 // ─── Dedicated Quiz System Routes ───
 router.get('/:courseId/quizzes/:quizId/info', protect, requireLearner, quizController.getQuizInfo);
 router.get('/:courseId/quizzes/:quizId/my-attempts', protect, requireLearner, quizController.getMyQuizAttempts);
@@ -118,11 +124,29 @@ router.post('/:courseId/quizzes/:quizId/attempt/:attemptId/submit', protect, req
 router.get('/:courseId/quizzes/:quizId/leaderboard', protect, requireLearner, quizController.getQuizLeaderboard);
 router.get('/:courseId/course-leaderboard', protect, requireLearner, quizController.getCourseLeaderboard);
 
+// ─── Dedicated Learner Assessment System Routes ───
+router.get('/:courseId/learner-assessments', protect, requireLearner, learnerAssessmentController.getCourseAssessments);
+router.get('/:courseId/assessments', protect, (req, res, next) => {
+  if (req.user && req.user.role === 'learner') {
+    return learnerAssessmentController.getCourseAssessments(req, res, next);
+  }
+  return next();
+});
+router.get('/:courseId/assessments/:assessmentId/details', protect, requireLearner, learnerAssessmentController.getSingleAssessmentDetails);
+router.post('/:courseId/assessments/:assessmentId/start', protect, requireLearner, learnerAssessmentController.startAssessmentAttempt);
+router.get('/:courseId/assessments/:assessmentId/attempt/:attemptId', protect, requireLearner, learnerAssessmentController.getAssessmentAttempt);
+router.patch('/:courseId/assessments/:assessmentId/attempt/:attemptId/answers', protect, requireLearner, learnerAssessmentController.saveAssessmentDraftAnswers);
+router.post('/:courseId/assessments/:assessmentId/attempt/:attemptId/submit', protect, requireLearner, learnerAssessmentController.submitAssessmentAttempt);
+router.get('/:courseId/assessments/:assessmentId/retake-leaderboard', protect, requireLearner, learnerAssessmentController.getRetakeLeaderboard);
+
 
 // ─── 3. Instructor Course Management (Collection Level) ───
 router.get('/instructor/my-courses', protect, requireSubmittedInstructor, courseController.getInstructorCourses);
 router.get('/instructor/analytics', protect, requireSubmittedInstructor, analyticsController.getInstructorAnalytics);
 router.get('/instructor/questions', protect, requireSubmittedInstructor, courseController.getInstructorQuestions);
+router.get('/instructor/notifications', protect, requireSubmittedInstructor, notificationController.getLearnerNotifications);
+router.patch('/instructor/notifications/read-all', protect, requireSubmittedInstructor, notificationController.markAllNotificationsAsRead);
+router.patch('/instructor/notifications/:id/read', protect, requireSubmittedInstructor, notificationController.markNotificationAsRead);
 router.post('/', protect, requireSubmittedInstructor, thumbnailUpload.single('thumbnail'), courseController.createCourse);
 
 // ─── Assessment Review Surface (Sidebar) ───

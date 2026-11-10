@@ -66,9 +66,33 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
   const [mobileDrawer, setMobileDrawer] = useState(null);
 
   // Selected Curriculum Position
-  const [selectedModuleIdx, setSelectedModuleIdx] = useState(0);
-  const [selectedLessonIdx, setSelectedLessonIdx] = useState(0);
-  const [selectedItemIdx, setSelectedItemIdx] = useState(0);
+  const [selectedModuleIdx, setSelectedModuleIdx] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const m = parseInt(params.get('module') ?? params.get('moduleId'), 10);
+      return !isNaN(m) && m >= 0 ? m : 0;
+    } catch (e) {
+      return 0;
+    }
+  });
+  const [selectedLessonIdx, setSelectedLessonIdx] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const l = parseInt(params.get('lesson') ?? params.get('lessonId'), 10);
+      return !isNaN(l) && l >= 0 ? l : 0;
+    } catch (e) {
+      return 0;
+    }
+  });
+  const [selectedItemIdx, setSelectedItemIdx] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const it = parseInt(params.get('item') ?? params.get('itemId'), 10);
+      return !isNaN(it) && it >= 0 ? it : 0;
+    } catch (e) {
+      return 0;
+    }
+  });
 
   // Video player state
   const videoRef = useRef(null);
@@ -466,6 +490,8 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
       setSelectedModuleIdx(targetMIdx);
       setSelectedLessonIdx(targetLIdx);
       setSelectedItemIdx(targetIIdx);
+      const nextUrl = `/learn/${courseId}?module=${targetMIdx}&lesson=${targetLIdx}&item=${targetIIdx}`;
+      window.history.replaceState(null, '', nextUrl);
       return;
     }
 
@@ -491,11 +517,12 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
 
       if (foundMIdx !== -1) {
         setSelectedModuleIdx(foundMIdx);
-        if (foundLIdx !== -1) {
-          setSelectedLessonIdx(foundLIdx);
-          setSelectedItemIdx(0);
-          return;
-        }
+        const resLIdx = foundLIdx !== -1 ? foundLIdx : 0;
+        setSelectedLessonIdx(resLIdx);
+        setSelectedItemIdx(0);
+        const nextUrl = `/learn/${courseId}?module=${foundMIdx}&lesson=${resLIdx}&item=0`;
+        window.history.replaceState(null, '', nextUrl);
+        return;
       }
     }
 
@@ -510,12 +537,47 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
       setSelectedModuleIdx(firstIncomplete.moduleIdx);
       setSelectedLessonIdx(firstIncomplete.lessonIdx);
       setSelectedItemIdx(0);
+      const nextUrl = `/learn/${courseId}?module=${firstIncomplete.moduleIdx}&lesson=${firstIncomplete.lessonIdx}&item=0`;
+      window.history.replaceState(null, '', nextUrl);
     } else {
       setSelectedModuleIdx(0);
       setSelectedLessonIdx(0);
       setSelectedItemIdx(0);
+      const nextUrl = `/learn/${courseId}?module=0&lesson=0&item=0`;
+      window.history.replaceState(null, '', nextUrl);
     }
-  }, [modulesList, enrolment, isLessonUnlocked, isLessonCompleted, flatLessonsList]);
+  }, [modulesList, enrolment, isLessonUnlocked, isLessonCompleted, flatLessonsList, courseId]);
+
+  // Synchronize curriculum position when navigating back/forward in browser history
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const searchStr = window.location.search;
+        const params = new URLSearchParams(searchStr);
+        const paramMod = params.get('module') ?? params.get('moduleId');
+        const paramLes = params.get('lesson') ?? params.get('lessonId');
+        const paramItem = params.get('item') ?? params.get('itemId');
+
+        if (paramMod !== null) {
+          const m = parseInt(paramMod, 10);
+          if (!isNaN(m) && m >= 0) {
+            setSelectedModuleIdx(m);
+            if (paramLes !== null) {
+              const l = parseInt(paramLes, 10);
+              if (!isNaN(l) && l >= 0) setSelectedLessonIdx(l);
+            }
+            if (paramItem !== null) {
+              const it = parseInt(paramItem, 10);
+              if (!isNaN(it) && it >= 0) setSelectedItemIdx(it);
+            }
+          }
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Active module & lesson objects
   const activeModule = modulesList[selectedModuleIdx] || modulesList[0] || null;
@@ -770,6 +832,10 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
     setSelectedLessonIdx(0);
     setSelectedItemIdx(0);
     setMobileDrawer(null);
+
+    const nextUrl = `/learn/${courseId}?module=${mIdx}&lesson=0&item=0`;
+    window.history.replaceState(null, '', nextUrl);
+
     recordAccessPosition(mIdx, 0);
   };
 
@@ -985,6 +1051,14 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
         if (newStatus) {
           toast.success(`✓ "${itemLabel}" marked as completed!`);
           window.dispatchEvent(new CustomEvent('upskillr_points_updated'));
+          window.dispatchEvent(
+            new CustomEvent('upskillr_progress_updated', {
+              detail: {
+                courseId,
+                isCourseCompleted: Boolean(data.isCourseCompleted || data.enrolment?.progressPercentage === 100)
+              }
+            })
+          );
 
           // Display specific reward notifications for module or course completions
           if (Array.isArray(data.awardedBadges) && data.awardedBadges.length > 0) {
@@ -1322,15 +1396,27 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
               {isDarkMode ? <Sun size={17} /> : <Moon size={17} />}
             </button>
 
-            {/* Feedback Rating Button */}
+            {/* Feedback Rating Button (Unlocked only at 100% completion) */}
             <button
               type="button"
-              className="btn-feedback-action"
-              onClick={() => setIsRatingOpen(true)}
-              title="Rate Course & Share Feedback"
-              aria-label="Share Feedback"
+              className={`btn-feedback-action ${!isCourseCompleted ? 'is-locked' : ''}`}
+              disabled={!isCourseCompleted}
+              onClick={() => {
+                if (!isCourseCompleted) return;
+                setIsRatingOpen(true);
+              }}
+              title={
+                isCourseCompleted
+                  ? 'Rate Course & Share Feedback'
+                  : 'Complete 100% of this course to unlock ratings and reviews.'
+              }
+              aria-label={
+                isCourseCompleted
+                  ? 'Share Feedback'
+                  : 'Complete 100% of this course to unlock ratings and reviews.'
+              }
             >
-              <Star size={16} />
+              {isCourseCompleted ? <Star size={16} /> : <Lock size={15} />}
             </button>
           </div>
         </div>
@@ -1989,34 +2075,15 @@ export const CourseWorkspacePage = ({ courseId, user = null }) => {
         </div>
       )}
 
-      {/* ─── COURSE RATING & FEEDBACK MODAL ─── */}
+      {/* ─── COURSE RATING & FEEDBACK MODAL (Shared Component with Review Course) ─── */}
       <CourseRatingModal
-        isOpen={isRatingOpen}
+        isOpen={isRatingOpen && isCourseCompleted}
         onClose={() => setIsRatingOpen(false)}
+        course={course}
+        courseId={courseId}
         courseTitle={course?.title || 'Course'}
-        onSubmit={async (ratingData) => {
-          const token = sessionStorage.getItem('upskillr_token');
-          if (token) {
-            try {
-              await fetch(`${API_BASE}/courses/rate`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                  courseId,
-                  rating: ratingData.rating,
-                  feedback: ratingData.feedback,
-                  feedbackTags: ratingData.feedbackTags
-                })
-              });
-              toast.success('Thank you! Your course review has been recorded.');
-              setIsRatingOpen(false);
-            } catch (e) {
-              toast.error('Failed to submit review.');
-            }
-          }
+        onSubmit={() => {
+          setIsRatingOpen(false);
         }}
       />
     </div>

@@ -17,19 +17,24 @@ export const InstructorDashboard = ({ user, onLogout }) => {
   const { toast } = useToast();
   const getInitialRoute = () => {
     const path = window.location.pathname;
+    const queryAssessmentId = new URLSearchParams(window.location.search).get('assessmentId');
 
-    // Dedicated Content Editor standalone routes
-    const modulesMatch = path.match(/\/instructor\/courses\/([a-f0-9]{24})\/content(?:\/modules)?/i);
+    // Dedicated Content Editor standalone routes (match specific sub-routes before /content fallback)
+    const assessmentsMatch = path.match(/\/instructor\/courses\/([a-f0-9]{24})\/(?:content\/)?assessments(?:\/([a-f0-9]{24}))?(?:\/|$)/i);
+    if (assessmentsMatch) {
+      return {
+        tab: 'content-assessments',
+        courseId: assessmentsMatch[1],
+        assessmentId: assessmentsMatch[2] || queryAssessmentId || null
+      };
+    }
+    const resourcesMatch = path.match(/\/instructor\/courses\/([a-f0-9]{24})\/content\/resources(?:\/|$)/i);
+    if (resourcesMatch) {
+      return { tab: 'content-resources', courseId: resourcesMatch[1] };
+    }
+    const modulesMatch = path.match(/\/instructor\/courses\/([a-f0-9]{24})\/content(?:\/modules)?(?:\/|$)/i);
     if (modulesMatch) {
       return { tab: 'content-modules', courseId: modulesMatch[1] };
-    }
-    const resourcesMatch = path.match(/\/instructor\/courses\/([a-f0-9]{24})\/content\/resources/i);
-    if (resourcesMatch) {
-      return { tab: 'content-modules', courseId: resourcesMatch[1] };
-    }
-    const assessmentsMatch = path.match(/\/instructor\/courses\/([a-f0-9]{24})\/content\/assessments/i);
-    if (assessmentsMatch) {
-      return { tab: 'content-assessments', courseId: assessmentsMatch[1] };
     }
 
     const workspaceMatch = path.match(/\/instructor\/courses\/([a-f0-9]{24})\/workspace/i);
@@ -50,6 +55,9 @@ export const InstructorDashboard = ({ user, onLogout }) => {
     }
     if (path.startsWith('/instructor/inquiries')) {
       return { tab: 'inquiries', courseId: null };
+    }
+    if (path.startsWith('/instructor/learners')) {
+      return { tab: 'learners', courseId: null };
     }
     if (path.startsWith('/instructor/profile')) {
       return { tab: 'profile', courseId: null };
@@ -80,7 +88,11 @@ export const InstructorDashboard = ({ user, onLogout }) => {
     };
 
     window.addEventListener('popstate', syncRouteFromPath);
-    return () => window.removeEventListener('popstate', syncRouteFromPath);
+    window.addEventListener('upskillr_navigate', syncRouteFromPath);
+    return () => {
+      window.removeEventListener('popstate', syncRouteFromPath);
+      window.removeEventListener('upskillr_navigate', syncRouteFromPath);
+    };
   }, []);
 
   const fetchInstructorData = async () => {
@@ -110,7 +122,7 @@ export const InstructorDashboard = ({ user, onLogout }) => {
     }
   };
 
-  const handleNavigate = (tab, courseId = null) => {
+  const handleNavigate = (tab, courseId = null, options = null) => {
     setActiveTab(tab);
     if (courseId) {
       setSelectedCourseId(courseId);
@@ -123,29 +135,38 @@ export const InstructorDashboard = ({ user, onLogout }) => {
       setSelectedCourseId(null);
     }
 
+    let nextPath = '/instructor/dashboard';
     if (tab === 'manage-course' && courseId) {
-      window.history.pushState({}, '', `/instructor/courses/${courseId}/workspace`);
+      nextPath = `/instructor/courses/${courseId}/workspace`;
     } else if (tab === 'content-modules' && courseId) {
-      window.history.pushState({}, '', `/instructor/courses/${courseId}/content/modules`);
+      nextPath = `/instructor/courses/${courseId}/content/modules`;
     } else if (tab === 'content-resources' && courseId) {
-      window.history.pushState({}, '', `/instructor/courses/${courseId}/content/resources`);
+      nextPath = `/instructor/courses/${courseId}/content/resources`;
     } else if (tab === 'content-assessments' && courseId) {
-      window.history.pushState({}, '', `/instructor/courses/${courseId}/content/assessments`);
+      const targetAssessmentId = options?.assessmentId || null;
+      nextPath = targetAssessmentId
+        ? `/instructor/courses/${courseId}/content/assessments/${targetAssessmentId}`
+        : `/instructor/courses/${courseId}/content/assessments`;
     } else if (tab === 'my-courses') {
-      window.history.pushState({}, '', '/instructor/courses');
+      nextPath = '/instructor/courses';
     } else if (tab === 'create-course') {
-      window.history.pushState({}, '', '/instructor/courses/create');
+      nextPath = '/instructor/courses/create';
     } else if (tab === 'assessments') {
-      window.history.pushState({}, '', '/instructor/assessments');
+      nextPath = '/instructor/assessments';
     } else if (tab === 'analytics') {
-      window.history.pushState({}, '', '/instructor/analytics');
+      nextPath = '/instructor/analytics';
     } else if (tab === 'inquiries') {
-      window.history.pushState({}, '', '/instructor/inquiries');
+      nextPath = courseId ? `/instructor/inquiries?courseId=${courseId}` : '/instructor/inquiries';
+    } else if (tab === 'learners') {
+      nextPath = '/instructor/learners';
     } else if (tab === 'profile') {
-      window.history.pushState({}, '', '/instructor/profile');
+      nextPath = '/instructor/profile';
     } else if (tab === 'dashboard') {
-      window.history.pushState({}, '', '/instructor/dashboard');
+      nextPath = '/instructor/dashboard';
     }
+
+    window.history.pushState({}, '', nextPath);
+    window.dispatchEvent(new CustomEvent('upskillr_navigate', { detail: { path: nextPath } }));
   };
 
   const handleUpdateCourse = (updatedCourse) => {

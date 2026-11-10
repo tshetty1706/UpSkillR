@@ -899,7 +899,8 @@
 .as-questions-table-wrap {
   border: 1px solid var(--border, #e2e8f0);
   border-radius: 8px;
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .as-questions-table {
@@ -2761,6 +2762,16 @@
   color: #f8fafc;
 }
 
+.dark .as-questions-table-wrap,
+[data-theme="dark"] .as-questions-table-wrap {
+  border-color: #283548;
+}
+
+.dark .as-card-section-header,
+[data-theme="dark"] .as-card-section-header {
+  border-bottom-color: #1f2937;
+}
+
 .dark .as-questions-table th,
 [data-theme="dark"] .as-questions-table th {
   background: #151d2c;
@@ -2932,6 +2943,14 @@
     align-items: flex-start;
   }
 
+  .as-header-title-row {
+    flex-wrap: wrap;
+  }
+
+  .btn-as-action {
+    min-height: 44px;
+  }
+
   .as-header-actions-group {
     width: 100%;
     justify-content: flex-start;
@@ -3053,6 +3072,15 @@
 
   .as-review-questions-table {
     min-width: 580px;
+  }
+
+  .as-header-title-text {
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .as-questions-table {
+    min-width: 520px;
   }
 
   .as-wizard-nav-footer {

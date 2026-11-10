@@ -117,10 +117,10 @@ exports.getLearnerProfileAndStats = async (req, res) => {
     const verifiedPoints = await syncLearnerPoints(learnerId);
     learner.points = verifiedPoints;
 
-    // Evaluate all badges idempotently and obtain live badge progress
+    // Evaluate all badges idempotently and obtain live badge progress using verified database counts
     const { evaluateAllBadges, getLearnerBadgeProgress } = require('../services/badgeService');
-    await evaluateAllBadges(learner, coursesCompleted);
-    const badgeData = await getLearnerBadgeProgress(learner, coursesCompleted);
+    await evaluateAllBadges(learner);
+    const badgeData = await getLearnerBadgeProgress(learner);
 
     return res.status(200).json({
       success: true,
@@ -146,8 +146,6 @@ exports.getLearnerProfileAndStats = async (req, res) => {
         badges: badgeData.badges,
         streakBadges: badgeData.streakBadges,
         knowledgeSeekerBadges: badgeData.knowledgeSeekerBadges,
-        quizMasterBadges: badgeData.quizMasterBadges,
-        consistentLearnerBadges: badgeData.consistentLearnerBadges,
         perfectionistBadges: badgeData.perfectionistBadges
       },
       stats: {
@@ -163,12 +161,6 @@ exports.getLearnerProfileAndStats = async (req, res) => {
         totalStreakBadges: badgeData.stats.totalStreakBadges,
         knowledgeSeekerBadgesUnlocked: badgeData.stats.knowledgeSeekerBadgesUnlocked,
         totalKnowledgeSeekerBadges: badgeData.stats.totalKnowledgeSeekerBadges,
-        quizMasterBadgesUnlocked: badgeData.stats.quizMasterBadgesUnlocked,
-        totalQuizMasterBadges: badgeData.stats.totalQuizMasterBadges,
-        perfectQuizzesCount: badgeData.stats.perfectQuizzesCount,
-        consistentLearnerBadgesUnlocked: badgeData.stats.consistentLearnerBadgesUnlocked,
-        totalConsistentLearnerBadges: badgeData.stats.totalConsistentLearnerBadges,
-        lessonsCompleted: badgeData.stats.lessonsCompleted,
         perfectionistBadgesUnlocked: badgeData.stats.perfectionistBadgesUnlocked,
         totalPerfectionistBadges: badgeData.stats.totalPerfectionistBadges,
         perfectionistQuizzesCount: badgeData.stats.perfectionistQuizzesCount
@@ -746,61 +738,14 @@ exports.getRecentActivities = async (req, res) => {
 // ─── 10. GET /api/learners/me/certificates — Verified persistent course certificates ───
 exports.getLearnerCertificates = async (req, res) => {
   try {
-    const learnerId = req.user.id;
-
-    // 1. Fetch all issued Certificate documents
-    const issuedCerts = await Certificate.find({ learnerId })
-      .populate('courseId', 'title thumbnail category instructorName')
-      .sort({ issuedAt: -1 });
-
-    const issuedCourseIds = new Set(issuedCerts.map(c => String(c.courseId?._id || c.courseId)));
-
-    // 2. Fetch completed enrolments
-    const completedEnrolments = await Enrolment.find({
-      learnerId,
-      $or: [{ status: 'completed' }, { progressPercentage: { $gte: 100 } }]
-    }).populate('courseId', 'title thumbnail category certificate certificateSettings instructorName instructorId');
-
-    // For any completed course where certificate is enabled but not yet issued, auto-issue it!
-    for (const enr of completedEnrolments) {
-      if (!enr.courseId) continue;
-      const cIdStr = String(enr.courseId._id || enr.courseId);
-      const isEnabled = Boolean(enr.courseId.certificate === true || enr.courseId.certificateSettings?.enabled === true);
-      if (isEnabled && !issuedCourseIds.has(cIdStr)) {
-        try {
-          const newCert = await issueCourseCertificate({
-            course: enr.courseId,
-            enrolment: enr,
-            learnerId,
-            learnerUser: req.user
-          });
-          if (newCert) {
-            issuedCerts.push(newCert);
-            issuedCourseIds.add(cIdStr);
-          }
-        } catch (genErr) {
-          console.warn('Auto-issuing certificate for completed course error:', genErr.message);
-        }
-      }
-    }
-
-    const certificates = issuedCerts.map(c => ({
-      _id: c._id,
-      certificateId: c.certificateId,
-      courseId: c.courseId?._id || c.courseId,
-      courseTitle: c.courseNameSnapshot || c.courseId?.title || 'Completed Course',
-      courseThumbnail: c.courseId?.thumbnail || '',
-      category: c.courseId?.category || 'General',
-      studentName: c.studentNameSnapshot,
-      instructorName: c.instructorNameSnapshot || c.courseId?.instructorName || 'UpSkillr Instructor',
-      instructorDesignation: c.instructorDesignationSnapshot || 'Course Instructor',
-      completionDate: c.completionDate,
-      issuedAt: c.issuedAt,
-      certificateImageUrl: c.certificateImageUrl,
-      verificationUrl: c.verificationUrl,
-      verificationStatus: c.verificationStatus,
-      hasCertificate: true
-    }));
+    const { buildLearnerCertificatesPayload } = require('../utils/courseCertificate');
+    const certificates = await buildLearnerCertificatesPayload({
+      Certificate,
+      Enrolment,
+      issueCourseCertificate,
+      learnerId: req.user.id,
+      learnerUser: req.user
+    });
 
     return res.status(200).json({ success: true, count: certificates.length, certificates });
   } catch (error) {
@@ -913,7 +858,7 @@ exports.recordCourseAccess = async (req, res) => {
   try {
     const learnerId = req.user.id;
     const courseId = req.params.courseId || req.body.courseId;
-    const { moduleId, lessonId, videoTime } = req.body;
+    const { moduleId, lessonId, itemId, videoTime } = req.body;
 
     if (!courseId) {
       return res.status(400).json({ success: false, message: 'courseId is required.' });
@@ -928,6 +873,19 @@ exports.recordCourseAccess = async (req, res) => {
       if (lessonId !== undefined && lessonId !== null) {
         enrolment.lastAccessedLessonId = lessonId;
       }
+      if (itemId !== undefined && itemId !== null) {
+        enrolment.lastAccessedItemId = itemId;
+      }
+      if (moduleId !== undefined && moduleId !== null && (lessonId !== undefined || itemId !== undefined)) {
+        if (!enrolment.lastAccessedByModule) enrolment.lastAccessedByModule = new Map();
+        const modKey = String(moduleId);
+        const existingModPos = enrolment.lastAccessedByModule.get(modKey) || {};
+        enrolment.lastAccessedByModule.set(modKey, {
+          lessonId: lessonId !== undefined && lessonId !== null ? lessonId : (existingModPos.lessonId ?? null),
+          itemId: itemId !== undefined && itemId !== null ? itemId : (existingModPos.itemId ?? null),
+          updatedAt: new Date()
+        });
+      }
       if (lessonId && videoTime !== undefined && videoTime !== null) {
         if (!enrolment.videoProgress) enrolment.videoProgress = new Map();
         enrolment.videoProgress.set(String(lessonId), Number(videoTime));
@@ -939,7 +897,8 @@ exports.recordCourseAccess = async (req, res) => {
       success: true,
       message: 'Course access updated.',
       lastAccessedModuleId: enrolment?.lastAccessedModuleId,
-      lastAccessedLessonId: enrolment?.lastAccessedLessonId
+      lastAccessedLessonId: enrolment?.lastAccessedLessonId,
+      lastAccessedItemId: enrolment?.lastAccessedItemId
     });
   } catch (err) {
     console.error('Error recording course access:', err);
@@ -1280,17 +1239,38 @@ exports.confirmDeleteAccount = async (req, res) => {
       });
     }
 
-    // Mark authorization used and block further operations
-    learner.deleteAccountAuthUsed = true;
-    learner.deletionStatus = 'pending_deletion';
-    await learner.save();
+    // Atomically claim the single-use deletion token and transition to pending_deletion
+    // to prevent duplicate/concurrent deletion races
+    const claimedLearner = await Learner.findOneAndUpdate(
+      {
+        _id: learnerId,
+        deleteAccountAuthToken: incomingTokenHash,
+        deleteAccountAuthUsed: false,
+        deleteAccountAuthExpires: { $gt: new Date() },
+        deletionStatus: { $ne: 'pending_deletion' }
+      },
+      {
+        $set: {
+          deleteAccountAuthUsed: true,
+          deletionStatus: 'pending_deletion'
+        }
+      },
+      { new: true }
+    );
 
-    // Execute durable permanent deletion workflow
-    const result = await executePermanentDeletion(learnerId, learner.email, learner.authProvider);
+    if (!claimedLearner) {
+      return res.status(409).json({
+        success: false,
+        message: 'Account deletion is already in progress or this deletion token has already been used.'
+      });
+    }
 
-    // Invalidate authentication cookies
+    // Invalidate authentication cookies immediately once deletion is claimed
     res.clearCookie('upskillr_token', { path: '/' });
     res.clearCookie('token', { path: '/' });
+
+    // Execute durable permanent deletion workflow
+    const result = await executePermanentDeletion(learnerId, claimedLearner.email, claimedLearner.authProvider);
 
     return res.status(200).json({
       success: true,
@@ -1301,7 +1281,8 @@ exports.confirmDeleteAccount = async (req, res) => {
     console.error('confirmDeleteAccount error:', err);
     return res.status(500).json({
       success: false,
-      message: err.message || 'Server error permanently deleting account.'
+      message: 'Permanent account deletion could not be completed at this time. Any pending cleanup has been recorded.',
+      ...(err?.jobId ? { jobId: err.jobId } : {})
     });
   }
 };
@@ -1412,10 +1393,10 @@ exports.getLearnerMilestones = async (req, res) => {
 
     const earnedCount = milestones.filter(m => m.earned).length;
 
-    // Get live badge progress
+    // Get live badge progress using verified database counts
     const { evaluateAllBadges, getLearnerBadgeProgress } = require('../services/badgeService');
-    await evaluateAllBadges(learner, coursesCompletedCount);
-    const badgeData = await getLearnerBadgeProgress(learner, coursesCompletedCount);
+    await evaluateAllBadges(learner);
+    const badgeData = await getLearnerBadgeProgress(learner);
 
     return res.status(200).json({
       success: true,
@@ -1423,10 +1404,10 @@ exports.getLearnerMilestones = async (req, res) => {
       totalCount: milestones.length,
       milestones,
       badges: badgeData.badges,
+      earnedBadges: badgeData.earnedBadges,
+      badgesInProgress: badgeData.badgesInProgress,
       streakBadges: badgeData.streakBadges,
       knowledgeSeekerBadges: badgeData.knowledgeSeekerBadges,
-      quizMasterBadges: badgeData.quizMasterBadges,
-      consistentLearnerBadges: badgeData.consistentLearnerBadges,
       perfectionistBadges: badgeData.perfectionistBadges,
       stats: {
         coursesCompleted: coursesCompletedCount,
@@ -1439,12 +1420,6 @@ exports.getLearnerMilestones = async (req, res) => {
         totalStreakBadges: badgeData.stats.totalStreakBadges,
         knowledgeSeekerBadgesUnlocked: badgeData.stats.knowledgeSeekerBadgesUnlocked,
         totalKnowledgeSeekerBadges: badgeData.stats.totalKnowledgeSeekerBadges,
-        quizMasterBadgesUnlocked: badgeData.stats.quizMasterBadgesUnlocked,
-        totalQuizMasterBadges: badgeData.stats.totalQuizMasterBadges,
-        perfectQuizzesCount: badgeData.stats.perfectQuizzesCount,
-        consistentLearnerBadgesUnlocked: badgeData.stats.consistentLearnerBadgesUnlocked,
-        totalConsistentLearnerBadges: badgeData.stats.totalConsistentLearnerBadges,
-        lessonsCompleted: badgeData.stats.lessonsCompleted,
         perfectionistBadgesUnlocked: badgeData.stats.perfectionistBadgesUnlocked,
         totalPerfectionistBadges: badgeData.stats.totalPerfectionistBadges,
         perfectionistQuizzesCount: badgeData.stats.perfectionistQuizzesCount
@@ -1457,7 +1432,7 @@ exports.getLearnerMilestones = async (req, res) => {
 };
 
 /**
- * ─── 15. GET /api/learners/me/badges — Dedicated Learning Streak, Knowledge Seeker, Quiz Master, Consistent Learner & Perfectionist Badges ───
+ * ─── 15. GET /api/learners/me/badges — Dedicated Learning Streak, Knowledge Seeker & Perfectionist Badges ───
  */
 exports.getLearnerBadges = async (req, res) => {
   try {
@@ -1474,10 +1449,10 @@ exports.getLearnerBadges = async (req, res) => {
     return res.status(200).json({
       success: true,
       badges: result.badges,
+      earnedBadges: result.earnedBadges,
+      badgesInProgress: result.badgesInProgress,
       streakBadges: result.streakBadges,
       knowledgeSeekerBadges: result.knowledgeSeekerBadges,
-      quizMasterBadges: result.quizMasterBadges,
-      consistentLearnerBadges: result.consistentLearnerBadges,
       perfectionistBadges: result.perfectionistBadges,
       stats: result.stats
     });

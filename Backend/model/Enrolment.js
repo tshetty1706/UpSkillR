@@ -72,6 +72,19 @@ const enrolmentSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: null
   },
+  lastAccessedItemId: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  lastAccessedByModule: {
+    type: Map,
+    of: new mongoose.Schema({
+      lessonId: { type: mongoose.Schema.Types.Mixed, default: null },
+      itemId: { type: mongoose.Schema.Types.Mixed, default: null },
+      updatedAt: { type: Date, default: Date.now }
+    }, { _id: false }),
+    default: () => new Map()
+  },
   videoProgress: {
     type: Map,
     of: Number,

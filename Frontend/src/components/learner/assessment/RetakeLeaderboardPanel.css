@@ -1,0 +1,288 @@
+.retake-lb-panel {
+  margin-top: 14px;
+  background: var(--surface-muted, #0f172a);
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+[data-theme="light"] .retake-lb-panel,
+.light .retake-lb-panel {
+  background: #f8fafc;
+  border-color: rgba(5, 150, 105, 0.25);
+}
+
+.retake-lb-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.retake-lb-title-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.retake-lb-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.14);
+  color: var(--brand-primary, #10b981);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.retake-lb-title {
+  margin: 0 0 2px;
+  font-size: 0.94rem;
+  font-weight: 700;
+  color: var(--text-primary, #f8fafc);
+}
+
+.retake-lb-subtitle {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.retake-lb-close-btn {
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+  background: transparent;
+  color: var(--text-secondary, #94a3b8);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.retake-lb-close-btn:hover {
+  color: var(--text-primary, #ffffff);
+  border-color: var(--brand-primary, #10b981);
+}
+
+.retake-lb-state-box,
+.retake-lb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px 14px;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.retake-lb-state-box.error {
+  color: #f87171;
+}
+
+.retake-spinner {
+  animation: retakeSpin 0.9s linear infinite;
+  color: var(--brand-primary, #10b981);
+}
+
+@keyframes retakeSpin {
+  to { transform: rotate(360deg); }
+}
+
+.retake-lb-retry-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.retake-lb-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+  background: var(--surface, #111827);
+}
+
+[data-theme="light"] .retake-lb-table-wrap,
+.light .retake-lb-table-wrap {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+.retake-lb-table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.retake-lb-table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #94a3b8);
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  white-space: nowrap;
+}
+
+.retake-lb-table th.text-right,
+.retake-lb-table td.text-right {
+  text-align: right;
+}
+
+.retake-lb-table td {
+  padding: 10px 12px;
+  color: var(--text-primary, #f1f5f9);
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  vertical-align: middle;
+}
+
+.retake-lb-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.retake-lb-table tbody tr.is-me {
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.retake-rank-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--text-secondary, #cbd5e1);
+}
+
+.retake-rank-pill.rank-1 {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+.retake-learner-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.retake-learner-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.retake-you-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.16);
+  color: var(--brand-primary, #10b981);
+}
+
+.retake-attempt-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.retake-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  font-size: 0.73rem;
+  font-weight: 700;
+}
+
+.retake-status-pill.pass {
+  background: rgba(16, 185, 129, 0.14);
+  color: #10b981;
+}
+
+.retake-status-pill.fail {
+  background: rgba(239, 68, 68, 0.14);
+  color: #f87171;
+}
+
+.retake-date-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  color: var(--text-secondary, #94a3b8);
+  white-space: nowrap;
+}
+
+.retake-lb-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.retake-page-meta {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.retake-page-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.retake-page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.14));
+  background: var(--surface, #111827);
+  color: var(--text-primary, #f1f5f9);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.retake-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1023px) {
+  .retake-page-btn,
+  .retake-lb-close-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

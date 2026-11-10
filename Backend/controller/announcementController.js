@@ -2,6 +2,46 @@ const mongoose = require('mongoose');
 const Announcement = require('../model/Announcement');
 const Enrolment = require('../model/Enrolment');
 const Course = require('../model/Course');
+const { notifyEnrolledLearnersForCourseSection } = require('./notificationController');
+
+// Helper: Dispatch Notice Board notification to matching audience learners when an announcement is published
+const dispatchAnnouncementNotifications = async (announcement) => {
+  if (!announcement || announcement.status !== 'published') return;
+  try {
+    const enrolments = await Enrolment.find({ courseId: announcement.courseId })
+      .select('learnerId status progressPercentage')
+      .lean();
+
+    const targetIds = enrolments
+      .filter((e) => {
+        if (announcement.targetAudience === 'all') return true;
+        const isCompleted = e.status === 'completed' || (e.progressPercentage && e.progressPercentage >= 100);
+        if (announcement.targetAudience === 'completed') return isCompleted;
+        return !isCompleted;
+      })
+      .map((e) => e.learnerId)
+      .filter(Boolean);
+
+    if (targetIds.length === 0) return;
+
+    const preview = announcement.message.length > 90
+      ? `${announcement.message.slice(0, 87)}...`
+      : announcement.message;
+
+    await notifyEnrolledLearnersForCourseSection({
+      courseId: announcement.courseId,
+      section: 'notices',
+      type: 'NEW_ANNOUNCEMENT',
+      referenceId: announcement._id,
+      title: `New Notice: ${announcement.title}`,
+      message: preview,
+      link: `/courses/${announcement.courseId}?tab=notices`,
+      recipientIdsOverride: targetIds
+    });
+  } catch (err) {
+    console.warn('[ANNOUNCEMENTS] Notification dispatch warning:', err.message);
+  }
+};
 
 /**
  * 1. Get Course Announcements (Instructor)
@@ -83,6 +123,10 @@ exports.createAnnouncement = async (req, res) => {
       publishedAt: isPublished ? new Date() : null
     });
 
+    if (isPublished) {
+      await dispatchAnnouncementNotifications(announcement);
+    }
+
     return res.status(201).json({
       success: true,
       message: isPublished ? 'Announcement published successfully!' : 'Announcement saved as draft.',
@@ -155,6 +199,10 @@ exports.updateAnnouncement = async (req, res) => {
     }
 
     await announcement.save();
+
+    if (announcement.status === 'published') {
+      await dispatchAnnouncementNotifications(announcement);
+    }
 
     return res.status(200).json({
       success: true,
@@ -238,6 +286,10 @@ exports.togglePublishAnnouncement = async (req, res) => {
     }
 
     await announcement.save();
+
+    if (newStatus === 'published') {
+      await dispatchAnnouncementNotifications(announcement);
+    }
 
     return res.status(200).json({
       success: true,

@@ -16,6 +16,8 @@ const learnerActivitySchema = new mongoose.Schema({
       'module_completed',
       'quiz_attempted',
       'quiz_retaken',
+      'assessment_attempted',
+      'assessment_retaken',
       'course_completed',
       'certificate_earned',
       'bookmark_added',

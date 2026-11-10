@@ -16,9 +16,15 @@ const deletionJobSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: true,
+      required: false,
+      default: 'anonymized@deleted.local',
       trim: true,
       lowercase: true
+    },
+    emailHash: {
+      type: String,
+      default: '',
+      index: true
     },
     authProvider: {
       type: String,
@@ -50,14 +56,29 @@ const deletionJobSchema = new mongoose.Schema(
       certificates: { type: Number, default: 0 },
       completionRecords: { type: Number, default: 0 },
       assessmentSubmissions: { type: Number, default: 0 },
+      assessmentAttempts: { type: Number, default: 0 },
+      officialAssessmentAttempts: { type: Number, default: 0 },
       pointTransactions: { type: Number, default: 0 },
       learnerActivities: { type: Number, default: 0 },
       notifications: { type: Number, default: 0 },
+      notificationsReferencedCleaned: { type: Number, default: 0 },
       courseQuestions: { type: Number, default: 0 },
+      courseQuestionsDeleted: { type: Number, default: 0 },
+      courseQuestionsAnonymized: { type: Number, default: 0 },
       courseReviews: { type: Number, default: 0 },
+      cloudinaryAssetsCount: { type: Number, default: 0 },
       cloudinaryAssets: [{ type: String }],
       coursesToRecalculate: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }]
     },
+    pendingAssetCleanup: [
+      {
+        target: { type: String, required: true },
+        publicId: { type: String, default: '' },
+        resourceType: { type: String, enum: ['image', 'raw'], default: 'image' },
+        lastError: { type: String, default: '' },
+        attempts: { type: Number, default: 0 }
+      }
+    ],
     error: {
       type: String,
       default: null

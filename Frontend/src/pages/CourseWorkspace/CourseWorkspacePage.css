@@ -192,9 +192,15 @@
 }
 
 .btn-workspace-theme-toggle:hover,
-.btn-feedback-action:hover {
+.btn-feedback-action:hover:not(:disabled) {
   background-color: var(--border-subtle);
   color: var(--text-primary);
+}
+
+.btn-feedback-action.is-locked,
+.btn-feedback-action:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
 }
 
 /* ROW 2: WORKSPACE NAVIGATION TABS */

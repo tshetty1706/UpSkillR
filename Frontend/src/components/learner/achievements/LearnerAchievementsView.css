@@ -160,570 +160,539 @@
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
-/* ─── 2b. Learning Streak Badges Section ─── */
-.achievements-streak-badges-section {
+.accent-green {
+  color: #10b981;
+}
+
+/* ─── 3 & 4. Unified Earned Badges & Badges in Progress Sections ─── */
+.achievements-badges-panel {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  width: 100%;
   background-color: var(--surface, #14211d);
   border: 1px solid var(--border-subtle, #1e2e28);
   border-radius: var(--radius-xl, 16px);
-  padding: 28px;
+  padding: 24px 28px;
   box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.35);
+  box-sizing: border-box;
 }
 
-.streak-badges-header {
+.badges-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
   flex-wrap: wrap;
   border-bottom: 1px solid var(--border-subtle, #1e2e28);
-  padding-bottom: 18px;
+  padding-bottom: 16px;
 }
 
-.streak-title-lockup {
+.badges-panel-title-wrap {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
 }
 
-.streak-title-icon-badge {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+.badges-panel-title-lockup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.badges-panel-icon-green {
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+.badges-panel-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border: 1px solid rgba(245, 158, 11, 0.25);
 }
 
-.accent-flame {
+.badges-panel-icon-amber {
   color: #f59e0b;
 }
 
-.streak-section-title {
+.badges-panel-title {
   margin: 0;
-  font-size: clamp(1.25rem, 2.4vw, 1.55rem);
+  font-size: clamp(1.18rem, 2.2vw, 1.4rem);
   font-weight: 800;
   color: var(--text-primary, #f0fdf4);
   letter-spacing: -0.015em;
 }
 
-.streak-section-subtitle {
-  margin: 3px 0 0;
-  font-size: 0.88rem;
+.badges-panel-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.86rem;
   color: var(--text-secondary, #94a3b8);
-  line-height: 1.45;
+  line-height: 1.4;
 }
 
-.streak-counter-badge {
-  padding: 0.35rem 0.85rem;
+.badges-earned-count-pill {
+  padding: 0.34rem 0.85rem;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.badges-progress-count-pill {
+  padding: 0.34rem 0.85rem;
   background: rgba(245, 158, 11, 0.12);
   color: #f59e0b;
   border: 1px solid rgba(245, 158, 11, 0.3);
   border-radius: 9999px;
-  font-size: 0.82rem;
+  font-size: 0.75rem;
   font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
-/* 4-Column Responsive Grid */
-.streak-badges-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
+.badges-progress-count-pill.is-completed {
+  background: rgba(16, 185, 129, 0.14);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.35);
 }
 
-/* Individual Badge Card */
-.streak-badge-card {
-  position: relative;
+.badges-panel-loading {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-secondary, #94a3b8);
   background: var(--surface-muted, #0f1916);
-  border: 1px solid var(--border, #243831);
-  border-radius: 14px;
-  padding: 20px 18px;
+  border: 1px solid var(--border-subtle, #1e2e28);
+  border-radius: 12px;
+  font-size: 0.9rem;
+}
+
+.badges-earned-empty-state {
+  padding: 30px 20px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 10px;
+  background: var(--surface-muted, #0f1916);
+  border: 1px dashed var(--border, #243831);
+  border-radius: 12px;
 }
 
-.streak-badge-card:hover {
+.empty-state-award-icon {
+  color: var(--text-muted, #64748b);
+  opacity: 0.75;
+}
+
+.empty-state-message {
+  margin: 0;
+  font-size: 0.94rem;
+  font-weight: 600;
+  color: var(--text-secondary, #94a3b8);
+  max-width: 480px;
+  line-height: 1.5;
+}
+
+/* ─── Earned Badges Compact Horizontal Grid ─── */
+.achieve-earned-badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.achieve-earned-badge-card {
+  background: var(--surface-muted, #0f1916);
+  border: 1px solid var(--border-subtle, #1e2e28);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.achieve-earned-badge-card:hover {
   transform: translateY(-2px);
 }
 
-/* Unlocked Card - Subtle Highlight */
-.streak-badge-card.badge-card-unlocked {
+/* Tier & Category Specific Border Accents */
+.achieve-earned-badge-card.category-course_completion.tier-normal {
+  border-color: rgba(6, 182, 212, 0.45);
+  box-shadow: 0 4px 16px -4px rgba(6, 182, 212, 0.18);
+}
+
+.achieve-earned-badge-card.category-quiz_excellence.tier-normal {
+  border-color: rgba(168, 85, 247, 0.45);
+  box-shadow: 0 4px 16px -4px rgba(168, 85, 247, 0.18);
+}
+
+.achieve-earned-badge-card.category-streak.tier-normal {
   border-color: rgba(16, 185, 129, 0.45);
-  box-shadow: 0 6px 20px -4px rgba(16, 185, 129, 0.14);
+  box-shadow: 0 4px 16px -4px rgba(16, 185, 129, 0.16);
 }
 
-.streak-badge-card.badge-card-unlocked:hover {
-  border-color: rgba(16, 185, 129, 0.65);
-  box-shadow: 0 8px 26px -4px rgba(16, 185, 129, 0.22);
+.achieve-earned-badge-card.tier-bronze {
+  border-color: rgba(205, 127, 50, 0.48);
+  box-shadow: 0 4px 16px -4px rgba(205, 127, 50, 0.16);
 }
 
-/* Locked Card */
-.streak-badge-card.badge-card-locked {
-  border-color: var(--border-subtle, #1e2e28);
+.achieve-earned-badge-card.tier-silver {
+  border-color: rgba(148, 163, 184, 0.48);
+  box-shadow: 0 4px 16px -4px rgba(148, 163, 184, 0.16);
 }
 
-.streak-badge-card.badge-card-locked:hover {
-  border-color: rgba(100, 116, 139, 0.4);
+.achieve-earned-badge-card.tier-gold {
+  border-color: rgba(234, 179, 8, 0.5);
+  box-shadow: 0 4px 16px -4px rgba(234, 179, 8, 0.2);
 }
 
-/* Top Row: Target & Status Chip */
-.streak-badge-top-row {
+.achieve-earned-artwork-wrap {
+  position: relative;
+  width: 70px;
+  height: 70px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid var(--border-subtle, #1e2e28);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 6px;
+}
+
+.achieve-earned-artwork-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.achieve-earned-check-icon {
+  position: absolute;
+  bottom: -5px;
+  right: -5px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #10b981;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--surface-muted, #0f1916);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+}
+
+.achieve-earned-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.achieve-badge-tags-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
-.streak-req-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 0.72rem;
+.achieve-badge-category-tag {
+  font-size: 0.69rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: rgba(245, 158, 11, 0.12);
-  color: #f59e0b;
-  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: var(--text-secondary, #94a3b8);
 }
 
-.badge-status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 0.72rem;
+.achieve-badge-tier-tag {
+  font-size: 0.68rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 3px 8px;
+  padding: 2px 8px;
   border-radius: 9999px;
+  border: 1px solid transparent;
+  line-height: 1.3;
 }
 
-.badge-status-pill.status-unlocked {
-  background: rgba(16, 185, 129, 0.15);
+.category-course_completion .achieve-badge-tier-tag.tier-tag-normal {
+  background: rgba(6, 182, 212, 0.14);
+  color: #38bdf8;
+  border-color: rgba(6, 182, 212, 0.35);
+}
+
+.category-quiz_excellence .achieve-badge-tier-tag.tier-tag-normal {
+  background: rgba(168, 85, 247, 0.14);
+  color: #c084fc;
+  border-color: rgba(168, 85, 247, 0.35);
+}
+
+.category-streak .achieve-badge-tier-tag.tier-tag-normal {
+  background: rgba(16, 185, 129, 0.14);
   color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-color: rgba(16, 185, 129, 0.35);
 }
 
-.badge-status-pill.status-locked {
-  background: rgba(100, 116, 139, 0.15);
-  color: #94a3b8;
-  border: 1px solid rgba(100, 116, 139, 0.3);
+.achieve-badge-tier-tag.tier-tag-bronze {
+  background: rgba(205, 127, 50, 0.14);
+  color: #f59e0b;
+  border-color: rgba(205, 127, 50, 0.35);
 }
 
-/* Badge Image Frame: Preserves Original Aspect Ratio */
-.streak-badge-img-frame {
-  position: relative;
-  width: 100%;
-  height: 160px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.03) 0%, transparent 70%);
-  border-radius: 10px;
-}
-
-.streak-badge-img {
-  max-width: 135px;
-  max-height: 135px;
-  width: auto;
-  height: auto;
-  object-fit: contain;
-  transition: all 0.25s ease;
-}
-
-/* Locked image: reduced opacity */
-.streak-badge-img.img-locked {
-  opacity: 0.45;
-  filter: grayscale(40%);
-}
-
-/* Unlocked image: full opacity & subtle shine on hover */
-.streak-badge-img.img-unlocked {
-  opacity: 1;
-  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.35));
-}
-
-.streak-badge-card:hover .streak-badge-img.img-unlocked {
-  transform: scale(1.05);
-}
-
-/* Lock overlay indicator */
-.badge-lock-overlay {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.achieve-badge-tier-tag.tier-tag-silver {
+  background: rgba(148, 163, 184, 0.15);
   color: #cbd5e1;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  border-color: rgba(148, 163, 184, 0.35);
 }
 
-.lock-center-icon {
-  color: #f1f5f9;
+.achieve-badge-tier-tag.tier-tag-gold {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+  border-color: rgba(234, 179, 8, 0.35);
 }
 
-/* Badge Body */
-.streak-badge-body {
+.achieve-earned-title {
+  margin: 1px 0 0;
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--text-primary, #f0fdf4);
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.achieve-earned-condition {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #94a3b8);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.achieve-earned-date-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #10b981;
+  margin-top: 2px;
+}
+
+.achieve-earned-cal-icon {
+  flex-shrink: 0;
+}
+
+/* ─── Badges in Progress Compact Grid ─── */
+.achieve-progress-badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.achieve-progress-badge-card {
+  background: var(--surface-muted, #0f1916);
+  border: 1px solid var(--border, #243831);
+  border-radius: 12px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 14px;
+  min-width: 0;
+  transition: border-color 0.18s ease, transform 0.18s ease;
+}
+
+.achieve-progress-badge-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+.achieve-progress-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.achieve-progress-artwork-wrap {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid var(--border-subtle, #1e2e28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 6px;
+}
+
+.achieve-progress-artwork-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  filter: grayscale(100%) contrast(0.95);
+  opacity: 0.55;
+}
+
+.achieve-progress-lock-dot {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #334155;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--surface-muted, #0f1916);
+}
+
+.achieve-progress-meta {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.streak-badge-title {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 800;
+.achieve-progress-title {
+  margin: 1px 0 0;
+  font-size: 0.96rem;
+  font-weight: 700;
   color: var(--text-primary, #f0fdf4);
-  letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 
-.streak-badge-desc {
+.achieve-progress-req {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: var(--text-secondary, #94a3b8);
-  line-height: 1.45;
-  min-height: 2.9em;
+  line-height: 1.4;
 }
 
-/* Footer: Progress or Earned Meta */
-.streak-badge-footer {
-  margin-top: auto;
+.achieve-progress-meter-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   padding-top: 10px;
   border-top: 1px solid var(--border-subtle, #1e2e28);
 }
 
-.streak-unlocked-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #10b981;
-}
-
-/* Progress Bar */
-.streak-progress-box {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.streak-progress-meta {
+.achieve-progress-meter-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.75rem;
+  gap: 8px;
+  font-size: 0.78rem;
 }
 
-.streak-progress-label {
+.achieve-progress-metric-label {
   color: var(--text-secondary, #94a3b8);
   font-weight: 500;
 }
 
-.streak-progress-value {
+.achieve-progress-metric-value {
   color: var(--text-primary, #f0fdf4);
   font-weight: 700;
+  white-space: nowrap;
 }
 
-.streak-progress-track {
+.achieve-progress-track {
   width: 100%;
-  height: 6px;
-  background: rgba(100, 116, 139, 0.2);
+  height: 7px;
+  background: rgba(148, 163, 184, 0.2);
   border-radius: 9999px;
   overflow: hidden;
 }
 
-.streak-progress-bar {
+.achieve-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #f59e0b, #10b981);
   border-radius: 9999px;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(90deg, #10b981, #34d399);
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Responsive Breakpoints for Badges Section */
-@media (max-width: 1199px) {
-  .streak-badges-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+.achieve-progress-fill.category-fill-streak {
+  background: linear-gradient(90deg, #f59e0b, #10b981);
 }
 
-@media (max-width: 767px) {
-  .achievements-streak-badges-section {
-    padding: 18px 14px;
-    border-radius: 12px;
-  }
-
-  .streak-badges-grid {
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-
-  .streak-badge-img-frame {
-    height: 140px;
-  }
-
-  .streak-badge-img {
-    max-width: 115px;
-    max-height: 115px;
-  }
+.achieve-progress-fill.category-fill-course_completion {
+  background: linear-gradient(90deg, #06b6d4, #3b82f6);
 }
 
-/* ─── 2c. Knowledge Seeker Badges Section ─── */
-.knowledge-seeker-section {
-  margin-top: 4px;
+.achieve-progress-fill.category-fill-quiz_excellence {
+  background: linear-gradient(90deg, #a855f7, #f43f5e);
 }
 
-.knowledge-icon-badge {
-  background: rgba(59, 130, 246, 0.12);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+.achieve-all-completed-box {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 22px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(234, 179, 8, 0.1));
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 12px;
 }
 
-.accent-book {
-  color: #3b82f6;
+.completed-celebration-icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.18);
+  color: #10b981;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.knowledge-counter-badge {
-  background: rgba(59, 130, 246, 0.12);
-  color: #60a5fa;
-  border: 1px solid rgba(59, 130, 246, 0.3);
+.completed-celebration-text h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-primary, #f0fdf4);
 }
 
-.knowledge-badges-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+.completed-celebration-text p {
+  margin: 3px 0 0;
+  font-size: 0.86rem;
+  color: var(--text-secondary, #94a3b8);
+  line-height: 1.45;
 }
 
-.knowledge-badge-card.badge-card-unlocked {
-  border-color: rgba(59, 130, 246, 0.45);
-  box-shadow: 0 6px 20px -4px rgba(59, 130, 246, 0.14);
-}
-
-.knowledge-badge-card.badge-card-unlocked:hover {
-  border-color: rgba(59, 130, 246, 0.65);
-  box-shadow: 0 8px 26px -4px rgba(59, 130, 246, 0.22);
-}
-
-.knowledge-req-chip {
-  background: rgba(59, 130, 246, 0.12);
-  color: #60a5fa;
-  border: 1px solid rgba(59, 130, 246, 0.25);
-}
-
-.knowledge-progress-bar {
-  background: linear-gradient(90deg, #3b82f6, #10b981);
-}
-
+/* Responsive Breakpoints: Tablet (2 cols) & Mobile (1 col) */
 @media (max-width: 1023px) {
-  .knowledge-badges-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 767px) {
-  .knowledge-badges-grid {
-    grid-template-columns: 1fr;
+  .achieve-earned-badges-grid,
+  .achieve-progress-badges-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
   }
 }
 
-/* ─── 2d. Quiz Master Badges Section ─── */
-.quiz-master-section {
-  margin-top: 4px;
-}
-
-.quiz-icon-badge {
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
-.accent-quiz {
-  color: #f59e0b;
-}
-
-.quiz-counter-badge {
-  background: rgba(245, 158, 11, 0.12);
-  color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
-.quiz-badges-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-}
-
-.quiz-badge-card.badge-card-unlocked {
-  border-color: rgba(245, 158, 11, 0.45);
-  box-shadow: 0 6px 20px -4px rgba(245, 158, 11, 0.14);
-}
-
-.quiz-badge-card.badge-card-unlocked:hover {
-  border-color: rgba(245, 158, 11, 0.65);
-  box-shadow: 0 8px 26px -4px rgba(245, 158, 11, 0.22);
-}
-
-.quiz-req-chip {
-  background: rgba(245, 158, 11, 0.12);
-  color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.25);
-}
-
-.quiz-progress-bar {
-  background: linear-gradient(90deg, #f59e0b, #eab308);
-}
-
-@media (max-width: 1023px) {
-  .quiz-badges-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 @media (max-width: 767px) {
-  .quiz-badges-grid {
+  .achieve-earned-badges-grid,
+  .achieve-progress-badges-grid {
     grid-template-columns: 1fr;
-    gap: 14px;
-  }
-}
-
-/* ─── 2e. Consistent Learner Badges Section ─── */
-.consistent-learner-section {
-  margin-top: 4px;
-}
-
-.consistent-icon-badge {
-  background: rgba(139, 92, 246, 0.12);
-  border: 1px solid rgba(139, 92, 246, 0.3);
-}
-
-.accent-consistent {
-  color: #8b5cf6;
-}
-
-.consistent-counter-badge {
-  background: rgba(139, 92, 246, 0.12);
-  color: #a78bfa;
-  border: 1px solid rgba(139, 92, 246, 0.3);
-}
-
-.consistent-badges-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-}
-
-.consistent-badge-card.badge-card-unlocked {
-  border-color: rgba(139, 92, 246, 0.45);
-  box-shadow: 0 6px 20px -4px rgba(139, 92, 246, 0.14);
-}
-
-.consistent-badge-card.badge-card-unlocked:hover {
-  border-color: rgba(139, 92, 246, 0.65);
-  box-shadow: 0 8px 26px -4px rgba(139, 92, 246, 0.22);
-}
-
-.consistent-req-chip {
-  background: rgba(139, 92, 246, 0.12);
-  color: #a78bfa;
-  border: 1px solid rgba(139, 92, 246, 0.25);
-}
-
-.consistent-progress-bar {
-  background: linear-gradient(90deg, #8b5cf6, #3b82f6);
-}
-
-@media (max-width: 1023px) {
-  .consistent-badges-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 767px) {
-  .consistent-badges-grid {
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-}
-
-/* ─── 2f. Perfectionist Badges Section ─── */
-.perfectionist-section {
-  margin-top: 4px;
-}
-
-.perfectionist-icon-badge {
-  background: rgba(244, 63, 94, 0.12);
-  border: 1px solid rgba(244, 63, 94, 0.3);
-}
-
-.accent-perfectionist {
-  color: #f43f5e;
-}
-
-.perfectionist-counter-badge {
-  background: rgba(244, 63, 94, 0.12);
-  color: #fb7185;
-  border: 1px solid rgba(244, 63, 94, 0.3);
-}
-
-.perfectionist-badges-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-}
-
-.perfectionist-badge-card.badge-card-unlocked {
-  border-color: rgba(244, 63, 94, 0.45);
-  box-shadow: 0 6px 20px -4px rgba(244, 63, 94, 0.14);
-}
-
-.perfectionist-badge-card.badge-card-unlocked:hover {
-  border-color: rgba(244, 63, 94, 0.65);
-  box-shadow: 0 8px 26px -4px rgba(244, 63, 94, 0.22);
-}
-
-.perfectionist-req-chip {
-  background: rgba(244, 63, 94, 0.12);
-  color: #fb7185;
-  border: 1px solid rgba(244, 63, 94, 0.25);
-}
-
-.perfectionist-progress-bar {
-  background: linear-gradient(90deg, #f43f5e, #fb7185);
-}
-
-@media (max-width: 1023px) {
-  .perfectionist-badges-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 767px) {
-  .perfectionist-badges-grid {
-    grid-template-columns: 1fr;
-    gap: 14px;
+    gap: 12px;
   }
 }
 
@@ -1838,111 +1807,111 @@
   border-color: #e2e8f0;
 }
 
-:root:not(.dark) .achievements-streak-badges-section {
+:root:not(.dark) .achievements-badges-panel {
   background-color: #ffffff;
   border-color: #e2e8f0;
   box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.06);
 }
 
-:root:not(.dark) .streak-badge-card {
+:root:not(.dark) .badges-panel-header,
+:root:not(.dark) .achieve-progress-meter-box {
+  border-color: #e2e8f0;
+}
+
+:root:not(.dark) .badges-panel-title,
+:root:not(.dark) .achieve-earned-title,
+:root:not(.dark) .achieve-progress-title,
+:root:not(.dark) .achieve-progress-metric-value,
+:root:not(.dark) .completed-celebration-text h3 {
+  color: #0f172a;
+}
+
+:root:not(.dark) .badges-panel-subtitle,
+:root:not(.dark) .achieve-earned-condition,
+:root:not(.dark) .achieve-progress-req,
+:root:not(.dark) .achieve-progress-metric-label,
+:root:not(.dark) .achieve-badge-category-tag,
+:root:not(.dark) .empty-state-message,
+:root:not(.dark) .completed-celebration-text p {
+  color: #475569;
+}
+
+:root:not(.dark) .badges-panel-loading,
+:root:not(.dark) .badges-earned-empty-state,
+:root:not(.dark) .achieve-earned-badge-card,
+:root:not(.dark) .achieve-progress-badge-card {
   background-color: #f8fafc;
   border-color: #e2e8f0;
 }
 
-:root:not(.dark) .streak-badge-card.badge-card-unlocked {
+:root:not(.dark) .achieve-earned-badge-card.category-course_completion.tier-normal {
   background-color: #ffffff;
-  border-color: rgba(16, 185, 129, 0.4);
-  box-shadow: 0 6px 20px -4px rgba(16, 185, 129, 0.12);
+  border-color: rgba(6, 182, 212, 0.48);
 }
 
-:root:not(.dark) .knowledge-badge-card.badge-card-unlocked {
+:root:not(.dark) .achieve-earned-badge-card.category-quiz_excellence.tier-normal {
   background-color: #ffffff;
-  border-color: rgba(59, 130, 246, 0.4);
-  box-shadow: 0 6px 20px -4px rgba(59, 130, 246, 0.12);
+  border-color: rgba(168, 85, 247, 0.48);
 }
 
-:root:not(.dark) .knowledge-counter-badge {
-  background: rgba(59, 130, 246, 0.1);
-  color: #2563eb;
-  border-color: rgba(59, 130, 246, 0.25);
-}
-
-:root:not(.dark) .knowledge-req-chip {
-  background: rgba(59, 130, 246, 0.1);
-  color: #2563eb;
-  border-color: rgba(59, 130, 246, 0.25);
-}
-
-:root:not(.dark) .quiz-badge-card.badge-card-unlocked {
+:root:not(.dark) .achieve-earned-badge-card.category-streak.tier-normal {
   background-color: #ffffff;
-  border-color: rgba(245, 158, 11, 0.45);
-  box-shadow: 0 6px 20px -4px rgba(245, 158, 11, 0.14);
+  border-color: rgba(16, 185, 129, 0.48);
 }
 
-:root:not(.dark) .quiz-counter-badge {
-  background: rgba(245, 158, 11, 0.1);
-  color: #d97706;
-  border-color: rgba(245, 158, 11, 0.3);
-}
-
-:root:not(.dark) .quiz-req-chip {
-  background: rgba(245, 158, 11, 0.1);
-  color: #d97706;
-  border-color: rgba(245, 158, 11, 0.25);
-}
-
-:root:not(.dark) .consistent-badge-card.badge-card-unlocked {
+:root:not(.dark) .achieve-earned-badge-card.tier-bronze {
   background-color: #ffffff;
-  border-color: rgba(139, 92, 246, 0.45);
-  box-shadow: 0 6px 20px -4px rgba(139, 92, 246, 0.14);
+  border-color: rgba(205, 127, 50, 0.48);
 }
 
-:root:not(.dark) .consistent-counter-badge {
-  background: rgba(139, 92, 246, 0.1);
-  color: #7c3aed;
-  border-color: rgba(139, 92, 246, 0.3);
-}
-
-:root:not(.dark) .consistent-req-chip {
-  background: rgba(139, 92, 246, 0.1);
-  color: #7c3aed;
-  border-color: rgba(139, 92, 246, 0.25);
-}
-
-:root:not(.dark) .perfectionist-badge-card.badge-card-unlocked {
+:root:not(.dark) .achieve-earned-badge-card.tier-silver {
   background-color: #ffffff;
-  border-color: rgba(244, 63, 94, 0.45);
-  box-shadow: 0 6px 20px -4px rgba(244, 63, 94, 0.14);
+  border-color: rgba(100, 116, 139, 0.45);
 }
 
-:root:not(.dark) .perfectionist-counter-badge {
-  background: rgba(244, 63, 94, 0.1);
-  color: #e11d48;
-  border-color: rgba(244, 63, 94, 0.3);
+:root:not(.dark) .achieve-earned-badge-card.tier-gold {
+  background-color: #ffffff;
+  border-color: rgba(202, 138, 4, 0.5);
 }
 
-:root:not(.dark) .perfectionist-req-chip {
-  background: rgba(244, 63, 94, 0.1);
-  color: #e11d48;
-  border-color: rgba(244, 63, 94, 0.25);
+:root:not(.dark) .achieve-earned-artwork-wrap,
+:root:not(.dark) .achieve-progress-artwork-wrap {
+  background-color: #eef2f7;
+  border-color: #cbd5e1;
 }
 
-:root:not(.dark) .streak-badge-img-frame {
-  background: radial-gradient(circle, rgba(0, 0, 0, 0.02) 0%, transparent 70%);
+:root:not(.dark) .achieve-earned-check-icon,
+:root:not(.dark) .achieve-progress-lock-dot {
+  border-color: #ffffff;
 }
 
-:root:not(.dark) .streak-section-title,
-:root:not(.dark) .streak-badge-title {
-  color: #0f172a;
+:root:not(.dark) .category-course_completion .achieve-badge-tier-tag.tier-tag-normal {
+  color: #0284c7;
+  background: rgba(6, 182, 212, 0.12);
 }
 
-:root:not(.dark) .streak-section-subtitle,
-:root:not(.dark) .streak-badge-desc {
+:root:not(.dark) .category-quiz_excellence .achieve-badge-tier-tag.tier-tag-normal {
+  color: #7e22ce;
+  background: rgba(168, 85, 247, 0.12);
+}
+
+:root:not(.dark) .category-streak .achieve-badge-tier-tag.tier-tag-normal,
+:root:not(.dark) .achieve-earned-date-row,
+:root:not(.dark) .badges-earned-count-pill {
+  color: #047857;
+}
+
+:root:not(.dark) .achieve-badge-tier-tag.tier-tag-bronze,
+:root:not(.dark) .badges-progress-count-pill {
+  color: #b45309;
+}
+
+:root:not(.dark) .achieve-badge-tier-tag.tier-tag-silver {
   color: #475569;
 }
 
-:root:not(.dark) .streak-progress-value {
-  color: #0f172a;
+:root:not(.dark) .achieve-badge-tier-tag.tier-tag-gold {
+  color: #a16207;
 }
 
 :root:not(.dark) .cert-search-input,
@@ -1980,11 +1949,11 @@
   .learner-achievements-page {
     gap: 24px;
   }
-  .achievements-streak-badges-section,
+  .achievements-badges-panel,
   .achievements-certificates-section,
   .achievements-milestones-section,
   .achievements-rewards-section {
-    padding: 22px;
+    padding: 20px 22px;
   }
 }
 
@@ -1995,20 +1964,21 @@
   .achievements-stats-grid {
     grid-template-columns: 1fr;
   }
-  .achievements-streak-badges-section,
+  .achievements-badges-panel,
   .achievements-certificates-section,
   .achievements-milestones-section,
   .achievements-rewards-section {
     padding: 16px;
     border-radius: 12px;
   }
-  .streak-badges-header,
+  .badges-panel-header,
   .cert-section-header,
   .milestones-header-row {
     flex-direction: column;
     align-items: flex-start;
   }
-  .streak-counter-badge,
+  .badges-earned-count-pill,
+  .badges-progress-count-pill,
   .cert-counter-badge,
   .milestone-badge-count {
     align-self: flex-start;

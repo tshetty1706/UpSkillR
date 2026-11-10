@@ -311,6 +311,16 @@
   color: #d97706;
 }
 
+.notif-icon-box.qa-box {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10B981;
+}
+
+.notif-icon-box.question-box {
+  background: rgba(139, 92, 246, 0.15);
+  color: #8B5CF6;
+}
+
 /* Content column */
 .notif-content-column {
   flex: 1;
@@ -347,6 +357,16 @@
 .notif-type-tag.tag-badge {
   background: rgba(245, 158, 11, 0.15);
   color: #d97706;
+}
+
+.notif-type-tag.tag-qa {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10B981;
+}
+
+.notif-type-tag.tag-question {
+  background: rgba(139, 92, 246, 0.15);
+  color: #8B5CF6;
 }
 
 .notif-time-ago {

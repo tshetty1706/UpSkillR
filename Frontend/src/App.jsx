@@ -15,6 +15,7 @@ import { CourseOverviewPage } from './pages/CourseOverview/CourseOverviewPage';
 import { CourseLearningPage } from './pages/CourseLearning/CourseLearningPage';
 import { CourseWorkspacePage } from './pages/CourseWorkspace/CourseWorkspacePage.jsx';
 import { QuizTakingPage } from './pages/QuizTaking/QuizTakingPage.jsx';
+import { AssessmentTakingPage } from './pages/AssessmentTaking/AssessmentTakingPage.jsx';
 import { NotFound } from './components/common/NotFound/NotFound';
 import { InstructorApplication } from './components/instructor/application/InstructorApplication';
 import { InstructorExploreCourses } from './components/home/InstructorExploreCourses/InstructorExploreCourses';
@@ -22,6 +23,7 @@ import { CertificateVerificationPage } from './pages/CertificateVerification/Cer
 import { isCourseInternalUrl, recordCourseReturnUrl } from './utils/navigationHelper';
 import { AnnouncementDetailsView } from './components/learner/trending/AnnouncementDetailsView';
 import { getAnnouncementBySlug, MOCK_TRENDING_ANNOUNCEMENTS } from './data/trendingAnnouncements';
+import { API_BASE } from './config/api';
 
 function App() {
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname + window.location.search);
@@ -68,9 +70,12 @@ function App() {
           sessionStorage.setItem('upskillr_token', token);
           sessionStorage.setItem('upskillr_user', JSON.stringify(user));
           setCurrentUser(user);
-          const targetPath = user.role === 'instructor'
+          const redirectPath = sessionStorage.getItem('upskillr_redirect_after_login');
+          sessionStorage.removeItem('upskillr_redirect_after_login');
+          const defaultTarget = user.role === 'instructor'
             ? (user.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
             : '/learner/dashboard';
+          const targetPath = redirectPath || defaultTarget;
           window.history.replaceState({}, document.title, targetPath);
           setCurrentPath(targetPath);
           setAuthChecking(false);
@@ -87,7 +92,7 @@ function App() {
         if (sessionToken) {
           headers['Authorization'] = `Bearer ${sessionToken}`;
         }
-        const res = await fetch('http://localhost:5000/api/auth/me', {
+        const res = await fetch(`${API_BASE}/auth/me`, {
           headers,
           credentials: 'include'
         });
@@ -98,7 +103,12 @@ function App() {
           if (data.token) {
             sessionStorage.setItem('upskillr_token', data.token);
           }
-          if (window.location.pathname === '/dashboard' || window.location.pathname === '/login') {
+          const redirectPath = sessionStorage.getItem('upskillr_redirect_after_login');
+          if (redirectPath) {
+            sessionStorage.removeItem('upskillr_redirect_after_login');
+            window.history.replaceState({}, document.title, redirectPath);
+            setCurrentPath(redirectPath);
+          } else if (window.location.pathname === '/dashboard' || window.location.pathname === '/login') {
             const targetPath = data.user.role === 'instructor'
               ? (data.user.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
               : '/learner/dashboard';
@@ -113,9 +123,11 @@ function App() {
         }
       } catch (err) {
         // Backend not reachable or network error
-        setCurrentUser(null);
-        sessionStorage.removeItem('upskillr_user');
-        sessionStorage.removeItem('upskillr_token');
+        if (!sessionToken) {
+          setCurrentUser(null);
+          sessionStorage.removeItem('upskillr_user');
+          sessionStorage.removeItem('upskillr_token');
+        }
       } finally {
         setAuthChecking(false);
       }
@@ -177,13 +189,14 @@ function App() {
 
   const handleLogout = async () => {
     try {
-      await fetch('http://localhost:5000/api/auth/logout', {
+      await fetch(`${API_BASE}/auth/logout`, {
         method: 'POST',
         credentials: 'include'
       });
     } catch (e) { }
     sessionStorage.removeItem('upskillr_token');
     sessionStorage.removeItem('upskillr_user');
+    sessionStorage.removeItem('upskillr_redirect_after_login');
     localStorage.removeItem('upskillr_token');
     localStorage.removeItem('upskillr_user');
     setCurrentUser(null);
@@ -192,6 +205,18 @@ function App() {
   };
 
   const renderContent = () => {
+    if (authChecking) {
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background, #0a0a0a)', color: 'var(--brand-primary, #10b981)', fontWeight: 600 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+            <div style={{ width: '36px', height: '36px', border: '3px solid rgba(16, 185, 129, 0.2)', borderTopColor: '#10b981', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
+            <span style={{ fontSize: '15px', color: 'var(--text-secondary, #9ca3af)', letterSpacing: '0.02em' }}>Restoring session...</span>
+            <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+          </div>
+        </div>
+      );
+    }
+
     const rawPath = (currentPath || '').toLowerCase();
     const path = rawPath.split('?')[0].split('#')[0];
 
@@ -210,19 +235,22 @@ function App() {
           <LearnerDashboard user={currentUser} />
         );
       }
-      if (authChecking) {
-        return (
-          <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', color: 'var(--brand-primary)', fontWeight: 600 }}>
-            <div>Loading dashboard...</div>
-          </div>
-        );
-      }
       return <Login />;
     }
 
     // 1. Auth Routing
     if (path === '/login' || path === '/signin') {
       if (currentUser) {
+        const redirectPath = sessionStorage.getItem('upskillr_redirect_after_login');
+        if (redirectPath) {
+          sessionStorage.removeItem('upskillr_redirect_after_login');
+          window.history.replaceState({}, '', redirectPath);
+          return currentUser.role === 'instructor' ? (
+            <InstructorDashboard user={currentUser} onLogout={handleLogout} />
+          ) : (
+            <LearnerDashboard user={currentUser} />
+          );
+        }
         const targetPath = currentUser.role === 'instructor'
           ? (currentUser.applicationStatus === 'submitted' ? '/instructor/dashboard' : '/instructor/application')
           : '/learner/dashboard';
@@ -272,13 +300,7 @@ function App() {
     // 2. Protected Role-based Routing
     if (path.startsWith('/instructor/') || path === '/instructor') {
       if (!currentUser) {
-        if (authChecking) {
-          return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', color: 'var(--brand-primary)', fontWeight: 600 }}>
-              <div>Loading dashboard...</div>
-            </div>
-          );
-        }
+        sessionStorage.setItem('upskillr_redirect_after_login', currentPath);
         return <Login />;
       }
       if (currentUser.role !== 'instructor') {
@@ -309,13 +331,7 @@ function App() {
       if (path === '/settings') window.history.replaceState({}, '', '/learner/settings');
       if (path === '/learner') window.history.replaceState({}, '', '/learner/dashboard');
       if (!currentUser) {
-        if (authChecking) {
-          return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', color: 'var(--brand-primary)', fontWeight: 600 }}>
-              <div>Loading dashboard...</div>
-            </div>
-          );
-        }
+        sessionStorage.setItem('upskillr_redirect_after_login', currentPath);
         return <Login />;
       }
       if (currentUser.role !== 'learner') {
@@ -398,6 +414,49 @@ function App() {
       );
     }
     
+    // Dedicated Standalone Assessment Workspace & Attempt Page
+    const assessmentAttemptMatch = currentPath.match(/^\/assessment\/([^/?#]+)\/([^/?#]+)\/attempt\/([^/?#]+)/i);
+    if (assessmentAttemptMatch) {
+      const courseId = assessmentAttemptMatch[1];
+      const assessmentId = assessmentAttemptMatch[2];
+      const attemptId = assessmentAttemptMatch[3];
+      if (!currentUser) {
+        sessionStorage.setItem('upskillr_redirect_after_login', currentPath);
+        return <Login />;
+      }
+      if (currentUser.role !== 'learner') {
+        return <NotFound />;
+      }
+      return (
+        <AssessmentTakingPage
+          courseId={courseId}
+          assessmentId={assessmentId}
+          attemptId={attemptId}
+          user={currentUser}
+        />
+      );
+    }
+
+    const assessmentStartMatch = currentPath.match(/^\/assessment\/([^/?#]+)\/([^/?#]+)/i);
+    if (assessmentStartMatch) {
+      const courseId = assessmentStartMatch[1];
+      const assessmentId = assessmentStartMatch[2];
+      if (!currentUser) {
+        sessionStorage.setItem('upskillr_redirect_after_login', currentPath);
+        return <Login />;
+      }
+      if (currentUser.role !== 'learner') {
+        return <NotFound />;
+      }
+      return (
+        <AssessmentTakingPage
+          courseId={courseId}
+          assessmentId={assessmentId}
+          user={currentUser}
+        />
+      );
+    }
+
     // Dedicated Standalone Distraction-Free Quiz Taking Page
     const quizAttemptMatch = currentPath.match(/^\/quiz\/([^/?#]+)\/([^/?#]+)\/attempt\/([^/?#]+)/i);
     if (quizAttemptMatch) {
@@ -405,13 +464,6 @@ function App() {
       const quizId = quizAttemptMatch[2];
       const attemptId = quizAttemptMatch[3];
       if (!currentUser) {
-        if (authChecking) {
-          return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', color: 'var(--brand-primary)', fontWeight: 600 }}>
-              <div>Loading quiz attempt...</div>
-            </div>
-          );
-        }
         sessionStorage.setItem('upskillr_redirect_after_login', currentPath);
         return <Login />;
       }
@@ -423,14 +475,7 @@ function App() {
     if (courseLearnMatch) {
       const courseId = courseLearnMatch[1];
       if (!currentUser) {
-        if (authChecking) {
-          return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', color: 'var(--brand-primary)', fontWeight: 600 }}>
-              <div>Loading learning workspace...</div>
-            </div>
-          );
-        }
-        sessionStorage.setItem('upskillr_redirect_after_login', `/learn/${courseId}`);
+        sessionStorage.setItem('upskillr_redirect_after_login', currentPath);
         return <Login />;
       }
       return <CourseWorkspacePage courseId={courseId} user={currentUser} />;

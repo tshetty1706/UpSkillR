@@ -10,7 +10,9 @@ const courseQuestionSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Learner',
-    required: true
+    required: false,
+    default: null,
+    index: true
   },
   userName: {
     type: String,
@@ -32,6 +34,25 @@ const courseQuestionSchema = new mongoose.Schema({
     default: 'pending',
     index: true
   },
+  instructorId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Instructor',
+    default: null
+  },
+  instructorName: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  instructorAvatar: {
+    type: String,
+    default: ''
+  },
+  instructorDesignation: {
+    type: String,
+    default: 'Course Instructor',
+    trim: true
+  },
   instructorReply: {
     type: String,
     default: null,
@@ -43,7 +64,8 @@ const courseQuestionSchema = new mongoose.Schema({
   },
   createdAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
+    index: true
   }
 });
 

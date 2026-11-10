@@ -1,7 +1,9 @@
 const Course = require('../model/Course');
 const CourseOverview = require('../model/CourseOverview');
 const CourseQuestion = require('../model/CourseQuestion');
+const Notification = require('../model/Notification');
 const CourseView = require('../model/CourseView');
+const CourseReview = require('../model/CourseReview');
 const Enrolment = require('../model/Enrolment');
 const AssessmentSubmission = require('../model/AssessmentSubmission');
 const Announcement = require('../model/Announcement');
@@ -12,6 +14,8 @@ const fs = require('fs');
 const path = require('path');
 const { uploadBufferToCloudinary, deleteCloudinaryAsset, deleteMuxAsset } = require('./mediaController');
 const { notifyStudentsOnNewContent } = require('./notificationController');
+const { fetchAndFormatCourseReviews } = require('../utils/reviewIdentity');
+const { isCourseCertificateEnabled, syncCourseCertificateFields } = require('../utils/courseCertificate');
 const JWT_SECRET = process.env.JWT_SECRET || 'upskillr_jwt_secret_key_2026_super_secure';
 
 // Fast In-Memory Cache for Course Catalog & Overview (TTL: 15s)
@@ -27,6 +31,7 @@ const courseCache = {
   invalidateCourse(courseId) {
     this.published = null;
     this.publishedExpiry = 0;
+    if (courseId) this.overviews.delete(String(courseId));
   }
 };
 exports.courseCache = courseCache;
@@ -229,6 +234,38 @@ const sanitizeCourseForLearner = (course) => {
   courseObj.modulesCount = publishedModules.length;
   courseObj.notes = publishedCourseNotes;
 
+  // Sanitize courseAssessments strictly: expose published metadata only, NEVER questions or answer keys
+  const rawAssessments = Array.isArray(courseObj.courseAssessments) ? courseObj.courseAssessments : [];
+  courseObj.courseAssessments = rawAssessments
+    .filter(a => a && a.state === 'published')
+    .map(a => {
+      const qs = Array.isArray(a.questions) ? a.questions : [];
+      const computedTotal = qs.length > 0
+        ? qs.reduce((sum, q) => sum + (Number(q.marks) > 0 ? Number(q.marks) : 1), 0)
+        : (Number(a.totalMarks) > 0 ? Number(a.totalMarks) : 0);
+      const durationMinutes = Number(a.durationMinutes) || Number(a.timeLimit) || 45;
+      return {
+        _id: a._id,
+        title: a.title,
+        description: a.description || '',
+        instructions: a.instructions || '',
+        state: a.state,
+        assessmentType: a.assessmentType || 'graded',
+        timeLimit: durationMinutes,
+        durationMinutes,
+        passThresholdPercent: Number(a.passThresholdPercent ?? 70),
+        countsTowardCertificate: Boolean(a.countsTowardCertificate),
+        shuffleQuestions: Boolean(a.shuffleQuestions),
+        shuffleOptions: Boolean(a.shuffleOptions),
+        resultVisibility: a.resultVisibility || 'immediate',
+        requiredModuleIds: Array.isArray(a.requiredModuleIds) ? a.requiredModuleIds : [],
+        questionCount: qs.length,
+        totalMarks: computedTotal,
+        createdAt: a.createdAt,
+        updatedAt: a.updatedAt
+      };
+    });
+
   // Normalize instructor information
   if (courseObj.instructorId && typeof courseObj.instructorId === 'object') {
     const inst = courseObj.instructorId;
@@ -256,6 +293,8 @@ const sanitizeCourseForLearner = (course) => {
       designation: courseObj.instructorDesignation || 'Software Engineer'
     };
   }
+
+  syncCourseCertificateFields(courseObj, isCourseCertificateEnabled(courseObj));
 
   return courseObj;
 };
@@ -330,6 +369,8 @@ const sanitizeCourseForPublicOverview = (course) => {
       designation: courseObj.instructorDesignation || 'Software Engineer'
     };
   }
+
+  syncCourseCertificateFields(courseObj, isCourseCertificateEnabled(courseObj));
 
   return courseObj;
 };
@@ -536,7 +577,15 @@ exports.updateCourse = async (req, res) => {
     if (thumbnail_public_id !== undefined) course.thumbnail_public_id = thumbnail_public_id;
     if (price !== undefined) course.price = Number(price);
     if (prerequisites !== undefined) course.prerequisites = prerequisites;
-    if (certificate !== undefined) course.certificate = Boolean(certificate);
+    if (certificate !== undefined) {
+      const enabled = Boolean(certificate);
+      course.certificate = enabled;
+      course.certificateSettings = { enabled };
+      await CourseOverview.updateOne(
+        { courseId: course._id },
+        { $set: { certificate: enabled, updatedAt: Date.now() } }
+      ).catch(() => {});
+    }
 
     if (skills !== undefined) {
       course.skills = Array.isArray(skills) ? skills : (skills ? skills.split(',').map(s => s.trim()).filter(Boolean) : []);
@@ -558,6 +607,7 @@ exports.updateCourse = async (req, res) => {
     }
 
     await course.save();
+    courseCache.invalidateCourse(course._id);
 
     return res.status(200).json({
       success: true,
@@ -1259,6 +1309,24 @@ exports.publishLessonAssessment = async (req, res) => {
 
     await course.save();
 
+    if (targetStatus === 'published') {
+      try {
+        const { notifyEnrolledLearnersForCourseSection } = require('./notificationController');
+        await notifyEnrolledLearnersForCourseSection({
+          courseId: course._id,
+          courseTitle: course.title,
+          section: 'assessments',
+          type: 'NEW_ASSESSMENT',
+          referenceId: assessment._id,
+          title: `New Assessment Published: ${assessment.title}`,
+          message: `A new assessment "${assessment.title}" is now available in "${course.title}".`,
+          link: `/courses/${course._id}?tab=assessments`
+        });
+      } catch (notifErr) {
+        console.warn('[LESSON ASSESSMENT NOTIF WARNING]', notifErr.message);
+      }
+    }
+
     return res.status(200).json({
       success: true,
       message: `Assessment is now ${targetStatus.toUpperCase()}!`,
@@ -1618,7 +1686,7 @@ exports.getPublishedCourses = async (req, res) => {
 
     // 1. Fetch courses using .lean() with field projection for fast JSON serialization
     const courses = await Course.find(filter)
-      .select('title category skillLevel language price description shortDescription fullDescription certificate thumbnail instructorId instructorName rating reviewCount overviewViews courseAssessments modules createdAt updatedAt')
+      .select('title category skillLevel language price description shortDescription fullDescription certificate certificateSettings thumbnail instructorId instructorName rating reviewCount overviewViews courseAssessments modules createdAt updatedAt')
       .populate('instructorId', 'fullName avatar designation bio')
       .sort({ createdAt: -1 })
       .lean();
@@ -1660,8 +1728,8 @@ exports.getPublishedCourses = async (req, res) => {
       // Ensure normalized description
       c.description = c.description || c.shortDescription || c.fullDescription || '';
 
-      // Explicit certificate boolean
-      c.certificate = c.certificate !== false;
+      // Explicit certificate boolean synchronized with Course settings
+      syncCourseCertificateFields(c, isCourseCertificateEnabled(c));
 
       // Published modules count
       const publishedModules = (c.modules || []).filter(m => m.state === 'published' || m.status === 'published');
@@ -1890,14 +1958,17 @@ const calculateEnrolmentProgress = (course, enrolment) => {
       }
     });
 
-    const modPct = modTotal > 0 ? Math.round((modDone / modTotal) * 100) : 100;
+    const modIsCompleted = modTotal > 0 && modDone >= modTotal;
+    const modPct = modTotal > 0
+      ? (modIsCompleted ? 100 : Math.min(Math.round((modDone / modTotal) * 100), 99))
+      : 0;
     modulesProgress.push({
       _id: m._id,
       title: m.title,
       totalItems: modTotal,
       completedItems: modDone,
       progressPercentage: modPct,
-      isCompleted: modTotal > 0 && modDone >= modTotal
+      isCompleted: modIsCompleted
     });
   });
 
@@ -2390,6 +2461,8 @@ exports.getCourseProgress = async (req, res) => {
       );
     }
 
+    const certEnabled = isCourseCertificateEnabled(course);
+
     return res.status(200).json({
       success: true,
       enrolment,
@@ -2401,7 +2474,10 @@ exports.getCourseProgress = async (req, res) => {
       status,
       isCompleted,
       completedAt: enrolment.completedAt,
-      modulesProgress
+      modulesProgress,
+      certificate: certEnabled,
+      certificateEnabled: certEnabled,
+      certificateSettings: { enabled: certEnabled }
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Server error fetching progress.' });
@@ -2411,13 +2487,14 @@ exports.getCourseProgress = async (req, res) => {
 exports.getLearnerEnrolments = async (req, res) => {
   try {
     const enrolments = await Enrolment.find({ learnerId: req.user.id })
-      .populate('courseId', 'title category skillLevel language thumbnail price modules status state notes')
+      .populate('courseId', 'title category skillLevel language thumbnail price modules status state notes certificate certificateSettings')
       .lean();
     const sanitisedEnrolments = enrolments.map(enrolment => {
       const eObj = enrolment;
       if (eObj.courseId) {
         const { progressPercentage, status, isCompleted, completedContentsCount, totalContentsCount, modulesProgress } = calculateEnrolmentProgress(eObj.courseId, eObj);
         eObj.courseId = sanitizeCourseForLearner(eObj.courseId);
+        eObj.certificateEnabled = isCourseCertificateEnabled(eObj.courseId);
         eObj.progressPercentage = progressPercentage;
         eObj.status = status;
         eObj.isCompleted = isCompleted;
@@ -2842,17 +2919,7 @@ exports.updateLessonProgress = async (req, res) => {
         }
       } catch (_) {}
 
-      // Evaluate Consistent Learner badges whenever a lesson is completed
-      try {
-        const { evaluateAndAwardConsistentLearnerBadges } = require('../services/badgeService');
-        const Learner = require('../model/Learner');
-        const learnerDoc = await Learner.findById(req.user.id);
-        if (learnerDoc) {
-          await evaluateAndAwardConsistentLearnerBadges(learnerDoc);
-        }
-      } catch (clBadgeErr) {
-        console.warn('Consistent Learner badge evaluation warning:', clBadgeErr.message);
-      }
+
     }
 
     const pointsMsg = pointsAwarded > 0 ? ' +' + pointsAwarded + ' points awarded 🎉' : '';
@@ -3257,6 +3324,7 @@ exports.createCourse = async (req, res) => {
       price: Number(price) || 0,
       prerequisites: Array.isArray(prerequisites) ? prerequisites : (prerequisites ? [prerequisites] : []),
       certificate: Boolean(certificate),
+      certificateSettings: { enabled: Boolean(certificate) },
       whatYouWillLearn: Array.isArray(whatYouWillLearn) ? whatYouWillLearn : [],
       skills: Array.isArray(skills) ? skills : [],
       techStack: Array.isArray(techStack) ? techStack : [],
@@ -3325,13 +3393,14 @@ exports.getPublicCourseOverview = async (req, res) => {
     const [overviewDoc, instructorUser, enrolments, questions] = await Promise.all([
       CourseOverview.findOne({ courseId: id }).lean(),
       course.instructorId ? Instructor.findById(course.instructorId).select('fullName avatar profilePhoto bio headline email').lean() : null,
-      Enrolment.find({ courseId: id }, { rating: 1, feedback: 1, feedbackTags: 1, ratedAt: 1, learnerName: 1, learnerId: 1 }).populate('learnerId', 'avatar').lean(),
-      CourseQuestion.find({ courseId: id, status: 'answered' })
-        .sort({ replyTimestamp: -1 })
-        .select('userName userAvatar question status instructorReply replyTimestamp createdAt')
+      Enrolment.find({ courseId: id }, { rating: 1, feedback: 1, feedbackTags: 1, ratedAt: 1, learnerId: 1, courseId: 1 }).lean(),
+      CourseQuestion.find({ courseId: id })
+        .sort({ createdAt: -1 })
+        .select('userName userAvatar question status instructorId instructorName instructorAvatar instructorDesignation instructorReply replyTimestamp createdAt')
         .lean()
     ]);
 
+    const certEnabled = isCourseCertificateEnabled(course);
     let overview = overviewDoc;
     if (!overview) {
       overview = {
@@ -3347,11 +3416,13 @@ exports.getPublicCourseOverview = async (req, res) => {
         techStack: course.techStack || [],
         targetAudience: [],
         benefits: [],
-        certificate: course.certificate !== undefined ? course.certificate : true,
+        certificate: certEnabled,
         instructorMessage: '',
         optionalLinks: [],
         faqs: []
       };
+    } else {
+      overview = { ...overview, certificate: certEnabled };
     }
 
     let instructorProfile = null;
@@ -3367,22 +3438,21 @@ exports.getPublicCourseOverview = async (req, res) => {
     }
 
     const totalEnrolments = enrolments.length;
+    const reviews = await fetchAndFormatCourseReviews(id, {
+      CourseReview,
+      Enrolment,
+      Learner,
+      preloadedEnrolments: enrolments
+    });
+
     const ratedEnrolments = enrolments.filter((e) => e.rating !== null && e.rating !== undefined);
     const averageRating =
-      ratedEnrolments.length > 0
-        ? Math.round((ratedEnrolments.reduce((sum, e) => sum + e.rating, 0) / ratedEnrolments.length) * 10) / 10
-        : null;
-
-    const reviews = ratedEnrolments
-      .filter((e) => e.feedback && e.feedback.trim().length > 0)
-      .map((e) => ({
-        rating: e.rating,
-        feedback: e.feedback,
-        tags: e.feedbackTags || [],
-        ratedAt: e.ratedAt,
-        learnerName: e.learnerName || 'Learner',
-        learnerAvatar: e.learnerId?.avatar || ''
-      }));
+      reviews.length > 0
+        ? Math.round((reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / reviews.length) * 10) / 10
+        : ratedEnrolments.length > 0
+          ? Math.round((ratedEnrolments.reduce((sum, e) => sum + e.rating, 0) / ratedEnrolments.length) * 10) / 10
+          : null;
+    const reviewCount = Math.max(reviews.length, ratedEnrolments.length);
 
     // Non-blocking view tracking in background
     setImmediate(async () => {
@@ -3414,7 +3484,7 @@ exports.getPublicCourseOverview = async (req, res) => {
         totalEnrolments,
         overviewViews: course.overviewViews || 0,
         averageRating,
-        reviewCount: ratedEnrolments.length
+        reviewCount
       },
       reviews,
       questions
@@ -3438,8 +3508,13 @@ exports.getCourseOverview = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Course not found.' });
     }
 
-    let overview = await CourseOverview.findOne({ courseId: id });
-    if (!overview) {
+    const certEnabled = isCourseCertificateEnabled(course);
+    let [overviewDoc, reviews] = await Promise.all([
+      CourseOverview.findOne({ courseId: id }).lean(),
+      fetchAndFormatCourseReviews(id, { CourseReview, Enrolment, Learner })
+    ]);
+    let overview;
+    if (!overviewDoc) {
       overview = {
         courseId: course._id,
         fullDescription: course.fullDescription || course.description || '',
@@ -3449,14 +3524,16 @@ exports.getCourseOverview = async (req, res) => {
         techStack: course.techStack || [],
         targetAudience: [],
         benefits: [],
-        certificate: course.certificate !== undefined ? course.certificate : true,
+        certificate: certEnabled,
         instructorMessage: '',
         optionalLinks: [],
         faqs: []
       };
+    } else {
+      overview = { ...overviewDoc, certificate: certEnabled };
     }
 
-    return res.status(200).json({ success: true, course, overview });
+    return res.status(200).json({ success: true, course, overview, reviews });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Server error fetching overview.' });
   }
@@ -3647,7 +3724,7 @@ exports.askCourseQuestion = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Question content is required.' });
     }
 
-    const course = await Course.findById(id);
+    const course = await Course.findById(id).select('title instructorId');
     if (!course) {
       return res.status(404).json({ success: false, message: 'Course not found.' });
     }
@@ -3655,7 +3732,7 @@ exports.askCourseQuestion = async (req, res) => {
     const newQuestion = new CourseQuestion({
       courseId: id,
       userId: req.user.id,
-      userName: req.user.fullName || 'Learner',
+      userName: req.user.fullName || req.user.name || 'Learner',
       userAvatar: req.user.avatar || req.user.profilePhoto || '',
       question: question.trim(),
       status: 'pending'
@@ -3663,26 +3740,74 @@ exports.askCourseQuestion = async (req, res) => {
 
     await newQuestion.save();
 
+    // Invalidate cached overview
+    courseCache.overviews.delete(String(id));
+
+    const questionPreview = newQuestion.question.length > 80
+      ? `${newQuestion.question.substring(0, 77)}...`
+      : newQuestion.question;
+
+    // Notify course instructor
+    if (course.instructorId) {
+      try {
+        await Notification.create({
+          recipientId: course.instructorId,
+          courseId: course._id,
+          courseTitle: course.title,
+          title: `New Question in ${course.title}`,
+          message: `${newQuestion.userName} asked: "${questionPreview}"`,
+          type: 'COURSE_QUESTION',
+          section: 'qa',
+          referenceId: String(newQuestion._id),
+          questionId: newQuestion._id,
+          link: `/instructor/inquiries?courseId=${course._id}&questionId=${newQuestion._id}`,
+          isRead: false
+        });
+      } catch (notifErr) {
+        console.error('Failed to notify instructor of new question:', notifErr);
+      }
+    }
+
+    // Notify fellow enrolled learners of the new Q&A discussion
+    try {
+      const { notifyEnrolledLearnersForCourseSection } = require('./notificationController');
+      await notifyEnrolledLearnersForCourseSection({
+        courseId: course._id,
+        courseTitle: course.title,
+        section: 'qa',
+        type: 'NEW_QUESTION',
+        referenceId: newQuestion._id,
+        questionId: newQuestion._id,
+        title: `New Q&A Discussion in ${course.title}`,
+        message: `${newQuestion.userName} asked: "${questionPreview}"`,
+        link: `/courses/${course._id}?tab=qa&questionId=${newQuestion._id}`,
+        excludeUserIds: [req.user.id]
+      });
+    } catch (peerNotifErr) {
+      console.warn('Non-blocking Q&A peer notification warning:', peerNotifErr.message);
+    }
+
     return res.status(201).json({
       success: true,
       message: 'Your question has been submitted to the instructor!',
       question: newQuestion
     });
   } catch (error) {
+    console.error('askCourseQuestion error:', error);
     return res.status(500).json({ success: false, message: 'Server error submitting question.' });
   }
 };
 
-// ─── Public Course Questions ───
+// ─── Public Course Questions (All Discussions for Course) ───
 exports.getCourseQuestions = async (req, res) => {
   try {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: 'Invalid course ID format.' });
     }
-    const questions = await CourseQuestion.find({ courseId: id, status: 'answered' }).sort({
-      replyTimestamp: -1
-    });
+    const questions = await CourseQuestion.find({ courseId: id })
+      .sort({ createdAt: -1 })
+      .lean();
 
     return res.status(200).json({ success: true, questions });
   } catch (error) {
@@ -3712,8 +3837,13 @@ exports.getInstructorQuestions = async (req, res) => {
       courseThumbnail: courseMap[q.courseId.toString()]?.thumbnail || ''
     }));
 
-    return res.status(200).json({ success: true, questions: questionsWithCourse });
+    return res.status(200).json({
+      success: true,
+      questions: questionsWithCourse,
+      courses: courses.map((c) => ({ _id: c._id, title: c.title }))
+    });
   } catch (error) {
+    console.error('getInstructorQuestions error:', error);
     return res.status(500).json({ success: false, message: 'Server error fetching instructor questions.' });
   }
 };
@@ -3733,10 +3863,59 @@ exports.replyCourseQuestion = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Question not found.' });
     }
 
+    // Resolve instructor information
+    let instructorName = req.user.fullName || req.user.name || 'Course Instructor';
+    let instructorAvatar = req.user.avatar || req.user.profilePhoto || '';
+    let instructorDesignation = req.user.headline || req.user.designation || 'Course Instructor';
+
+    const instructorDoc = await Instructor.findById(req.user.id).select('fullName avatar profilePhoto headline designation bio');
+    if (instructorDoc) {
+      instructorName = instructorDoc.fullName || instructorName;
+      instructorAvatar = instructorDoc.avatar || instructorDoc.profilePhoto || instructorAvatar;
+      instructorDesignation = instructorDoc.headline || instructorDoc.designation || instructorDesignation;
+    }
+
+    question.instructorId = req.user.id;
+    question.instructorName = instructorName;
+    question.instructorAvatar = instructorAvatar;
+    question.instructorDesignation = instructorDesignation;
     question.instructorReply = reply.trim();
     question.status = 'answered';
     question.replyTimestamp = new Date();
     await question.save();
+
+    // Invalidate cached overview
+    courseCache.overviews.delete(String(id));
+
+    // Fetch course for title
+    const course = await Course.findById(id).select('title');
+    const courseTitle = course ? course.title : 'Course';
+
+    // Dispatch notification to the learner who asked the question (skip if learner account deleted & anonymized)
+    if (question.userId) {
+      try {
+        const replyPreview = reply.trim().length > 100
+          ? `${reply.trim().substring(0, 97)}...`
+          : reply.trim();
+
+        await Notification.create({
+          recipientId: question.userId,
+          courseId: question.courseId,
+          courseTitle,
+          title: 'New Reply to Your Question',
+          message: `${instructorName} replied to your question in ${courseTitle}: "${replyPreview}"`,
+          type: 'QUESTION_REPLY',
+          section: 'qa',
+          referenceId: String(question._id),
+          questionId: question._id,
+          instructorName,
+          link: `/courses/${question.courseId}?tab=qa&questionId=${question._id}`,
+          isRead: false
+        });
+      } catch (notifErr) {
+        console.error('Failed to notify learner of question reply:', notifErr);
+      }
+    }
 
     return res.status(200).json({
       success: true,
@@ -3744,6 +3923,7 @@ exports.replyCourseQuestion = async (req, res) => {
       question
     });
   } catch (error) {
+    console.error('replyCourseQuestion error:', error);
     return res.status(500).json({ success: false, message: 'Server error replying to question.' });
   }
 };

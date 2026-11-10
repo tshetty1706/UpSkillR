@@ -10,7 +10,8 @@ export const isCourseInternalUrl = (url = '') => {
     lower.startsWith('/courses/') ||
     lower.startsWith('/course/') ||
     lower.startsWith('/learn/') ||
-    lower.startsWith('/quiz/')
+    lower.startsWith('/quiz/') ||
+    lower.startsWith('/assessment/')
   );
 };
 

@@ -1,0 +1,14 @@
+{
+  "knowledge-seeker-normal": {
+    "publicId": "knowledge-seeker-normal",
+    "secureUrl": "https://res.cloudinary.com/dudqnkdte/image/upload/v1/upskillr/achievements/badges/knowledge-seeker-normal.png",
+    "fallbackUrl": "/assets/badges/knowledge-seeker-normal.png",
+    "isUploaded": false
+  },
+  "perfectionist-normal": {
+    "publicId": "perfectionist-normal",
+    "secureUrl": "https://res.cloudinary.com/dudqnkdte/image/upload/v1/upskillr/achievements/badges/perfectionist-normal.png",
+    "fallbackUrl": "/assets/badges/perfectionist-normal.png",
+    "isUploaded": false
+  }
+}
